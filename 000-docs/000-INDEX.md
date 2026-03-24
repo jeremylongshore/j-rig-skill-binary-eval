@@ -37,8 +37,18 @@
 | 006 | OD-STAT | [status.md](006-OD-STAT-status.md) |
 | 007 | PP-PLAN | [master-build-blueprint.md](007-PP-PLAN-master-build-blueprint.md) |
 
+## Epics
+
+Durable epic reference files in [`epics/`](epics/):
+
+| Epic | File |
+|------|------|
+| [Epic Index](epics/README.md) | Table of contents and active epic |
+| [Epic 01](epics/epic-01-repo-foundation-and-operating-standard.md) | Repo Foundation and Operating Standard |
+| Epics 02-10 | Pending (will be added as provided) |
+
 ## Summary
 
-- **Total documents:** 7
+- **Total documents:** 7 + epic index
 - **Categories used:** 3 (PP, AT, OD)
 - **Next sequence number:** 008
