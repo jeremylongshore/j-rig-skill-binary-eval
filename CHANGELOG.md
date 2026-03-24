@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.4] - 2026-03-24
+
+- docs: add Epic 02 reference file (spec layer and contract system) (eaa919b)
+
+
 ## [v0.2.3] - 2026-03-24
 
 - docs: add epic index and Epic 01 reference file (360e65c)
