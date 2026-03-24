@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.2.0] - 2026-03-24
+
+- feat: add beads integration and doc-filing index (81d6e68)
+- bd init: initialize beads issue tracking (e73b4a9)
+
+
 ## [v0.1.0] - 2026-03-24
 
 - feat: initial project setup with full governance (ffe8774)
