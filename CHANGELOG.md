@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.1] - 2026-03-24
+
+- fix: clean up duplicate CHANGELOG entry from release workflow (2cdc688)
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
