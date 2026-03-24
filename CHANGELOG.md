@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.2] - 2026-03-24
+
+- docs: add master build blueprint (007-PP-PLAN) (f63e99d)
+
+
 ## [v0.2.1] - 2026-03-24
 
 - fix: clean up duplicate CHANGELOG entry from release workflow (2cdc688)
