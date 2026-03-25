@@ -7,7 +7,6 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 1. **AgentSkills.io spec** (`agentskills.io/specification`) — THE official standard
 2. **skill-creator references** (`~/.claude/skills/skill-creator/`) — Anthropic-aligned, actively maintained
 3. **validate-skills-schema.py v5.0** — Production validator, schema registry synced 2026-03-21
-4. **Local 6767 specs** (nixtla, claude-code-plugins) — Enterprise extensions, may have drifted
 
 ---
 
@@ -20,7 +19,6 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 | `frontmatter-spec.md` | 1 | Complete SKILL.md field specification |
 | `validation-rules.md` | 1 | Two-tier validation (Standard + Enterprise) |
 | `anthropic-comparison.md` | 1 | Gap analysis vs Anthropic official docs |
-| `skills-standard-complete.md` | 2 | Nixtla complete skills standard (~3599 lines) |
 
 ## eval-patterns/ — How J-Rig Evaluates
 
@@ -44,11 +42,6 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 |------|------|-------------|
 | `validate-skillmd-rubric.md` | 3 | 100-point rubric extracted from validate-skillmd |
 | `validate-skills-schema-registry.md` | 0 | Production validator schema registry (v5.0) |
-| `claude-code-plugins-standard.md` | 2 | 6767-a master plugins standard |
-| `claude-skills-standard.md` | 2 | 6767-b skills standard |
-| `enterprise-plugin-readme.md` | 2 | 6767-e enterprise README standard |
-| `skills-frontmatter-schema.md` | 2 | 6767-m frontmatter schema |
-| `skills-authoring-guide.md` | 2 | 6767-n authoring guide |
 
 ## drift-and-consistency/ — Drift Operations (Epic 10)
 

@@ -71,16 +71,16 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 | Directory | Contents | Source Tier |
 |-----------|----------|-------------|
-| [`skill-standards/`](references/skill-standards/) | AgentSkills.io spec, source-of-truth, frontmatter, validation | Tier 0–2 |
+| [`skill-standards/`](references/skill-standards/) | AgentSkills.io spec, source-of-truth, frontmatter, validation | Tier 0–1 |
 | [`eval-patterns/`](references/eval-patterns/) | Eval methodology, workflows, output patterns | Tier 1 |
 | [`agents/`](references/agents/) | Grader, comparator, analyzer agent patterns | Tier 1 |
-| [`enterprise-standards/`](references/enterprise-standards/) | 100-point rubric, schema registry, 6767 standards | Tier 0–2 |
+| [`enterprise-standards/`](references/enterprise-standards/) | 100-point rubric, production validator schema registry | Tier 0, 3 |
 | [`drift-and-consistency/`](references/drift-and-consistency/) | Drift categories, source-of-truth hierarchy | Tier 1 |
 | [`audit-tests/`](references/audit-tests/) | Production eval test case exemplar | Tier 1 |
 | [`epic-workflows/`](references/epic-workflows/) | 10 ASCII workflow diagrams | Tier 3 (authored) |
 
 ## Summary
 
-- **Total documents:** 7 + 10 epics + templates & references library (~46 files)
+- **Total documents:** 7 + 10 epics + templates & references library (~41 files)
 - **Categories used:** 3 (PP, AT, OD)
 - **Next sequence number:** 008
