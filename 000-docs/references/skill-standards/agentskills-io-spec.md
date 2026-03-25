@@ -5,6 +5,18 @@
 
 > The complete format specification for Agent Skills — extracted from the official source.
 
+## When to Use This File
+
+**Role:** Hard limits — what is legally valid per the AgentSkills.io open standard.
+
+Use this file when you need to know whether a field value, name format, or structural choice is *allowed*. This is the Tier 0 authority for constraint boundaries (character limits, charset rules, required fields).
+
+| Related File | Role |
+|-------------|------|
+| [`source-of-truth.md`](source-of-truth.md) | Comprehensive authoring guide — how to build a great skill |
+| [`frontmatter-spec.md`](frontmatter-spec.md) | Field-by-field lookup — quick reference by field name |
+| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks |
+
 ## Directory Structure
 
 A skill is a directory containing, at minimum, a `SKILL.md` file:

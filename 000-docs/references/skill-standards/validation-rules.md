@@ -1,4 +1,19 @@
 # Skill Validation Rules
+
+## When to Use This File
+
+**Role:** Implementer's reference — how to write validation checks.
+
+Use this file when you need to know what to *check programmatically*: regex patterns, error vs warning levels, scoring formulas, and the validation process flow. This is the spec for building validators, not for authoring skills.
+
+| Related File | Role |
+|-------------|------|
+| [`agentskills-io-spec.md`](agentskills-io-spec.md) | Hard limits — what is legally valid |
+| [`source-of-truth.md`](source-of-truth.md) | Comprehensive authoring guide — how to build a great skill |
+| [`frontmatter-spec.md`](frontmatter-spec.md) | Field-by-field lookup — quick reference by field name |
+
+---
+
 Sources: [AgentSkills.io spec](https://agentskills.io/specification) · [Anthropic docs](https://code.claude.com/docs/en/skills) · Intent Solutions 100-point rubric
 
 Two-tier validation aligned with AgentSkills.io spec + Enterprise extensions.

@@ -65,7 +65,6 @@ Local, self-contained library of templates, reference standards, agent patterns,
 |-----------|----------|-------------|
 | [`skill-templates/`](templates/skill-templates/) | 6 SKILL.md structural patterns | Tier 1 (skill-creator) |
 | [`eval-schemas/`](templates/eval-schemas/) | Eval JSON schemas (evals.json, etc.) | Tier 1 (skill-creator) |
-| [`dev-planning/`](templates/dev-planning/) | 6 dev planning templates | Tier 2 (nixtla) |
 
 ### References ([`references/`](references/))
 
@@ -76,11 +75,10 @@ Local, self-contained library of templates, reference standards, agent patterns,
 | [`agents/`](references/agents/) | Grader, comparator, analyzer agent patterns | Tier 1 |
 | [`enterprise-standards/`](references/enterprise-standards/) | 100-point rubric, production validator schema registry | Tier 0, 3 |
 | [`drift-and-consistency/`](references/drift-and-consistency/) | Drift categories, source-of-truth hierarchy | Tier 1 |
-| [`audit-tests/`](references/audit-tests/) | Production eval test case exemplar | Tier 1 |
 | [`epic-workflows/`](references/epic-workflows/) | 10 ASCII workflow diagrams | Tier 3 (authored) |
 
 ## Summary
 
-- **Total documents:** 7 + 10 epics + templates & references library (~41 files)
+- **Total documents:** 7 + 10 epics + templates & references library (~32 files)
 - **Categories used:** 3 (PP, AT, OD)
 - **Next sequence number:** 008

@@ -33,15 +33,3 @@ JSON schemas that J-Rig consumes and produces. Source: skill-creator (Tier 1).
 |------|-------------|-------|
 | `schemas.md` | evals.json, history.json, grading.json, comparison.json schemas | ~430 |
 
-## dev-planning/ — Dev Planning Templates
-
-Planning document templates for J-Rig's own docs. Source: nixtla (Tier 2 — verbatim, no reconciliation needed for templates).
-
-| File | Description | Lines |
-|------|-------------|-------|
-| `01-BUSINESS-CASE-TEMPLATE.md` | Business case template | ~78 |
-| `02-PRD-TEMPLATE.md` | Product requirements document | ~96 |
-| `03-ARCHITECTURE-TEMPLATE.md` | Architecture decision record | ~131 |
-| `04-USER-JOURNEY-TEMPLATE.md` | User journey mapping | ~157 |
-| `05-TECHNICAL-SPEC-TEMPLATE.md` | Technical specification | ~213 |
-| `06-STATUS-TEMPLATE.md` | Status report template | ~92 |

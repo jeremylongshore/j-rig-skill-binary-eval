@@ -1,5 +1,19 @@
 # Claude Agent Skills: Source of Truth Specification
 
+## When to Use This File
+
+**Role:** Comprehensive authoring guide — how to build a great skill.
+
+Use this file when you need to understand *best practices* for writing skills: description patterns, progressive disclosure, body content guidelines, evaluation methodology, and anti-patterns. This synthesizes all authoritative sources into one opinionated guide.
+
+| Related File | Role |
+|-------------|------|
+| [`agentskills-io-spec.md`](agentskills-io-spec.md) | Hard limits — what is legally valid |
+| [`frontmatter-spec.md`](frontmatter-spec.md) | Field-by-field lookup — quick reference by field name |
+| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks |
+
+---
+
 Canonical reference synthesizing all authoritative sources:
 - **AgentSkills.io** — [agentskills.io/specification](https://agentskills.io/specification) (open standard, Dec 2025)
 - **Anthropic Best Practices** — [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills)

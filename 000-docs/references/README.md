@@ -18,7 +18,6 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 | `source-of-truth.md` | 1 | Canonical skill standards from skill-creator |
 | `frontmatter-spec.md` | 1 | Complete SKILL.md field specification |
 | `validation-rules.md` | 1 | Two-tier validation (Standard + Enterprise) |
-| `anthropic-comparison.md` | 1 | Gap analysis vs Anthropic official docs |
 
 ## eval-patterns/ — How J-Rig Evaluates
 
@@ -49,12 +48,6 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 |------|------|-------------|
 | `drift-categories.md` | 1 | Drift category taxonomy |
 | `source-of-truth-hierarchy.md` | 1 | Authority hierarchy for conflict resolution |
-
-## audit-tests/ — Real Eval Test Case Exemplar
-
-| File | Tier | Description |
-|------|------|-------------|
-| `evals.json` | 1 | Production eval test cases |
 
 ## epic-workflows/ — ASCII Workflow Diagrams
 

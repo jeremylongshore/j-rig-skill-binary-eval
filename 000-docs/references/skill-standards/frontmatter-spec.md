@@ -1,5 +1,19 @@
 # Frontmatter Field Specification
 
+## When to Use This File
+
+**Role:** Field-by-field lookup — quick reference by field name.
+
+Use this file when you need the type, constraints, valid values, or examples for a *specific frontmatter field*. Organized as a flat lookup table, not a narrative guide.
+
+| Related File | Role |
+|-------------|------|
+| [`agentskills-io-spec.md`](agentskills-io-spec.md) | Hard limits — what is legally valid |
+| [`source-of-truth.md`](source-of-truth.md) | Comprehensive authoring guide — how to build a great skill |
+| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks |
+
+---
+
 Complete reference for SKILL.md frontmatter fields aligned with:
 - AgentSkills.io open standard (required/optional fields)
 - Claude Code platform extensions (runtime features)
