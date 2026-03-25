@@ -1,0 +1,93 @@
+{
+  "skill": "audit-tests",
+  "version": "5.0.0",
+  "evals": [
+    {
+      "id": "happy-path-run-tests",
+      "description": "Basic test execution trigger activates discovery and run pipeline",
+      "input": "run tests",
+      "expected_behavior": "Activates Steps 2→3→4: discovers test framework, runs pre-flight checks, executes tests with structured output",
+      "success_criteria": [
+        "Discovers at least one test framework",
+        "Runs pre-flight checks (dependencies, env)",
+        "Produces structured Pass/Fail/Warning output"
+      ]
+    },
+    {
+      "id": "full-audit-pipeline",
+      "description": "Full audit pipeline from gap analysis through auto-remediation",
+      "input": "audit tests",
+      "expected_behavior": "Activates Steps 5→7→8: GitHub audit, quality deep audit, auto-remediation with TEST_AUDIT.md deliverable",
+      "success_criteria": [
+        "Maps source files to test files",
+        "Calculates coverage ratio",
+        "Runs bias detection",
+        "Generates TEST_AUDIT.md",
+        "Produces remediation plan with P0-P3 priorities"
+      ]
+    },
+    {
+      "id": "mutation-testing-quality",
+      "description": "Mutation testing and quality scorecard generation",
+      "input": "test quality",
+      "expected_behavior": "Activates Step 7: runs bias detection, assertion density, OWASP coverage, mutation testing, generates scorecard",
+      "success_criteria": [
+        "Scans for 7 bias pattern types",
+        "Calculates assertion density",
+        "Attempts mutation testing if tool available",
+        "Produces Test Quality Scorecard"
+      ]
+    },
+    {
+      "id": "no-framework-found",
+      "description": "Graceful handling when no test framework is detected",
+      "input": "run tests",
+      "context": "Empty repository with no test configuration files",
+      "expected_behavior": "Discovers no framework, loads scaffold reference, offers to set up testing infrastructure",
+      "success_criteria": [
+        "Does not crash or error",
+        "Detects absence of test framework",
+        "Loads scaffold-productivity.md reference",
+        "Suggests framework options based on project language"
+      ]
+    },
+    {
+      "id": "monorepo-detection",
+      "description": "Correctly handles monorepo with multiple packages",
+      "input": "run tests",
+      "context": "Repository with pnpm-workspace.yaml and multiple packages",
+      "expected_behavior": "Detects monorepo configuration, asks user which package(s) to test, runs appropriate scoped command",
+      "success_criteria": [
+        "Detects monorepo config file",
+        "Lists available packages",
+        "Asks user for scope (single package or all)",
+        "Uses correct scoped test command"
+      ]
+    },
+    {
+      "id": "auto-remediation-commit",
+      "description": "Auto-remediation writes tests and commits correctly",
+      "input": "fill gaps",
+      "expected_behavior": "Activates Step 8: generates tests for untested modules, runs verification loop, commits test files only",
+      "success_criteria": [
+        "Identifies untested source files",
+        "Generates test files following project conventions",
+        "Runs all tests (new + existing) to verify",
+        "Commits only test files (not source changes)",
+        "Does not push — lets user review"
+      ]
+    },
+    {
+      "id": "slow-tests-productivity",
+      "description": "Productivity audit for slow test suites",
+      "input": "tests are slow",
+      "expected_behavior": "Activates Step 6: analyzes test duration, detects flaky tests, audits CI speed",
+      "success_criteria": [
+        "Loads scaffold-productivity reference",
+        "Identifies slow test files",
+        "Checks for flaky tests",
+        "Suggests parallelization or scope reduction"
+      ]
+    }
+  ]
+}
