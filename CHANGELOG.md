@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.9] - 2026-03-25
+
+- docs: add release report for v0.2.7 (91e6221)
+
+
 ## [v0.2.8] - 2026-03-25
 
 - chore: add .gist-id for release automation (4fe7493)
