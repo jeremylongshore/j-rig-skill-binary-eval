@@ -1,0 +1,4 @@
+# Missing required fields: trigger_boundary, success_criteria, blockers
+contract_version: "1.0"
+skill_name: broken-skill
+purpose: This contract is incomplete.
