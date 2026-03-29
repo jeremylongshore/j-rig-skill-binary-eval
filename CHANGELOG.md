@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.3.0] - 2026-03-29
+
+- Merge pull request #4 from jeremylongshore/feature/epic-01-repo-foundation-operating-standard (8aebba8)
+- docs(epic-01): add epic 01 after action report (eee6c5b)
+- docs(epic-01): align repo docs with workspace foundation (33c8653)
+- ci(epic-01): update workflows for pnpm workspace (ae38f71)
+- feat(epic-01): add quality guardrails and test baseline (9a1bd5e)
+- feat(epic-01): scaffold pnpm workspace and TypeScript baseline (7bd30c0)
+- docs: update CLAUDE.md for workspace foundation (c077f92)
+
+
 ## [v0.2.11] - 2026-03-25
 
 - chore: update FUNDING.yml with GitHub Sponsors + Buy Me a Coffee (ac8ff72)

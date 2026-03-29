@@ -1,6 +1,6 @@
 {
   "name": "j-rig-binary-eval",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Seven-layer binary evaluation harness and rollout gate for Claude Skills",
