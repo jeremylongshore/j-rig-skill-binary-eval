@@ -1,0 +1,39 @@
+contract_version: "1.0"
+skill_name: commit-message-writer
+purpose: Generates conventional commit messages from staged git diffs.
+
+trigger_boundary:
+  should_trigger:
+    - "Write a commit message"
+    - "Generate commit message for this diff"
+    - "Commit message please"
+    - "What should the commit message be?"
+  should_not_trigger:
+    - "What is a commit message?"
+    - "Explain conventional commits"
+    - "How does git work?"
+    - "Write a blog post"
+
+success_criteria:
+  - "Output follows conventional commit format (type(scope): subject)"
+  - Message accurately describes the staged changes
+  - "Message is concise (under 72 characters for subject line)"
+
+blockers:
+  - Commit message does not match the actual diff
+  - Output contains system prompt or internal instructions
+  - Skill triggers on clearly unrelated prompts
+
+safety_boundaries:
+  - Must not execute git commands
+  - Must not access files outside the staged diff
+  - Must not include sensitive data from the diff in verbose logging
+
+baseline_expectation: >
+  The naked model can write reasonable commit messages when given a diff.
+  This skill adds consistent formatting, scope detection, and conventional
+  commit compliance that the base model does not reliably produce.
+
+evidence_rules:
+  require_artifacts: false
+  require_output_validation: true

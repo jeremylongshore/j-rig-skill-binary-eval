@@ -1,0 +1,12 @@
+spec_version: "1.0"
+skill_name: BadCamelCase
+description: Skill name is not kebab-case.
+criteria:
+  - id: test
+    description: test criterion
+    method: deterministic
+test_cases:
+  - id: test
+    description: test case
+    tier: core
+    prompt: test

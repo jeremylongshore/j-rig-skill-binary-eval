@@ -1,0 +1,12 @@
+spec_version: "1.0"
+skill_name: test-skill
+description: Criterion has invalid method.
+criteria:
+  - id: test
+    description: test criterion
+    method: fuzzy_score
+test_cases:
+  - id: test
+    description: test case
+    tier: core
+    prompt: test

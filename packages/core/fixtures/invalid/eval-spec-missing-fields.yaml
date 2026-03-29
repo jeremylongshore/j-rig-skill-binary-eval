@@ -1,0 +1,3 @@
+# Missing required fields: spec_version, criteria, test_cases
+skill_name: broken-skill
+description: This spec is missing required fields.
