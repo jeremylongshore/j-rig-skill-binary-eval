@@ -13,12 +13,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
-CI runs lint (`npx eslint .`) and tests (`npm test`) across Node 18/20/22. No application code exists yet — the project is in planning/foundation phase (Epic 01).
+pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`). CI runs lint, typecheck, and tests on Node 22.
 
 ```bash
-npm ci              # Install dependencies (when package.json exists)
-npm test            # Run test suite
-npx eslint .        # Lint
+pnpm install                  # Install all workspace dependencies
+pnpm run build                # Build all packages (tsup)
+pnpm run test                 # Run vitest
+pnpm run lint                 # ESLint (flat config, typescript-eslint)
+pnpm run format:check         # Prettier check
+pnpm run typecheck            # tsc --noEmit across all packages + tests/
+pnpm run check                # Full validation (lint + typecheck + test)
+
+# Single-package operations
+pnpm --filter @j-rig/core run build
+pnpm --filter @j-rig/cli run typecheck
 ```
 
 ## Architecture

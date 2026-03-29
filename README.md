@@ -142,9 +142,9 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 ### Current Status
 
-**Phase:** Planning complete, Epic 01 in progress (repo foundation).
+**Phase:** Epic 01 complete (repo foundation). Ready for Epic 02 (Spec Layer).
 
-No application code yet — the repository contains governance files, 10 epic reference documents, the master build blueprint, and a 32-file reference library mapped to specific implementation beads.
+pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`), TypeScript baseline (tsup builds), quality guardrails (ESLint, Prettier, Vitest), and CI/CD workflows.
 
 ---
 

@@ -6,10 +6,10 @@ Thank you for your interest in contributing to **j-rig-binary-eval**! This guide
 
 ### Prerequisites
 
-<!-- Language: node — the skill customizes this section -->
 - Git
 - GitHub account
-- Development environment for node
+- Node.js 20+ (22 recommended, see `.nvmrc`)
+- pnpm 10+ (`corepack enable` activates the version pinned in `package.json`)
 
 ### Development Setup
 
@@ -18,8 +18,17 @@ Thank you for your interest in contributing to **j-rig-binary-eval**! This guide
 git clone https://github.com/jeremylongshore/j-rig-binary-eval.git
 cd j-rig-binary-eval
 
-# Set up your development environment
-# (language-specific setup instructions go here)
+# Enable corepack for pnpm version management
+corepack enable
+
+# Install dependencies
+pnpm install
+
+# Build all packages
+pnpm run build
+
+# Run the full quality gate
+pnpm run check
 ```
 
 ## How to Contribute
@@ -61,12 +70,13 @@ cd j-rig-binary-eval
 
 ### Testing
 
-<!-- Language: node — tests vary by language -->
 Run the test suite before submitting a PR:
 
 ```bash
-# Run tests
-# (language-specific test command goes here)
+pnpm run test            # Run all tests
+pnpm run lint            # Lint check
+pnpm run typecheck       # Type check
+pnpm run check           # All of the above
 ```
 
 ### Code Review
