@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.4.0] - 2026-03-29
+
+- Merge pull request #5 from jeremylongshore/feature/epic-02-spec-layer-and-contract-system (ae5bbc3)
+- docs(epic-02): add spec/contract authoring guide and epic 02 AAR (904f9d1)
+- test(epic-02): add schema fixtures and comprehensive test suite (11147d7)
+- feat(epic-02): add YAML and SKILL.md parsing utilities (7ba3005)
+- feat(epic-02): add eval spec, contract, criterion, and test case schemas (902c9aa)
+
+
 ## [v0.3.0] - 2026-03-29
 
 - Merge pull request #4 from jeremylongshore/feature/epic-01-repo-foundation-operating-standard (8aebba8)
