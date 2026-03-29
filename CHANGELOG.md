@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.5.0] - 2026-03-29
+
+- Merge pull request #6 from jeremylongshore/feature/epic-03-package-integrity-and-deterministic-checks (bbdac59)
+- ci: add Gemini AI code review workflow (3d7609b)
+- docs(epic-03): add epic 03 after action report (92e2bb4)
+- test(epic-03): add package fixtures and deterministic check tests (d0d6696)
+- feat(epic-03): add package integrity checker and deterministic registry (6b7ff8c)
+
+
 ## [v0.4.0] - 2026-03-29
 
 - Merge pull request #5 from jeremylongshore/feature/epic-02-spec-layer-and-contract-system (ae5bbc3)
