@@ -37,7 +37,8 @@
   "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "better-sqlite3"
     ]
   }
 }
