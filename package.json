@@ -1,0 +1,43 @@
+{
+  "name": "j-rig-binary-eval",
+  "version": "0.2.8",
+  "private": true,
+  "type": "module",
+  "description": "Seven-layer binary evaluation harness and rollout gate for Claude Skills",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.8.1",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tests/tsconfig.json && pnpm -r run typecheck",
+    "clean": "pnpm -r run clean",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "eslint": "^9.25.0",
+    "prettier": "^3.5.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.31.0",
+    "vitest": "^3.1.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeremylongshore/j-rig-binary-eval.git"
+  },
+  "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

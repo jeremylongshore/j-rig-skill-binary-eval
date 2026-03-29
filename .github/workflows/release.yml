@@ -46,6 +46,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Verify readiness
         run: |
           echo "--- Checking for uncommitted changes ---"
@@ -59,7 +71,7 @@ jobs:
           if [ -f "Makefile" ] && grep -q "^test:" Makefile; then
             make test || true
           elif [ -f "package.json" ] && grep -q '"test"' package.json; then
-            npm test || true
+            pnpm run test || true
           elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
             python -m pytest || true
           elif [ -f "Cargo.toml" ]; then

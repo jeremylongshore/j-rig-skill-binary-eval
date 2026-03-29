@@ -1,0 +1,8 @@
+dist
+node_modules
+coverage
+.beads
+pnpm-lock.yaml
+CHANGELOG.md
+000-docs
+*.md
