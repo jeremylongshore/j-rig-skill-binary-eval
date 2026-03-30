@@ -34,6 +34,7 @@ Complete reference for SKILL.md frontmatter fields aligned with:
   - No consecutive hyphens (`my--skill`)
   - No start/end hyphens (`-my-skill`, `my-skill-`)
   - Must match containing directory name
+  - Cannot contain XML tags (`<`, `>` characters prohibited)
   - No reserved words in isolation (`anthropic`, `claude`)
   - Gerund naming preferred (`processing-pdfs`, `analyzing-data`)
 
@@ -57,6 +58,8 @@ name: my--skill           # Bad - consecutive hyphens
   - MUST include specific keywords for discovery
   - MUST NOT use first person (I can, I will, I'm, I help)
   - MUST NOT use second person (You can, You should, You will)
+  - MUST NOT contain XML tags (no `<` or `>` characters)
+  - Cannot contain reserved words: `anthropic`, `claude` (in isolation)
   - SHOULD include action verbs (analyze, create, generate, build, debug, optimize, validate)
   - SHOULD reference slash command if user-invocable
 
@@ -81,6 +84,8 @@ description: "Generates PDF reports"
 # Bad - too vague, no keywords
 description: "A helpful tool for documents"
 ```
+
+**Important**: The `description` field is injected directly into Claude's system prompt at startup. Third person voice prevents a discovery issue where Claude speaks as the skill author (e.g., "I can help you...") when deciding whether to activate the skill.
 
 ---
 

@@ -30,8 +30,8 @@ Canonical reference synthesizing all authoritative sources:
 
 | Field | Type | Constraints |
 |-------|------|-------------|
-| `name` | string | 1-64 chars, lowercase alphanumeric + hyphens, no start/end/consecutive hyphens, must match directory name |
-| `description` | string | 1-1024 chars, non-empty, what it does + when to use it, third person, specific keywords for discovery |
+| `name` | string | 1-64 chars, lowercase alphanumeric + hyphens, no start/end/consecutive hyphens, must match directory name, no XML tags (`<`, `>`) |
+| `description` | string | 1-1024 chars, non-empty, what it does + when to use it, third person, specific keywords for discovery, no XML tags |
 
 ### Optional (AgentSkills.io Spec)
 
@@ -125,7 +125,8 @@ Skills use progressive disclosure to minimize context window usage.
 ### Level 3: Bundled Resources (unlimited)
 - `references/`, `scripts/`, `templates/`, `assets/`
 - Loaded only when explicitly needed during execution
-- Use clear section headers for navigability (TOC not required — wastes tokens)
+- Use clear section headers for navigability
+- No TOC in SKILL.md body (wastes tokens). For reference files >100 lines, include a TOC at top so Claude can see full scope even with partial reads
 - Heavy content belongs here, not in SKILL.md body
 
 ### Design Implications
@@ -214,6 +215,8 @@ Skills have three levels of constraint:
 
 Choose the right level. Over-constraining wastes tokens and fights Claude's capabilities.
 
+Think of it as **narrow bridge vs open field**: a deployment skill is a narrow bridge (one safe path, guard rails everywhere), while a writing skill is an open field (Claude roams freely within broad boundaries).
+
 ### Evaluation-Driven Development
 
 1. Write skill
@@ -226,6 +229,38 @@ Choose the right level. Over-constraining wastes tokens and fights Claude's capa
 5. Iterate based on evaluation results
 6. Optimize description with trigger eval queries (10 should-trigger, 10 should-not-trigger)
 7. Use train/test split (14/6) for description optimization — target >90% accuracy
+
+### Checklist Workflow Pattern
+
+For complex multi-step processes, include a copy-pasteable checklist so users can track progress. Claude will check items off as it completes them.
+
+```markdown
+## Progress
+- [ ] Step 1: Initialize
+- [ ] Step 2: Validate inputs
+- [ ] Step 3: Execute
+- [ ] Step 4: Verify results
+```
+
+### Observation of Claude Navigation
+
+Iterative refinement technique: watch how Claude reads and navigates the skill during test runs. Look for:
+- Unexpected exploration paths (reading files in wrong order)
+- Missed references (Claude not finding bundled resources)
+- Overreliance on certain sections (skipping others)
+- Repeated discovery commands that DCI could eliminate
+
+Adjust skill structure, section ordering, and reference links based on these observations.
+
+### Team Feedback
+
+If applicable, share the skill with teammates and observe their usage:
+- Do they trigger the skill as expected?
+- Do they understand the output format?
+- Do they hit edge cases you didn't anticipate?
+- Does the skill behave differently across their projects?
+
+Incorporate findings into skill instructions and eval scenarios.
 
 ### Description Optimization ("Pushy" Pattern)
 
@@ -274,8 +309,12 @@ Skills frequently undertrigger because descriptions are too passive. Use aggress
 - Show input AND expected output
 - Include edge cases that actually occur
 - One-level-deep file references only
-- Clear section headers for navigability (TOC not required)
+- Clear section headers for navigability (no TOC in SKILL.md body; reference files >100 lines should have TOC)
 - Code blocks with language identifiers
+- No time-sensitive information — dates, versions, and URLs that change should be avoided; use an "old patterns" section for deprecated approaches users may encounter
+- Consistent terminology — pick one term per concept and use it throughout; don't alternate between synonyms
+- Feedback loops — for quality-critical workflows, include explicit validate→fix→repeat cycles
+- Required packages — list all dependencies in instructions or the `compatibility` field
 
 ---
 
@@ -414,6 +453,10 @@ Best for: dashboards, reports, documentation sites.
 | Mandatory format enforcement | Fights Anthropic guidance | Recommend, don't require |
 | Unscoped Bash in allowed-tools | Security risk | Use `Bash(git:*)` patterns |
 | Voodoo constants | Unmaintainable | Document why each value exists |
+| Time-sensitive info | Goes stale, confuses Claude | Use "old patterns" section for deprecated approaches |
+| XML tags in frontmatter | Spec violation, breaks parsing | Remove all XML markup from name and description |
+| Missing feedback loops | Quality degrades silently | Add validate→fix→repeat for quality-critical workflows |
+| Inconsistent terminology | Confuses Claude and users | Pick one term per concept, use it everywhere |
 
 ---
 
@@ -458,6 +501,20 @@ Best for: dashboards, reports, documentation sites.
 - [ ] Error handling section or guidance included
 - [ ] Resources section references all bundled files
 - [ ] `${CLAUDE_SKILL_DIR}` (or `{baseDir}`) used for all internal paths
+
+### Anthropic Best Practices (2026)
+
+- [ ] No XML tags in `name` or `description` fields
+- [ ] No time-sensitive information (dates, versions, URLs that change)
+- [ ] Consistent terminology (no synonym rotation)
+- [ ] Concrete examples show input AND output
+- [ ] Feedback loops present for quality-critical workflows
+- [ ] Reference files >100 lines include TOC at top
+- [ ] Required packages/dependencies listed
+- [ ] "Old patterns" section used for deprecated approaches (if applicable)
+- [ ] Checklist workflow pattern for complex multi-step processes (if applicable)
+- [ ] Team feedback incorporated (if applicable)
+- [ ] Claude navigation patterns observed and skill structure adjusted
 
 ---
 

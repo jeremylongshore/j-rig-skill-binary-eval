@@ -24,6 +24,11 @@ const DESCRIPTION_ANTI_PATTERNS = [
 ];
 
 /**
+ * XML tag pattern — prohibited in name and description fields (Anthropic best practices 2026).
+ */
+const XML_TAG_PATTERN = /[<>]/;
+
+/**
  * SKILL.md frontmatter schema — standard tier.
  * Required fields: name, description.
  * Optional fields: everything else.
@@ -34,7 +39,11 @@ export const SkillFrontmatterSchema = z
       .string()
       .min(1)
       .max(64)
-      .regex(KEBAB_CASE, "Must be kebab-case (e.g. 'my-skill-name')"),
+      .regex(KEBAB_CASE, "Must be kebab-case (e.g. 'my-skill-name')")
+      .refine(
+        (name) => !XML_TAG_PATTERN.test(name),
+        "Name must not contain XML tags (< or >)",
+      ),
     description: z
       .string()
       .min(1)
@@ -42,6 +51,10 @@ export const SkillFrontmatterSchema = z
       .refine(
         (desc) => !DESCRIPTION_ANTI_PATTERNS.some((p) => p.test(desc)),
         "Description must use third person — avoid 'I can', 'You should', etc.",
+      )
+      .refine(
+        (desc) => !XML_TAG_PATTERN.test(desc),
+        "Description must not contain XML tags (< or >)",
       ),
     author: z.string().optional(),
     version: z

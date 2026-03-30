@@ -3,7 +3,7 @@
 
 # Validate-SkillMD 100-Point Rubric
 
-Source: `/validate-skillmd` SKILL.md v2.0.0
+Source: `/validate-skillmd` SKILL.md v2.1.0
 
 ## Rubric Pillars
 
@@ -11,9 +11,9 @@ Source: `/validate-skillmd` SKILL.md v2.0.0
 |--------|-----------|-----------------|
 | Progressive Disclosure | 30 | Token economy, layered structure, navigation |
 | Ease of Use | 25 | Metadata, discoverability, workflow clarity |
-| Utility | 20 | Problem solving, examples, feedback loops |
-| Spec Compliance | 15 | Frontmatter, naming, description quality |
-| Writing Style | 10 | Voice, objectivity, conciseness |
+| Utility | 20 | Problem solving, examples, feedback loops, required packages |
+| Spec Compliance | 15 | Frontmatter, naming, description quality, XML tag prohibition |
+| Writing Style | 10 | Voice, objectivity, conciseness, consistent terminology |
 | Modifiers | +/- variable | Bonuses and penalties |
 
 **Total: 100 points base + modifiers**
@@ -57,6 +57,11 @@ Common fixes sorted by point value:
 | Move author/version from nested metadata to top-level | +2 |
 | Add external resource links | +1 (modifier) |
 | Add DCI directives for discovery | +1 (modifier) |
+| Add TOC to reference files >100 lines | +1 (modifier) |
+| Add feedback loops for quality-critical workflows | +2 (utility) |
+| Remove time-sensitive information | +1 (modifier) |
+| Ensure consistent terminology | +1 (writing style) |
+| List required packages | +1 (utility) |
 
 ## v5.0 Validator Features
 
@@ -68,6 +73,16 @@ Common fixes sorted by point value:
   - **Split to commands**: 3+ kebab-case `## operation-name` sections → suggest `commands/` split
   - **Offload to references**: Body sections >20 lines → suggest `references/` extraction
   - **DCI opportunities**: File existence checks, git operations, tool version detection without DCI
+
+## v5.1 Validator Features (Anthropic Best Practices Alignment)
+
+- **XML tag prohibition**: name and description must not contain `<` or `>` characters
+- **Time-sensitive info detection**: Flags dates, version numbers, URLs that may go stale
+- **Consistent terminology**: Detects synonym rotation for key concepts
+- **Feedback loop presence**: Checks quality-critical workflows for validate→fix→repeat patterns
+- **Reference file TOC check**: Reference files >100 lines should include TOC at top
+- **Checklist workflow detection**: Complex multi-step processes should have copy-pasteable checklists
+- **Required packages listing**: Scripts should list dependencies in instructions or compatibility field
 
 ## Auto-Fix Sequence
 
@@ -81,6 +96,8 @@ When grade < B (80), auto-fix applies in order:
 6. Scope unscoped Bash tools: `Bash` → `Bash(command:*)`
 7. Add DCI directives for common discovery patterns
 8. If 3+ operation sections found, offer to split into `commands/*.md` files
+9. Add TOC to reference files >100 lines
+10. Flag time-sensitive content for review (dates, version numbers, URLs that may go stale)
 
 After fixes, re-run validator and show before/after comparison.
 

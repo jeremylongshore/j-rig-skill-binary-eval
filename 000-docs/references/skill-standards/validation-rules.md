@@ -52,8 +52,8 @@ Everything in Standard, plus:
 
 | Field | Validation |
 |-------|-----------|
-| `name` | 1-64 chars, kebab-case `^[a-z][a-z0-9-]*[a-z0-9]$`, no consecutive hyphens, no reserved words, matches directory name |
-| `description` | 1-1024 chars, non-empty, third person only, no first/second person, specific keywords |
+| `name` | 1-64 chars, kebab-case `^[a-z][a-z0-9-]*[a-z0-9]$`, no consecutive hyphens, no reserved words, matches directory name, no XML tags (`<`, `>`) |
+| `description` | 1-1024 chars, non-empty, third person only, no first/second person, specific keywords, no XML tags |
 
 ### Enterprise-Required Fields (Top-Level)
 
@@ -124,6 +124,8 @@ The marketplace 100-point validator scores them at top-level.
 | Line count | Error | Must be under 500 lines |
 | Absolute paths | Error | No `/home/`, `/Users/`, `C:\` outside code blocks |
 | Has H1 title | Warning | Should have `# Title` |
+| No time-sensitive info | Warning | No dates/versions that will go stale |
+| No XML tags in frontmatter | Error | name and description must not contain XML tags (`<`, `>`) |
 
 ### Enterprise Tier (adds)
 
@@ -137,6 +139,10 @@ The marketplace 100-point validator scores them at top-level.
 | All `${CLAUDE_SKILL_DIR}/` refs exist | Error | Referenced scripts, references, templates must exist |
 | No path escapes | Error | No `${CLAUDE_SKILL_DIR}/../` |
 | Word count | Warning | Over 5000 words suggests splitting to references |
+| Consistent terminology | Warning | No synonym rotation for key concepts |
+| Concrete examples | Warning | Examples should show input AND output, not abstract |
+| Feedback loops present | Warning | Quality-critical workflows should have validator loops |
+| Required packages listed | Warning | Scripts should list dependencies in instructions or compatibility field |
 
 ---
 
@@ -182,6 +188,9 @@ Bash(docker:*)
 | Voodoo constants | Unexplained magic numbers | Info |
 | Over-verbose | >5000 words in SKILL.md | Warning |
 | Missing progressive disclosure | >300 lines + no `references/` dir | Warning |
+| Time-sensitive info | Dates, versions, URLs that will go stale | Warning |
+| XML tags in frontmatter | `<tags>` in name or description fields | Error |
+| Missing feedback loops | Quality-critical workflow without validate→fix→repeat | Warning |
 
 ---
 
@@ -198,11 +207,12 @@ Bash(docker:*)
 | Description under 200 chars | +1 |
 | Description over 500 chars | -1 |
 | Has unnecessary TOC | -1 (modifier) |
+| Reference files >100 lines have TOC | +1 |
 | Uses dynamic context injection | +1 (modifier) |
 
 Score 4+: Excellent disclosure. Score 2-3: Good. Score 0-1: Needs improvement.
 
-**Navigation signals** are scored by section header density (7+ `##` headers = 5/5), not by TOC presence. TOC wastes tokens and is not part of the Anthropic spec.
+**Navigation signals** are scored by section header density (7+ `##` headers = 5/5), not by TOC presence. No TOC in SKILL.md body (wastes tokens). But reference files >100 lines SHOULD have a TOC at top so Claude can see full scope even with partial reads.
 
 ---
 
@@ -304,3 +314,46 @@ INFO-level suggestions emitted after grading. Not scored — purely advisory.
 - **Trigger**: File existence checks, git operations, or tool version detection without DCI
 - **Suggestion**: Add `` !`command` `` directives for auto-detection at activation
 - **Why**: Eliminates discovery tool calls; Claude starts with context pre-loaded
+
+---
+
+## Anthropic Official Checklist Alignment
+
+Maps every item from the Anthropic "Skill authoring best practices" checklist to a specific validation check and scoring pillar.
+
+### Content Quality (8 items)
+
+| # | Anthropic Checklist Item | Validation Check | Pillar | Scored |
+|---|--------------------------|-----------------|--------|--------|
+| 1 | Name is kebab-case, 1-64 chars | `name` field validation | Spec Compliance | Yes |
+| 2 | Description is specific with key terms | Description keyword check | Ease of Use | Yes |
+| 3 | Description includes what + when (third person) | Description pattern check | Ease of Use | Yes |
+| 4 | No XML tags in name or description | XML tag detection in frontmatter | Spec Compliance | Yes |
+| 5 | SKILL.md body under 500 lines | Line count check | Progressive Disclosure | Yes |
+| 6 | No time-sensitive information | Time-sensitive content detection | Writing Style | Yes |
+| 7 | Consistent terminology throughout | Synonym rotation detection | Writing Style | Yes |
+| 8 | Concrete examples (input AND output) | Example quality check | Utility | Yes |
+
+### Structure & Disclosure (8 items)
+
+| # | Anthropic Checklist Item | Validation Check | Pillar | Scored |
+|---|--------------------------|-----------------|--------|--------|
+| 9 | Heavy details in references/ (progressive disclosure) | References directory presence | Progressive Disclosure | Yes |
+| 10 | Reference files >100 lines have TOC | TOC presence in long reference files | Progressive Disclosure | Yes |
+| 11 | File references one level deep only | Nested reference detection | Progressive Disclosure | Yes |
+| 12 | Clear workflow steps in instructions | Step/heading structure check | Ease of Use | Yes |
+| 13 | Feedback loops for quality-critical workflows | Feedback loop pattern detection | Utility | Yes |
+| 14 | Checklist workflow for complex processes | Checklist pattern detection | Utility | Info |
+| 15 | "Old patterns" section for deprecated info | Old patterns section detection | Writing Style | Info |
+| 16 | Required packages listed | Dependency listing check | Utility | Yes |
+
+### Testing & Evaluation (6 items)
+
+| # | Anthropic Checklist Item | Validation Check | Pillar | Scored |
+|---|--------------------------|-----------------|--------|--------|
+| 17 | At least 3 evaluation scenarios | Eval file presence/count | Utility | Yes |
+| 18 | Tested with Haiku, Sonnet, and Opus | Model coverage in eval results | Utility | Info |
+| 19 | Team feedback incorporated | Team testing notes | Ease of Use | Info |
+| 20 | Observe Claude navigation patterns | Iteration notes | Ease of Use | Info |
+| 21 | Scripts solve problems with error handling | Script quality checks | Utility | Yes |
+| 22 | No voodoo constants | Magic number detection | Writing Style | Yes |

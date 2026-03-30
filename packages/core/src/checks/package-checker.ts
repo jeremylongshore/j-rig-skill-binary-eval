@@ -15,6 +15,16 @@ const MIN_DESCRIPTION_WORDS = 4;
 const MAX_BODY_LINES = 500;
 const MIN_BODY_LINES = 3;
 
+/** XML tag pattern — prohibited in name and description (Anthropic best practices 2026). */
+const XML_TAG_PATTERN = /[<>]/;
+
+/** Time-sensitive patterns — dates, version numbers that go stale. */
+const TIME_SENSITIVE_PATTERNS = [
+  /\b(20\d{2}[-/]\d{2}[-/]\d{2})\b/, // dates like 2025-01-01
+  /\b(v\d+\.\d+\.\d+)\b/i, // version numbers like v1.2.3 (outside code blocks)
+  /\b(as of|since|after|before) (January|February|March|April|May|June|July|August|September|October|November|December)\b/i,
+];
+
 /**
  * Run all deterministic preflight checks against a skill package directory.
  *
@@ -79,6 +89,12 @@ export function checkPackage(packageDir: string): PackageReport {
 
   // 6. Referenced file validation
   results.push(...checkReferencedFiles(body, absDir));
+
+  // 7. XML tag validation (Anthropic best practices 2026)
+  results.push(...checkXmlTags(frontmatter));
+
+  // 8. Time-sensitive information detection
+  results.push(...checkTimeSensitiveInfo(body));
 
   return buildReport(frontmatter.name, results);
 }
@@ -291,6 +307,80 @@ function checkReferencedFiles(body: string, packageDir: string): CheckResult[] {
   }
 
   return results;
+}
+
+/**
+ * Check that frontmatter name and description don't contain XML tags.
+ */
+function checkXmlTags(fm: SkillFrontmatter): CheckResult[] {
+  const results: CheckResult[] = [];
+
+  if (fm.name && XML_TAG_PATTERN.test(fm.name)) {
+    results.push({
+      id: "anthropic:name-no-xml",
+      description: "Name does not contain XML tags",
+      severity: "error",
+      message: "Name contains XML tags (< or >) — prohibited by Anthropic spec",
+    });
+  } else {
+    results.push({
+      id: "anthropic:name-no-xml",
+      description: "Name does not contain XML tags",
+      severity: "pass",
+      message: "Name is free of XML tags",
+    });
+  }
+
+  if (fm.description && XML_TAG_PATTERN.test(fm.description)) {
+    results.push({
+      id: "anthropic:description-no-xml",
+      description: "Description does not contain XML tags",
+      severity: "error",
+      message: "Description contains XML tags (< or >) — prohibited by Anthropic spec",
+    });
+  } else {
+    results.push({
+      id: "anthropic:description-no-xml",
+      description: "Description does not contain XML tags",
+      severity: "pass",
+      message: "Description is free of XML tags",
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Heuristic check for time-sensitive information in the body.
+ * Skips content inside code blocks to avoid false positives.
+ */
+function checkTimeSensitiveInfo(body: string): CheckResult[] {
+  // Strip code blocks to avoid false positives on version refs in examples
+  const stripped = body.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
+
+  const hasTimeSensitive = TIME_SENSITIVE_PATTERNS.some((p) => p.test(stripped));
+  if (hasTimeSensitive) {
+    return [
+      {
+        id: "anthropic:no-time-sensitive",
+        description: "No time-sensitive information in body",
+        severity: "warning",
+        message:
+          "Body may contain time-sensitive information (dates, versions) that could go stale",
+        details:
+          'Consider using an "old patterns" section or the compatibility field instead',
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "anthropic:no-time-sensitive",
+      description: "No time-sensitive information in body",
+      severity: "pass",
+      message: "No time-sensitive information detected",
+    },
+  ];
 }
 
 function buildReport(
