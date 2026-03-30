@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.9.0] - 2026-03-30
+
+- Merge pull request #10 from jeremylongshore/feature/epic-07-judgment-layer-and-model-matrix (f7ef171)
+- docs(epic-07): add epic 07 after action report (15142ac)
+- feat(epic-07): add judgment layer with calibration and model matrix (460db40)
+
+
 ## [v0.8.0] - 2026-03-30
 
 - Merge pull request #9 from jeremylongshore/feature/epic-06-functional-execution-and-observation (6aede90)
