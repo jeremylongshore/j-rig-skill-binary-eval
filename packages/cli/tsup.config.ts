@@ -8,4 +8,5 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
+  external: ["@j-rig/core", "@j-rig/db", "better-sqlite3"],
 });

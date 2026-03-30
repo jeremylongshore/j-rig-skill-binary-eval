@@ -21,5 +21,11 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@j-rig/core": "workspace:*",
+    "@j-rig/db": "workspace:*",
+    "commander": "^13.0.0",
+    "chalk": "^5.4.0"
+  }
 }
