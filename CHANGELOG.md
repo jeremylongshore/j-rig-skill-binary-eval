@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.7.0] - 2026-03-30
+
+- Merge pull request #8 from jeremylongshore/feature/epic-05-trigger-harness-and-skill-roster-simulation (6807a73)
+- docs(epic-05): add epic 05 after action report (73e4431)
+- feat(epic-05): add trigger harness with roster, runner, and metrics (957053b)
+
+
 ## [v0.6.0] - 2026-03-29
 
 - Merge pull request #7 from jeremylongshore/feature/epic-04-evidence-layer-persistence-and-run-lifecycle (1437524)
