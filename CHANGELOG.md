@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.12.0] - 2026-03-30
+
+- Merge pull request #13 from jeremylongshore/feature/epic-10-team-product-eval-packs-drift (dbe8c53)
+- feat(epic-10): add drift detection, eval packs, and reevaluation (152c680)
+
+
 ## [v0.11.0] - 2026-03-30
 
 - Merge pull request #12 from jeremylongshore/feature/epic-09-optimizer-and-experiment-engine (1e6762e)
