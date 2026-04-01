@@ -17,6 +17,10 @@ export function icon(severity: CheckSeverity | "info"): string {
       return chalk.yellow("!");
     case "info":
       return chalk.blue("·");
+    default: {
+      const _exhaustive: never = severity;
+      return _exhaustive;
+    }
   }
 }
 
@@ -42,6 +46,10 @@ export function formatDecision(decision: RolloutDecision): string {
       return chalk.yellow.bold("WARN");
     case "obsolete_review":
       return chalk.magenta.bold("OBSOLETE_REVIEW");
+    default: {
+      const _exhaustive: never = decision;
+      return _exhaustive;
+    }
   }
 }
 
