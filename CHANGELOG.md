@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.14.1] - 2026-05-01
+
+- chore(test): install @intentsolutions/audit-harness v0.1.0 (P6 batch) (#35) (86dd090)
+
+
 ## [v0.14.0] - 2026-04-01
 
 - chore(deps-dev): bump typescript-eslint from 8.57.2 to 8.58.0 (#16) (d211fd2)
