@@ -100,3 +100,17 @@ Planned stack: commander, @clack/prompts, zod, @anthropic-ai/sdk, better-sqlite3
 **Workflow:** `bd update <id> --status in_progress` → work → `bd close <id> --reason "evidence"` → `bd sync`
 
 Key commands: `bd prime` (LLM context), `bd ready`, `bd list --status in_progress`, `bd doctor`
+
+## Testing baseline (2026-05-01 — Intent Solutions Testing SOP)
+
+This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CLAUDE.md` § "Intent Solutions Testing SOP" and the VPS-as-the-home program (`OPS-5nm`, Priority 6).
+
+**Installed**: `@intentsolutions/audit-harness v0.1.0` vendored at `.audit-harness/` with wrapper at `scripts/audit-harness`.
+
+**Commands**: `scripts/audit-harness {verify, init, list, escape-scan --staged}`.
+
+**Next step**: run `/audit-tests` to produce `TEST_AUDIT.md`. See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
+
+**Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
+
+> **Note**: this repo IS the seven-layer binary eval harness for Claude Skills. The audit-harness install adds a complementary 7-layer testing taxonomy gate at the repo level — independent of the skill-eval harness, applied to this repo's own code.
