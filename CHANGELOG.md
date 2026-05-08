@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.15.0] - 2026-05-08
+
+- feat(governance): bring skill spec sources of truth into the repo (#41) (7abdc53)
+- docs(epics): update epic-index README to reflect completed state (#40) (6872040)
+
+
 ## [v0.14.1] - 2026-05-01
 
 - chore(test): install @intentsolutions/audit-harness v0.1.0 (P6 batch) (#35) (86dd090)
