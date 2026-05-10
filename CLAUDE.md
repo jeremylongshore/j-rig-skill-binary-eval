@@ -56,6 +56,34 @@ Planned stack: commander, @clack/prompts, zod, @anthropic-ai/sdk, better-sqlite3
 7. **Baseline value matters** — if the naked model matches the skill, flag for obsolete review
 8. **Model-aware testing** — Haiku/Sonnet/Opus tested independently
 
+## Three-repo convergence (Phase A: 3 beads filed 2026-05-10)
+
+This repo is the **7-layer judgment harness** in the three-repo convergence vision (`intent-eval-lab` + `audit-harness` + `j-rig-binary-eval`). The convergence sits on a shared **Evidence Bundle** schema authored upstream in `intent-eval-lab/specs/evidence-bundle/v0.1.0-draft/`. This repo will consume bundle rows (audit-harness emissions) and emit verdict rows back; the schema is the lingua franca, not a package consolidation.
+
+**Master plan (local-only):** `~/.claude/plans/please-take-your-time-glimmering-stardust.md`
+**ID mapping artifact:** `~/.claude/plans/please-take-your-time-glimmering-stardust-id-map.md`
+**Convergence umbrella:** [`jeremylongshore/intent-eval-lab#4`](https://github.com/jeremylongshore/intent-eval-lab/issues/4) (`IEL-CONV-1`)
+
+### Phase A landed (this repo)
+
+3 beads filed as **additive scope** to existing epics (NOT new epics):
+
+| Bead | Planning ID | GH | Plane | Folds into |
+|---|---|---|---|---|
+| `j-rig-binary-eval-mje` | `JR-EPIC-03a` | [`#42`](https://github.com/jeremylongshore/j-rig-binary-eval/issues/42) | JRIG-5 | Epic 03 (Package Integrity) — +1 day scope |
+| `j-rig-binary-eval-mul` | `JR-EPIC-04a` | [`#43`](https://github.com/jeremylongshore/j-rig-binary-eval/issues/43) | JRIG-6 | Epic 04 (Evidence Layer) — +2 days scope |
+| `j-rig-binary-eval-7js` | `JR-EPIC-06a-prep` | [`#44`](https://github.com/jeremylongshore/j-rig-binary-eval/issues/44) | JRIG-7 | Future Epic 06 — interface only, Phase C |
+
+The bundle integration is **backward-compatible** — `eval-spec.yaml` stays the primary input; bundle is OPTIONAL.
+
+### Phase B work (gated on first paying-customer signal)
+
+- `JR-EPIC-03a` (folds into Epic 03) — `packages/core/src/validators/evidence-bundle.ts` (Zod schema for envelope)
+- `JR-EPIC-04a` (folds into Epic 04) — `packages/db/src/adapters/evidence-bundle-{input,output}.ts` (parse rows → `criterion_results`; emit verdict rows back)
+- `JR-EPIC-06a-prep` (Phase C, future Epic 06 interface only) — `packages/core/src/execution/evidence-bundle-context.ts`
+
+**No new npm deps required** — Zod + yaml + `@anthropic-ai/sdk` already in stack.
+
 ## Epic Roadmap
 
 10 sequential epics. Master blueprint: `000-docs/007-PP-PLAN-master-build-blueprint.md`. Epic details: `000-docs/epics/`.
