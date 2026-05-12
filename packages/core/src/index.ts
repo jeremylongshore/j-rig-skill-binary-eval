@@ -10,3 +10,4 @@ export * from "./governance/index.js";
 export * from "./optimizer/index.js";
 export * from "./drift/index.js";
 export * from "./evidence/index.js";
+export * from "./intentional-mapping/index.js";

@@ -1,0 +1,48 @@
+{
+  "name": "pass-reconciled",
+  "category": "MM-1",
+  "expected": "PASS",
+  "notes": "Vendor-generic fixture per ISEDC v1 Q2 binding (no real partner data). Demonstrates an async write followed by a hook reconciliation event followed by a downstream read that sees fresh state.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T05:00:00.000Z",
+      "attributes": {
+        "tool": "create_record",
+        "server": "example_server",
+        "tool.async": true,
+        "tool.kind": "write",
+        "decision": "approved"
+      }
+    },
+    {
+      "name": "claude_code.hook_execution_start",
+      "timestamp": "2026-05-12T05:00:00.100Z",
+      "attributes": {
+        "hook.matcher": "create_record",
+        "hook.event": "PostToolUse"
+      }
+    },
+    {
+      "name": "claude_code.hook_execution_complete",
+      "timestamp": "2026-05-12T05:00:00.500Z",
+      "attributes": {
+        "hook.matcher": "create_record",
+        "hook.event": "PostToolUse",
+        "hook.handler": "reconcile-after-async-write",
+        "hook.action": "verify-fresh"
+      }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T05:00:01.000Z",
+      "attributes": {
+        "tool": "get_record",
+        "server": "example_server",
+        "tool.kind": "read",
+        "stale_state": false,
+        "result_status": "ok"
+      }
+    }
+  ]
+}

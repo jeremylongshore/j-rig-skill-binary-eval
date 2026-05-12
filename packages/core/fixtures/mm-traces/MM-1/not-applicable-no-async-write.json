@@ -1,0 +1,29 @@
+{
+  "name": "not-applicable-no-async-write",
+  "category": "MM-1",
+  "expected": "NOT_APPLICABLE",
+  "notes": "Vendor-generic fixture. The trace contains only synchronous tool calls; MM-1 (async race) cannot manifest. Per Evidence Bundle SPEC § R6, NOT_APPLICABLE is an accurate verdict — NOT a failure.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T05:20:00.000Z",
+      "attributes": {
+        "tool": "compute_hash",
+        "server": "example_server",
+        "tool.async": false,
+        "tool.kind": "read",
+        "decision": "approved"
+      }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T05:20:00.050Z",
+      "attributes": {
+        "tool": "compute_hash",
+        "server": "example_server",
+        "tool.kind": "read",
+        "result_status": "ok"
+      }
+    }
+  ]
+}
