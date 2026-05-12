@@ -1,0 +1,13 @@
+{
+  "name": "not-applicable-no-cooldown",
+  "category": "MM-3",
+  "expected": "NOT_APPLICABLE",
+  "notes": "Vendor-generic. Tool decisions present but none declare cooldown_ms.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T07:20:00.000Z",
+      "attributes": { "tool": "compute_hash", "server": "example_server" }
+    }
+  ]
+}

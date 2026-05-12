@@ -110,7 +110,12 @@ describe("registry", () => {
   });
 
   it("returns NOT_APPLICABLE-with-note for unregistered MM categories (partial coverage is valid)", () => {
-    const result = runChecker("MM-2", []);
+    // Cast a hypothetical future MM category that has not yet been
+    // registered. The registry's contract is "missing entry → friendly
+    // NOT_APPLICABLE", which protects callers from throwing when partial
+    // coverage is intentional (Evidence Bundle SPEC § R2).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = runChecker("MM-99" as any, []);
     expect(result.result).toBe("NOT_APPLICABLE");
     expect(result.reason).toMatch(/no checker registered/);
   });

@@ -1,0 +1,18 @@
+{
+  "name": "fail-no-verification",
+  "category": "MM-4",
+  "expected": "FAIL",
+  "notes": "Vendor-generic. Side-effect operation followed by a downstream operation with no verification hook between them.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T08:10:00.000Z",
+      "attributes": { "tool": "publish_message", "server": "example_server", "side_effect": true }
+    },
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T08:10:00.300Z",
+      "attributes": { "tool": "fetch_message_status", "server": "example_server" }
+    }
+  ]
+}

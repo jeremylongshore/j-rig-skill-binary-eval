@@ -1,0 +1,18 @@
+{
+  "name": "fail-drift",
+  "category": "MM-2",
+  "expected": "FAIL",
+  "notes": "Vendor-generic. Two consecutive read-side calls with different response_shape and NO normalization hook between them.",
+  "events": [
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T06:10:00.000Z",
+      "attributes": { "tool": "list_items", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T06:10:00.200Z",
+      "attributes": { "tool": "get_item", "server": "example_server", "tool.kind": "read", "response_shape": "detail" }
+    }
+  ]
+}

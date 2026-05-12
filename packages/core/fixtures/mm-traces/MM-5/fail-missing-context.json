@@ -1,0 +1,18 @@
+{
+  "name": "fail-missing-context",
+  "category": "MM-5",
+  "expected": "FAIL",
+  "notes": "Vendor-generic. Tool decision declares requires_context but tool_input_keys is missing one required key.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T09:10:00.000Z",
+      "attributes": {
+        "tool": "execute_action",
+        "server": "example_server",
+        "requires_context": ["caller", "intent", "policy_tag"],
+        "tool_input_keys": ["caller", "payload"]
+      }
+    }
+  ]
+}

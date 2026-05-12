@@ -1,0 +1,23 @@
+{
+  "name": "pass-normalized",
+  "category": "MM-2",
+  "expected": "PASS",
+  "notes": "Vendor-generic. Two consecutive read-side calls with different response_shape, separated by a normalization hook.",
+  "events": [
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T06:00:00.000Z",
+      "attributes": { "tool": "list_items", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+    },
+    {
+      "name": "claude_code.hook_execution_complete",
+      "timestamp": "2026-05-12T06:00:00.300Z",
+      "attributes": { "hook.handler": "shape-normalization", "hook.event": "PostToolUse" }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T06:00:00.500Z",
+      "attributes": { "tool": "get_item", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+    }
+  ]
+}

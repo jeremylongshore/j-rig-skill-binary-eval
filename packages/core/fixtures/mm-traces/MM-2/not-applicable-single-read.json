@@ -1,0 +1,13 @@
+{
+  "name": "not-applicable-single-read",
+  "category": "MM-2",
+  "expected": "NOT_APPLICABLE",
+  "notes": "Vendor-generic. Only one read event in trace; drift cannot manifest.",
+  "events": [
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T06:20:00.000Z",
+      "attributes": { "tool": "list_items", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+    }
+  ]
+}

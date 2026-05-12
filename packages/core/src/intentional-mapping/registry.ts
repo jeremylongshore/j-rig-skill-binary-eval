@@ -10,15 +10,25 @@
  */
 import type { MMCategory, MMChecker, MMResult, TraceEvent } from "./types.js";
 import { checkMM1AsyncRace } from "./mm-1-async-race.js";
+import { checkMM2ShapeDrift } from "./mm-2-shape-drift.js";
+import { checkMM3Cooldown } from "./mm-3-cooldown.js";
+import { checkMM4SideEffectVerification } from "./mm-4-side-effect-verification.js";
+import { checkMM5ContextAugmentation } from "./mm-5-context-augmentation.js";
+import { checkMM6StrictModeProtocol } from "./mm-6-strict-mode-protocol.js";
 
 /**
  * Registered checkers by MM category. Categories without an implementation
- * are absent from the map; calls to runChecker("MM-2") will return a
- * conservative NOT_APPLICABLE-with-note rather than throw — partial
+ * are absent from the map; calls to runChecker for an unregistered category
+ * return a conservative NOT_APPLICABLE-with-note rather than throw — partial
  * coverage is explicitly valid per the Evidence Bundle SPEC § R2.
  */
 export const MM_CHECKERS: Partial<Record<MMCategory, MMChecker>> = {
   "MM-1": checkMM1AsyncRace,
+  "MM-2": checkMM2ShapeDrift,
+  "MM-3": checkMM3Cooldown,
+  "MM-4": checkMM4SideEffectVerification,
+  "MM-5": checkMM5ContextAugmentation,
+  "MM-6": checkMM6StrictModeProtocol,
 };
 
 /**
