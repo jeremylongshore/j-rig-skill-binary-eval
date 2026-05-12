@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.15.1] - 2026-05-12
+
+- chore(deps-dev): bump prettier from 3.8.1 to 3.8.3 (#30) (810fa3d)
+
+
 ## [v0.15.0] - 2026-05-08
 
 - feat(governance): bring skill spec sources of truth into the repo (#41) (7abdc53)
