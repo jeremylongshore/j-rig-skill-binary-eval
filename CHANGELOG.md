@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.15.2] - 2026-05-12
+
+- chore(deps): bump commander from 13.1.0 to 14.0.3 (#22) (2659b9c)
+
+
 ## [v0.15.1] - 2026-05-12
 
 - chore(deps-dev): bump prettier from 3.8.1 to 3.8.3 (#30) (810fa3d)
