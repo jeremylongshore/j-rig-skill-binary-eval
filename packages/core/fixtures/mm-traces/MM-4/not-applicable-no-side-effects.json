@@ -1,0 +1,13 @@
+{
+  "name": "not-applicable-no-side-effects",
+  "category": "MM-4",
+  "expected": "NOT_APPLICABLE",
+  "notes": "Vendor-generic. No tool_decision events declare side_effect=true.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T08:20:00.000Z",
+      "attributes": { "tool": "compute_hash", "server": "example_server" }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "pass-reformatted-accepted",
+  "category": "MM-6",
+  "expected": "PASS",
+  "notes": "Vendor-generic. Strict-mode tool call preceded by reformat hook; server accepted.",
+  "events": [
+    {
+      "name": "claude_code.hook_execution_complete",
+      "timestamp": "2026-05-12T10:00:00.000Z",
+      "attributes": { "hook.handler": "strict-mode-reformat", "hook.event": "PreToolUse" }
+    },
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T10:00:00.500Z",
+      "attributes": { "tool": "submit_payload", "server": "example_server", "strict_mode": true }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T10:00:01.000Z",
+      "attributes": { "tool": "submit_payload", "server": "example_server", "server_response_status": "accepted" }
+    }
+  ]
+}

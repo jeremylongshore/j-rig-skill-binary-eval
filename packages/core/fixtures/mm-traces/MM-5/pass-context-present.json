@@ -1,0 +1,18 @@
+{
+  "name": "pass-context-present",
+  "category": "MM-5",
+  "expected": "PASS",
+  "notes": "Vendor-generic. Tool decision declares requires_context and the tool_input_keys cover all required keys.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T09:00:00.000Z",
+      "attributes": {
+        "tool": "execute_action",
+        "server": "example_server",
+        "requires_context": ["caller", "intent", "policy_tag"],
+        "tool_input_keys": ["caller", "intent", "policy_tag", "payload"]
+      }
+    }
+  ]
+}
