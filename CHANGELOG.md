@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.23.0] - 2026-05-13
+
+- feat(M4 phase 2c): score-card scoring + Decision Record draft generator (#55) (fc2467f)
+
+
 ## [v0.22.0] - 2026-05-13
 
 - feat(M4 phase 2b): EC-1..EC-5 eval-case harness (PB-7 execution surface) (#54) (d2e96be)
