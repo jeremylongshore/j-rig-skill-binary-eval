@@ -24,14 +24,25 @@ import type { MMChecker, MMResult, TraceEvent } from "./types.js";
 const NORMALIZATION_MARKERS = ["normalize", "shape-fix", "shape-normalization"];
 
 export const checkMM2ShapeDrift: MMChecker = (events: TraceEvent[]): MMResult => {
+  // Pre-parse timestamps ONCE to avoid O(N²) Date.parse calls inside hookBetween.
+  // NaN values mean an unparseable timestamp — those events are pinned to -1
+  // and treated as "outside any interval", which is the conservative read.
+  const eventTimes = events.map((e) => {
+    const t = Date.parse(e.timestamp);
+    return Number.isNaN(t) ? -1 : t;
+  });
+
   const reads = events
+    .map((e, idx) => ({ e, idx, t: eventTimes[idx] }))
     .filter(
-      (e) =>
+      ({ e, t }) =>
         e.name === "claude_code.tool_result" &&
         (e.attributes["tool.kind"] === "read" ||
-          typeof e.attributes["response_shape"] === "string"),
+          typeof e.attributes["response_shape"] === "string") &&
+        t !== -1,
     )
-    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+    .sort((a, b) => a.t - b.t)
+    .map(({ e, idx }) => ({ e, idx }));
 
   if (reads.length < 2) {
     return {
@@ -42,9 +53,9 @@ export const checkMM2ShapeDrift: MMChecker = (events: TraceEvent[]): MMResult =>
   }
 
   // Group by server.
-  const byServer = new Map<string, TraceEvent[]>();
+  const byServer = new Map<string, { e: TraceEvent; idx: number }[]>();
   for (const r of reads) {
-    const server = (r.attributes.server as string | undefined) ?? "<unknown>";
+    const server = (r.e.attributes.server as string | undefined) ?? "<unknown>";
     if (!byServer.has(server)) byServer.set(server, []);
     byServer.get(server)!.push(r);
   }
@@ -58,15 +69,15 @@ export const checkMM2ShapeDrift: MMChecker = (events: TraceEvent[]): MMResult =>
       pairs++;
       const prev = group[i - 1];
       const curr = group[i];
-      const prevShape = (prev.attributes.response_shape as string | undefined) ?? null;
-      const currShape = (curr.attributes.response_shape as string | undefined) ?? null;
+      const prevShape = (prev.e.attributes.response_shape as string | undefined) ?? null;
+      const currShape = (curr.e.attributes.response_shape as string | undefined) ?? null;
       if (prevShape === null || currShape === null) continue;
       if (prevShape === currShape) continue;
-      const normalized = hookBetween(events, prev, curr, NORMALIZATION_MARKERS);
+      const normalized = hookBetween(events, eventTimes, prev.idx, curr.idx, NORMALIZATION_MARKERS);
       if (!normalized) {
         fails++;
         findings.push({
-          at: curr.timestamp,
+          at: curr.e.timestamp,
           reason: `response_shape changed (${prevShape} → ${currShape}) without a normalization hook`,
         });
       }
@@ -100,17 +111,19 @@ export const checkMM2ShapeDrift: MMChecker = (events: TraceEvent[]): MMResult =>
 
 function hookBetween(
   events: TraceEvent[],
-  before: TraceEvent,
-  after: TraceEvent,
+  eventTimes: number[],
+  beforeIdx: number,
+  afterIdx: number,
   markers: string[],
 ): boolean {
-  const lo = Date.parse(before.timestamp);
-  const hi = Date.parse(after.timestamp);
-  if (Number.isNaN(lo) || Number.isNaN(hi)) return false;
-  for (const e of events) {
+  const lo = eventTimes[beforeIdx];
+  const hi = eventTimes[afterIdx];
+  if (lo === -1 || hi === -1) return false;
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
     if (e.name !== "claude_code.hook_execution_complete") continue;
-    const t = Date.parse(e.timestamp);
-    if (t <= lo || t >= hi) continue;
+    const t = eventTimes[i];
+    if (t === -1 || t <= lo || t >= hi) continue;
     const handler = String(
       e.attributes["hook.handler"] ?? e.attributes["hook.action"] ?? "",
     ).toLowerCase();
