@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.16.0] - 2026-05-13
+
+- feat(M3 phase 1): Evidence Bundle Zod schemas + I/O adapters + emit-evidence CLI (#46) (d65b3e1)
+
+
 ## [v0.15.3] - 2026-05-13
 
 - chore(ci): remove broken gemini-review workflow (switching to Gemini app) (#51) (c87653c)
