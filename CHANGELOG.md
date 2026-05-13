@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.17.0] - 2026-05-13
+
+- feat(M3 phase 2 / PB-8): AGENTS.md parser (#56) (ddfb509)
+
+
 ## [v0.16.0] - 2026-05-13
 
 - feat(M3 phase 1): Evidence Bundle Zod schemas + I/O adapters + emit-evidence CLI (#46) (d65b3e1)
