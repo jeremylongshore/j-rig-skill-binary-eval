@@ -28,9 +28,18 @@
  *   2  --output write failed
  */
 import type { Command } from "commander";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { execSync } from "node:child_process";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
+import { dirname, resolve, join } from "node:path";
+import { tmpdir } from "node:os";
+import { execSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   composeStatement,
   serializeStatement,
@@ -39,6 +48,7 @@ import {
   type GateResult,
   type AdvisorySeverity,
   type ComposeStatementInput,
+  type EvidenceStatement,
 } from "@j-rig/core";
 
 interface EmitEvidenceOptions {
@@ -54,6 +64,14 @@ interface EmitEvidenceOptions {
   failureMode?: string;
   advisorySeverity?: string;
   metadata?: string;
+  // Signing flags (cosign integration; see SPEC.md § 7)
+  sign?: boolean;
+  key?: string;
+  keyless?: boolean;
+  rekorUrl?: string;
+  predicateBodyOnly?: boolean;
+  cosignBin?: string;
+  artifact?: string;
 }
 
 const DEFAULT_RUNNER_VERSION = "j-rig@0.0.0-dev"; // overridden when packaged
@@ -91,6 +109,36 @@ export function registerEmitEvidenceCommand(program: Command): void {
       "--metadata <json>",
       "Direct mode: free-form metadata as a JSON object string",
     )
+    // --- Signing (cosign integration; SPEC.md § 7) ---
+    .option(
+      "--sign",
+      "Sign the Statement via cosign (requires --key OR --keyless). Without this flag, emits unsigned Statement.",
+    )
+    .option(
+      "--key <ref>",
+      "cosign key reference (file path, KMS URI, etc). Implies --sign.",
+    )
+    .option(
+      "--keyless",
+      "cosign keyless signing via Fulcio OIDC (requires terminal). Implies --sign.",
+    )
+    .option(
+      "--rekor-url <url>",
+      "Push the signed attestation to Rekor at <url> (default: https://rekor.sigstore.dev when used without value). Implies --sign.",
+    )
+    .option(
+      "--predicate-body-only",
+      "Emit ONLY the predicate body (cosign-friendly). Cosign attest-blob then wraps it in its own Statement envelope. Without this, emits the full v1 Statement.",
+    )
+    .option(
+      "--cosign-bin <path>",
+      "Path to cosign binary (default: cosign on PATH).",
+      "cosign",
+    )
+    .option(
+      "--artifact <path>",
+      "Path to the artifact whose sha256 must equal predicate.input_hash. Required when --sign is requested so the DSSE envelope's subject digest is cryptographically bound to the gate's input. Without this, the link between attestation and artifact cannot be verified by standard tooling.",
+    )
     .action(async (opts: EmitEvidenceOptions) => {
       try {
         const composed = await buildComposeInput(opts);
@@ -114,22 +162,146 @@ export function registerEmitEvidenceCommand(program: Command): void {
           process.stderr.write(`[OTEL] ${JSON.stringify(evt)}\n`);
         }
 
-        const serialized = serializeStatement(statement);
-        if (opts.output) {
-          const outAbs = resolve(opts.output);
-          if (!existsSync(dirname(outAbs))) mkdirSync(dirname(outAbs), { recursive: true });
-          writeFileSync(outAbs, serialized + "\n");
-          process.stderr.write(`emit-evidence: wrote ${outAbs}\n`);
-        } else {
-          process.stdout.write(serialized + "\n");
+        const wantsSigning =
+          opts.sign === true ||
+          opts.key !== undefined ||
+          opts.keyless === true ||
+          opts.rekorUrl !== undefined;
+
+        if (!wantsSigning) {
+          // Plain mode (Phase 1 behavior preserved): emit the chosen shape.
+          const out = opts.predicateBodyOnly
+            ? JSON.stringify(statement.predicate)
+            : serializeStatement(statement);
+          writeOut(out, opts);
+          process.exit(0);
         }
-        process.exit(0);
+
+        // Signing mode: invoke cosign attest-blob over a synthetic blob whose
+        // sha256 matches the predicate's input_hash. Per SPEC § R10 the
+        // resulting DSSE envelope wraps the predicate body in a Statement;
+        // cosign's outer wrap uses Statement v0.1 (cosign default).
+        const exitCode = signAndEmit(statement, composed, opts);
+        process.exit(exitCode);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         process.stderr.write(`j-rig emit-evidence: ${msg}\n`);
         process.exit(opts.output ? 2 : 1);
       }
     });
+}
+
+function writeOut(content: string, opts: EmitEvidenceOptions): void {
+  if (opts.output) {
+    const outAbs = resolve(opts.output);
+    if (!existsSync(dirname(outAbs))) mkdirSync(dirname(outAbs), { recursive: true });
+    writeFileSync(outAbs, content + "\n");
+    process.stderr.write(`emit-evidence: wrote ${outAbs}\n`);
+  } else {
+    process.stdout.write(content + "\n");
+  }
+}
+
+/**
+ * Sign the Statement via cosign and emit the resulting DSSE envelope.
+ * Returns the desired process exit code.
+ */
+function signAndEmit(
+  statement: EvidenceStatement,
+  composed: ComposeStatementInput,
+  opts: EmitEvidenceOptions,
+): number {
+  if (!opts.key && !opts.keyless) {
+    process.stderr.write(
+      "j-rig emit-evidence: --sign requires --key <ref> OR --keyless\n",
+    );
+    return 1;
+  }
+
+  // --artifact is required for signing — without the original bytes, the
+  // DSSE envelope's subject digest cannot match predicate.input_hash and the
+  // attestation cannot be verified by standard tooling. We refuse rather
+  // than produce a misleading attestation.
+  if (!opts.artifact) {
+    process.stderr.write(
+      "j-rig emit-evidence: --sign requires --artifact <path> pointing at the file whose sha256 equals predicate.input_hash. " +
+        "Without --artifact the attestation's subject digest cannot match the predicate, breaking standard verification.\n",
+    );
+    return 1;
+  }
+  const artifactAbs = resolve(opts.artifact);
+  if (!existsSync(artifactAbs)) {
+    process.stderr.write(
+      `j-rig emit-evidence: --artifact path does not exist: ${artifactAbs}\n`,
+    );
+    return 1;
+  }
+  // Verify the artifact's sha256 matches predicate.input_hash BEFORE signing.
+  // If they diverge, the resulting attestation would be cryptographically
+  // unverifiable; failing now is better than emitting a broken envelope.
+  const artifactBytes = readFileSync(artifactAbs);
+  const actualHash = `sha256:${createHash("sha256").update(artifactBytes).digest("hex")}`;
+  if (actualHash !== composed.inputHash) {
+    process.stderr.write(
+      `j-rig emit-evidence: --artifact sha256 mismatch:\n  computed: ${actualHash}\n  predicate.input_hash: ${composed.inputHash}\nThe artifact passed to --sign must be the exact file whose hash the gate recorded.\n`,
+    );
+    return 1;
+  }
+
+  const tmp = mkdtempSync(join(tmpdir(), "j-rig-emit-evidence-"));
+  try {
+    // Predicate file: by default we send just the predicate body (cosign
+    // wraps it in its own Statement v0.1 envelope with our predicateType).
+    // Users can opt out via --predicate-body-only=false to preserve a
+    // pre-formed Statement (which cosign will then nest).
+    const predicatePath = join(tmp, "predicate.json");
+    const predicateContent = opts.predicateBodyOnly
+      ? JSON.stringify(statement.predicate, null, 2)
+      : JSON.stringify(statement, null, 2);
+    writeFileSync(predicatePath, predicateContent);
+
+    const sigPath = join(tmp, "attestation.sig");
+    const args = [
+      "attest-blob",
+      "--predicate",
+      predicatePath,
+      "--type",
+      "https://evals.intentsolutions.io/gate-result/v1",
+      "--output-signature",
+      sigPath,
+      `--tlog-upload=${opts.rekorUrl || opts.keyless ? "true" : "false"}`,
+    ];
+    if (opts.key) args.push("--key", opts.key);
+    else if (opts.keyless) args.push("--yes"); // cosign keyless OIDC accept
+    if (opts.rekorUrl) args.push("--rekor-url", opts.rekorUrl);
+    args.push(artifactAbs);
+
+    const cosignBin = opts.cosignBin ?? "cosign";
+    const result = spawnSync(cosignBin, args, {
+      env: process.env,
+      stdio: ["inherit", "pipe", "pipe"],
+    });
+    if (result.error) {
+      process.stderr.write(
+        `j-rig emit-evidence: failed to spawn cosign (${cosignBin}): ${result.error.message}\n`,
+      );
+      return 2;
+    }
+    if (result.status !== 0) {
+      process.stderr.write(
+        `j-rig emit-evidence: cosign signing failed (exit ${result.status}):\n${result.stderr.toString()}\n`,
+      );
+      return 3;
+    }
+    const sig = readFileSync(sigPath, "utf-8").trim();
+    writeOut(sig, opts);
+    process.stderr.write(
+      `emit-evidence: signed envelope emitted${opts.rekorUrl ? ` (Rekor: ${opts.rekorUrl})` : ""}\n`,
+    );
+    return 0;
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 async function buildComposeInput(
