@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.19.0] - 2026-05-13
+
+- feat(M3 phase 3b): MM-2 through MM-6 checkers + fixtures (#49) (b2fae3b)
+
+
 ## [v0.18.0] - 2026-05-13
 
 - feat(M3 phase 3a): MM-N infrastructure + MM-1 async-race checker + fixtures (#48) (9d10659)
