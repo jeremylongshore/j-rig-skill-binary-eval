@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.18.0] - 2026-05-13
+
+- feat(M3 phase 3a): MM-N infrastructure + MM-1 async-race checker + fixtures (#48) (9d10659)
+
+
 ## [v0.17.0] - 2026-05-13
 
 - feat(M3 phase 2 / PB-8): AGENTS.md parser (#56) (ddfb509)
