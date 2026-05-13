@@ -9,3 +9,4 @@ export * from "./judgment/index.js";
 export * from "./governance/index.js";
 export * from "./optimizer/index.js";
 export * from "./drift/index.js";
+export * from "./evidence/index.js";

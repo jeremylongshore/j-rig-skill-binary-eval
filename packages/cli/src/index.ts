@@ -6,6 +6,7 @@ import { registerEvalCommand } from "./commands/eval.js";
 import { registerReportCommand } from "./commands/report.js";
 import { registerOptimizeCommand } from "./commands/optimize.js";
 import { registerDriftCommand } from "./commands/drift.js";
+import { registerEmitEvidenceCommand } from "./commands/emit-evidence.js";
 
 function createProgram(): Command {
   const program = new Command();
@@ -21,6 +22,7 @@ function createProgram(): Command {
   registerReportCommand(program);
   registerOptimizeCommand(program);
   registerDriftCommand(program);
+  registerEmitEvidenceCommand(program);
 
   return program;
 }
