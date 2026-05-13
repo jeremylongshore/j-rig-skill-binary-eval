@@ -144,13 +144,15 @@ describe("EC-4 error categories", () => {
 });
 
 describe("EC-5 batching", () => {
-  it("CleanProvider batch is serial-await (no concurrency), so EC-5 fails", async () => {
+  it("CleanProvider.batch metrics are captured (Promise.all is concurrent but completes synchronously)", async () => {
     const provider = new CleanProvider({ apiKey: "sk-test-ec5-12345678" });
     const result = await runEC5(provider, { models: MODELS });
     expect(result.ec).toBe("EC-5");
     // CleanProvider's batch is `Promise.all(reqs.map(r => this.complete(r)))`
     // which IS concurrent, but each complete() is synchronous (no real I/O).
-    // The ratio metric is captured regardless.
+    // Timing on synthetic synchronous work is noisy; we only assert metrics
+    // are present, not the pass/fail outcome (which depends on event-loop
+    // scheduling on the CI runner).
     expect(result.perModel[0].metric?.batch_ms).toBeDefined();
     expect(result.perModel[0].metric?.serial_baseline_ms).toBeDefined();
   });

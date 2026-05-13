@@ -89,7 +89,7 @@ async function runOne(
     model,
     pass: true,
     notes: `vendor=${vendor}: ${textDeltas.length} deltas, finish reason=${
-      (finishChunks[0] as { finishReason: string }).finishReason
+      (finishChunks[0] as Extract<StreamChunk, { type: "finish" }>).finishReason
     }`,
     metric: {
       chunk_count: collected.length,

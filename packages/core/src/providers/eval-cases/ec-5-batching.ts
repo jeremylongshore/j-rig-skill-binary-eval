@@ -21,7 +21,11 @@ import { DEFAULT_MODELS } from "./types.js";
 import { isProviderError } from "../errors.js";
 
 const BATCH_SIZE = 10;
-const MAX_BATCH_TO_SERIAL_RATIO = 0.5; // batch must take <= 50% of serial time
+// Batch must take <= 20% of serial time (i.e., ≤ 2x single-call latency
+// for a batch of 10). This matches the file-header comment's "<= 2x the
+// longest single-call latency" criterion exactly. 50% was too lenient
+// (allowed 5x single-call), giving false PASS for non-concurrent batchers.
+const MAX_BATCH_TO_SERIAL_RATIO = 0.2;
 
 export const runEC5: ECRunner = async (provider, options) => {
   const models = options?.models ?? DEFAULT_MODELS;

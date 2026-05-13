@@ -14,11 +14,13 @@
  *   - structuredOutput present but does not match schema by spot-check
  *   - any ProviderError thrown (recorded as error)
  */
+import { z } from "zod";
 import type { Provider, CompletionRequest } from "../types.js";
 import type { ECPerModelOutcome, ECRunner } from "./types.js";
 import { DEFAULT_MODELS } from "./types.js";
 import { isProviderError } from "../errors.js";
 
+// JSON Schema shape sent to the provider in the request.
 const RESPONSE_SCHEMA = {
   type: "object",
   required: ["verdict", "reasoning"],
@@ -28,6 +30,17 @@ const RESPONSE_SCHEMA = {
   },
   additionalProperties: false,
 } as const;
+
+// Strict Zod mirror of RESPONSE_SCHEMA — enforces enum, required, types, AND
+// additionalProperties:false. Used to validate what the adapter actually
+// returns. Keeping JSON Schema as the wire-format constant + Zod as the
+// runtime validator avoids pulling in an extra JSON Schema runtime.
+const RESPONSE_ZOD = z
+  .object({
+    verdict: z.enum(["yes", "no", "unsure"]),
+    reasoning: z.string(),
+  })
+  .strict();
 
 const PROMPT = `Evaluate whether the following observed behavior satisfies the criterion.
 
@@ -76,14 +89,17 @@ async function runOne(
         notes: `vendor=${vendor}: structuredOutput missing despite responseSchema in request`,
       };
     }
-    const obj = structured as Record<string, unknown>;
-    if (!isVerdict(obj.verdict) || typeof obj.reasoning !== "string") {
+    const validation = RESPONSE_ZOD.safeParse(structured);
+    if (!validation.success) {
       return {
         model,
         pass: false,
-        notes: `vendor=${vendor}: structuredOutput did not match schema (got ${JSON.stringify(obj).slice(0, 100)})`,
+        notes: `vendor=${vendor}: structuredOutput did not match schema (${validation.error.issues
+          .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+          .join("; ")}; got ${JSON.stringify(structured).slice(0, 100)})`,
       };
     }
+    const obj = validation.data;
     return {
       model,
       pass: true,
@@ -106,6 +122,3 @@ async function runOne(
   }
 }
 
-function isVerdict(v: unknown): v is "yes" | "no" | "unsure" {
-  return v === "yes" || v === "no" || v === "unsure";
-}

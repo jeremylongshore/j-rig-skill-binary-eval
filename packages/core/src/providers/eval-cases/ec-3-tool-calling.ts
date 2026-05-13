@@ -12,6 +12,7 @@
  *   (2) when the prompt is unrelated to the tool's purpose, the model
  *       does NOT call the tool (toolName === null is the success state)
  */
+import { z } from "zod";
 import type { Provider, CompletionRequest, ToolDefinition } from "../types.js";
 import type { ECPerModelOutcome, ECRunner } from "./types.js";
 import { DEFAULT_MODELS } from "./types.js";
@@ -31,6 +32,22 @@ const SAMPLE_TOOL: ToolDefinition = {
     additionalProperties: false,
   },
 };
+
+// Strict Zod mirror of SAMPLE_TOOL.inputSchema. Enforces every constraint:
+// types, required, additionalProperties=false, integer-ness, min/max range,
+// and RFC 3339 date-time for start_time. Used to validate what the adapter
+// returns in r.toolArguments — manual spot-checks miss the numeric ranges
+// and date-time format which are real failure modes for half-implemented
+// adapters.
+const SAMPLE_TOOL_ARGS_ZOD = z
+  .object({
+    title: z.string(),
+    start_time: z
+      .string()
+      .datetime({ message: "start_time must be RFC 3339 date-time" }),
+    duration_minutes: z.number().int().min(1).max(480),
+  })
+  .strict();
 
 const SHOULD_CALL_PROMPT =
   "Please schedule a meeting titled 'Project review' starting tomorrow at 2pm for 60 minutes.";
@@ -74,13 +91,15 @@ async function runOne(
     const r = await provider.callTool(req);
     if (r.toolName === SAMPLE_TOOL.name && r.toolArguments) {
       const args = r.toolArguments;
-      callOk =
-        typeof args.title === "string" &&
-        typeof args.start_time === "string" &&
-        typeof args.duration_minutes === "number";
-      callNotes = callOk
-        ? `called with title='${args.title}'`
-        : `called but args malformed: ${JSON.stringify(args).slice(0, 80)}`;
+      const validation = SAMPLE_TOOL_ARGS_ZOD.safeParse(args);
+      callOk = validation.success;
+      if (validation.success) {
+        callNotes = `called with title='${validation.data.title}'`;
+      } else {
+        callNotes = `called but args invalid: ${validation.error.issues
+          .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+          .join("; ")}; raw=${JSON.stringify(args).slice(0, 80)}`;
+      }
     } else {
       callNotes = `expected tool call, got toolName=${r.toolName}`;
     }
