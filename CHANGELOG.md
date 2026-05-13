@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.20.1] - 2026-05-13
+
+- docs(M4 PB-7): provider-adapter measurement protocol (CTO Q5 binding gate) (#52) (f32b8cb)
+
+
 ## [v0.20.0] - 2026-05-13
 
 - feat(M3 phase 4): cosign --sign integration in j-rig emit-evidence (#50) (c252c87)
