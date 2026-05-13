@@ -28,20 +28,30 @@
  * The detector is heuristic — it reads attributes the OTel exporter is
  * expected to emit per the spec. Real-world traces with novel attribute
  * shapes can extend the attribute set; this is the v0.1.0-draft baseline.
+ *
+ * Implementation note: trace events are documented as chronologically ordered.
+ * We walk by ARRAY INDEX (not timestamp parsing) so reconciliation detection
+ * scans ALL hooks between a write and its downstream read — not just the
+ * first one. Multi-hook reconciliation flows (logging hook + reconcile hook,
+ * for example) need to find any reconciliation marker among them.
  */
 import type { MMChecker, MMResult, TraceEvent } from "./types.js";
 
 const HOOK_RECONCILIATION_MARKERS = ["reconcile", "retry-with-backoff", "verify-fresh"];
 
 export const checkMM1AsyncRace: MMChecker = (events: TraceEvent[]): MMResult => {
-  const writes = events.filter(
-    (e) =>
+  const writeIndices = events.reduce<number[]>((acc, e, i) => {
+    if (
       e.name === "claude_code.tool_decision" &&
       attr<boolean>(e, "tool.async") === true &&
-      attr<string>(e, "tool.kind") === "write",
-  );
+      attr<string>(e, "tool.kind") === "write"
+    ) {
+      acc.push(i);
+    }
+    return acc;
+  }, []);
 
-  if (writes.length === 0) {
+  if (writeIndices.length === 0) {
     return {
       category: "MM-1",
       result: "NOT_APPLICABLE",
@@ -53,20 +63,29 @@ export const checkMM1AsyncRace: MMChecker = (events: TraceEvent[]): MMResult => 
   let fails = 0;
   const findings: Array<{ writeAt: string; reason: string }> = [];
 
-  for (const write of writes) {
-    const downstream = findDownstreamRead(events, write);
-    if (!downstream) {
+  for (const writeIdx of writeIndices) {
+    const write = events[writeIdx];
+    const readIdx = findDownstreamReadIndex(events, writeIdx);
+    if (readIdx === -1) {
       // Async write occurred but no downstream read followed — can't observe race.
       // Treat as inconclusive-positive: nothing to fail against.
       passes++;
       continue;
     }
 
-    const intermediate = findHookBetween(events, write, downstream);
-    const reconciled =
-      intermediate !== null &&
-      HOOK_RECONCILIATION_MARKERS.some((m) => marksHookHandler(intermediate, m));
+    let reconciled = false;
+    for (let j = writeIdx + 1; j < readIdx; j++) {
+      const e = events[j];
+      if (
+        e.name === "claude_code.hook_execution_complete" &&
+        HOOK_RECONCILIATION_MARKERS.some((m) => marksHookHandler(e, m))
+      ) {
+        reconciled = true;
+        break;
+      }
+    }
 
+    const downstream = events[readIdx];
     const staleResult = attr<boolean>(downstream, "stale_state") === true;
 
     if (reconciled && !staleResult) {
@@ -87,15 +106,15 @@ export const checkMM1AsyncRace: MMChecker = (events: TraceEvent[]): MMResult => 
       category: "MM-1",
       result: "PASS",
       reason: `${passes} async-write/downstream-read pair(s) reconciled correctly`,
-      metadata: { writes: writes.length, passes, fails },
+      metadata: { writes: writeIndices.length, passes, fails },
     };
   }
 
   return {
     category: "MM-1",
     result: "FAIL",
-    reason: `${fails} of ${writes.length} async-write pair(s) raced (no reconciliation observed)`,
-    metadata: { writes: writes.length, passes, fails, findings },
+    reason: `${fails} of ${writeIndices.length} async-write pair(s) raced (no reconciliation observed)`,
+    metadata: { writes: writeIndices.length, passes, fails, findings },
   };
 };
 
@@ -105,39 +124,21 @@ function attr<T>(e: TraceEvent, key: string): T | undefined {
   return e.attributes[key] as T | undefined;
 }
 
-/** Find the first claude_code.tool_result event that targets the same tool family after `write`. */
-function findDownstreamRead(events: TraceEvent[], write: TraceEvent): TraceEvent | null {
-  const writeTime = Date.parse(write.timestamp);
-  if (Number.isNaN(writeTime)) return null;
+/**
+ * Find the index of the first claude_code.tool_result event that targets the
+ * same tool family after `writeIdx`. Returns -1 if none.
+ */
+function findDownstreamReadIndex(events: TraceEvent[], writeIdx: number): number {
+  const write = events[writeIdx];
   const writeServer = attr<string>(write, "server");
-  for (const e of events) {
-    if (e === write) continue;
+  for (let i = writeIdx + 1; i < events.length; i++) {
+    const e = events[i];
     if (e.name !== "claude_code.tool_result") continue;
-    const t = Date.parse(e.timestamp);
-    if (Number.isNaN(t) || t < writeTime) continue;
     if (attr<string>(e, "tool.kind") !== "read") continue;
     if (writeServer && attr<string>(e, "server") !== writeServer) continue;
-    return e;
+    return i;
   }
-  return null;
-}
-
-/** Find a claude_code.hook_execution_complete event whose timestamp lies between two events. */
-function findHookBetween(
-  events: TraceEvent[],
-  before: TraceEvent,
-  after: TraceEvent,
-): TraceEvent | null {
-  const lo = Date.parse(before.timestamp);
-  const hi = Date.parse(after.timestamp);
-  if (Number.isNaN(lo) || Number.isNaN(hi)) return null;
-  for (const e of events) {
-    if (e.name !== "claude_code.hook_execution_complete") continue;
-    const t = Date.parse(e.timestamp);
-    if (Number.isNaN(t)) continue;
-    if (t > lo && t < hi) return e;
-  }
-  return null;
+  return -1;
 }
 
 /** Check whether a hook event's metadata mentions a reconciliation marker. */
