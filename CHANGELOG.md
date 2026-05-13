@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.21.0] - 2026-05-13
+
+- feat(M4 phase 2a): Provider interface + CISO gates G-1, G-2 (#53) (23299e6)
+
+
 ## [v0.20.1] - 2026-05-13
 
 - docs(M4 PB-7): provider-adapter measurement protocol (CTO Q5 binding gate) (#52) (f32b8cb)
