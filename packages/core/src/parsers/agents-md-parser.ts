@@ -201,20 +201,25 @@ function extractShellCommandsFromBlock(md: string): string[] {
   const lines = md.split(/\r?\n/);
   const cmds: string[] = [];
   let inShellBlock = false;
+  let currentMarker = "";
   for (const line of lines) {
-    const open = line.match(/^```+(\S*)\s*$/);
-    if (open) {
-      const info = (open[1] ?? "").toLowerCase();
-      const isClose = inShellBlock;
-      if (isClose) {
+    const fenceMatch = line.match(/^```+(\S*)\s*$/);
+    if (fenceMatch) {
+      const marker = fenceMatch[0].match(/^`+/)![0];
+      if (!inShellBlock) {
+        const info = (fenceMatch[1] ?? "").toLowerCase();
+        if (SHELL_INFO_STRINGS.has(info)) {
+          inShellBlock = true;
+          currentMarker = marker;
+        }
+      } else if (marker.length >= currentMarker.length) {
         inShellBlock = false;
-      } else {
-        inShellBlock = SHELL_INFO_STRINGS.has(info);
+        currentMarker = "";
       }
       continue;
     }
     if (!inShellBlock) continue;
-    const stripped = line.replace(/^[\s$>]+/, "").trim();
+    const stripped = line.replace(/^[\s]*[$>]\s+/, "").trim();
     if (!stripped) continue;
     if (stripped.startsWith("#")) continue;
     cmds.push(stripped);
