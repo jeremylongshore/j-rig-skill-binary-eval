@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { Command } from "commander";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { registerEmitEvidenceCommand } from "./emit-evidence.js";
 
 /**
@@ -17,7 +19,7 @@ import { registerEmitEvidenceCommand } from "./emit-evidence.js";
 
 const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
 
-const CLI_PATH = join(__dirname, "../../dist/index.js");
+const CLI_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../dist/index.js");
 
 function runCli(args: string[]): { stdout: string; stderr: string; code: number } {
   const r = spawnSync("node", [CLI_PATH, ...args], { encoding: "utf-8" });
@@ -105,6 +107,45 @@ describe("emit-evidence CLI integration (no cosign)", () => {
   });
 
   it("--key implies --sign and attempts cosign (exits 2 if cosign not found)", () => {
+    // Need a real artifact whose sha256 matches the predicate input_hash so
+    // the new --artifact pre-check passes (and we actually reach cosign spawn).
+    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+    try {
+      const artifactPath = join(tmpDir, "artifact.bin");
+      const content = "hello world\n";
+      writeFileSync(artifactPath, content);
+      const realHash = createHash("sha256").update(content).digest("hex");
+
+      const r = runCli([
+        "emit-evidence",
+        "--gate-id",
+        "j-rig:server:MM-1",
+        "--result",
+        "PASS",
+        "--input-hash",
+        `sha256:${realHash}`,
+        "--policy-hash",
+        `sha256:${SHA}`,
+        "--runner-version",
+        "j-rig@0.15.0",
+        "--commit-sha",
+        "abc1234",
+        "--key",
+        "/nonexistent.key",
+        "--cosign-bin",
+        "/nonexistent/cosign-binary",
+        "--artifact",
+        artifactPath,
+      ]);
+      // Exit 2 when cosign binary cannot be spawned.
+      expect(r.code).toBe(2);
+      expect(r.stderr).toMatch(/failed to spawn cosign/);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("--sign without --artifact refuses with a clear error", () => {
     const r = runCli([
       "emit-evidence",
       "--gate-id",
@@ -119,14 +160,40 @@ describe("emit-evidence CLI integration (no cosign)", () => {
       "j-rig@0.15.0",
       "--commit-sha",
       "abc1234",
-      "--key",
-      "/nonexistent.key",
-      "--cosign-bin",
-      "/nonexistent/cosign-binary",
+      "--keyless",
     ]);
-    // Exit 2 when cosign binary cannot be spawned.
-    expect(r.code).toBe(2);
-    expect(r.stderr).toMatch(/failed to spawn cosign/);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toMatch(/--sign requires --artifact/);
+  });
+
+  it("--sign with --artifact whose hash mismatches predicate.input_hash refuses", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+    try {
+      const artifactPath = join(tmpDir, "artifact.bin");
+      writeFileSync(artifactPath, "wrong content\n");
+      const r = runCli([
+        "emit-evidence",
+        "--gate-id",
+        "j-rig:server:MM-1",
+        "--result",
+        "PASS",
+        "--input-hash",
+        `sha256:${SHA}`,
+        "--policy-hash",
+        `sha256:${SHA}`,
+        "--runner-version",
+        "j-rig@0.15.0",
+        "--commit-sha",
+        "abc1234",
+        "--keyless",
+        "--artifact",
+        artifactPath,
+      ]);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--artifact sha256 mismatch/);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("rejects malformed JSON on stdin in pipeline mode", () => {
