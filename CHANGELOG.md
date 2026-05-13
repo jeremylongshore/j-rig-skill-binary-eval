@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.15.3] - 2026-05-13
+
+- chore(ci): remove broken gemini-review workflow (switching to Gemini app) (#51) (c87653c)
+
+
 ## [v0.15.2] - 2026-05-12
 
 - chore(deps): bump commander from 13.1.0 to 14.0.3 (#22) (2659b9c)
