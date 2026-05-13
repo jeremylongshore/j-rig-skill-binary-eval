@@ -104,7 +104,7 @@ The five eval cases (§ 4) feed four scoring dimensions. The candidate with the 
 | 1 | 600-1000 LOC |
 | 0 | > 1000 LOC |
 
-Counted via `cloc packages/cli/src/providers/{candidate}-adapter.ts` excluding tests and fixtures. LOC is a proxy for the SDK's level of abstraction; a low-LOC wrapper indicates the underlying SDK already normalizes most of the surface.
+Counted via `cloc packages/cli/src/providers/{candidate}.ts` excluding tests and fixtures (matches the existing naming convention in that directory: `anthropic.ts`, `openai.ts`, etc.). LOC is a proxy for the SDK's level of abstraction; a low-LOC wrapper indicates the underlying SDK already normalizes most of the surface.
 
 ### R5.3 — Request-side feature coverage
 
