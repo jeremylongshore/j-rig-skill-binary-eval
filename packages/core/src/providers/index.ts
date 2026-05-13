@@ -46,3 +46,13 @@ export {
   type EC4Options,
   type EC4Triggers,
 } from "./eval-cases/index.js";
+
+export {
+  computeProviderScoreCard,
+  draftDecisionRecordFragment,
+  locToScore,
+  type RubricScores,
+  type ProviderScoreCard,
+  type ProviderScoreCardInputs,
+  type StaticAnalysisInputs,
+} from "./score-card/index.js";
