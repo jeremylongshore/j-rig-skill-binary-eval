@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.23.1] - 2026-05-13
+
+- chore(deps): bump better-sqlite3 from 12.8.0 to 12.10.0 (#27) (d520cf0)
+- chore(deps-dev): bump typescript-eslint from 8.58.0 to 8.59.3 (#38) (340aa2b)
+- chore(deps-dev): bump @types/node from 25.5.0 to 25.7.0 (#28) (401d6f5)
+- chore(deps): bump zod from 4.3.6 to 4.4.3 (#36) (5df1eb0)
+
+
 ## [v0.23.0] - 2026-05-13
 
 - feat(M4 phase 2c): score-card scoring + Decision Record draft generator (#55) (fc2467f)
