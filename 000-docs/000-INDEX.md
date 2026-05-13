@@ -19,6 +19,8 @@
 |---|------|-------------|
 | 003 | [003-AT-ARCH-architecture.md](003-AT-ARCH-architecture.md) | Architecture |
 | 005 | [005-AT-SPEC-technical-spec.md](005-AT-SPEC-technical-spec.md) | Technical spec |
+| 010 | [010-AT-SPEC-eval-spec-and-contract-guide.md](010-AT-SPEC-eval-spec-and-contract-guide.md) | Eval spec + contract authoring guide |
+| 018 | [018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md](018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md) | PB-7 provider-adapter measurement protocol (gating doc; ISEDC v1 Q5 CTO binding) |
 
 ### OD — Operations & Deployment
 | # | File | Description |
@@ -79,6 +81,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 7 + 10 epics + templates & references library (~32 files)
-- **Categories used:** 3 (PP, AT, OD)
-- **Next sequence number:** 008
+- **Total documents:** 18 + 10 epics + templates & references library (~32 files)
+- **Categories used:** 4 (PP, AT, OD, TQ)
+- **Next sequence number:** 019
+- **Note:** the per-category tables above list a subset; the per-doc files in this directory are the canonical source. Rebuild via `/doc-filing` index when next refreshed.
