@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.23.2] - 2026-05-13
+
+- chore(deps): bump pnpm/action-setup from 5 to 6 (#23) (f4505c5)
+
+
 ## [v0.23.1] - 2026-05-13
 
 - chore(deps): bump better-sqlite3 from 12.8.0 to 12.10.0 (#27) (d520cf0)
