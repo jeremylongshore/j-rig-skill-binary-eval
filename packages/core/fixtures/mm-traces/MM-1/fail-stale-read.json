@@ -1,0 +1,30 @@
+{
+  "name": "fail-stale-read",
+  "category": "MM-1",
+  "expected": "FAIL",
+  "notes": "Vendor-generic fixture. Demonstrates an async write followed by a downstream read with NO hook reconciliation between them — read sees stale state.",
+  "events": [
+    {
+      "name": "claude_code.tool_decision",
+      "timestamp": "2026-05-12T05:10:00.000Z",
+      "attributes": {
+        "tool": "create_record",
+        "server": "example_server",
+        "tool.async": true,
+        "tool.kind": "write",
+        "decision": "approved"
+      }
+    },
+    {
+      "name": "claude_code.tool_result",
+      "timestamp": "2026-05-12T05:10:00.200Z",
+      "attributes": {
+        "tool": "get_record",
+        "server": "example_server",
+        "tool.kind": "read",
+        "stale_state": true,
+        "result_status": "stale"
+      }
+    }
+  ]
+}
