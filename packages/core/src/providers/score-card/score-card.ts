@@ -148,16 +148,11 @@ function scoreEcCoverage(r: ECResult): number {
   const passes = r.perModel.filter((m) => m.pass).length;
   const total = r.perModel.length;
   if (total === 0) return 0;
-  // Three-provider EC: 3=all3, 2=2of3, 1=1of3, 0=none.
-  if (total >= 3) {
-    if (passes === total) return 3;
-    if (passes === 2) return 2;
-    if (passes === 1) return 1;
-    return 0;
-  }
-  // Fewer-than-3 setups (shouldn't happen per § 4 EC-1 but defensive):
-  // proportional scoring.
-  return Math.round((passes / total) * 3) as 0 | 1 | 2 | 3;
+  // Proportional scoring: 3=all, 2=~66%, 1=~33%, 0=none. Robust for any
+  // model-set size (correctly handles the 3-provider canonical case
+  // 3/3=3, 2/3=2, 1/3=1 AND extended sets like 4 providers where
+  // 3 passes scores ~2 instead of falling through every special case to 0).
+  return Math.min(3, Math.max(0, Math.round((passes / total) * 3))) as 0 | 1 | 2 | 3;
 }
 
 // --- R5.4 runtime-error category sum ---
@@ -171,11 +166,21 @@ function scoreEcCoverage(r: ECResult): number {
  *   "vendor=<x>: authentication:<status>, rate_limit:<status>, ..."
  * Statuses: expected | missing | wrong-category | skipped.
  *
- * Scoring:
- *   expected     → 3 points
- *   skipped      → 0 (no signal, no penalty since the trigger wasn't run)
- *   wrong-category → 1 (some unification but category boundary unclear)
- *   missing      → 0 (no unified error)
+ * Scoring (per category, summed to a 0..15 per-model score):
+ *   expected       → 3 points (unified error category — full credit)
+ *   wrong-category → 1 point  (error surfaced but category boundary wrong)
+ *   missing        → 0 points (generic Error thrown, no unified category)
+ *   skipped        → 0 points (trigger wasn't run for this measurement run)
+ *
+ * The PR description's "no penalty for skipped" wording is misleading
+ * relative to this 0-point treatment. We DO score skipped as 0 — but the
+ * R5.4 maximum is fixed at 15 across all 5 categories, so a measurement
+ * run that skips, say, network_timeout effectively caps the candidate at
+ * 12/15 even if everything else is "expected". The PB-7 protocol's intent
+ * here is "run all 5 categories per candidate before locking the decision"
+ * — skipping is allowed during prototype iteration but locks in a lower
+ * score. If a candidate's measurement run shows a skip, the council should
+ * either re-run the trigger or document the skip in the Decision Record.
  *
  * Sum across all 5 trigger categories; max 15 per model. We average across
  * the 3 models to land on a single 0..15 per-prototype value.
