@@ -38,7 +38,17 @@ export interface ReadBundleResult {
 export function readBundle(path: string): ReadBundleResult {
   const result: ReadBundleResult = { rows: [], errors: [] };
   const absPath = resolve(path);
-  const st = statSync(absPath);
+  let st;
+  try {
+    st = statSync(absPath);
+  } catch (err) {
+    result.errors.push({
+      rowIndex: -1,
+      source: absPath,
+      message: `file system error: ${(err as Error).message}`,
+    });
+    return result;
+  }
 
   if (st.isDirectory()) {
     const entries = readdirSync(absPath)

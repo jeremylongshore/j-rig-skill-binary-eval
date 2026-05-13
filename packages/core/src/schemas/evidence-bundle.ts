@@ -61,7 +61,7 @@ export const GateResultPredicateSchema = z
     input_hash: z.string().regex(SHA256_PREFIXED_REGEX, "input_hash must be sha256:<64-hex>"),
     timestamp: z
       .string()
-      .refine((s) => !Number.isNaN(Date.parse(s)), "timestamp must be RFC 3339 parseable"),
+      .datetime({ message: "timestamp must be a valid RFC 3339 UTC string" }),
     runner: z.string().regex(RUNNER_REGEX, "runner must be tool@semver"),
     commit_sha: z.string().regex(COMMIT_SHA_REGEX, "commit_sha must be 7-40 hex chars"),
     metadata: z.record(z.string(), z.unknown()).optional(),

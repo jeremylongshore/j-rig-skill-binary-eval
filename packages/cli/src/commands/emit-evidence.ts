@@ -109,7 +109,7 @@ export function registerEmitEvidenceCommand(program: Command): void {
               "gate.runner": composed.runner,
               "gate.commit_sha": composed.commitSha,
             },
-            timestamp: composed.timestamp,
+            timestamp: statement.predicate.timestamp,
           };
           process.stderr.write(`[OTEL] ${JSON.stringify(evt)}\n`);
         }
