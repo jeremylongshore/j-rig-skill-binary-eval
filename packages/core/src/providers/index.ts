@@ -28,3 +28,21 @@ export {
 
 export { CleanProvider } from "./test-fixtures/clean-provider.js";
 export { LeakyProvider } from "./test-fixtures/leaky-provider.js";
+
+export {
+  DEFAULT_MODELS,
+  runEC1,
+  runEC2,
+  runEC3,
+  runEC4,
+  runEC5,
+  runFullECSuite,
+  type ECModelSet,
+  type ECPerModelOutcome,
+  type ECResult,
+  type ECRunner,
+  type ECRunnerOptions,
+  type ECSuiteResult,
+  type EC4Options,
+  type EC4Triggers,
+} from "./eval-cases/index.js";
