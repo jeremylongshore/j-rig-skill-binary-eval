@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.22.0] - 2026-05-13
+
+- feat(M4 phase 2b): EC-1..EC-5 eval-case harness (PB-7 execution surface) (#54) (d2e96be)
+
+
 ## [v0.21.0] - 2026-05-13
 
 - feat(M4 phase 2a): Provider interface + CISO gates G-1, G-2 (#53) (23299e6)
