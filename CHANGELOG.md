@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.20.0] - 2026-05-13
+
+- feat(M3 phase 4): cosign --sign integration in j-rig emit-evidence (#50) (c252c87)
+
+
 ## [v0.19.0] - 2026-05-13
 
 - feat(M3 phase 3b): MM-2 through MM-6 checkers + fixtures (#49) (b2fae3b)
