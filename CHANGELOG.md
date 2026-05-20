@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.0.0] - 2026-05-19
+
+### Changed — License (BREAKING)
+
+- **Relicensed from MIT to Apache 2.0.** Deliberate alignment with the rest of the Intent Eval Platform ecosystem (`intent-eval-lab`, `intent-eval-core`) so every repo ships under a single OSI-approved license with explicit patent-grant language.
+- Existing `0.x` artifacts remain available under their original MIT terms. All releases `>= 1.0.0` are Apache 2.0.
+- Added `NOTICE` file per Apache 2.0 best practice with copyright attribution and license summary.
+- README license badge + section updated to reflect the change with a backward-compat note.
+- `version.txt` and `package.json` versions synced to `1.0.0` (resolving prior drift between the two files in passing).
+
+No code, behavior, dep, or CLI changes in this release — license-only bump cut as MAJOR for legal clarity and consumer review signaling.
+
 ## [v0.23.2] - 2026-05-13
 
 - chore(deps): bump pnpm/action-setup from 5 to 6 (#23) (f4505c5)

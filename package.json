@@ -1,6 +1,6 @@
 {
   "name": "j-rig-binary-eval",
-  "version": "0.23.2",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Seven-layer binary evaluation harness and rollout gate for Claude Skills",
@@ -29,7 +29,7 @@
     "typescript-eslint": "^8.59.3",
     "vitest": "^3.1.0"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/jeremylongshore/j-rig-binary-eval.git"
