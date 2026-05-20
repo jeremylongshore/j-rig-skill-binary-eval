@@ -4,7 +4,7 @@
 
 Binary evaluation harness that treats `SKILL.md` artifacts as production software. Package integrity, trigger precision, functional quality, regression gating, baseline comparison, model-aware testing, and evidence-backed rollout decisions — all through binary yes/no criteria with external evaluators.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-binary-eval)](https://github.com/jeremylongshore/j-rig-binary-eval/releases)
 
@@ -150,7 +150,9 @@ pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
+
+**Note:** versions `0.x` shipped under the MIT license. Starting with `v1.0.0`, the project is licensed under Apache 2.0. Any existing `0.x` artifacts remain available under their original MIT terms; new releases (`>= 1.0.0`) are Apache 2.0.
 
 ## Author
 
