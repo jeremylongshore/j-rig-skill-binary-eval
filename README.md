@@ -152,7 +152,7 @@ pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
 
-**Note:** versions `0.x` shipped under the MIT license. Starting with `v1.0.0`, the project is licensed under Apache 2.0. Any existing `0.x` artifacts remain available under their original MIT terms; new releases (`>= 1.0.0`) are Apache 2.0.
+**Note:** versions `0.x` shipped under the MIT license. Starting with `v1.0.1`, the project is licensed under Apache 2.0. Any existing `0.x` artifacts remain available under their original MIT terms; new releases (`>= 1.0.1`) are Apache 2.0.
 
 ## Author
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.0.1] - 2026-05-21
+
+- docs: file IEP /appaudit baseline (2026-05-20) (#74) (8481913)
+
+
 ## [v1.0.0] - 2026-05-19
 
 ### Changed — License (BREAKING)
