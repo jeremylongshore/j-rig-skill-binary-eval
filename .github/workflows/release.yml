@@ -68,18 +68,22 @@ jobs:
           echo "Working tree is clean."
 
           echo "--- Running tests (if available) ---"
+          # IEP Convergence Debt Plan Priority 2 / iaj-release-test-bypass:
+          # tests MUST block release. The prior `|| true` suffixes masked
+          # failing test runs and let the release workflow proceed. Removed.
+          # See 000-docs/026-AA-AACR-release-hardening-iep-P2-2026-05-21.md.
           if [ -f "Makefile" ] && grep -q "^test:" Makefile; then
-            make test || true
+            make test
           elif [ -f "package.json" ] && grep -q '"test"' package.json; then
-            pnpm run test || true
+            pnpm run test
           elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
-            python -m pytest || true
+            python -m pytest
           elif [ -f "Cargo.toml" ]; then
-            cargo test || true
+            cargo test
           elif [ -f "go.mod" ]; then
-            go test ./... || true
+            go test ./...
           else
-            echo "No test runner detected, skipping."
+            echo "::warning::No test runner detected. A release with no tests is permitted but strongly discouraged. Add a test:* script to package.json (or equivalent) to gate releases on real assertions."
           fi
 
       - name: Determine previous tag

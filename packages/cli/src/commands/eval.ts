@@ -34,6 +34,7 @@ import {
   StubTriggerProvider,
   StubExecutionProvider,
   StubJudgeProvider,
+  assertStubAllowed,
 } from "../providers/anthropic.js";
 
 interface EvalOptions {
@@ -76,6 +77,13 @@ export function registerEvalCommand(program: Command): void {
       const startTime = Date.now();
 
       try {
+        // Stub mode is opt-in. Per IEP Convergence Debt Plan Priority 2:
+        // refuse to run without J_RIG_ALLOW_STUB=1 because the silent-ship
+        // failure mode is too costly. Real provider implementation lands
+        // later (iaj-stub-provider, PB-7); until then, every invocation
+        // either acknowledges stub mode explicitly or errors out.
+        assertStubAllowed();
+
         // ── Phase 1: Load ────────────────────────────────────────────────
         const absDir = resolve(skillDir);
         const { parsed: skill, raw: skillContent } = loadSkillMd(absDir);
