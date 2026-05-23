@@ -91,10 +91,15 @@ export function assertStubAllowed(): void {
  * end-to-end without an API key. Replace with a real Anthropic SDK call when
  * ready.
  *
- * Constructing this class emits the stub-provider banner once per process.
+ * Constructing this class enforces the J_RIG_ALLOW_STUB=1 opt-in gate
+ * (defense-in-depth: the gate is structurally inviolable, not merely
+ * enforced by the known caller in `eval.ts`) and emits the stub-provider
+ * banner once per process. Any direct importer who tries to instantiate
+ * the stub without the env-var opt-in throws REFUSED.
  */
 export class StubTriggerProvider implements TriggerProvider {
   constructor(private model: string) {
+    assertStubAllowed();
     emitStubBanner();
   }
 
@@ -115,9 +120,14 @@ export class StubTriggerProvider implements TriggerProvider {
  *
  * Returns a synthetic `ExecutionOutput & { meta: ExecutionMeta }` with zero
  * latency so the functional pipeline can run end-to-end without an API key.
+ *
+ * Constructor enforces the J_RIG_ALLOW_STUB=1 opt-in gate (see
+ * `StubTriggerProvider` rationale). Any caller who instantiates without
+ * the env-var opt-in throws REFUSED.
  */
 export class StubExecutionProvider implements ExecutionProvider {
   constructor(private model: string) {
+    assertStubAllowed();
     emitStubBanner();
   }
 
@@ -148,9 +158,14 @@ export class StubExecutionProvider implements ExecutionProvider {
  *
  * Always returns a "yes" verdict with low confidence so the judgment pipeline
  * can run end-to-end without an API key.
+ *
+ * Constructor enforces the J_RIG_ALLOW_STUB=1 opt-in gate (see
+ * `StubTriggerProvider` rationale). Any caller who instantiates without
+ * the env-var opt-in throws REFUSED.
  */
 export class StubJudgeProvider implements JudgeProvider {
   constructor(private model: string) {
+    assertStubAllowed();
     emitStubBanner();
   }
 

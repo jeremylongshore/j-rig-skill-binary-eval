@@ -77,11 +77,15 @@ export function registerEvalCommand(program: Command): void {
       const startTime = Date.now();
 
       try {
-        // Stub mode is opt-in. Per IEP Convergence Debt Plan Priority 2:
-        // refuse to run without J_RIG_ALLOW_STUB=1 because the silent-ship
-        // failure mode is too costly. Real provider implementation lands
-        // later (iaj-stub-provider, PB-7); until then, every invocation
-        // either acknowledges stub mode explicitly or errors out.
+        // Stub-mode opt-in is enforced inside each stub provider constructor
+        // per IEP Convergence Debt Plan Priority 2 (defense in depth: the
+        // gate is structurally inviolable, not merely enforced here). A
+        // belt-and-suspenders call is retained at the command-handler entry
+        // point so the REFUSED error surfaces BEFORE we do any expensive
+        // I/O (loadSkillMd, openDb, loadEvalSpec) when stub mode is the only
+        // available path. Removing this call would still be safe — the
+        // constructors below would throw first — but the failure message
+        // would land mid-pipeline instead of pre-pipeline.
         assertStubAllowed();
 
         // ── Phase 1: Load ────────────────────────────────────────────────

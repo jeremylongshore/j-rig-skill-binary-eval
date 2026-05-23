@@ -67,8 +67,12 @@ describe("stub-provider banner (emitStubBanner)", () => {
   // `process.stderr.write` has overloaded signatures that vitest's MockInstance
   // generic cannot widen — use the unparameterised MockInstance and cast at use.
   let stderrSpy: MockInstance;
+  const originalEnv = process.env.J_RIG_ALLOW_STUB;
 
   beforeEach(() => {
+    // Stub constructors enforce the opt-in gate (defense in depth) — every
+    // test that instantiates a stub must satisfy that gate explicitly.
+    process.env.J_RIG_ALLOW_STUB = "1";
     __resetStubBannerForTests();
     stderrSpy = vi
       .spyOn(process.stderr, "write")
@@ -76,6 +80,11 @@ describe("stub-provider banner (emitStubBanner)", () => {
   });
 
   afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.J_RIG_ALLOW_STUB;
+    } else {
+      process.env.J_RIG_ALLOW_STUB = originalEnv;
+    }
     stderrSpy.mockRestore();
     __resetStubBannerForTests();
   });
@@ -128,5 +137,58 @@ describe("stub-provider banner (emitStubBanner)", () => {
     expect(stderrSpy).toHaveBeenCalledTimes(1);
     expect(stdoutSpy).not.toHaveBeenCalled();
     stdoutSpy.mockRestore();
+  });
+});
+
+describe("stub-provider constructor enforces opt-in (defense in depth)", () => {
+  // Per Gemini review on PR #75: moving the assertStubAllowed() call into
+  // each stub provider constructor makes the safety invariant structurally
+  // inviolable — any caller who tries to import a stub provider directly
+  // and instantiate it without J_RIG_ALLOW_STUB=1 hits the gate, not just
+  // callers who go through the eval.ts command handler.
+  const originalEnv = process.env.J_RIG_ALLOW_STUB;
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.J_RIG_ALLOW_STUB;
+    } else {
+      process.env.J_RIG_ALLOW_STUB = originalEnv;
+    }
+    __resetStubBannerForTests();
+  });
+
+  it("StubTriggerProvider construction REFUSES when J_RIG_ALLOW_STUB is unset", () => {
+    delete process.env.J_RIG_ALLOW_STUB;
+    expect(() => new StubTriggerProvider("claude-haiku")).toThrowError(/REFUSED/);
+  });
+
+  it("StubExecutionProvider construction REFUSES when J_RIG_ALLOW_STUB is unset", () => {
+    delete process.env.J_RIG_ALLOW_STUB;
+    expect(() => new StubExecutionProvider("claude-haiku")).toThrowError(/REFUSED/);
+  });
+
+  it("StubJudgeProvider construction REFUSES when J_RIG_ALLOW_STUB is unset", () => {
+    delete process.env.J_RIG_ALLOW_STUB;
+    expect(() => new StubJudgeProvider("claude-haiku")).toThrowError(/REFUSED/);
+  });
+
+  it("StubTriggerProvider construction REFUSES when J_RIG_ALLOW_STUB is not exactly '1'", () => {
+    process.env.J_RIG_ALLOW_STUB = "true";
+    expect(() => new StubTriggerProvider("claude-haiku")).toThrowError(/REFUSED/);
+  });
+
+  it("all three stubs construct successfully when J_RIG_ALLOW_STUB is '1'", () => {
+    process.env.J_RIG_ALLOW_STUB = "1";
+    // Suppress banner so test output isn't noisy.
+    const spy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation((() => true) as unknown as typeof process.stderr.write);
+    try {
+      expect(() => new StubTriggerProvider("claude-haiku")).not.toThrow();
+      expect(() => new StubExecutionProvider("claude-haiku")).not.toThrow();
+      expect(() => new StubJudgeProvider("claude-haiku")).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
