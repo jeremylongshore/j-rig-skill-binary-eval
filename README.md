@@ -146,6 +146,14 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`), TypeScript baseline (tsup builds), quality guardrails (ESLint, Prettier, Vitest), and CI/CD workflows.
 
+### ⚠️ Stub providers — output is NOT ground truth
+
+**The real Anthropic SDK adapter is not yet wired** (tracked as `iaj-stub-provider` / PB-7 in the IEP Convergence Debt Plan). Every `j-rig eval` invocation currently runs against stub providers that emit synthetic outputs. The CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation.
+
+Do not consume j-rig output as evidence of skill quality until the real provider lands. CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.
+
+Full discipline: [STUB-PROVIDERS.md](./STUB-PROVIDERS.md).
+
 ---
 
 ## License
