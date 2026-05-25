@@ -58,6 +58,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build workspace packages
+        # pnpm workspaces — `@j-rig/cli` imports `@j-rig/core` via the `exports`
+        # field, which points at `dist/`. Tests fail to resolve those imports
+        # if dist/ is absent. ci.yml already builds before test/typecheck; this
+        # release-time step restores symmetry. Root cause of the 3 consecutive
+        # post-v1.0.0 Release failures (panel-flagged 2026-05-25, see Beck
+        # finding #1 in 000-docs/NNN-AA-AACR-thinker-panel-review-2026-05-25.md).
+        run: pnpm run build
+
       - name: Verify readiness
         run: |
           echo "--- Checking for uncommitted changes ---"
