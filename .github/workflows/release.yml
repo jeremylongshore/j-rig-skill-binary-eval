@@ -1,50 +1,42 @@
 name: Release
 
+# Creates a GitHub Release for j-rig-binary-eval on tag push v*.*.*.
+#
+# Triggered by pushing an annotated tag (e.g., v1.0.1). The job:
+#   1. Re-runs the full check chain (build + lint + typecheck + test)
+#   2. Verifies package.json#version matches the pushed tag (defends against
+#      tag-vs-package-version drift — same gate as intent-eval-core uses)
+#   3. Creates a GitHub Release with auto-generated notes
+#
+# Version bumping is a PR-flow concern (engineer opens PR with package.json
+# bump + CHANGELOG entry, merges to main, then manually tags from main HEAD).
+# The previous auto-bump-on-push-to-main logic was removed because the
+# git-push step of that flow can't cross branch protection on main without
+# an admin override — see closed bead bd_000-projects-bj5m.
+
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump type"
-        required: true
-        default: "auto"
-        type: choice
-        options:
-          - auto
-          - patch
-          - minor
-          - major
-      dry_run:
-        description: "Dry run (skip tag/push/release)"
-        required: false
-        default: false
-        type: boolean
   push:
-    branches: [main]
+    tags:
+      - 'v*.*.*'
 
 permissions:
-  contents: write
-  issues: write
-  discussions: write
+  contents: write  # for GH release creation
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # tag pushes are race-safe; never cancel
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - name: Checkout with full history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -58,260 +50,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build workspace packages
-        # pnpm workspaces — `@j-rig/cli` imports `@j-rig/core` via the `exports`
-        # field, which points at `dist/`. Tests fail to resolve those imports
-        # if dist/ is absent. ci.yml already builds before test/typecheck; this
-        # release-time step restores symmetry. Root cause of the 3 consecutive
-        # post-v1.0.0 Release failures (panel-flagged 2026-05-25, see Beck
-        # finding #1 in 000-docs/NNN-AA-AACR-thinker-panel-review-2026-05-25.md).
-        run: pnpm run build
-
-      - name: Verify readiness
+      - name: Verify tag matches package.json version
         run: |
-          echo "--- Checking for uncommitted changes ---"
-          if ! git diff --quiet || ! git diff --staged --quiet; then
-            echo "::error::Uncommitted changes detected"
+          tag_version="${GITHUB_REF#refs/tags/v}"
+          pkg_version=$(node -p "require('./package.json').version")
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag v$tag_version does not match package.json version $pkg_version. Bump package.json (or correct the tag) and re-push."
             exit 1
           fi
-          echo "Working tree is clean."
+          echo "Tag and package version both: $tag_version"
 
-          echo "--- Running tests (if available) ---"
-          # IEP Convergence Debt Plan Priority 2 / iaj-release-test-bypass:
-          # tests MUST block release. The prior `|| true` suffixes masked
-          # failing test runs and let the release workflow proceed. Removed.
-          # See 000-docs/026-AA-AACR-release-hardening-iep-P2-2026-05-21.md.
-          if [ -f "Makefile" ] && grep -q "^test:" Makefile; then
-            make test
-          elif [ -f "package.json" ] && grep -q '"test"' package.json; then
-            pnpm run test
-          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
-            python -m pytest
-          elif [ -f "Cargo.toml" ]; then
-            cargo test
-          elif [ -f "go.mod" ]; then
-            go test ./...
-          else
-            echo "::warning::No test runner detected. A release with no tests is permitted but strongly discouraged. Add a test:* script to package.json (or equivalent) to gate releases on real assertions."
-          fi
+      - name: Build workspace packages
+        # @j-rig/cli imports @j-rig/core via the `exports` field which points
+        # at dist/. Tests/checks fail to resolve workspace imports unless dist
+        # exists. Matches ci.yml build-before-test invariant (PR #76).
+        run: pnpm run build
 
-      - name: Determine previous tag
-        id: prev
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
-          echo "Previous tag: $PREV_TAG"
+      - name: Lint
+        run: pnpm run lint
 
-      - name: Check if release is needed
-        id: check
-        run: |
-          PREV_TAG="${{ steps.prev.outputs.tag }}"
-          if [ "$PREV_TAG" = "v0.0.0" ]; then
-            echo "First release — proceeding."
-            echo "needed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+      - name: Typecheck
+        run: pnpm run typecheck
 
-          COMMIT_COUNT=$(git rev-list "${PREV_TAG}..HEAD" --count)
-          echo "Commits since $PREV_TAG: $COMMIT_COUNT"
-          if [ "$COMMIT_COUNT" -eq 0 ]; then
-            echo "No new commits since last tag. Skipping release."
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Decide bump type
-        id: bump
-        if: steps.check.outputs.needed == 'true'
-        run: |
-          MANUAL_BUMP="${{ github.event.inputs.bump || 'auto' }}"
-          PREV_TAG="${{ steps.prev.outputs.tag }}"
-
-          if [ "$MANUAL_BUMP" != "auto" ]; then
-            echo "type=$MANUAL_BUMP" >> "$GITHUB_OUTPUT"
-            echo "Using manual bump: $MANUAL_BUMP"
-            exit 0
-          fi
-
-          # Auto-detect from commit messages since last tag
-          COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-
-          if echo "$COMMITS" | grep -qiE "BREAKING CHANGE|^[a-z]+!:"; then
-            BUMP="major"
-          elif echo "$COMMITS" | grep -qiE "^feat(\(.*\))?:"; then
-            BUMP="minor"
-          else
-            BUMP="patch"
-          fi
-
-          echo "type=$BUMP" >> "$GITHUB_OUTPUT"
-          echo "Auto-detected bump: $BUMP"
-
-      - name: Compute next version
-        id: version
-        if: steps.check.outputs.needed == 'true'
-        run: |
-          PREV_TAG="${{ steps.prev.outputs.tag }}"
-          BUMP="${{ steps.bump.outputs.type }}"
-
-          # Strip leading 'v'
-          VERSION="${PREV_TAG#v}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1)
-          MINOR=$(echo "$VERSION" | cut -d. -f2)
-          PATCH=$(echo "$VERSION" | cut -d. -f3)
-
-          case "$BUMP" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
-
-          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "Next version: $NEXT"
-
-      - name: Update version files
-        if: steps.check.outputs.needed == 'true'
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          VERSION_NUM="${NEXT#v}"
-
-          # package.json (Node.js)
-          if [ -f "package.json" ]; then
-            tmp=$(mktemp)
-            jq --arg v "$VERSION_NUM" '.version = $v' package.json > "$tmp" && mv "$tmp" package.json
-            git add package.json
-            echo "Updated package.json to $VERSION_NUM"
-          fi
-
-          # package-lock.json
-          if [ -f "package-lock.json" ]; then
-            tmp=$(mktemp)
-            jq --arg v "$VERSION_NUM" '.version = $v' package-lock.json > "$tmp" && mv "$tmp" package-lock.json
-            git add package-lock.json || true
-            echo "Updated package-lock.json to $VERSION_NUM"
-          fi
-
-          # pyproject.toml (Python)
-          if [ -f "pyproject.toml" ]; then
-            sed -i "s/^version = \".*\"/version = \"$VERSION_NUM\"/" pyproject.toml || true
-            git add pyproject.toml
-            echo "Updated pyproject.toml to $VERSION_NUM"
-          fi
-
-          # Cargo.toml (Rust)
-          if [ -f "Cargo.toml" ]; then
-            sed -i "0,/^version = \".*\"/s//version = \"$VERSION_NUM\"/" Cargo.toml || true
-            git add Cargo.toml
-            echo "Updated Cargo.toml to $VERSION_NUM"
-          fi
-
-          # version.txt (universal fallback)
-          echo "$VERSION_NUM" > version.txt
-          git add version.txt
-          echo "Updated version.txt to $VERSION_NUM"
-
-      - name: Generate changelog entry
-        if: steps.check.outputs.needed == 'true'
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          PREV_TAG="${{ steps.prev.outputs.tag }}"
-          DATE=$(date +%Y-%m-%d)
-
-          # Build changelog entry
-          {
-            echo "## [$NEXT] - $DATE"
-            echo ""
-            if [ "$PREV_TAG" = "v0.0.0" ]; then
-              git log --pretty=format:"- %s (%h)" | head -50
-            else
-              git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)"
-            fi
-            echo ""
-            echo ""
-          } > /tmp/changelog_entry.md
-
-          # Prepend to CHANGELOG.md
-          if [ -f "CHANGELOG.md" ]; then
-            # Insert after the first heading line
-            {
-              head -1 CHANGELOG.md
-              echo ""
-              cat /tmp/changelog_entry.md
-              tail -n +2 CHANGELOG.md
-            } > /tmp/changelog_merged.md
-            mv /tmp/changelog_merged.md CHANGELOG.md
-          else
-            {
-              echo "# Changelog"
-              echo ""
-              cat /tmp/changelog_entry.md
-            } > CHANGELOG.md
-          fi
-
-          git add CHANGELOG.md
-          echo "Changelog updated for $NEXT"
-
-      - name: Sync README version references
-        if: steps.check.outputs.needed == 'true'
-        continue-on-error: true
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          PREV_TAG="${{ steps.prev.outputs.tag }}"
-
-          if [ -f "README.md" ] && [ "$PREV_TAG" != "v0.0.0" ]; then
-            sed -i "s/${PREV_TAG}/${NEXT}/g" README.md || true
-            sed -i "s/${PREV_TAG#v}/${NEXT#v}/g" README.md || true
-            git add README.md || true
-            echo "README.md version references updated"
-          fi
-
-      - name: Commit version bump
-        if: steps.check.outputs.needed == 'true'
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          git diff --staged --quiet || git commit -m "chore(release): ${NEXT}"
-
-      - name: Create tag and push
-        if: steps.check.outputs.needed == 'true' && github.event.inputs.dry_run != 'true'
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          git tag -a "$NEXT" -m "Release $NEXT"
-          git push origin HEAD "$NEXT"
-          echo "Pushed tag $NEXT"
+      - name: Test
+        run: pnpm run test
 
       - name: Create GitHub Release
-        if: steps.check.outputs.needed == 'true' && github.event.inputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NEXT="${{ steps.version.outputs.next }}"
+          NEXT="${GITHUB_REF#refs/tags/}"
           gh release create "$NEXT" \
             --title "j-rig-binary-eval $NEXT" \
             --generate-notes \
             --latest
-
-      - name: Dry run summary
-        if: github.event.inputs.dry_run == 'true'
-        run: |
-          NEXT="${{ steps.version.outputs.next }}"
-          echo "::notice::Dry run complete. Would have released $NEXT"
-          echo "## Dry Run Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Version:** $NEXT" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Bump:** ${{ steps.bump.outputs.type }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Previous:** ${{ steps.prev.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Skip summary
-        if: steps.check.outputs.needed != 'true'
-        run: |
-          echo "::notice::No release needed — no new commits since ${{ steps.prev.outputs.tag }}"
