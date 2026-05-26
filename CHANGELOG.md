@@ -1,5 +1,58 @@
 # Changelog
 
+All notable changes to `j-rig-binary-eval` are documented here.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versioning follows [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Pending
+
+- **`@j-rig/*` v2.0.0 major bump** per DR-018 ratification (consume kernel `EvidenceBundlePayload` Option α-minus). Gated on `iaj-E02b` precondition (`iec-E12` v0.2.0 release of `@intentsolutions/core`).
+- npm publish path (currently no `pnpm publish` step in release.yml; consider when downstream consumers need npm-shipped `@j-rig/*` packages — separate workstream).
+
+## [v1.1.0] - 2026-05-26
+
+### Added — stub-provider opt-in API (`iaj-stub-provider`, IEP P2)
+
+Closes `bd_000-projects-lcgu` (P0, partial — opt-in gate + banner discipline; real Anthropic adapter / PB-7 implementation remains open under the same bead as separate scope going forward).
+
+Stub providers (used in tests and demos) now require explicit opt-in. The opt-in is enforced inside the stub provider constructors via `assertStubAllowed()` — see commit `24695ac` (refactor per Gemini PR #75 review). Default posture: stub usage refuses with a clear error unless `EVAL_STUB_ALLOW=1` is set; banner discipline confirms the consumer is intentionally running with stubs.
+
+### Fixed — release.yml `|| true` removal (`iaj-release-test-bypass`, IEP P2)
+
+Closes `bd_000-projects-d8au` (P0). Previous `release.yml` masked test failures with `|| true` on every test runner invocation (Makefile/test, pnpm test, pytest, cargo test, go test). A red test suite could ship a tagged release with green CI signals. All 5 suffixes removed; failing tests now block releases. See PR #75 + companion AAR `000-docs/020-AA-AACR-release-hardening-iep-P2-2026-05-21.md`.
+
+### Fixed — release.yml build-before-test invariant (`iaj-release-ci-build-before-test`)
+
+PR #76 (2026-05-26). After `|| true` was removed in v1.1.0's iep-P2 work, the latent failure surfaced: `pnpm run test` ran without `pnpm run build` first, so vitest could not resolve `@j-rig/cli`'s import of `@j-rig/core` (the `exports` field points at `dist/` which didn't exist). Added a `Build workspace packages` step before the `Verify readiness` step. Verified locally: 361/361 tests pass after build. Root cause flagged by the IEP thinker-canon panel review (Beck finding #1, 2026-05-25).
+
+### Changed — release.yml rewritten to tag-trigger-only (`iaj-release-yml-branch-protection-bypass`)
+
+Closes `bd_000-projects-bj5m` (P1). Previous workflow fired on push-to-main and auto-bumped version from commit messages, then tried to push the bump commit + tag back to main — fails with `GH006: Protected branch update failed` because main is branch-protected. 3 consecutive Release runs post-v1.0.0 failed for this reason and produced orphan tags (v1.0.1 + v1.1.0 pointing at unreachable commits; cleaned up 2026-05-26 session).
+
+New shape mirrors `intent-eval-core/.github/workflows/release.yml`:
+- Tag-push trigger only (`v*.*.*`)
+- Drift guard: verify tag matches `package.json#version`
+- Full check chain: build + lint + typecheck + test
+- `gh release create` with auto-generated notes
+
+Version bumping moves to PR-flow: engineer opens PR with bump + CHANGELOG, merges to main (branch protection respected), then manually tags from main HEAD → release.yml fires.
+
+### Changed — Documentation
+
+- IEP `/appaudit` baseline filed (PR #74)
+
+### Quality posture
+
+- `package.json#version` bumped to `1.1.0`
+- `version.txt` synced to `1.1.0`
+
+### Why minor, not patch
+
+The stub-provider opt-in is a new public-API gate — consumers of `@j-rig/*` who relied on stubs working unconditionally now must opt-in. Per SemVer this is additive consumer-visible behavior → MINOR. The release.yml workflow rewrite is internal infrastructure (no consumer-visible API change). The build-before-test fix is internal CI correctness.
+
 ## [v1.0.0] - 2026-05-19
 
 ### Changed — License (BREAKING)
