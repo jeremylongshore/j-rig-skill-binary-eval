@@ -18,10 +18,12 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tests/tsconfig.json && pnpm -r run typecheck",
     "clean": "pnpm -r run clean",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^9.25.0",
     "prettier": "^3.8.3",
     "tsup": "^8.4.0",

@@ -76,5 +76,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Test
-        run: pnpm run test
+      - name: Test (with coverage)
+        run: pnpm run test:coverage
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/coverage-final.json
+          flags: typescript
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
