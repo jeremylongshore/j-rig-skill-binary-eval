@@ -2,10 +2,10 @@
 
 This directory holds versioned snapshots of the authoritative skill specs that JRig evaluates against:
 
-| File | Source | Why JRig reads it |
-|---|---|---|
+| File                       | Source                                                                   | Why JRig reads it                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `anthropic-skills-spec.md` | [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills) | The Anthropic spec floor — required fields, optional-field allow-list, substitution variables, DCI rules. JRig package-checker enforces these as deterministic checks. |
-| `agentskills-spec.md` | [agentskills.io/specification](https://agentskills.io/specification) | The AgentSkills.io open standard — `compatibility`, `metadata`, `license`. JRig validates the free-text constraints (max 500 char compatibility, etc.). |
+| `agentskills-spec.md`      | [agentskills.io/specification](https://agentskills.io/specification)     | The AgentSkills.io open standard — `compatibility`, `metadata`, `license`. JRig validates the free-text constraints (max 500 char compatibility, etc.).                |
 
 ## Why snapshots, not live-fetch
 
@@ -40,6 +40,7 @@ Eval reports record `anthropicSnapshotId` so a re-run weeks later against a refr
 ## Cross-repo coordination
 
 These same snapshots live in `claude-code-plugins/000-docs/`:
+
 - `000-docs/anthropic-skills-spec-snapshot.md`
 - `000-docs/agentskills-spec-snapshot.md`
 

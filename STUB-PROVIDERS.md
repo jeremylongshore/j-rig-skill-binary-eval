@@ -6,11 +6,11 @@
 
 The j-rig CLI is built around three external-API-shaped abstractions:
 
-| Provider | Real shape | Stub behavior |
-|---|---|---|
-| **Trigger** (`TriggerProvider`) | Calls a model to pick which skill should fire for a given user prompt | Always picks the first available skill; reasoning string is `[stub]`-prefixed |
-| **Execution** (`ExecutionProvider`) | Calls a model with the selected skill body + user prompt | Returns a synthetic response (`[stub] Would call …`) with zero latency, zero tool calls, no artifacts |
-| **Judgment** (`JudgeProvider`) | Calls a judge model to evaluate whether a criterion was satisfied | Always returns `verdict: "yes"` with `confidence: 0.7`, reasoning `[stub] Would call …` |
+| Provider                            | Real shape                                                            | Stub behavior                                                                                         |
+| ----------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Trigger** (`TriggerProvider`)     | Calls a model to pick which skill should fire for a given user prompt | Always picks the first available skill; reasoning string is `[stub]`-prefixed                         |
+| **Execution** (`ExecutionProvider`) | Calls a model with the selected skill body + user prompt              | Returns a synthetic response (`[stub] Would call …`) with zero latency, zero tool calls, no artifacts |
+| **Judgment** (`JudgeProvider`)      | Calls a judge model to evaluate whether a criterion was satisfied     | Always returns `verdict: "yes"` with `confidence: 0.7`, reasoning `[stub] Would call …`               |
 
 These stubs let the trigger / functional / judgment pipelines run end-to-end without any API key. They exist for **pipeline-plumbing development** — verifying that the wiring between roster building, test execution, score computation, decision logic, and reporting holds together. They do not produce evidence about the skill under test.
 
@@ -35,7 +35,7 @@ This failure mode is **silent ship**: a synthetic verdict that looks identical t
 
 Every invocation of `j-rig eval` (and any future command that uses the stub providers) checks for `J_RIG_ALLOW_STUB=1` in the environment **before** instantiating any stub. Without it, the CLI throws:
 
-```
+```text
 REFUSED: j-rig cannot run without a real provider implementation.
 
 The Anthropic SDK adapter is not yet wired (iaj-stub-provider, PB-7). To opt

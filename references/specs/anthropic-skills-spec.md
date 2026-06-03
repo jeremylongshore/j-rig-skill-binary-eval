@@ -1,7 +1,7 @@
 # Anthropic Skills Spec — Versioned Snapshot
 
 **Snapshot ID**: 2026-05-07-initial
-**Source**: https://code.claude.com/docs/en/skills
+**Source**: <https://code.claude.com/docs/en/skills>
 **Captured**: 2026-05-07
 **Refresh cadence**: Quarterly (manual PR or scheduled cron)
 **Read by**: JRig Tier 3A spec-compliance check (called from `/validate-skillmd --thorough`)
@@ -31,24 +31,24 @@ Every other field documented at `code.claude.com/docs/en/skills#frontmatter-refe
 
 ## Optional-field allow-list (with type validation)
 
-| Field | Type | Notes |
-|---|---|---|
-| `allowed-tools` | comma-separated string OR space-separated string OR YAML list | All three forms accepted (per Anthropic doc verbatim). Paren-depth-aware tokenization for multi-word forms like `Bash(git add *)`. |
-| `model` | string | `inherit` / `opus` / `sonnet` / `haiku` shorthand; full IDs accepted but not recommended |
-| `effort` | enum | `low` / `medium` / `high` / `xhigh` / `max` |
-| `argument-hint` | string | Autocomplete hint for `/`-invocation |
-| `arguments` | string (space-separated) | Named positional args (`$arg1`, `$arg2`) |
-| `paths` | comma-separated globs | Limits auto-activation to matching paths |
-| `context` | enum | `fork` (run in subagent) |
-| `agent` | string | Subagent type when `context: fork`; defaults to `general-purpose` |
-| `user-invocable` | boolean | Default `true`; `false` hides from `/` menu |
-| `disable-model-invocation` | boolean | Default `false`; `true` blocks Claude auto-activation |
-| `hooks` | object | Skill-scoped lifecycle hooks |
-| `shell` | enum | `bash` (default) / `powershell` |
-| `when_to_use` | string | Combined cap with description = 1,536 chars |
-| `metadata` | object | Free-form key-value (per agentskills.io) |
-| `compatibility` | string (max 500 chars) | Free-text per agentskills.io |
-| `license` | string | SPDX or human-readable |
+| Field                      | Type                                                          | Notes                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `allowed-tools`            | comma-separated string OR space-separated string OR YAML list | All three forms accepted (per Anthropic doc verbatim). Paren-depth-aware tokenization for multi-word forms like `Bash(git add *)`. |
+| `model`                    | string                                                        | `inherit` / `opus` / `sonnet` / `haiku` shorthand; full IDs accepted but not recommended                                           |
+| `effort`                   | enum                                                          | `low` / `medium` / `high` / `xhigh` / `max`                                                                                        |
+| `argument-hint`            | string                                                        | Autocomplete hint for `/`-invocation                                                                                               |
+| `arguments`                | string (space-separated)                                      | Named positional args (`$arg1`, `$arg2`)                                                                                           |
+| `paths`                    | comma-separated globs                                         | Limits auto-activation to matching paths                                                                                           |
+| `context`                  | enum                                                          | `fork` (run in subagent)                                                                                                           |
+| `agent`                    | string                                                        | Subagent type when `context: fork`; defaults to `general-purpose`                                                                  |
+| `user-invocable`           | boolean                                                       | Default `true`; `false` hides from `/` menu                                                                                        |
+| `disable-model-invocation` | boolean                                                       | Default `false`; `true` blocks Claude auto-activation                                                                              |
+| `hooks`                    | object                                                        | Skill-scoped lifecycle hooks                                                                                                       |
+| `shell`                    | enum                                                          | `bash` (default) / `powershell`                                                                                                    |
+| `when_to_use`              | string                                                        | Combined cap with description = 1,536 chars                                                                                        |
+| `metadata`                 | object                                                        | Free-form key-value (per agentskills.io)                                                                                           |
+| `compatibility`            | string (max 500 chars)                                        | Free-text per agentskills.io                                                                                                       |
+| `license`                  | string                                                        | SPDX or human-readable                                                                                                             |
 
 ---
 

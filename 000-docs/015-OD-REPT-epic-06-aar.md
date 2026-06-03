@@ -7,12 +7,14 @@
 ## What Was Delivered
 
 ### Execution Runner (`packages/core/src/execution/runner.ts`)
+
 - `runFunctionalTests()` — async runner executing test cases against a skill with provider abstraction
 - `checkOutputExpectations()` — deterministic output validation (expected strings, expected artifacts)
 - Graceful error handling with structured failure outcomes
 - Passes skill body and context hints to provider
 
 ### Types (`packages/core/src/execution/types.ts`)
+
 - `ExecutionContext` — skill_body, base_path, file_contents, context_hints
 - `ExecutionOutput` — text, artifacts, tool_calls, error
 - `ArtifactRecord` — filename, content, type, size_bytes
@@ -21,11 +23,12 @@
 - `ExecutionProvider` — pluggable interface for mock/real execution
 
 ### Tests
+
 - 102 total (9 new): functional execution, error handling, metadata capture, context passing, output expectations (string/artifact checks)
 
 ## Quality Gate Evidence
 
-```
+```text
 pnpm run check → PASS
   lint:      0 errors
   typecheck: 0 errors

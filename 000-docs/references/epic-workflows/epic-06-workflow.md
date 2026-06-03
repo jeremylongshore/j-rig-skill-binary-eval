@@ -1,6 +1,7 @@
 # Epic 06 — Functional Execution Harness and Observation Layer — Workflow
 
 ## Inputs
+
 - Eval spec / contract schemas from Epic 02
 - SKILL.md parser (frontmatter + body) from Epic 02
 - Package integrity preflight from Epic 03
@@ -9,7 +10,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  06.1 Build Skill Invocation          │
 │  Simulator                            │
@@ -108,6 +109,7 @@
 ```
 
 ## Outputs
+
 - Skill invocation simulator
 - Execution context / base-path injection
 - Raw output + transcript capture
@@ -118,6 +120,7 @@
 - Carry-forward: observed outcomes for Epic 07 judgment, Epic 08 scoring, Epic 09 optimization
 
 ## Key Artifacts
+
 - Skill invocation simulator module
 - Execution context injector
 - Raw output capture utility

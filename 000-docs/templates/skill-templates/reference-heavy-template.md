@@ -18,8 +18,8 @@ model: inherit
 
 ## Quick Reference
 
-| Task | Guide |
-|------|-------|
+| Task       | Guide                                     |
+| ---------- | ----------------------------------------- |
 | {{TASK_1}} | Read [{{REF_1}}](references/{{REF_1}}.md) |
 | {{TASK_2}} | Read [{{REF_2}}](references/{{REF_2}}.md) |
 | {{TASK_3}} | Read [{{REF_3}}](references/{{REF_3}}.md) |
@@ -29,6 +29,7 @@ model: inherit
 ### Step 1: Detect Variant
 
 Determine which reference applies:
+
 - If {{CONDITION_1}} → read `references/{{REF_1}}.md`
 - If {{CONDITION_2}} → read `references/{{REF_2}}.md`
 - If {{CONDITION_3}} → read `references/{{REF_3}}.md`
@@ -43,8 +44,8 @@ Each reference file contains the full workflow for that variant. Read only the r
 
 ## Error Handling
 
-| Error | Cause | Solution |
-|-------|-------|----------|
+| Error       | Cause       | Solution       |
+| ----------- | ----------- | -------------- |
 | {{ERROR_1}} | {{CAUSE_1}} | {{SOLUTION_1}} |
 
 ## Resources

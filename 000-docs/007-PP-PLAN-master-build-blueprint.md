@@ -1,4 +1,5 @@
 # J-Rig Binary Eval -- Master Build Blueprint
+
 **Author:** Jeremy Longshore -- Intent Solutions
 **Date:** 2026-03-24
 **Status:** Canonical build blueprint
@@ -7,7 +8,7 @@
 
 ---
 
-# 0. Blueprint Purpose
+## 0. Blueprint Purpose
 
 This document is the canonical planning reference for building **J-Rig Binary Eval**.
 
@@ -22,9 +23,9 @@ This document should be treated as durable source-of-truth planning material.
 
 ---
 
-# 1. Product Definition
+## 1. Product Definition
 
-## 1.1 What J-Rig Binary Eval Is
+### 1.1 What J-Rig Binary Eval Is
 
 J-Rig Binary Eval is an **evaluation harness and rollout gate for Claude Skills**.
 
@@ -40,7 +41,7 @@ For every new or changed Claude Skill, J-Rig Binary Eval should determine:
 6. Does the skill still add value versus the current base model?
 7. Is the rollout safe?
 
-## 1.2 What J-Rig Binary Eval Is Not
+### 1.2 What J-Rig Binary Eval Is Not
 
 J-Rig Binary Eval is not:
 
@@ -52,7 +53,7 @@ J-Rig Binary Eval is not:
 
 It is **controlled release infrastructure for Claude Skills**.
 
-## 1.3 Core Product Thesis
+### 1.3 Core Product Thesis
 
 Claude Skills need software-grade release discipline.
 
@@ -69,25 +70,27 @@ That means:
 
 ---
 
-# 2. Non-Negotiable Design Principles
+## 2. Non-Negotiable Design Principles
 
-## 2.1 Criteria Must Be Binary
+### 2.1 Criteria Must Be Binary
 
 If a criterion cannot be answered yes or no, it is not ready.
 
 Bad:
+
 - "Is this good?"
 - "Does this sound better?"
 - "Is this compelling?"
 
 Good:
+
 - "Does the skill trigger on this obvious request?"
 - "Does the skill avoid triggering on this unrelated request?"
 - "Does the output include the required section?"
 - "Does the output avoid banned content?"
 - "Does the observed artifact match the expected format?"
 
-## 2.2 The Evaluator Must Be Separate
+### 2.2 The Evaluator Must Be Separate
 
 The skill under test must never be the final judge of itself.
 
@@ -97,7 +100,7 @@ J-Rig Binary Eval must use:
 - external LLM judges for semantic evaluation
 - optional human review only when needed
 
-## 2.3 Observed Behavior Outranks Claimed Behavior
+### 2.3 Observed Behavior Outranks Claimed Behavior
 
 The product should not merely grade the transcript or self-description.
 
@@ -108,34 +111,36 @@ It should grade:
 - what actually happened in the harness
 - whether the observed outcome matches the contract
 
-## 2.4 Regression Tests Are Sacred
+### 2.4 Regression Tests Are Sacred
 
 If a change improves average score but breaks a sacred regression case, the change is rejected.
 
-## 2.5 One Change at a Time
+### 2.5 One Change at a Time
 
 The optimizer may only propose one interpretable atomic change per experiment.
 
-## 2.6 Blockers Block Release
+### 2.6 Blockers Block Release
 
 A blocker failure cannot be "averaged out" by other successes.
 
-## 2.7 Baseline Value Matters
+### 2.7 Baseline Value Matters
 
 If the base model already performs the task at nearly the same quality without the skill, the skill should be flagged for obsolete review.
 
-## 2.8 Model-Aware Testing Is Required
+### 2.8 Model-Aware Testing Is Required
 
 Haiku, Sonnet, and Opus may behave differently. That difference is product reality, not noise.
 
 ---
 
-# 3. Product Surfaces
+## 3. Product Surfaces
 
 J-Rig Binary Eval must score these seven surfaces:
 
-## 3.1 Package Integrity
+### 3.1 Package Integrity
+
 Checks such as:
+
 - `SKILL.md` exists
 - frontmatter parses
 - required metadata present
@@ -144,8 +149,10 @@ Checks such as:
 - examples are present where needed
 - structure is coherent
 
-## 3.2 Trigger Quality
+### 3.2 Trigger Quality
+
 Measures:
+
 - trigger precision
 - trigger recall
 - false-positive rate
@@ -154,8 +161,10 @@ Measures:
 - sibling confusion
 - pack-level overlap
 
-## 3.3 Functional Quality
+### 3.3 Functional Quality
+
 Checks:
+
 - required structure
 - task completion
 - instruction adherence
@@ -164,29 +173,36 @@ Checks:
 - deterministic format validation
 - judge-based semantic quality
 
-## 3.4 Regression Protection
+### 3.4 Regression Protection
+
 Measures:
+
 - newly passing cases
 - newly failing cases
 - blocker regressions
 - sacred regressions
 - pack-level confusion regressions
 
-## 3.5 Baseline Value
+### 3.5 Baseline Value
+
 Compares:
+
 - skill-on performance
 - skill-off performance
 - optional golden-version performance
 
 Possible outcomes:
+
 - keep
 - simplify
 - narrow
 - merge
 - obsolete-review
 
-## 3.6 Model Variance
+### 3.6 Model Variance
+
 Tracks by model:
+
 - trigger rate
 - functional pass rate
 - blocker failures
@@ -194,8 +210,10 @@ Tracks by model:
 - token/cost impact
 - cheapest acceptable model
 
-## 3.7 Rollout Safety
+### 3.7 Rollout Safety
+
 Checks:
+
 - prompt leakage risk
 - unsafe triggering
 - overreach beyond scope
@@ -206,28 +224,34 @@ Checks:
 
 ---
 
-# 4. Core Architecture
+## 4. Core Architecture
 
 J-Rig Binary Eval uses a seven-layer architecture.
 
-## 4.1 Spec Layer
+### 4.1 Spec Layer
+
 Human-authored YAML definitions:
+
 - eval specs
 - eval contracts
 - criteria
 - test cases
 - sibling context
 
-## 4.2 Execution Layer
+### 4.2 Execution Layer
+
 Runs the skill against:
+
 - trigger cases
 - functional cases
 - regression cases
 - adversarial cases
 - baseline/no-skill cases
 
-## 4.3 Observation Layer
+### 4.3 Observation Layer
+
 Captures:
+
 - outputs
 - artifacts
 - cost
@@ -236,16 +260,20 @@ Captures:
 - observed outcomes
 - extracted artifact content
 
-## 4.4 Judgment Layer
+### 4.4 Judgment Layer
+
 Implements:
+
 - deterministic checks first
 - external LLM judge second
 - calibration
 - disagreement handling
 - human review only when necessary
 
-## 4.5 Optimization Layer
+### 4.5 Optimization Layer
+
 Handles:
+
 - failure clustering
 - weakest-criterion targeting
 - single atomic changes
@@ -254,8 +282,10 @@ Handles:
 - early stopping
 - resistant-case surfacing
 
-## 4.6 Evidence Layer
+### 4.6 Evidence Layer
+
 Stores:
+
 - runs
 - scores
 - artifacts
@@ -265,8 +295,10 @@ Stores:
 - baselines
 - launch reports
 
-## 4.7 UI / API / CLI Layer
+### 4.7 UI / API / CLI Layer
+
 Provides:
+
 - local CLI author workflows
 - PR/CI workflows
 - team reporting later
@@ -274,7 +306,7 @@ Provides:
 
 ---
 
-# 5. Canonical Data Model
+## 5. Canonical Data Model
 
 Core entities:
 
@@ -295,14 +327,16 @@ Core entities:
 
 ---
 
-# 6. Production Tech Stack
+## 6. Production Tech Stack
 
-## 6.1 Runtime
+### 6.1 Runtime
+
 - TypeScript
 - Node.js 20+
 - pnpm
 
-## 6.2 CLI / parsing / terminal UX
+### 6.2 CLI / parsing / terminal UX
+
 - `commander`
 - `@clack/prompts`
 - `picocolors`
@@ -311,37 +345,44 @@ Core entities:
 - `remark-parse`
 - `remark-frontmatter`
 
-## 6.3 Validation / schema / core enforcement
+### 6.3 Validation / schema / core enforcement
+
 - `zod`
 
-## 6.4 Anthropic integration
+### 6.4 Anthropic integration
+
 - `@anthropic-ai/sdk`
 
-## 6.5 Concurrency / retry
+### 6.5 Concurrency / retry
+
 - `p-limit`
 - `async-retry`
 
-## 6.6 Persistence
+### 6.6 Persistence
+
 - `better-sqlite3`
 - `drizzle-orm`
 
-## 6.7 Artifact extraction
+### 6.7 Artifact extraction
+
 - `pdf-parse`
 - `mammoth`
 
-## 6.8 Future live-mode execution
+### 6.8 Future live-mode execution
+
 - `execa`
 
-## 6.9 Dashboard layer
+### 6.9 Dashboard layer
+
 - `next.js`
 - `tailwindcss`
 - `shadcn/ui`
 
 ---
 
-# 7. How This System Should Be Used
+## 7. How This System Should Be Used
 
-## 7.1 Local Author Workflow
+### 7.1 Local Author Workflow
 
 A skill author should be able to run:
 
@@ -352,6 +393,7 @@ jrig compare previous current
 ```
 
 And get:
+
 - package validation
 - trigger results
 - functional results
@@ -360,7 +402,7 @@ And get:
 - cost estimate
 - launch recommendation
 
-## 7.2 CI / PR Workflow
+### 7.2 CI / PR Workflow
 
 A PR touching a skill should run:
 
@@ -369,6 +411,7 @@ jrig ci --changed-only
 ```
 
 And produce:
+
 - blocker summary
 - criterion report
 - regressions introduced
@@ -376,9 +419,10 @@ And produce:
 - model matrix
 - ship / warn / block recommendation
 
-## 7.3 Marketplace Workflow
+### 7.3 Marketplace Workflow
 
 A submitted skill should require:
+
 - SKILL.md
 - eval spec
 - eval contract
@@ -386,9 +430,10 @@ A submitted skill should require:
 - no blocker failures
 - acceptable pack-confusion metrics
 
-## 7.4 Org Skill Library Workflow
+### 7.4 Org Skill Library Workflow
 
 Internal skill libraries should require:
+
 - package validation
 - trigger thresholds
 - no blocker regressions
@@ -398,37 +443,40 @@ Internal skill libraries should require:
 
 ---
 
-# 8. Global Engineering and Process Rules
+## 8. Global Engineering and Process Rules
 
 These rules apply to every phase.
 
-## 8.1 Repo Rules
+### 8.1 Repo Rules
+
 - repo-local git only
 - repo-local Beads only
 - clear workspace boundaries
 - durable docs checked in
 - evidence stored in predictable locations
 
-## 8.2 Phase Rules
+### 8.2 Phase Rules
 
 Before starting a new phase:
+
 - verify the prior phase landed correctly
 - review comments / requested fixes
 - resolve follow-up issues
 - run a repo-wide sweep when relevant
 
 After finishing a phase:
+
 - produce an end-of-phase AAR
 - capture evidence
 - update docs
 - update Beads
 - note inherited risks for the next phase
 
-## 8.3 Branch Discipline
+### 8.3 Branch Discipline
 
 Suggested branch naming:
 
-```
+```text
 feature/phase-01-repo-foundation
 feature/phase-02-spec-contract-system
 feature/phase-03-package-deterministic
@@ -441,25 +489,27 @@ feature/phase-09-optimizer-experiments
 feature/phase-10-team-product-eval-packs-drift
 ```
 
-## 8.4 Commit Discipline
+### 8.4 Commit Discipline
 
 Suggested commit prefixes:
+
 - `feat(phase-0N): ...`
 - `fix(phase-0N): ...`
 - `test(phase-0N): ...`
 - `docs(phase-0N): ...`
 - `refactor(phase-0N): ...`
 
-## 8.5 PR Discipline
+### 8.5 PR Discipline
 
 Suggested PR titles:
+
 - `[PHASE 01] Repo foundation and operating standard`
 - `[PHASE 02] Spec layer and contract system`
 - etc.
 
 ---
 
-# 9. Phase Overview
+## 9. Phase Overview
 
 The product is broken into ten phases. Each phase is treated as one top-level epic. Each epic is decomposed into granular child beads.
 
@@ -476,23 +526,25 @@ The product is broken into ten phases. Each phase is treated as one top-level ep
 
 ---
 
-# 10. Phase 1 -- Repo Foundation and Operating Standard
+## 10. Phase 1 -- Repo Foundation and Operating Standard
 
 **Status:** PARTIALLY COMPLETE (governance layer done via /repo-dress; TypeScript/pnpm workspace pending)
 
-## 10.1 Intent
+### 10.1 Intent
 
 Establish the repo, workspace, engineering standards, startup pipeline, docs, and Beads scaffolding so all later work sits on a stable base.
 
-## 10.2 Why This Phase Exists
+### 10.2 Why This Phase Exists
 
 Without this phase:
+
 - later work will drift structurally
 - docs and code will diverge
 - package/workspace boundaries will become messy
 - Beads tracking will start late and become less useful
 
-## 10.3 In Scope
+### 10.3 In Scope
+
 - initialize repo structure
 - set up pnpm workspace
 - set up TypeScript base config
@@ -503,52 +555,60 @@ Without this phase:
 - initialize repo-local Beads
 - define branch/PR/commit conventions
 
-## 10.4 Out of Scope
+### 10.4 Out of Scope
+
 - full core engine
 - Anthropic API integration
 - eval execution
 - optimizer logic
 - dashboard
 
-## 10.5 Child Beads
+### 10.5 Child Beads
 
 **P1.1 Repo bootstrap** -- COMPLETE
+
 - initialize repo
 - configure workspace root
 - create package directories
 - establish naming conventions
 
 **P1.2 TypeScript and pnpm foundation** -- TODO
+
 - root package.json
 - pnpm-workspace.yaml
 - tsconfig.json
 - shared scripts and workspace tasks
 
 **P1.3 Quality baseline** -- TODO
+
 - linting
 - formatting
 - test runner baseline
 - pre-commit / local validation scripts if desired
 
 **P1.4 Docs and standards pack** -- COMPLETE
+
 - README
 - CLAUDE.md
 - architecture/planning docs
 - phase tracking docs
 
 **P1.5 Repo-local Beads initialization** -- COMPLETE
+
 - initialize Beads
 - create top-level phase epics
 - create child task placeholders
 - document task workflow
 
 **P1.6 Phase 1 evidence and closeout** -- TODO
+
 - verify repo structure
 - verify workspace scripts
 - verify docs existence
 - capture closeout evidence and AAR
 
-## 10.6 Acceptance Criteria
+### 10.6 Acceptance Criteria
+
 - repo bootstraps cleanly
 - pnpm install works
 - base scripts run
@@ -556,9 +616,9 @@ Without this phase:
 - Beads is initialized and populated
 - Phase 1 AAR exists
 
-## 10.7 Claude Code Prompt -- Phase 1
+### 10.7 Claude Code Prompt -- Phase 1
 
-```
+```text
 We are implementing Phase 1 of J-Rig Binary Eval: Repo Foundation and Operating Standard.
 
 Context:
@@ -594,18 +654,19 @@ Constraints:
 
 ---
 
-# 11. Phase 2 -- Spec Layer and Contract System
+## 11. Phase 2 -- Spec Layer and Contract System
 
-## 11.1 Intent
+### 11.1 Intent
 
 Define the schema, structure, validation, and parsing rules for eval specs and eval contracts.
 
-## 11.2 Why This Phase Exists
+### 11.2 Why This Phase Exists
 
 This is the formal language of the product.
 If the spec and contract model are sloppy, the rest of the system will be sloppy.
 
-## 11.3 In Scope
+### 11.3 In Scope
+
 - YAML spec schema
 - eval contract schema
 - criterion schema
@@ -615,17 +676,19 @@ If the spec and contract model are sloppy, the rest of the system will be sloppy
 - human-friendly diagnostics
 - golden valid/invalid examples
 
-## 11.4 Out of Scope
+### 11.4 Out of Scope
+
 - actual trigger execution
 - full functional runner
 - optimization
 - dashboard
 
-## 11.5 Child Beads
+### 11.5 Child Beads
 
 P2.1 Eval spec schema design
 
 Define the structure for:
+
 - metadata
 - criteria
 - context
@@ -635,6 +698,7 @@ Define the structure for:
 P2.2 Eval contract schema design
 
 Define the structure for:
+
 - purpose
 - should-trigger cases
 - should-not-trigger cases
@@ -646,6 +710,7 @@ Define the structure for:
 P2.3 Criterion and test case schema
 
 Support:
+
 - deterministic
 - judge-based
 - blocker
@@ -665,6 +730,7 @@ Use AST parsing, not regex hacks.
 P2.6 Golden examples and invalid fixtures
 
 Create representative examples for:
+
 - valid spec
 - invalid spec
 - malformed contract
@@ -674,7 +740,8 @@ P2.7 Phase 2 evidence and closeout
 
 Capture validation outputs and documentation.
 
-## 11.6 Acceptance Criteria
+### 11.6 Acceptance Criteria
+
 - valid specs parse
 - invalid specs fail with useful errors
 - contracts are enforced
@@ -682,9 +749,9 @@ Capture validation outputs and documentation.
 - schema tests exist
 - sample fixtures exist
 
-## 11.7 Claude Code Prompt -- Phase 2
+### 11.7 Claude Code Prompt -- Phase 2
 
-```
+```text
 We are implementing Phase 2 of J-Rig Binary Eval: Spec Layer and Contract System.
 
 Goal:
@@ -717,22 +784,24 @@ Constraints:
 
 ---
 
-# 12. Phase 3 -- Package Integrity and Deterministic Checks
+## 12. Phase 3 -- Package Integrity and Deterministic Checks
 
-## 12.1 Intent
+### 12.1 Intent
 
 Build the zero-API-cost validation engine that catches cheap failures early.
 
-## 12.2 Why This Phase Exists
+### 12.2 Why This Phase Exists
 
 You should not spend model calls on a skill that:
+
 - is missing files
 - has bad frontmatter
 - has broken references
 - is obviously underspecified
 - violates simple packaging constraints
 
-## 12.3 In Scope
+### 12.3 In Scope
+
 - package integrity checker
 - deterministic check registry
 - description heuristics
@@ -740,13 +809,14 @@ You should not spend model calls on a skill that:
 - simple size/structure checks
 - deterministic reporting
 
-## 12.4 Out of Scope
+### 12.4 Out of Scope
+
 - trigger simulation
 - functional execution
 - LLM judges
 - optimizer
 
-## 12.5 Child Beads
+### 12.5 Child Beads
 
 P3.1 Package checker engine
 
@@ -755,6 +825,7 @@ Core package validation framework.
 P3.2 Deterministic criterion registry
 
 Support checks like:
+
 - contains
 - not-contains
 - regex
@@ -765,6 +836,7 @@ Support checks like:
 P3.3 Description quality heuristics
 
 Check:
+
 - vague descriptions
 - specificity patterns
 - third-person guidance if used
@@ -784,15 +856,16 @@ Human-readable and machine-readable results.
 
 P3.7 Phase 3 evidence and closeout
 
-## 12.6 Acceptance Criteria
+### 12.6 Acceptance Criteria
+
 - zero-API-cost checks run end to end
 - broken packages fail clearly
 - deterministic results are stored and surfaced
 - tests cover typical invalid package patterns
 
-## 12.7 Claude Code Prompt -- Phase 3
+### 12.7 Claude Code Prompt -- Phase 3
 
-```
+```text
 We are implementing Phase 3 of J-Rig Binary Eval: Package Integrity and Deterministic Checks.
 
 Goal:
@@ -828,21 +901,23 @@ Constraints:
 
 ---
 
-# 13. Phase 4 -- Evidence Layer, Persistence, and Run Lifecycle
+## 13. Phase 4 -- Evidence Layer, Persistence, and Run Lifecycle
 
-## 13.1 Intent
+### 13.1 Intent
 
 Define how runs are stored, how artifacts are persisted, and how the system remembers what happened.
 
-## 13.2 Why This Phase Exists
+### 13.2 Why This Phase Exists
 
 Without persistence:
+
 - regressions cannot be compared reliably
 - experiments have no memory
 - baselines are hard to track
 - launch decisions are not auditable
 
-## 13.3 In Scope
+### 13.3 In Scope
+
 - database schema
 - SQLite integration
 - run lifecycle model
@@ -850,12 +925,13 @@ Without persistence:
 - evidence serialization
 - readback/query utilities
 
-## 13.4 Out of Scope
+### 13.4 Out of Scope
+
 - dashboard UI
 - optimizer
 - advanced team APIs
 
-## 13.5 Child Beads
+### 13.5 Child Beads
 
 P4.1 Database schema design
 
@@ -868,6 +944,7 @@ Implement repo-local database.
 P4.3 Run lifecycle model
 
 Statuses such as:
+
 - pending
 - running
 - completed
@@ -889,16 +966,17 @@ Needed for compare, CI, and future UI.
 
 P4.7 Phase 4 evidence and closeout
 
-## 13.6 Acceptance Criteria
+### 13.6 Acceptance Criteria
+
 - runs persist
 - outputs persist
 - artifacts persist
 - evidence can be read back
 - compare-ready storage exists
 
-## 13.7 Claude Code Prompt -- Phase 4
+### 13.7 Claude Code Prompt -- Phase 4
 
-```
+```text
 We are implementing Phase 4 of J-Rig Binary Eval: Evidence Layer, Persistence, and Run Lifecycle.
 
 Goal:
@@ -930,17 +1008,18 @@ Constraints:
 
 ---
 
-# 14. Phase 5 -- Trigger Harness and Skill Roster Simulation
+## 14. Phase 5 -- Trigger Harness and Skill Roster Simulation
 
-## 14.1 Intent
+### 14.1 Intent
 
 Build the trigger evaluation system that simulates skill routing and measures when a skill should or should not activate.
 
-## 14.2 Why This Phase Exists
+### 14.2 Why This Phase Exists
 
 A skill that triggers incorrectly is broken even if its body is beautifully written.
 
-## 14.3 In Scope
+### 14.3 In Scope
+
 - available skill roster builder
 - sibling context handling
 - trigger simulation runner
@@ -948,16 +1027,18 @@ A skill that triggers incorrectly is broken even if its body is beautifully writ
 - confusion analysis
 - trigger test case support
 
-## 14.4 Out of Scope
+### 14.4 Out of Scope
+
 - full functional skill execution
 - optimizer
 - team dashboard
 
-## 14.5 Child Beads
+### 14.5 Child Beads
 
 P5.1 Available skills builder
 
 Construct routing context from:
+
 - target skill
 - sibling skills
 - metadata
@@ -973,6 +1054,7 @@ Ask evaluator which skill should fire or none.
 P5.4 Trigger metrics engine
 
 Compute:
+
 - precision
 - recall
 - false positives
@@ -986,6 +1068,7 @@ Detect overlap pairs and pack-level risk.
 P5.6 Trigger test case format
 
 Support:
+
 - should-trigger
 - should-not-trigger
 - ambiguous
@@ -993,15 +1076,16 @@ Support:
 
 P5.7 Phase 5 evidence and closeout
 
-## 14.6 Acceptance Criteria
+### 14.6 Acceptance Criteria
+
 - trigger cases run
 - should-trigger and should-not-trigger are measured
 - sibling confusion is surfaced
 - trigger results are stored as evidence
 
-## 14.7 Claude Code Prompt -- Phase 5
+### 14.7 Claude Code Prompt -- Phase 5
 
-```
+```text
 We are implementing Phase 5 of J-Rig Binary Eval: Trigger Harness and Skill Roster Simulation.
 
 Goal:
@@ -1032,18 +1116,19 @@ Constraints:
 
 ---
 
-# 15. Phase 6 -- Functional Execution Harness and Observation Layer
+## 15. Phase 6 -- Functional Execution Harness and Observation Layer
 
-## 15.1 Intent
+### 15.1 Intent
 
 Simulate skill invocation, capture outputs and artifacts, and observe what the skill actually does.
 
-## 15.2 Why This Phase Exists
+### 15.2 Why This Phase Exists
 
 Static inspection is not enough.
 The product must test the skill in action.
 
-## 15.3 In Scope
+### 15.3 In Scope
+
 - skill invocation simulator
 - skill body injection
 - context/base path support
@@ -1052,12 +1137,13 @@ The product must test the skill in action.
 - observed outcome model
 - timeout/cost/latency observation
 
-## 15.4 Out of Scope
+### 15.4 Out of Scope
+
 - optimizer
 - dashboard
 - live-mode full runtime execution
 
-## 15.5 Child Beads
+### 15.5 Child Beads
 
 P6.1 Skill invocation simulator
 
@@ -1074,6 +1160,7 @@ Capture outputs and produced artifacts.
 P6.4 Artifact extractors
 
 Support text extraction from:
+
 - PDF
 - DOCX
 - plain structured outputs
@@ -1088,15 +1175,16 @@ Needed for operational eval surfaces.
 
 P6.7 Phase 6 evidence and closeout
 
-## 15.6 Acceptance Criteria
+### 15.6 Acceptance Criteria
+
 - simulated functional runs work
 - artifacts are captured and extracted
 - observed outcomes are stored
 - execution metadata is preserved
 
-## 15.7 Claude Code Prompt -- Phase 6
+### 15.7 Claude Code Prompt -- Phase 6
 
-```
+```text
 We are implementing Phase 6 of J-Rig Binary Eval: Functional Execution Harness and Observation Layer.
 
 Goal:
@@ -1127,17 +1215,18 @@ Constraints:
 
 ---
 
-# 16. Phase 7 -- Judgment Layer, Calibration, and Model Matrix
+## 16. Phase 7 -- Judgment Layer, Calibration, and Model Matrix
 
-## 16.1 Intent
+### 16.1 Intent
 
 Build the external evaluator layer, calibration flows, disagreement handling, and model-aware evaluation.
 
-## 16.2 Why This Phase Exists
+### 16.2 Why This Phase Exists
 
 This is where the product becomes a real harness rather than a transcript collector.
 
-## 16.3 In Scope
+### 16.3 In Scope
+
 - binary judge engine
 - strict output parsing
 - judge prompt variants
@@ -1146,16 +1235,18 @@ This is where the product becomes a real harness rather than a transcript collec
 - model matrix runner
 - per-model reporting
 
-## 16.4 Out of Scope
+### 16.4 Out of Scope
+
 - optimizer
 - dashboard
 - broad human review system beyond minimal queueing
 
-## 16.5 Child Beads
+### 16.5 Child Beads
 
 P7.1 Binary judge engine
 
 Judge returns only:
+
 - yes
 - no
 - unsure
@@ -1183,16 +1274,17 @@ Run evals across Haiku, Sonnet, Opus as configured.
 
 P7.7 Phase 7 evidence and closeout
 
-## 16.6 Acceptance Criteria
+### 16.6 Acceptance Criteria
+
 - external judge works
 - judge output is strictly validated
 - calibration exists
 - model matrix results are recorded
 - disagreement handling exists
 
-## 16.7 Claude Code Prompt -- Phase 7
+### 16.7 Claude Code Prompt -- Phase 7
 
-```
+```text
 We are implementing Phase 7 of J-Rig Binary Eval: Judgment Layer, Calibration, and Model Matrix.
 
 Goal:
@@ -1224,17 +1316,18 @@ Constraints:
 
 ---
 
-# 17. Phase 8 -- Regression, Baseline, Scoring, CLI, and CI Gate
+## 17. Phase 8 -- Regression, Baseline, Scoring, CLI, and CI Gate
 
-## 17.1 Intent
+### 17.1 Intent
 
 Turn raw evaluation results into actionable ship/no-ship recommendations with regression protection, baseline comparison, CLI workflows, and PR gating.
 
-## 17.2 Why This Phase Exists
+### 17.2 Why This Phase Exists
 
 Without this phase, the system measures things but does not govern releases.
 
-## 17.3 In Scope
+### 17.3 In Scope
+
 - regression compare engine
 - sacred regression logic
 - baseline/no-skill compare
@@ -1243,11 +1336,12 @@ Without this phase, the system measures things but does not govern releases.
 - CLI commands
 - CI/PR gating
 
-## 17.4 Out of Scope
+### 17.4 Out of Scope
+
 - optimizer
 - dashboard UI
 
-## 17.5 Child Beads
+### 17.5 Child Beads
 
 P8.1 Regression compare engine
 
@@ -1268,6 +1362,7 @@ Weighted score + blocker logic + thresholds.
 P8.5 Launch recommendation engine
 
 Return:
+
 - pass
 - warn
 - block
@@ -1276,6 +1371,7 @@ Return:
 P8.6 CLI commands
 
 Implement:
+
 - init
 - run
 - compare
@@ -1287,16 +1383,17 @@ Run on changed skills and post results.
 
 P8.8 Phase 8 evidence and closeout
 
-## 17.6 Acceptance Criteria
+### 17.6 Acceptance Criteria
+
 - compare flow works
 - baseline compare works
 - CLI commands are usable
 - CI blocks blocker failures
 - recommendations are deterministic and documented
 
-## 17.7 Claude Code Prompt -- Phase 8
+### 17.7 Claude Code Prompt -- Phase 8
 
-```
+```text
 We are implementing Phase 8 of J-Rig Binary Eval: Regression, Baseline, Scoring, CLI, and CI Gate.
 
 Goal:
@@ -1330,17 +1427,18 @@ Constraints:
 
 ---
 
-# 18. Phase 9 -- Optimizer and Experiment Engine
+## 18. Phase 9 -- Optimizer and Experiment Engine
 
-## 18.1 Intent
+### 18.1 Intent
 
 Build the single-change optimizer that improves skills without breaking sacred constraints.
 
-## 18.2 Why This Phase Exists
+### 18.2 Why This Phase Exists
 
 This phase turns J-Rig Binary Eval from a gate into an improvement engine.
 
-## 18.3 In Scope
+### 18.3 In Scope
+
 - failure clustering
 - weakest-criterion targeting
 - structured change proposal engine
@@ -1349,11 +1447,12 @@ This phase turns J-Rig Binary Eval from a gate into an improvement engine.
 - early stopping
 - resistant-case surfacing
 
-## 18.4 Out of Scope
+### 18.4 Out of Scope
+
 - broad autonomous rewrite systems
 - giant multi-agent orchestration for its own sake
 
-## 18.5 Child Beads
+### 18.5 Child Beads
 
 P9.1 Failure clustering
 
@@ -1381,15 +1480,16 @@ Prevent infinite loop theater.
 
 P9.7 Phase 9 evidence and closeout
 
-## 18.6 Acceptance Criteria
+### 18.6 Acceptance Criteria
+
 - optimizer proposes one change at a time
 - experiment runs are persisted
 - regressions trigger revert
 - resistant cases are surfaced cleanly
 
-## 18.7 Claude Code Prompt -- Phase 9
+### 18.7 Claude Code Prompt -- Phase 9
 
-```
+```text
 We are implementing Phase 9 of J-Rig Binary Eval: Optimizer and Experiment Engine.
 
 Goal:
@@ -1424,17 +1524,18 @@ Constraints:
 
 ---
 
-# 19. Phase 10 -- Team Product, Eval Packs, and Drift Operations
+## 19. Phase 10 -- Team Product, Eval Packs, and Drift Operations
 
-## 19.1 Intent
+### 19.1 Intent
 
 Turn the system into a team-ready product with dashboard/reporting, reusable eval packs, and scheduled reevaluation.
 
-## 19.2 Why This Phase Exists
+### 19.2 Why This Phase Exists
 
 This is where J-Rig Binary Eval becomes operational infrastructure rather than a local power tool.
 
-## 19.3 In Scope
+### 19.3 In Scope
+
 - Next.js dashboard
 - shared org/team reporting
 - experiment history UI
@@ -1443,11 +1544,12 @@ This is where J-Rig Binary Eval becomes operational infrastructure rather than a
 - scheduled drift reevaluation
 - obsolete review workflow
 
-## 19.4 Out of Scope
+### 19.4 Out of Scope
+
 - every possible integration
 - generic non-Claude expansion
 
-## 19.5 Child Beads
+### 19.5 Child Beads
 
 P10.1 Dashboard foundation
 
@@ -1460,6 +1562,7 @@ Show what changed, why, and what happened.
 P10.3 Starter eval packs
 
 Ship initial packs for:
+
 - document creation
 - code generation
 - data analysis
@@ -1484,16 +1587,17 @@ Handle skills overtaken by the base model.
 
 P10.8 Phase 10 evidence and closeout
 
-## 19.6 Acceptance Criteria
+### 19.6 Acceptance Criteria
+
 - dashboard works
 - eval packs exist
 - scheduled reevaluation exists
 - obsolete-review path is visible
 - org/team reporting is usable
 
-## 19.7 Claude Code Prompt -- Phase 10
+### 19.7 Claude Code Prompt -- Phase 10
 
-```
+```text
 We are implementing Phase 10 of J-Rig Binary Eval: Team Product, Eval Packs, and Drift Operations.
 
 Goal:
@@ -1525,13 +1629,13 @@ Constraints:
 
 ---
 
-# 20. Beads Mapping Template
+## 20. Beads Mapping Template
 
 Use this template for each phase epic and each child bead.
 
-## 20.1 Phase Epic Template
+### 20.1 Phase Epic Template
 
-```
+```text
 Title: Phase [N] -- [Title]
 Type: Epic
 Priority: P0/P1/P2
@@ -1556,9 +1660,9 @@ Evidence required:
 - CLI output / screenshots / logs
 ```
 
-## 20.2 Child Bead Template
+### 20.2 Child Bead Template
 
-```
+```text
 Title: P[N].[X] -- [Task title]
 Type: Task
 Priority: P0/P1/P2
@@ -1589,9 +1693,10 @@ Evidence:
 
 ---
 
-# 21. Dependency Story
+## 21. Dependency Story
 
-## 21.1 Hard dependencies
+### 21.1 Hard dependencies
+
 - Phase 1 before everything
 - Phase 2 before trigger or functional execution
 - Phase 3 before model-backed evaluation
@@ -1603,7 +1708,8 @@ Evidence:
 - Phase 9 after compare/gating logic exists
 - Phase 10 after core local system is real
 
-## 21.2 Protection rules
+### 21.2 Protection rules
+
 - no optimizer before regression logic
 - no dashboard before evidence model is stable
 - no marketplace workflows before ship/no-ship recommendations are real
@@ -1611,16 +1717,16 @@ Evidence:
 
 ---
 
-# 22. Final Positioning
+## 22. Final Positioning
 
-## 22.1 One-line
+### 22.1 One-line
 
 J-Rig Binary Eval is the evaluation harness and rollout gate for Claude Skills.
 
-## 22.2 Expanded
+### 22.2 Expanded
 
 J-Rig Binary Eval validates, compares, and improves SKILL.md rollouts before they ship. It evaluates package quality, trigger quality, functional quality, regressions, baseline value, model variance, and rollout safety using an external evaluator and evidence-backed release gates.
 
-## 22.3 Tagline
+### 22.3 Tagline
 
 J-Rig Binary Eval. Nothing ships untested.

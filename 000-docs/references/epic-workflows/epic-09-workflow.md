@@ -1,6 +1,7 @@
 # Epic 09 — Optimizer and Experiment Engine — Workflow
 
 ## Inputs
+
 - Eval spec / contract schemas from Epic 02
 - Full evaluation harness (Epics 03-07)
 - Evidence model and persistence from Epic 04
@@ -12,7 +13,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  09.1 Failure Clustering &            │
 │  Prioritization                       │
@@ -151,6 +152,7 @@
 ```
 
 ## Outputs
+
 - Failure clustering and prioritization
 - Weakest-criterion / highest-value target selection
 - Single-change proposal engine (strict one-change discipline)
@@ -161,6 +163,7 @@
 - Carry-forward: experiment history and optimizer evidence for Epic 10 team surfaces
 
 ## Key Artifacts
+
 - Failure cluster module
 - Target selection / prioritization module
 - Single-change proposal engine (structured change categories)

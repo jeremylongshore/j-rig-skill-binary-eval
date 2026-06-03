@@ -7,35 +7,37 @@ Source: `/validate-skillmd` SKILL.md v2.1.0
 
 ## Rubric Pillars
 
-| Pillar | Max Points | What It Measures |
-|--------|-----------|-----------------|
-| Progressive Disclosure | 30 | Token economy, layered structure, navigation |
-| Ease of Use | 25 | Metadata, discoverability, workflow clarity |
-| Utility | 20 | Problem solving, examples, feedback loops, required packages |
-| Spec Compliance | 15 | Frontmatter, naming, description quality, XML tag prohibition |
-| Writing Style | 10 | Voice, objectivity, conciseness, consistent terminology |
-| Modifiers | +/- variable | Bonuses and penalties |
+| Pillar                 | Max Points   | What It Measures                                              |
+| ---------------------- | ------------ | ------------------------------------------------------------- |
+| Progressive Disclosure | 30           | Token economy, layered structure, navigation                  |
+| Ease of Use            | 25           | Metadata, discoverability, workflow clarity                   |
+| Utility                | 20           | Problem solving, examples, feedback loops, required packages  |
+| Spec Compliance        | 15           | Frontmatter, naming, description quality, XML tag prohibition |
+| Writing Style          | 10           | Voice, objectivity, conciseness, consistent terminology       |
+| Modifiers              | +/- variable | Bonuses and penalties                                         |
 
-**Total: 100 points base + modifiers**
+The pillars sum to a **100-point base score**, adjusted by the variable modifiers.
 
 ## Grade Scale
 
 | Grade | Score Range |
-|-------|------------|
-| A | 90+ |
-| B | 80–89 |
-| C | 70–79 |
-| D | 60–69 |
-| F | < 60 |
+| ----- | ----------- |
+| A     | 90+         |
+| B     | 80–89       |
+| C     | 70–79       |
+| D     | 60–69       |
+| F     | < 60        |
 
 ## Two-Tier System
 
 ### Standard Tier (default)
+
 - No required fields
 - Broad compatibility
 - Warnings only (no failures)
 
 ### Enterprise Tier (`--enterprise`)
+
 - Full 100-point rubric applied
 - `ALWAYS_REQUIRED` fields enforced: name, description, allowed-tools, version, author, license, compatible-with, tags
 - Strict marketplace grading
@@ -45,23 +47,23 @@ Source: `/validate-skillmd` SKILL.md v2.1.0
 
 Common fixes sorted by point value:
 
-| Fix | Points |
-|-----|--------|
-| Extract long content to references/ | up to +10 (token_economy) |
-| Add Overview section | +4 |
-| Add "Use when" to description | +3 |
-| Add "Trigger with" to description | +3 |
-| Add Prerequisites section | +2 |
-| Add Output section | +2 |
-| Add Error Handling section | +2 |
-| Move author/version from nested metadata to top-level | +2 |
-| Add external resource links | +1 (modifier) |
-| Add DCI directives for discovery | +1 (modifier) |
-| Add TOC to reference files >100 lines | +1 (modifier) |
-| Add feedback loops for quality-critical workflows | +2 (utility) |
-| Remove time-sensitive information | +1 (modifier) |
-| Ensure consistent terminology | +1 (writing style) |
-| List required packages | +1 (utility) |
+| Fix                                                   | Points                    |
+| ----------------------------------------------------- | ------------------------- |
+| Extract long content to references/                   | up to +10 (token_economy) |
+| Add Overview section                                  | +4                        |
+| Add "Use when" to description                         | +3                        |
+| Add "Trigger with" to description                     | +3                        |
+| Add Prerequisites section                             | +2                        |
+| Add Output section                                    | +2                        |
+| Add Error Handling section                            | +2                        |
+| Move author/version from nested metadata to top-level | +2                        |
+| Add external resource links                           | +1 (modifier)             |
+| Add DCI directives for discovery                      | +1 (modifier)             |
+| Add TOC to reference files >100 lines                 | +1 (modifier)             |
+| Add feedback loops for quality-critical workflows     | +2 (utility)              |
+| Remove time-sensitive information                     | +1 (modifier)             |
+| Ensure consistent terminology                         | +1 (writing style)        |
+| List required packages                                | +1 (utility)              |
 
 ## v5.0 Validator Features
 

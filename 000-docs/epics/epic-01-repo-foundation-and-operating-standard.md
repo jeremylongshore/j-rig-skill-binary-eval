@@ -117,7 +117,8 @@ By the end of Epic 01, the repo should have:
 **Purpose**
 Inspect the repo before changing anything. Determine whether there is already partial setup, stale scaffolding, duplicate config, broken docs, or prior drift that must be normalized rather than recreated.
 
-**Acceptance**
+#### Acceptance
+
 - Current repo structure is inspected and summarized.
 - Existing `.git/`, `.beads/`, docs, config, packages, scripts, and baseline tooling are reviewed.
 - A clear distinction is made between:
@@ -126,11 +127,13 @@ Inspect the repo before changing anything. Determine whether there is already pa
   - drift or broken setup that should be replaced
 - Findings are captured in a durable note or closeout summary.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: none
 - Blocks: 01.2, 01.3, 01.4, 01.5, 01.6, 01.7
 
-**Evidence**
+#### Evidence
+
 - repo inventory summary
 - list of existing files/directories reviewed
 - note on what was kept vs normalized vs removed
@@ -142,22 +145,26 @@ Inspect the repo before changing anything. Determine whether there is already pa
 **Purpose**
 Create or normalize the workspace layout so the repo has a clear, durable structure for CLI-first TypeScript development.
 
-**Acceptance**
+#### Acceptance
+
 - Root workspace structure is coherent.
 - Expected top-level directories exist or are intentionally documented if deferred.
 - Package boundaries are clear and future-proof.
 - Workspace config reflects intended package structure.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.1
 - Blocks: 01.3, 01.4, 01.5
 
-**Evidence**
+#### Evidence
+
 - directory tree
 - workspace config files
 - notes on package boundary decisions
 
-**Target structure**
+#### Target structure
+
 - `packages/cli`
 - `packages/core`
 - `packages/db`
@@ -173,18 +180,21 @@ Create or normalize the workspace layout so the repo has a clear, durable struct
 **Purpose**
 Set the technical runtime baseline so future implementation work does not reinvent environment assumptions later.
 
-**Acceptance**
+#### Acceptance
+
 - Root `package.json` exists and is coherent.
 - `pnpm-workspace.yaml` exists and is correct.
 - `tsconfig.json` or equivalent shared config exists.
 - Node.js version expectation is documented.
 - Shared workspace scripts are defined cleanly.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.2
 - Blocks: 01.4, 01.6
 
-**Evidence**
+#### Evidence
+
 - root config files
 - successful install/bootstrap output
 - notes on environment assumptions
@@ -196,18 +206,21 @@ Set the technical runtime baseline so future implementation work does not reinve
 **Purpose**
 Set up the first layer of quality protection so the repo does not drift silently as future epics add real product logic.
 
-**Acceptance**
+#### Acceptance
+
 - Basic linting is wired.
 - Basic formatting is wired.
 - Basic test runner baseline exists.
 - Workspace scripts for validation are present.
 - The repo has at least a minimal "healthy baseline" command path.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.2, 01.3
 - Blocks: 01.6, 01.7
 
-**Evidence**
+#### Evidence
+
 - command outputs for install/lint/test baseline
 - config files for lint/test/format tooling
 - note on what is baseline vs deferred
@@ -219,24 +232,28 @@ Set up the first layer of quality protection so the repo does not drift silently
 **Purpose**
 Create the durable human layer of the repo so future Claude Code sessions and human contributors have a clear operating model.
 
-**Acceptance**
+#### Acceptance
+
 - README.md exists and accurately describes the repo.
 - CLAUDE.md exists and defines repo-specific working rules.
 - Durable planning docs for the project exist.
 - The docs match the actual repo state, not fantasy future state.
 - The docs explain current stage and what comes next.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.2
 - Blocks: 01.7
 
-**Evidence**
+#### Evidence
+
 - README
 - CLAUDE.md
 - planning docs path list
 - note on key decisions documented
 
-**Required minimum docs**
+#### Required minimum docs
+
 - `README.md`
 - `CLAUDE.md`
 - this epic reference file
@@ -249,7 +266,8 @@ Create the durable human layer of the repo so future Claude Code sessions and hu
 **Purpose**
 Make Beads the official execution backbone of the repo from day one.
 
-**Acceptance**
+#### Acceptance
+
 - `.beads/` exists repo-locally.
 - Beads is initialized properly for this repo.
 - The 10 top-level epics exist in Beads with readable names.
@@ -257,16 +275,19 @@ Make Beads the official execution backbone of the repo from day one.
 - Annotations are clear, human-readable, and useful.
 - Dependencies reflect real execution order.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.3, 01.4
 - Blocks: 01.7
 
-**Evidence**
+#### Evidence
+
 - Beads list/status output
 - epic/task inventory
 - note on naming/dependency conventions used
 
-**Top-level epic names to create**
+#### Top-level epic names to create
+
 1. Epic 01 -- Repo Foundation and Operating Standard
 2. Epic 02 -- Spec Layer and Contract System
 3. Epic 03 -- Package Integrity and Deterministic Checks
@@ -285,7 +306,8 @@ Make Beads the official execution backbone of the repo from day one.
 **Purpose**
 Close the epic with proof, not vibes.
 
-**Acceptance**
+#### Acceptance
+
 - Final repo structure is verified.
 - Baseline scripts are executed and results recorded.
 - Docs are reviewed for alignment with actual state.
@@ -293,11 +315,13 @@ Close the epic with proof, not vibes.
 - End-of-epic AAR is created.
 - Open risks and inherited next steps are explicitly documented.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 01.4, 01.5, 01.6
 - Blocks: Epic 02
 
-**Evidence**
+#### Evidence
+
 - install/lint/test outputs
 - final directory tree
 - Beads status snapshot
@@ -309,6 +333,7 @@ Close the epic with proof, not vibes.
 ## Technical Design Notes
 
 ### Workspace shape
+
 The repo should be organized as a pnpm workspace with clear future boundaries:
 
 - `packages/cli` for the command-line entrypoint
@@ -320,12 +345,14 @@ The repo should be organized as a pnpm workspace with clear future boundaries:
 - `000-docs/` or `docs/` for durable planning and reference docs
 
 ### Node and TypeScript assumptions
+
 - Node 20+
 - TypeScript-first
 - pnpm workspace as package manager
 - CLI-first early product posture
 
 ### Repo discipline
+
 - repo-local git only
 - repo-local Beads only
 - durable docs checked in
@@ -371,18 +398,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Existing partial setup may already exist
+
 The repo may not be greenfield. Existing work must be normalized instead of blindly replaced.
 
 ### Over-scaffolding future phases
+
 It is easy to build too much too early. This epic must stay focused on foundation, not implementation.
 
 ### Docs drifting from actual state
+
 README and CLAUDE.md must reflect reality, not aspirational architecture that has not shipped yet.
 
 ### Weak Beads setup
+
 If Beads is added lazily, later epics will have poor execution hygiene. Naming, annotations, and dependencies must be clear now.
 
 ### Fake closeout
+
 This epic must not be marked done unless the repo can actually be bootstrapped and used as a foundation.
 
 ---
@@ -403,6 +435,7 @@ When Claude Code works this epic, it should:
 - produce a concise but durable AAR at the end
 
 ### Mandatory workflow reminders
+
 - verify prior work before adding new work
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -413,9 +446,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-01-repo-foundation-operating-standard`
 
 ### Commit style
+
 - `feat(epic-01): scaffold workspace and package structure`
 - `feat(epic-01): add typescript and pnpm baseline`
 - `feat(epic-01): add repo docs and operating guidance`
@@ -424,6 +459,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-01): add epic 01 aar`
 
 ### PR title
+
 `[EPIC 01] Repo foundation and operating standard`
 
 ---
@@ -433,11 +469,13 @@ When Claude Code works this epic, it should:
 The Epic 01 AAR must include:
 
 ### What shipped
+
 - what was created
 - what was normalized
 - what was intentionally deferred
 
 ### Evidence
+
 - commands run
 - scripts verified
 - docs created
@@ -445,11 +483,13 @@ The Epic 01 AAR must include:
 - repo readiness proof
 
 ### Open risks
+
 - what is still thin
 - what later epics depend on
 - any known shortcuts taken in this epic
 
 ### What Epic 02 inherits
+
 - exact next-step expectations
 - any schema/design assumptions already introduced
 - any repo constraints Epic 02 must respect

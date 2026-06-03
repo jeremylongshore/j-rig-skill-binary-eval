@@ -113,7 +113,8 @@ By the end of Epic 07, the repo should have:
 **Purpose**
 Create the core judgment component that evaluates observed outcomes against criteria and returns only structured pass/fail/uncertain-style results.
 
-**Acceptance**
+#### Acceptance
+
 - The judge can evaluate an observed outcome against a criterion.
 - Supported result space is explicitly constrained to:
   - yes
@@ -122,11 +123,13 @@ Create the core judgment component that evaluates observed outcomes against crit
 - The judge emits short evidence or rationale fields suitable for traceability.
 - The engine is reusable across trigger, functional, and future baseline judgments.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 02, 05, and 06 complete
 - Blocks: 07.2, 07.3, 07.4, 07.5
 
-**Evidence**
+#### Evidence
+
 - judge engine implementation
 - example judgments
 - tests for basic judgment flow
@@ -138,17 +141,20 @@ Create the core judgment component that evaluates observed outcomes against crit
 **Purpose**
 Prevent evaluator slop, malformed outputs, or hallucinated extra structure from silently entering the system.
 
-**Acceptance**
+#### Acceptance
+
 - Judge outputs are validated against a strict schema.
 - Invalid judge outputs fail clearly and are represented explicitly.
 - Parsing logic does not silently coerce malformed output into success.
 - The validation layer is reusable and documented.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.1
 - Blocks: 07.3, 07.4, 07.5, 07.6
 
-**Evidence**
+#### Evidence
+
 - parsing/validation implementation
 - malformed-output test coverage
 - example invalid-output failure cases
@@ -160,17 +166,20 @@ Prevent evaluator slop, malformed outputs, or hallucinated extra structure from 
 **Purpose**
 Ensure the system always prefers cheap, explicit checks before resorting to semantic judge calls.
 
-**Acceptance**
+#### Acceptance
+
 - Deterministic checks from Epic 03 are used first where applicable.
 - The system only escalates to LLM-based judgment when deterministic checks do not fully resolve the criterion.
 - Routing between deterministic and judge-based paths is explicit and documented.
 - Result objects indicate how the judgment was reached.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.1, 07.2
 - Blocks: 07.4, 07.5, 07.6, Epic 08
 
-**Evidence**
+#### Evidence
+
 - deterministic-first routing implementation
 - examples of deterministic resolution vs judge escalation
 - tests for mixed judgment flows
@@ -182,17 +191,20 @@ Ensure the system always prefers cheap, explicit checks before resorting to sema
 **Purpose**
 Reduce the chance that the system overfits to one evaluator wording and becomes easy to game or accidentally biased.
 
-**Acceptance**
+#### Acceptance
+
 - The system supports multiple phrased variants for a criterion/judge prompt.
 - Prompt templates are organized and maintainable.
 - Rotation or alternate phrasing behavior is explicit.
 - Documentation explains why prompt variation exists and how it is applied.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.1, 07.2
 - Blocks: 07.5, 07.6, Epic 09
 
-**Evidence**
+#### Evidence
+
 - prompt template files
 - example rotated judgment runs
 - tests or fixtures validating prompt-path behavior
@@ -204,18 +216,21 @@ Reduce the chance that the system overfits to one evaluator wording and becomes 
 **Purpose**
 Verify that the judgment layer itself remains trustworthy rather than assuming evaluator output is always correct.
 
-**Acceptance**
+#### Acceptance
+
 - A calibration/golden-case workflow exists.
 - Known-good judgment examples can be run before or during important evaluation flows.
 - Calibration failure is surfaced clearly.
 - Calibration metadata is stored and retrievable.
 - The docs explain how calibration is expected to be used.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.2, 07.3, 07.4
 - Blocks: 07.6, 07.7, Epic 08, Epic 09
 
-**Evidence**
+#### Evidence
+
 - calibration workflow implementation
 - golden-case fixtures
 - example calibration runs
@@ -228,17 +243,20 @@ Verify that the judgment layer itself remains trustworthy rather than assuming e
 **Purpose**
 Represent evaluator uncertainty honestly instead of forcing false confidence.
 
-**Acceptance**
+#### Acceptance
+
 - The system supports "unsure" as a real outcome, not a bug.
 - Disagreement between deterministic and LLM judgment, or between multiple judge variants where supported, is represented clearly.
 - Unclear results are stored in a structured way for later policy handling.
 - The docs explain when and why unsure/disagreement states can happen.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.2, 07.4, 07.5
 - Blocks: 07.7, Epic 08, Epic 09
 
-**Evidence**
+#### Evidence
+
 - unsure/disagreement handling implementation
 - example disagreement cases
 - tests for disagreement state persistence and retrieval
@@ -250,18 +268,21 @@ Represent evaluator uncertainty honestly instead of forcing false confidence.
 **Purpose**
 Support evaluation runs across multiple Claude models so J-Rig Binary Eval can measure model-aware judgment behavior rather than assuming one model fits all cases.
 
-**Acceptance**
+#### Acceptance
+
 - Judgment flows can be run against configured Claude models where applicable.
 - Results are stored with model identity and associated metadata.
 - The system can produce per-model judgment summaries or comparisons.
 - Model-specific differences are retrievable and documented.
 - The design aligns with future model-matrix reporting and rollout decisions.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.3, 07.5, 07.6
 - Blocks: 07.8, Epic 08, Epic 10
 
-**Evidence**
+#### Evidence
+
 - model-matrix execution support
 - example per-model judgment outputs
 - tests or fixtures showing model-tagged persistence
@@ -273,7 +294,8 @@ Support evaluation runs across multiple Claude models so J-Rig Binary Eval can m
 **Purpose**
 Close the epic with proof that the system can convert observed outcomes into disciplined judgments and record the results durably.
 
-**Acceptance**
+#### Acceptance
+
 - Judgments are persisted in the canonical evidence model.
 - Deterministic, judge-based, unsure, disagreement, and calibration-aware outcomes are all represented as appropriate.
 - Docs explain judgment flow, calibration expectations, and model-matrix behavior honestly.
@@ -281,11 +303,13 @@ Close the epic with proof that the system can convert observed outcomes into dis
 - End-of-epic AAR is created.
 - Carry-forward notes for Epics 08-10 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 07.5, 07.6, 07.7
 - Blocks: Epic 08
 
-**Evidence**
+#### Evidence
+
 - persisted judgment examples
 - calibration example output
 - per-model judgment example
@@ -302,6 +326,7 @@ Close the epic with proof that the system can convert observed outcomes into dis
 The skill under test must never be the final judge of itself.
 
 This epic operationalizes that rule by ensuring:
+
 - deterministic checks are explicit
 - semantic evaluation is externalized
 - outputs are machine-validated
@@ -320,6 +345,7 @@ Deterministic checks should act as the cheap front gate.
 External judging should only be invoked when semantics truly require it.
 
 This keeps:
+
 - cost lower
 - behavior clearer
 - results more reproducible
@@ -378,18 +404,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Evaluator slop leaks into core logic
+
 If malformed judge output is accepted, later release gating will be untrustworthy.
 
 ### Forced certainty
+
 If the system cannot represent "unsure," it will invent false confidence where ambiguity is real.
 
 ### Deterministic path gets bypassed too easily
+
 That would make the system more expensive and less interpretable than it needs to be.
 
 ### Calibration becomes ceremonial
+
 If calibration exists only on paper, the judgment layer will drift without warning.
 
 ### Model differences are ignored
+
 If per-model divergence is hidden, later rollout guidance will be weaker than it should be.
 
 ---
@@ -409,6 +440,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -420,9 +452,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-07-judgment-layer-calibration-and-model-matrix`
 
 ### Commit style
+
 - `feat(epic-07): add binary judge engine`
 - `feat(epic-07): add strict judge output validation`
 - `feat(epic-07): add deterministic-first judgment routing`
@@ -435,6 +469,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-07): add epic 07 aar`
 
 ### PR title
+
 `[EPIC 07] Judgment layer, calibration, and model matrix`
 
 ---
@@ -444,6 +479,7 @@ When Claude Code works this epic, it should:
 The Epic 07 AAR must include:
 
 ### What shipped
+
 - binary judge engine completed
 - strict validation completed
 - deterministic-first flow completed
@@ -454,6 +490,7 @@ The Epic 07 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - sample deterministic judgment
 - sample judge-based semantic judgment
 - sample malformed-output rejection
@@ -464,11 +501,13 @@ The Epic 07 AAR must include:
 - test outputs
 
 ### Open risks
+
 - any calibration weaknesses still present
 - any model-specific judgment quirks discovered
 - any remaining ambiguity around unsure-handling that later policy must account for
 
 ### What later epics inherit
+
 - criterion-level judgment records now considered canonical
 - calibration metadata later release governance must respect
 - disagreement states later scoring/gating must handle explicitly

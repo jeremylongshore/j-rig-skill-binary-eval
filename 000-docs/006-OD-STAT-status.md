@@ -16,8 +16,8 @@
 ## Blockers
 
 | Blocker | Owner | ETA |
-|---------|-------|-----|
-| None | — | — |
+| ------- | ----- | --- |
+| None    | —     | —   |
 
 ## Next Steps
 
@@ -27,20 +27,20 @@
 
 ## Metrics
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| Test Coverage | 80% | — |
-| CI Pass Rate | 100% | — |
-| Open Issues | <10 | 0 |
+| Metric        | Target | Actual |
+| ------------- | ------ | ------ |
+| Test Coverage | 80%    | —      |
+| CI Pass Rate  | 100%   | —      |
+| Open Issues   | <10    | 0      |
 
 ## Decision Log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
+| Date       | Decision              | Rationale                 |
+| ---------- | --------------------- | ------------------------- |
 | 2026-03-24 | Initial project setup | Governance-first approach |
 
 ## Release History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.1.0 | 2026-03-24 | Initial release with full governance |
+| Version | Date       | Changes                              |
+| ------- | ---------- | ------------------------------------ |
+| 0.1.0   | 2026-03-24 | Initial release with full governance |

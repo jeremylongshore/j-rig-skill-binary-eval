@@ -7,6 +7,7 @@
 ## What Was Delivered
 
 ### Schema Components
+
 - `packages/core/src/schemas/criterion.ts` — Binary criterion schema (method, blocker, regression_critical, baseline_sensitive, pack_sensitive)
 - `packages/core/src/schemas/test-case.ts` — Test case schema (tier, prompt, trigger_expectation, artifacts, criteria_ids)
 - `packages/core/src/schemas/eval-spec.ts` — Eval spec schema (criteria, test_cases, models, siblings)
@@ -14,25 +15,29 @@
 - `packages/core/src/schemas/skill-frontmatter.ts` — SKILL.md frontmatter schema (standard + enterprise tiers)
 
 ### Parsing Utilities
+
 - `packages/core/src/parsers/yaml-parser.ts` — YAML parsing with Zod validation, structured errors, diagnostics formatting
 - `packages/core/src/parsers/skill-parser.ts` — SKILL.md frontmatter/body parsing via gray-matter (standard + enterprise tiers)
 
 ### Fixtures
+
 - `packages/core/fixtures/valid/` — eval-spec.yaml, eval-contract.yaml, skill.md
 - `packages/core/fixtures/invalid/` — 7 invalid fixtures covering missing fields, bad names, bad methods, malformed YAML, missing frontmatter, bad descriptions
 
 ### Tests
+
 - 34 tests passing (30 new + 4 existing)
 - Schema validation tests for eval spec and contract (positive and negative)
 - YAML parser tests (valid, invalid, empty, malformed, diagnostics formatting)
 - SKILL.md parser tests (standard, enterprise, missing frontmatter, bad name, bad description)
 
 ### Documentation
+
 - `000-docs/010-AT-SPEC-eval-spec-and-contract-guide.md` — Author-facing guide covering spec vs contract distinction, all fields, examples, common validation failures
 
 ## Quality Gate Evidence
 
-```
+```text
 pnpm run check → PASS
   lint:      0 errors
   typecheck: 0 errors (tests/ + core + cli + db)

@@ -113,17 +113,20 @@ By the end of Epic 09, the repo should have:
 **Purpose**
 Group related failures so the optimizer can reason about meaningful patterns instead of reacting to isolated noise.
 
-**Acceptance**
+#### Acceptance
+
 - The system can group failures by criterion, test-case pattern, or related symptoms.
 - The cluster output is structured and interpretable.
 - Failure summaries distinguish likely root-cause clusters from scattered effects where possible.
 - The output is suitable for use by later optimizer steps and visible evidence.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epic 08 complete
 - Blocks: 09.2, 09.3, 09.4
 
-**Evidence**
+#### Evidence
+
 - failure clustering implementation
 - example cluster outputs
 - tests or fixtures covering cluster behavior
@@ -135,7 +138,8 @@ Group related failures so the optimizer can reason about meaningful patterns ins
 **Purpose**
 Choose the next optimization target intentionally rather than guessing.
 
-**Acceptance**
+#### Acceptance
+
 - The system can identify weak criteria or unstable/high-value failure clusters.
 - Target selection logic is explicit and documented.
 - The selection can consider:
@@ -146,11 +150,13 @@ Choose the next optimization target intentionally rather than guessing.
   - baseline value implications
 - Output is persisted or otherwise retrievable.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.1
 - Blocks: 09.3, 09.4, 09.5
 
-**Evidence**
+#### Evidence
+
 - target selection implementation
 - example selected targets
 - tests for prioritization behavior
@@ -162,7 +168,8 @@ Choose the next optimization target intentionally rather than guessing.
 **Purpose**
 Generate exactly one interpretable candidate modification at a time so optimization remains attributable and reversible.
 
-**Acceptance**
+#### Acceptance
+
 - The optimizer proposes exactly one change per experiment.
 - Allowed change categories are explicit, such as:
   - add one instruction line
@@ -177,11 +184,13 @@ Generate exactly one interpretable candidate modification at a time so optimizat
 - Each proposal includes a hypothesis for why it should help.
 - Proposed changes are represented in structured form.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.1, 09.2
 - Blocks: 09.4, 09.5, 09.6
 
-**Evidence**
+#### Evidence
+
 - change proposal engine implementation
 - example proposal objects
 - tests ensuring single-change discipline
@@ -193,17 +202,20 @@ Generate exactly one interpretable candidate modification at a time so optimizat
 **Purpose**
 Run proposed changes through the existing harness so each optimization attempt becomes a real experiment rather than a suggestion.
 
-**Acceptance**
+#### Acceptance
+
 - The system can apply a candidate change to a working copy or experiment context safely.
 - The relevant evaluation suite can be executed against the candidate.
 - Experiment runs are tied to the same evidence system as normal runs.
 - Candidate experiment context is isolated enough to avoid contaminating baseline/source-of-truth artifacts unintentionally.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.2, 09.3
 - Blocks: 09.5, 09.6, 09.7
 
-**Evidence**
+#### Evidence
+
 - experiment runner implementation
 - example experiment run records
 - tests for candidate execution lifecycle
@@ -215,7 +227,8 @@ Run proposed changes through the existing harness so each optimization attempt b
 **Purpose**
 Decide whether a proposed change should be kept, discarded, or explicitly reverted based on evidence.
 
-**Acceptance**
+#### Acceptance
+
 - The system can accept a change only when relevant governance conditions are satisfied.
 - The system can reject a change clearly when it fails to improve enough or creates harmful side effects.
 - The system can revert changes when experiment outcomes are unsafe.
@@ -226,11 +239,13 @@ Decide whether a proposed change should be kept, discarded, or explicitly revert
   - pack-level regression rules
   - baseline value constraints
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.4 and Epic 08 governance logic
 - Blocks: 09.6, 09.7, 09.8
 
-**Evidence**
+#### Evidence
+
 - decision engine implementation
 - accepted experiment example
 - rejected/reverted experiment example
@@ -243,7 +258,8 @@ Decide whether a proposed change should be kept, discarded, or explicitly revert
 **Purpose**
 Prevent the optimizer from looping forever and surface cases where automated improvement is not the right tool.
 
-**Acceptance**
+#### Acceptance
+
 - The system supports stopping after:
   - a target score is reached
   - minimum gain is not met repeatedly
@@ -253,11 +269,13 @@ Prevent the optimizer from looping forever and surface cases where automated imp
 - Resistance reasons are documented or categorized where possible.
 - Stop conditions are configurable and test-covered.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.3, 09.4, 09.5
 - Blocks: 09.7, 09.8, Epic 10
 
-**Evidence**
+#### Evidence
+
 - early stopping implementation
 - resistance tagging implementation
 - example stopped/resistant cases
@@ -270,7 +288,8 @@ Prevent the optimizer from looping forever and surface cases where automated imp
 **Purpose**
 Make optimizer behavior durable, inspectable, and reusable for later reporting and team workflows.
 
-**Acceptance**
+#### Acceptance
+
 - Experiment proposals, runs, decisions, and reasons are persisted.
 - It is possible to retrieve:
   - proposed change
@@ -281,11 +300,13 @@ Make optimizer behavior durable, inspectable, and reusable for later reporting a
 - Optimization evidence aligns with the canonical evidence model.
 - Retrieval paths are documented.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.4, 09.5, 09.6
 - Blocks: 09.8, Epic 10
 
-**Evidence**
+#### Evidence
+
 - persisted experiment records
 - retrieval examples
 - tests for experiment storage and retrieval
@@ -297,7 +318,8 @@ Make optimizer behavior durable, inspectable, and reusable for later reporting a
 **Purpose**
 Close the epic with proof that J-Rig Binary Eval can improve skills in a controlled, safe, and explainable way.
 
-**Acceptance**
+#### Acceptance
+
 - Optimizer flow is demonstrated end to end.
 - At least one accepted experiment and one rejected/reverted experiment are shown.
 - Docs explain optimizer limits and safety principles honestly.
@@ -305,11 +327,13 @@ Close the epic with proof that J-Rig Binary Eval can improve skills in a control
 - End-of-epic AAR is created.
 - Carry-forward notes for Epic 10 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 09.5, 09.6, 09.7
 - Blocks: Epic 10
 
-**Evidence**
+#### Evidence
+
 - experiment flow outputs
 - accepted and rejected experiment examples
 - docs path(s)
@@ -325,6 +349,7 @@ Close the epic with proof that J-Rig Binary Eval can improve skills in a control
 The optimizer must never become a sloppy rewrite bot.
 
 One change at a time keeps:
+
 - causality clear
 - regression analysis meaningful
 - revert logic possible
@@ -333,11 +358,13 @@ One change at a time keeps:
 ### Safe improvement beats flashy autonomy
 
 The product should optimize for:
+
 - interpretability
 - reversibility
 - evidence-backed decision-making
 
 not:
+
 - giant autonomous rewrites
 - many changes at once
 - theatrical "agentic" behavior that makes debugging impossible
@@ -345,6 +372,7 @@ not:
 ### Experiments are first-class evidence
 
 An experiment is not just an internal loop. It is a durable artifact with:
+
 - proposal
 - hypothesis
 - run evidence
@@ -401,18 +429,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Optimizer starts gaming the judge
+
 If the system learns to please evaluator quirks rather than improve real outcomes, trust drops fast.
 
 ### Multi-change creep
+
 If "just one more little change" sneaks in, the whole causality model weakens.
 
 ### Revert logic is weak or incomplete
+
 A product that can try experiments but not back out safely is a production hazard.
 
 ### Early stopping is too timid or too loose
+
 Overly aggressive stopping kills useful improvements. Weak stopping creates endless churn.
 
 ### Experiment evidence is too thin
+
 If history does not clearly show what changed and why, later team product surfaces will feel hollow.
 
 ---
@@ -432,6 +465,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -443,9 +477,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-09-optimizer-and-experiment-engine`
 
 ### Commit style
+
 - `feat(epic-09): add failure clustering and target selection`
 - `feat(epic-09): add structured single-change proposal engine`
 - `feat(epic-09): add experiment runner`
@@ -457,6 +493,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-09): add epic 09 aar`
 
 ### PR title
+
 `[EPIC 09] Optimizer and experiment engine`
 
 ---
@@ -466,6 +503,7 @@ When Claude Code works this epic, it should:
 The Epic 09 AAR must include:
 
 ### What shipped
+
 - clustering and prioritization completed
 - proposal engine completed
 - experiment runner completed
@@ -476,6 +514,7 @@ The Epic 09 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - sample target selection
 - sample change proposal
 - sample accepted experiment
@@ -485,11 +524,13 @@ The Epic 09 AAR must include:
 - test outputs
 
 ### Open risks
+
 - any optimizer bias still visible
 - any thin spots in revert safety
 - any experiment isolation concerns later team product work must keep in mind
 
 ### What Epic 10 inherits
+
 - experiment history now considered canonical
 - optimizer outputs available for dashboard/reporting surfaces
 - resistant-case signals available for team workflows

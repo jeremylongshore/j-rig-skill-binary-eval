@@ -1,6 +1,7 @@
 # Epic 07 — Judgment Layer, Calibration, and Model Matrix — Workflow
 
 ## Inputs
+
 - Criterion schemas from Epic 02
 - Deterministic check registry from Epic 03
 - Evidence model and persistence from Epic 04
@@ -9,7 +10,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  07.1 Build Binary Judge Engine       │
 │                                       │
@@ -127,6 +128,7 @@
 ```
 
 ## Outputs
+
 - Binary judge engine (yes / no / unsure)
 - Strict machine-readable judge output validation
 - Deterministic-first judgment routing (cheap checks before API calls)
@@ -138,6 +140,7 @@
 - Carry-forward: criterion-level judgments for Epic 08 scoring, Epic 09 optimization
 
 ## Key Artifacts
+
 - Binary judge engine module
 - Judge output schema + strict parser/validator
 - Deterministic-first routing logic

@@ -16,13 +16,13 @@
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
+| Package          | Version          | Purpose          |
+| ---------------- | ---------------- | ---------------- |
 | <!-- package --> | <!-- version --> | <!-- purpose --> |
 
 ## File Structure
 
-```
+```text
 j-rig-binary-eval/
 ├── 000-docs/           # Enterprise documentation
 ├── .github/            # CI/CD, templates
@@ -35,14 +35,14 @@ j-rig-binary-eval/
 
 ## API Endpoints
 
-| Endpoint | Method | Parameters | Response |
-|----------|--------|-----------|----------|
+| Endpoint          | Method          | Parameters      | Response          |
+| ----------------- | --------------- | --------------- | ----------------- |
 | <!-- endpoint --> | <!-- method --> | <!-- params --> | <!-- response --> |
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
+| Variable          | Required        | Description          |
+| ----------------- | --------------- | -------------------- |
 | <!-- variable --> | <!-- yes/no --> | <!-- description --> |
 
 ## Testing

@@ -7,11 +7,13 @@
 ## What Was Delivered
 
 ### Roster Builder (`packages/core/src/trigger/roster.ts`)
+
 - `buildRoster()` — constructs available-skills roster from target + siblings
 - `formatRoster()` — text representation for prompt injection
 - Supports single-skill and multi-skill (pack) configurations
 
 ### Trigger Runner (`packages/core/src/trigger/runner.ts`)
+
 - `runTriggerTests()` — async runner that evaluates trigger cases against a roster
 - Provider-based architecture: `TriggerProvider` interface abstracts LLM calls
 - Classification: correct_trigger, correct_no_trigger, false_positive, false_negative, sibling_confusion, none_selected, error
@@ -19,10 +21,12 @@
 - Skips test cases without trigger expectations
 
 ### Trigger Metrics (`packages/core/src/trigger/metrics.ts`)
+
 - `computeMetrics()` — precision, recall, FPR, FNR from results
 - `detectConfusion()` — identifies confusion pairs between skills with overlap rates
 
 ### Types (`packages/core/src/trigger/types.ts`)
+
 - `TriggerOutcome` — 7-value enum for outcome classification
 - `TriggerResult` — per-case result with reasoning
 - `TriggerMetrics` — precision/recall/rates
@@ -30,11 +34,12 @@
 - `TriggerProvider` — pluggable evaluation interface
 
 ### Tests
+
 - 93 total (15 new): roster building, trigger classification (5 outcomes), error handling, metrics computation, confusion detection
 
 ## Quality Gate Evidence
 
-```
+```text
 pnpm run check → PASS
   lint:      0 errors
   typecheck: 0 errors

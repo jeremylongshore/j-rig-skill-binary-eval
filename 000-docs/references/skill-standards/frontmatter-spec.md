@@ -6,15 +6,16 @@
 
 Use this file when you need the type, constraints, valid values, or examples for a *specific frontmatter field*. Organized as a flat lookup table, not a narrative guide.
 
-| Related File | Role |
-|-------------|------|
-| [`agentskills-io-spec.md`](agentskills-io-spec.md) | Hard limits — what is legally valid |
-| [`source-of-truth.md`](source-of-truth.md) | Comprehensive authoring guide — how to build a great skill |
-| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks |
+| Related File                                       | Role                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| [`agentskills-io-spec.md`](agentskills-io-spec.md) | Hard limits — what is legally valid                        |
+| [`source-of-truth.md`](source-of-truth.md)         | Comprehensive authoring guide — how to build a great skill |
+| [`validation-rules.md`](validation-rules.md)       | Implementer's reference — how to write validation checks   |
 
 ---
 
 Complete reference for SKILL.md frontmatter fields aligned with:
+
 - AgentSkills.io open standard (required/optional fields)
 - Claude Code platform extensions (runtime features)
 
@@ -187,6 +188,7 @@ allowed-tools: "Read,Write,Bash"  # Warning in Standard, Error in Enterprise
 ```
 
 **Bash Scoping Patterns**:
+
 ```yaml
 Bash(git:*)       # All git commands
 Bash(npm:*)       # All npm commands
@@ -307,10 +309,10 @@ hooks:
 
 ## Deprecated / Removed Fields
 
-| Field | Status | Migration |
-|-------|--------|-----------|
-| `when_to_use` | Deprecated | Move content to `description` |
-| `mode` | Deprecated | Use `disable-model-invocation` instead |
+| Field         | Status     | Migration                              |
+| ------------- | ---------- | -------------------------------------- |
+| `when_to_use` | Deprecated | Move content to `description`          |
+| `mode`        | Deprecated | Use `disable-model-invocation` instead |
 
 **Note**: `version`, `author`, `license`, `tags`, and `compatible-with` are valid TOP-LEVEL fields.
 The marketplace 100-point validator scores them at top-level. Do NOT nest them under `metadata:`.

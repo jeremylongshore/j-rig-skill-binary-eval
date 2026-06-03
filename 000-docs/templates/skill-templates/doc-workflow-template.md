@@ -18,6 +18,7 @@ Structured workflow for {{PURPOSE}}. Three stages: Context Gathering, Refinement
 ## When to Offer This Workflow
 
 **Trigger conditions:**
+
 - {{TRIGGER_1}}
 - {{TRIGGER_2}}
 - {{TRIGGER_3}}
@@ -27,6 +28,7 @@ Structured workflow for {{PURPOSE}}. Three stages: Context Gathering, Refinement
 ### Stage 1: Context Gathering
 
 Use AskUserQuestion to gather:
+
 1. {{CONTEXT_QUESTION_1}}
 2. {{CONTEXT_QUESTION_2}}
 3. {{CONTEXT_QUESTION_3}}

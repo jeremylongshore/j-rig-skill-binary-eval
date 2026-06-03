@@ -16,7 +16,7 @@
 
 ## Quality Gate Evidence
 
-```
+```text
 pnpm run check → PASS
   lint:      0 errors
   typecheck: 0 errors (tests/ + core + cli + db)
@@ -42,13 +42,13 @@ pnpm run format:check → PASS
 
 ## Beads
 
-| Bead | Title | Status |
-|------|-------|--------|
-| tu6.2 | Workspace and package skeleton | Closed |
-| tu6.13 | TypeScript and Node baseline | Closed |
+| Bead   | Title                                | Status |
+| ------ | ------------------------------------ | ------ |
+| tu6.2  | Workspace and package skeleton       | Closed |
+| tu6.13 | TypeScript and Node baseline         | Closed |
 | tu6.14 | Quality guardrails and test baseline | Closed |
-| tu6.15 | Evidence, verification, close | Closed |
-| tu6 | Epic 01 parent | Closed |
+| tu6.15 | Evidence, verification, close        | Closed |
+| tu6    | Epic 01 parent                       | Closed |
 
 ## What's Next
 

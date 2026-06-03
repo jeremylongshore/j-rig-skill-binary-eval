@@ -8,10 +8,10 @@
 
 ## Persona
 
-| Field | Value |
-|-------|-------|
-| Role | <!-- user role --> |
-| Goal | <!-- primary goal --> |
+| Field            | Value                                 |
+| ---------------- | ------------------------------------- |
+| Role             | <!-- user role -->                    |
+| Goal             | <!-- primary goal -->                 |
 | Experience Level | <!-- beginner/intermediate/expert --> |
 
 ## Prerequisites
@@ -47,8 +47,8 @@
 
 ## Error Scenarios
 
-| Scenario | Error Message | Resolution |
-|----------|--------------|------------|
+| Scenario          | Error Message    | Resolution   |
+| ----------------- | ---------------- | ------------ |
 | <!-- scenario --> | <!-- message --> | <!-- fix --> |
 
 ## FAQ

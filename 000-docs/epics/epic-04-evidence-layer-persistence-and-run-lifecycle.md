@@ -118,17 +118,20 @@ By the end of Epic 04, the repo should have:
 **Purpose**
 Define the persistent entities and relationships that represent evaluation history in the system.
 
-**Acceptance**
+#### Acceptance
+
 - Core entities are modeled clearly.
 - Relationships between skills, versions, runs, outputs, criteria, and artifacts are explicit.
 - The model supports future compare, baseline, and optimizer use without immediate rework.
 - The model distinguishes structured DB records from file-based artifacts cleanly.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epic 03 complete
 - Blocks: 04.2, 04.3, 04.4, 04.5, 04.6
 
-**Evidence**
+#### Evidence
+
 - schema design notes
 - entity relationship definitions
 - decisions documented for DB vs filesystem split
@@ -140,17 +143,20 @@ Define the persistent entities and relationships that represent evaluation histo
 **Purpose**
 Create the first durable persistence layer using SQLite so local development is zero-config and evidence becomes durable immediately.
 
-**Acceptance**
+#### Acceptance
+
 - SQLite database can be initialized locally.
 - Core tables/schema are implemented.
 - Migration strategy or versioning baseline exists.
 - The persistence layer is compatible with future expansion rather than being a throwaway one-off.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.1
 - Blocks: 04.3, 04.5, 04.6
 
-**Evidence**
+#### Evidence
+
 - DB schema files
 - migration/bootstrap output
 - tests proving records can be inserted and read back
@@ -162,7 +168,8 @@ Create the first durable persistence layer using SQLite so local development is 
 **Purpose**
 Model the lifecycle of an evaluation run explicitly so later phases can reason about status and partial failure correctly.
 
-**Acceptance**
+#### Acceptance
+
 - Run states are defined, such as:
   - pending
   - running
@@ -175,11 +182,13 @@ Model the lifecycle of an evaluation run explicitly so later phases can reason a
 - Partial or interrupted runs are handled consistently.
 - Lifecycle rules are test-covered.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.2
 - Blocks: 04.5, 04.6, future runtime epics
 
-**Evidence**
+#### Evidence
+
 - lifecycle model definition
 - tests for transitions
 - notes on state semantics
@@ -191,17 +200,20 @@ Model the lifecycle of an evaluation run explicitly so later phases can reason a
 **Purpose**
 Create the file-based evidence layout for large or non-tabular data that should not live only inside the database.
 
-**Acceptance**
+#### Acceptance
+
 - A predictable directory structure exists for run artifacts.
 - The system can persist raw outputs and extracted files in stable locations.
 - The split between DB metadata and filesystem artifacts is documented.
 - Artifact paths can be linked back to run records cleanly.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.1
 - Blocks: 04.5, 04.6, Epic 06
 
-**Evidence**
+#### Evidence
+
 - artifact storage layout
 - example stored output/artifact files
 - mapping notes between DB rows and filesystem paths
@@ -213,17 +225,20 @@ Create the file-based evidence layout for large or non-tabular data that should 
 **Purpose**
 Persist deterministic results now and create the format future runtime results will follow later.
 
-**Acceptance**
+#### Acceptance
+
 - Deterministic run results from Epic 03 can be serialized and stored.
 - Structured result objects are persisted consistently.
 - Storage preserves enough detail for later compare/report logic.
 - The design anticipates future trigger/functional/judge outputs without forcing a redesign.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.2, 04.3, 04.4
 - Blocks: 04.6, Epic 08, Epic 09
 
-**Evidence**
+#### Evidence
+
 - serializer utilities
 - stored example runs
 - tests for evidence persistence
@@ -236,7 +251,8 @@ Persist deterministic results now and create the format future runtime results w
 **Purpose**
 Make stored evidence usable rather than merely saved.
 
-**Acceptance**
+#### Acceptance
+
 - There are query/readback helpers for:
   - recent runs
   - runs by skill
@@ -246,11 +262,13 @@ Make stored evidence usable rather than merely saved.
 - The retrieval layer is clean enough for later CLI, CI, compare, and dashboard use.
 - Query behavior is documented.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.2, 04.3, 04.4, 04.5
 - Blocks: Epic 08, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - query helper implementation
 - tests for retrieval cases
 - example readback outputs
@@ -262,7 +280,8 @@ Make stored evidence usable rather than merely saved.
 **Purpose**
 Create confidence that the persistence layer behaves predictably under normal and broken conditions.
 
-**Acceptance**
+#### Acceptance
+
 - Tests exist for:
   - successful DB initialization
   - successful run persistence
@@ -273,11 +292,13 @@ Create confidence that the persistence layer behaves predictably under normal an
 - Fixtures or example run records are organized cleanly.
 - Error behavior is explicit and test-covered.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.2, 04.3, 04.4, 04.5, 04.6
 - Blocks: 04.8 and future regression confidence
 
-**Evidence**
+#### Evidence
+
 - test inventory
 - fixtures/examples
 - notes on covered failure modes
@@ -289,7 +310,8 @@ Create confidence that the persistence layer behaves predictably under normal an
 **Purpose**
 Close the epic with proof that J-Rig Binary Eval now has durable run memory and evidence retrieval, not just ephemeral execution.
 
-**Acceptance**
+#### Acceptance
+
 - DB and filesystem persistence are both demonstrated.
 - Deterministic run outputs are stored and retrievable.
 - Docs explain the evidence model and storage conventions clearly.
@@ -297,11 +319,13 @@ Close the epic with proof that J-Rig Binary Eval now has durable run memory and 
 - End-of-epic AAR is created.
 - Carry-forward notes for Epics 05, 06, 08, and 09 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 04.5, 04.6, 04.7
 - Blocks: Epic 05
 
-**Evidence**
+#### Evidence
+
 - DB output or inspection example
 - artifact tree example
 - example readback output
@@ -329,6 +353,7 @@ This epic should build the model so later dialect changes are feasible without r
 Not all evidence belongs in the database.
 
 Use the database for:
+
 - run records
 - identifiers
 - structured result summaries
@@ -337,6 +362,7 @@ Use the database for:
 - lifecycle states
 
 Use the filesystem for:
+
 - raw outputs
 - artifact files
 - extracted artifact text when large
@@ -353,6 +379,7 @@ That means this epic should not wait for trigger or functional execution to defi
 ### Future-proofing for compare, baseline, and optimizer
 
 The persistence model must anticipate later needs such as:
+
 - previous run lookup
 - previous version lookup
 - baseline/no-skill pairings
@@ -400,18 +427,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### DB schema too thin for future compare work
+
 If the schema only supports today's deterministic outputs, later compare/baseline/optimizer work will be awkward.
 
 ### Everything stored in DB or everything stored in files
+
 Either extreme is bad. The split must be intentional.
 
 ### Run lifecycle ambiguity
+
 If `failed`, `blocked`, `timed_out`, and `completed-with-warnings` are conflated, later report logic will be muddy.
 
 ### Persistence helpers coupled to one future interface
+
 The retrieval layer should support CLI first, but not be so CLI-specific that later CI or dashboard consumers need rewrites.
 
 ### Fake durability
+
 If the system only writes logs and calls it "persistence," later epics will inherit pain. Evidence must be genuinely storable and retrievable.
 
 ---
@@ -431,6 +463,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -442,9 +475,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-04-evidence-layer-persistence-and-run-lifecycle`
 
 ### Commit style
+
 - `feat(epic-04): add canonical run and evidence data model`
 - `feat(epic-04): add sqlite persistence baseline`
 - `feat(epic-04): add run lifecycle model`
@@ -455,6 +490,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-04): add epic 04 aar`
 
 ### PR title
+
 `[EPIC 04] Evidence layer, persistence, and run lifecycle`
 
 ---
@@ -464,6 +500,7 @@ When Claude Code works this epic, it should:
 The Epic 04 AAR must include:
 
 ### What shipped
+
 - persistence components completed
 - lifecycle model completed
 - storage layout completed
@@ -471,6 +508,7 @@ The Epic 04 AAR must include:
 - tests and docs completed
 
 ### Evidence
+
 - DB initialization or migration output
 - persisted deterministic run example
 - filesystem artifact example
@@ -478,11 +516,13 @@ The Epic 04 AAR must include:
 - docs paths
 
 ### Open risks
+
 - any schema areas likely to need expansion later
 - any lifecycle cases intentionally deferred
 - any known local-first limitations future team/product work must respect
 
 ### What Epics 05 and 06 inherit
+
 - the run/evidence model now considered canonical
 - storage conventions trigger and functional harness work must follow
 - lifecycle rules later runtime execution must respect

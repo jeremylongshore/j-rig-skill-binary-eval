@@ -1,6 +1,7 @@
 # Epic 10 — Team Product, Eval Packs, and Drift Operations — Workflow
 
 ## Inputs
+
 - All prior epics (01-09) provide the full system foundation:
   - Repo structure and tooling (Epic 01)
   - Spec / contract schema system (Epic 02)
@@ -14,7 +15,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  10.1 Build Initial Team-Facing       │
 │  Dashboard / Read Surface             │
@@ -115,6 +116,7 @@
 ```
 
 ## Outputs
+
 - Team-facing dashboard / read surface
 - Experiment + recommendation history views
 - Starter reusable eval packs (5 categories)
@@ -126,6 +128,7 @@
 - Final end-of-epic AAR
 
 ## Key Artifacts
+
 - Dashboard / team read surface (`packages/dashboard`)
 - Experiment history browser
 - Recommendation history browser

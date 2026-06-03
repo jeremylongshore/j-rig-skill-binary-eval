@@ -7,6 +7,7 @@
 ## What Was Delivered
 
 ### Package Integrity Checker
+
 - `packages/core/src/checks/package-checker.ts` — Main preflight engine
   - SKILL.md existence check (hard failure)
   - SKILL.md parse validation via Epic 02 parsers (hard failure)
@@ -16,18 +17,21 @@
   - Referenced file validation: `${CLAUDE_SKILL_DIR}/...` and `./...` paths (hard failure)
 
 ### Deterministic Check Registry
+
 - `packages/core/src/checks/deterministic-registry.ts` — Reusable check engine
   - Built-in checks: contains, not_contains, regex_match, min_length, max_length, not_empty
   - Extensible via `registerCheck()` for custom checks
   - Unknown check names fail explicitly
 
 ### Reporting
+
 - `packages/core/src/checks/types.ts` — Structured result types
   - `CheckResult`: id, description, severity (error/warning/pass), message, details
   - `PackageReport`: skill_name, timestamp, results array, summary counts
   - `formatReport()`: human-readable output with [ERROR]/[WARN] prefixes
 
 ### Fixtures (6 package directories)
+
 - `valid-skill/` — passes all checks
 - `missing-skill/` — no SKILL.md (hard failure)
 - `broken-frontmatter/` — invalid name + first-person description (hard failure)
@@ -36,11 +40,12 @@
 - `bloated-package/` — 500+ line body (warning)
 
 ### Tests
+
 - 58 total (24 new): 11 package-checker, 13 deterministic-registry
 
 ## Quality Gate Evidence
 
-```
+```text
 pnpm run check → PASS
   lint:      0 errors
   typecheck: 0 errors

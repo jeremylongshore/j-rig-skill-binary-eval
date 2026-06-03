@@ -120,17 +120,20 @@ By the end of Epic 02, the repo should have:
 **Purpose**
 Define the top-level shape of the eval spec so it can act as the machine-readable source of truth for how a skill should be evaluated.
 
-**Acceptance**
+#### Acceptance
+
 - A clear schema exists for eval spec metadata and structure.
 - The schema supports criteria, context, tiers, thresholds, and future extensibility.
 - The distinction between spec-level fields and contract-level fields is explicit.
 - The spec format is documented with at least one representative example.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epic 01 complete
 - Blocks: 02.2, 02.3, 02.4, 02.6
 
-**Evidence**
+#### Evidence
+
 - schema file(s)
 - example valid spec
 - notes on key design decisions
@@ -142,17 +145,20 @@ Define the top-level shape of the eval spec so it can act as the machine-readabl
 **Purpose**
 Define the "definition of done" layer that captures what the skill is expected to do and what must never happen.
 
-**Acceptance**
+#### Acceptance
+
 - A contract schema exists for purpose, trigger boundaries, blockers, evidence rules, safety boundaries, and baseline expectations.
 - The contract is clearly distinct from the broader spec while still composing cleanly with it.
 - The schema supports the product principle that rollout criteria should be pre-negotiated, not improvised after a run.
 - At least one representative valid contract exists.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.1
 - Blocks: 02.4, 02.6
 
-**Evidence**
+#### Evidence
+
 - contract schema file(s)
 - example valid contract
 - notes on why contract fields were separated from spec fields
@@ -164,7 +170,8 @@ Define the "definition of done" layer that captures what the skill is expected t
 **Purpose**
 Model the smallest evaluation units in a way that is strict, expressive, and future-proof.
 
-**Acceptance**
+#### Acceptance
+
 - Criterion schema supports:
   - binary criteria
   - blockers
@@ -184,11 +191,13 @@ Model the smallest evaluation units in a way that is strict, expressive, and fut
   - expected artifact/output expectations where relevant
 - The distinction between criterion definitions and concrete test cases is clean.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.1
 - Blocks: 02.4, 02.6, later execution epics
 
-**Evidence**
+#### Evidence
+
 - criterion schema
 - test case schema
 - examples spanning multiple criterion/test-case types
@@ -200,18 +209,21 @@ Model the smallest evaluation units in a way that is strict, expressive, and fut
 **Purpose**
 Implement the parsing and validation layer that turns author-written YAML into safe internal structures.
 
-**Acceptance**
+#### Acceptance
+
 - YAML specs can be parsed reliably.
 - Invalid YAML fails cleanly.
 - Structurally invalid but syntactically valid YAML fails with useful diagnostics.
 - Validation is strict and explicit.
 - The parser does not silently coerce obviously broken values into "best effort" behavior.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.1, 02.2, 02.3
 - Blocks: 02.6, 02.7, future runtime epics
 
-**Evidence**
+#### Evidence
+
 - parser utility files
 - validation utility files
 - tests for valid/invalid YAML
@@ -224,18 +236,21 @@ Implement the parsing and validation layer that turns author-written YAML into s
 **Purpose**
 Create a safe parser for `SKILL.md` that separates YAML frontmatter from markdown body without fragile regex hacks.
 
-**Acceptance**
+#### Acceptance
+
 - `SKILL.md` files can be parsed into structured frontmatter + markdown body.
 - Parsing uses AST/frontmatter tooling, not brittle ad hoc regex.
 - Malformed frontmatter fails clearly.
 - Body extraction is stable and suitable for later runtime use.
 - Parsing behavior is documented.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epic 01 complete
 - Blocks: Epic 03, Epic 05, Epic 06
 
-**Evidence**
+#### Evidence
+
 - parser implementation
 - valid/invalid `SKILL.md` fixtures
 - parsing tests
@@ -248,7 +263,8 @@ Create a safe parser for `SKILL.md` that separates YAML frontmatter from markdow
 **Purpose**
 Build a strong fixture library that makes the schema real, testable, and hard to accidentally loosen later.
 
-**Acceptance**
+#### Acceptance
+
 - Valid fixtures exist for:
   - eval spec
   - eval contract
@@ -263,11 +279,13 @@ Build a strong fixture library that makes the schema real, testable, and hard to
   - malformed `SKILL.md` frontmatter
 - Fixtures are organized predictably and used in tests.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.1, 02.2, 02.3, 02.4, 02.5
 - Blocks: 02.7 and future regression of schema quality
 
-**Evidence**
+#### Evidence
+
 - fixture tree
 - tests referencing fixtures
 - notes on fixture naming conventions
@@ -279,7 +297,8 @@ Build a strong fixture library that makes the schema real, testable, and hard to
 **Purpose**
 Document how authors should write specs and contracts so later users do not need to reverse-engineer the product from source code.
 
-**Acceptance**
+#### Acceptance
+
 - There is a durable document explaining:
   - what an eval spec is
   - what an eval contract is
@@ -290,11 +309,13 @@ Document how authors should write specs and contracts so later users do not need
 - The docs include examples and anti-examples.
 - The docs align with the implemented schema, not an aspirational future schema.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.4, 02.5, 02.6
 - Blocks: good author experience in all future epics
 
-**Evidence**
+#### Evidence
+
 - docs path(s)
 - examples included in docs
 - note that docs were checked against implementation
@@ -306,7 +327,8 @@ Document how authors should write specs and contracts so later users do not need
 **Purpose**
 Close the epic with proof that the schema layer works and is ready to support runtime epics.
 
-**Acceptance**
+#### Acceptance
+
 - All schema parsing tests pass.
 - Valid examples parse successfully.
 - Invalid examples fail in expected ways.
@@ -315,11 +337,13 @@ Close the epic with proof that the schema layer works and is ready to support ru
 - End-of-epic AAR is created.
 - Explicit carry-forward notes for Epic 03 and later runtime epics are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 02.4, 02.5, 02.6, 02.7
 - Blocks: Epic 03
 
-**Evidence**
+#### Evidence
+
 - test results
 - validation outputs
 - docs paths
@@ -335,6 +359,7 @@ Close the epic with proof that the schema layer works and is ready to support ru
 These two artifacts must be distinct.
 
 **Eval spec** is the machine-readable evaluation definition:
+
 - criteria
 - test cases
 - context
@@ -343,6 +368,7 @@ These two artifacts must be distinct.
 - tiers
 
 **Eval contract** is the human-readable, pre-negotiated definition of done:
+
 - what the skill is for
 - what should trigger it
 - what should not trigger it
@@ -371,11 +397,13 @@ The product should not silently "help" users by guessing broken configurations i
 Use frontmatter-aware markdown parsing.
 
 Do **not**:
+
 - regex your way through unknown markdown structure
 - rely on brittle line slicing
 - hardcode assumptions that will fail on real-world files
 
 The output representation should be reusable in later epics for:
+
 - package integrity checks
 - trigger simulation
 - functional execution context
@@ -418,18 +446,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Spec and contract collapse into one muddy object
+
 If authors cannot tell what belongs in the eval spec versus the eval contract, the product will confuse both humans and tooling.
 
 ### Weak diagnostics
+
 If invalid configs fail with poor error messages, users will hate authoring specs and contracts.
 
 ### Over-permissive validation
+
 If the parser is too forgiving, later runtime behavior will be brittle and hard to reason about.
 
 ### Schema drift from docs
+
 If implementation and docs diverge now, later epics will inherit confusion.
 
 ### Regex-based `SKILL.md` parsing shortcuts
+
 That will work until it doesn't, and when it breaks it will do so in exactly the annoying ways future epics least need.
 
 ---
@@ -449,6 +482,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -460,9 +494,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-02-spec-layer-and-contract-system`
 
 ### Commit style
+
 - `feat(epic-02): add eval spec schema and validation`
 - `feat(epic-02): add eval contract schema and parser`
 - `feat(epic-02): add criterion and test case schemas`
@@ -472,6 +508,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-02): add epic 02 aar`
 
 ### PR title
+
 `[EPIC 02] Spec layer and contract system`
 
 ---
@@ -481,12 +518,14 @@ When Claude Code works this epic, it should:
 The Epic 02 AAR must include:
 
 ### What shipped
+
 - schema components completed
 - parsing utilities completed
 - fixtures created
 - docs added or updated
 
 ### Evidence
+
 - parser/validation test output
 - sample valid parse
 - sample invalid parse
@@ -494,11 +533,13 @@ The Epic 02 AAR must include:
 - fixture inventory
 
 ### Open risks
+
 - any remaining schema ambiguity
 - any areas intentionally deferred
 - any known parsing limitations that later epics must respect
 
 ### What Epic 03 inherits
+
 - exact schema assumptions it should build on
 - parsing utilities now considered canonical
 - any follow-up cleanup or strengthening tasks

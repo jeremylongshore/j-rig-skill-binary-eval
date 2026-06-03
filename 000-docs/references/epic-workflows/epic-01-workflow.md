@@ -1,12 +1,13 @@
 # Epic 01 — Repo Foundation and Operating Standard — Workflow
 
 ## Inputs
+
 - None (this is the foundation epic)
 - Existing repo state (may contain partial setup, stale scaffolding, or drift)
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  01.1 Audit Current Repo State        │
 │  Inspect .git/, .beads/, docs,        │
@@ -82,6 +83,7 @@
 ```
 
 ## Outputs
+
 - Coherent pnpm monorepo workspace structure
 - TypeScript / Node 20+ / pnpm baseline configuration
 - Lint / format / test guardrails
@@ -91,6 +93,7 @@
 - Carry-forward items for Epic 02
 
 ## Key Artifacts
+
 - `package.json` (root workspace)
 - `pnpm-workspace.yaml`
 - `tsconfig.json`

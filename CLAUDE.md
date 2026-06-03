@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **j-rig-binary-eval** — Seven-layer binary evaluation harness and rollout gate for Claude Skills (`SKILL.md` artifacts). Scores every skill change across package integrity, trigger quality, functional quality, regression protection, baseline value, model variance, and rollout safety — all binary yes/no criteria with external evaluators.
 
 - **Runtime**: TypeScript, Node.js 20+, pnpm
-- **Repo**: https://github.com/jeremylongshore/j-rig-binary-eval
+- **Repo**: <https://github.com/jeremylongshore/j-rig-binary-eval>
 - **License**: MIT
 - **Current version**: stored in `version.txt`
 
@@ -60,18 +60,18 @@ Planned stack: commander, @clack/prompts, zod, @anthropic-ai/sdk, better-sqlite3
 
 10 sequential epics. Master blueprint: `000-docs/007-PP-PLAN-master-build-blueprint.md`. Epic details: `000-docs/epics/`.
 
-| # | Epic | Scope |
-|---|------|-------|
-| 01 | Repo Foundation | Workspace skeleton, governance, CI |
-| 02 | Spec Layer | YAML eval contracts, criteria schema, test case format |
-| 03 | Package Integrity | Deterministic structure/metadata validation |
-| 04 | Evidence Layer | SQLite persistence, run lifecycle |
-| 05 | Trigger Harness | Roster builder, trigger simulation, precision/recall |
-| 06 | Functional Execution | Skill invocation, context injection, artifact capture |
-| 07 | Judgment Layer | Binary judge engine, calibration, per-model matrix |
-| 08 | Regression/CLI/CI | Regression comparison, baseline gating, CLI, PR gate |
-| 09 | Optimizer | Failure clustering, one-change proposals, experiment runner |
-| 10 | Team Product | Dashboard, eval packs, drift reevaluation |
+| #   | Epic                 | Scope                                                       |
+| --- | -------------------- | ----------------------------------------------------------- |
+| 01  | Repo Foundation      | Workspace skeleton, governance, CI                          |
+| 02  | Spec Layer           | YAML eval contracts, criteria schema, test case format      |
+| 03  | Package Integrity    | Deterministic structure/metadata validation                 |
+| 04  | Evidence Layer       | SQLite persistence, run lifecycle                           |
+| 05  | Trigger Harness      | Roster builder, trigger simulation, precision/recall        |
+| 06  | Functional Execution | Skill invocation, context injection, artifact capture       |
+| 07  | Judgment Layer       | Binary judge engine, calibration, per-model matrix          |
+| 08  | Regression/CLI/CI    | Regression comparison, baseline gating, CLI, PR gate        |
+| 09  | Optimizer            | Failure clustering, one-change proposals, experiment runner |
+| 10  | Team Product         | Dashboard, eval packs, drift reevaluation                   |
 
 ## Reference Library
 

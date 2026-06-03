@@ -1,7 +1,7 @@
 # AgentSkills.io Open Spec — Versioned Snapshot
 
 **Snapshot ID**: 2026-05-07-initial
-**Source**: https://agentskills.io/specification
+**Source**: <https://agentskills.io/specification>
 **Captured**: 2026-05-07
 **Refresh cadence**: Quarterly (manual PR or scheduled cron)
 **Read by**: JRig Tier 3A spec-compliance check (called from `/validate-skillmd --thorough`)
@@ -25,12 +25,12 @@ Same as Anthropic's spec floor.
 
 ## Optional fields (open spec)
 
-| Field | Notes |
-|---|---|
-| `allowed-tools` | Optional under the open spec; IS marketplace requires it |
+| Field           | Notes                                                                                                                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allowed-tools` | Optional under the open spec; IS marketplace requires it                                                                                                                                                                                                       |
 | `compatibility` | **Free-text string, max 500 chars.** Documents environment requirements (intended product, runtime, system packages, network access). NOT an enum. NOT a CSV platform list. The IS-invented `compatible-with` field was a closed allow-list and is deprecated. |
-| `license` | SPDX identifier or human-readable description |
-| `metadata` | Free-form key-value mapping for any additional context |
+| `license`       | SPDX identifier or human-readable description                                                                                                                                                                                                                  |
+| `metadata`      | Free-form key-value mapping for any additional context                                                                                                                                                                                                         |
 
 ---
 

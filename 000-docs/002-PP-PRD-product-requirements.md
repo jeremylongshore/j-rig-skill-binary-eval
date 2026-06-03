@@ -18,17 +18,17 @@
 
 ## User Stories
 
-| ID | Story | Priority |
-|----|-------|----------|
-| US-01 | As a [role], I want [action], so that [outcome] | P0 |
-| US-02 | As a [role], I want [action], so that [outcome] | P1 |
+| ID    | Story                                           | Priority |
+| ----- | ----------------------------------------------- | -------- |
+| US-01 | As a [role], I want [action], so that [outcome] | P0       |
+| US-02 | As a [role], I want [action], so that [outcome] | P1       |
 
 ## Functional Requirements
 
-| ID | Requirement | Acceptance Criteria | Priority |
-|----|-------------|-------------------|----------|
-| FR-01 | <!-- requirement --> | <!-- criteria --> | P0 |
-| FR-02 | <!-- requirement --> | <!-- criteria --> | P1 |
+| ID    | Requirement          | Acceptance Criteria | Priority |
+| ----- | -------------------- | ------------------- | -------- |
+| FR-01 | <!-- requirement --> | <!-- criteria -->   | P0       |
+| FR-02 | <!-- requirement --> | <!-- criteria -->   | P1       |
 
 ## MVP Scope
 
@@ -38,8 +38,8 @@
 
 ## Success Metrics
 
-| Metric | Target | How Measured |
-|--------|--------|-------------|
+| Metric          | Target          | How Measured    |
+| --------------- | --------------- | --------------- |
 | <!-- metric --> | <!-- target --> | <!-- method --> |
 
 ## Dependencies

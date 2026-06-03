@@ -1,4 +1,5 @@
 # j-rig-binary-eval: Operator-Grade System Analysis
+
 *Generated: 2026-05-20*
 *Version: v1.0.0 (commit `1c04a24`, tag `v1.0.0` cut 2026-05-19)*
 
@@ -32,35 +33,35 @@ Key risks: (a) duplicate ownership of the Evidence Bundle schema between this re
 
 ### Operational Status
 
-| Environment | Status | Uptime Target | Release Cadence | Last Deploy |
-|---|---|---|---|---|
-| Production (CLI) | Released as GitHub Release `v1.0.0` | N/A (offline CLI, not a service) | On-demand via workflow_dispatch + auto on push to main | 2026-05-19 (`1c04a24`) |
-| Staging | Not applicable — there is no hosted surface | N/A | N/A | N/A |
-| Local Dev | Operational; `pnpm run check` is the full gate | N/A | Per-commit | Per-developer |
-| Dashboard (`@j-rig/dashboard`) | Placeholder package, not implemented | N/A | N/A | N/A |
+| Environment                    | Status                                         | Uptime Target                    | Release Cadence                                        | Last Deploy            |
+| ------------------------------ | ---------------------------------------------- | -------------------------------- | ------------------------------------------------------ | ---------------------- |
+| Production (CLI)               | Released as GitHub Release `v1.0.0`            | N/A (offline CLI, not a service) | On-demand via workflow_dispatch + auto on push to main | 2026-05-19 (`1c04a24`) |
+| Staging                        | Not applicable — there is no hosted surface    | N/A                              | N/A                                                    | N/A                    |
+| Local Dev                      | Operational; `pnpm run check` is the full gate | N/A                              | Per-commit                                             | Per-developer          |
+| Dashboard (`@j-rig/dashboard`) | Placeholder package, not implemented           | N/A                              | N/A                                                    | N/A                    |
 
 ### Technology Stack
 
-| Category | Technology | Version | Purpose |
-|---|---|---|---|
-| Runtime | Node.js | >=20 (CI on 22; `.nvmrc` pins `22`) | Execution host for the CLI and `pnpm run check` gate |
-| Package manager | pnpm | 10.8.1 (pinned in `package.json` `packageManager`) | Workspace orchestration |
-| Language | TypeScript | 5.8 | Source language for every workspace package |
-| Build | tsup | 8.4 | Bundles each package's `src/` into `dist/` ESM + types |
-| Test | Vitest | 3.1 | Test runner; 28 `*.test.ts` files, vitest config at `vitest.config.ts` |
-| Lint | ESLint + typescript-eslint | 9.25 / 8.59 | Flat config at `eslint.config.mjs` |
-| Format | Prettier | 3.8.3 | Enforced via `pnpm run format:check` in local gate |
-| Validation | zod | 4.4.3 | Zod schemas across `@j-rig/core` for all contracts |
-| YAML | yaml | 2.8.3 | Eval spec / contract parsing |
-| Markdown frontmatter | gray-matter | 4.0.3 | SKILL.md parser |
-| CLI | commander | 14.0.3 | `j-rig` command surface |
-| CLI cosmetics | chalk | 5.4 | Terminal coloring |
-| Database | better-sqlite3 | 12.10 | Synchronous SQLite binding |
-| ORM | drizzle-orm | 0.45.2 | Typed query builder + schema |
-| Migrations | drizzle-kit | 0.31.10 | Dev-only; no production migration step (DB is throw-away local) |
-| Signing | cosign (external binary) | Not pinned in repo | Invoked by `j-rig emit-evidence --sign` via `child_process.spawnSync` |
-| Testing harness | `@intentsolutions/audit-harness` | v0.1.0 (vendored at `.audit-harness/`) | Hash-pinning, escape-scan, arch-check, bias, gherkin-lint |
-| Doc filing | Internal v4.3 standard | N/A | `000-docs/` with `NNN-CC-CODE-description.md` naming |
+| Category             | Technology                       | Version                                            | Purpose                                                                |
+| -------------------- | -------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| Runtime              | Node.js                          | >=20 (CI on 22; `.nvmrc` pins `22`)                | Execution host for the CLI and `pnpm run check` gate                   |
+| Package manager      | pnpm                             | 10.8.1 (pinned in `package.json` `packageManager`) | Workspace orchestration                                                |
+| Language             | TypeScript                       | 5.8                                                | Source language for every workspace package                            |
+| Build                | tsup                             | 8.4                                                | Bundles each package's `src/` into `dist/` ESM + types                 |
+| Test                 | Vitest                           | 3.1                                                | Test runner; 28 `*.test.ts` files, vitest config at `vitest.config.ts` |
+| Lint                 | ESLint + typescript-eslint       | 9.25 / 8.59                                        | Flat config at `eslint.config.mjs`                                     |
+| Format               | Prettier                         | 3.8.3                                              | Enforced via `pnpm run format:check` in local gate                     |
+| Validation           | zod                              | 4.4.3                                              | Zod schemas across `@j-rig/core` for all contracts                     |
+| YAML                 | yaml                             | 2.8.3                                              | Eval spec / contract parsing                                           |
+| Markdown frontmatter | gray-matter                      | 4.0.3                                              | SKILL.md parser                                                        |
+| CLI                  | commander                        | 14.0.3                                             | `j-rig` command surface                                                |
+| CLI cosmetics        | chalk                            | 5.4                                                | Terminal coloring                                                      |
+| Database             | better-sqlite3                   | 12.10                                              | Synchronous SQLite binding                                             |
+| ORM                  | drizzle-orm                      | 0.45.2                                             | Typed query builder + schema                                           |
+| Migrations           | drizzle-kit                      | 0.31.10                                            | Dev-only; no production migration step (DB is throw-away local)        |
+| Signing              | cosign (external binary)         | Not pinned in repo                                 | Invoked by `j-rig emit-evidence --sign` via `child_process.spawnSync`  |
+| Testing harness      | `@intentsolutions/audit-harness` | v0.1.0 (vendored at `.audit-harness/`)             | Hash-pinning, escape-scan, arch-check, bias, gherkin-lint              |
+| Doc filing           | Internal v4.3 standard           | N/A                                                | `000-docs/` with `NNN-CC-CODE-description.md` naming                   |
 
 ---
 
@@ -68,20 +69,20 @@ Key risks: (a) duplicate ownership of the Evidence Bundle schema between this re
 
 ### Stack (Detailed)
 
-| Layer | Technology | Version | Purpose | Why This |
-|---|---|---|---|---|
-| Workspace orchestration | pnpm workspaces | 10.8.1 | One install, one lockfile, recursive scripts via `pnpm -r run X` | Faster + content-addressable store; pinned via `packageManager` so CI and dev are bit-equal; alternative (npm/yarn) loses the workspace-protocol shorthand and the `--filter` ergonomics that `@j-rig/cli`'s build leans on |
-| Language baseline | TypeScript 5.8 strict | strict + `verbatimModuleSyntax` (`tsconfig.json:6-7`) | Type safety for the rules engine and the in-toto/cosign envelope shapes | `verbatimModuleSyntax` forces explicit `import type` annotations and prevents accidental runtime imports of pure-type modules — important because the Provider interface (`packages/core/src/providers/types.ts:23`) is "types only, no runtime imports beyond other types" |
-| Validation | Zod 4 | 4.4.3 | Runtime contract enforcement for skill frontmatter, eval specs, eval contracts, evidence bundles, gate-result/v1 predicate | Zod's TS-first ergonomics + `.strict()` + `.superRefine()` let the Evidence Bundle schema express cross-field invariants (subject.name == predicate.gate_id; subject.digest.sha256 == predicate.input_hash) — `packages/core/src/schemas/evidence-bundle.ts:113-129` |
-| Persistence | better-sqlite3 + drizzle-orm | 12.10 / 0.45.2 | Local evidence store: runs, criterion results, artifacts, skill versions | Sync API (no async overhead per-row); single-file DB matches the "throw-away local evidence" intent; drizzle gives type-safe queries that don't drift from `schema.ts` |
-| Build | tsup | 8.4 | ESM-only bundling with declaration files | Wraps esbuild for speed; emits `.d.ts` + source maps; per-package `tsup.config.ts` in `@j-rig/core` |
-| Test | Vitest | 3.1 | Co-located `.test.ts` files alongside source; `vitest.config.ts:5` globs `packages/*/src/**/*.test.ts` + `tests/**/*.test.ts` | Native ESM, native TS; no separate babel/transformer config |
-| Signing | cosign | External (subprocess) | DSSE attestation envelope + optional Rekor transparency log | Industry-standard Sigstore tool; subprocess invocation (`packages/cli/src/commands/emit-evidence.ts:280-296`) avoids the awkward Node bindings that the cosign project does not officially publish |
-| OTel emission | Manual (no SDK) | N/A | One-shot `agent.rollout.gate.evaluated` event on stderr when `AUDIT_HARNESS_OTEL=1` | Deliberate: matches the audit-harness shell `emit-evidence.sh` behavior so the platform's OTel attribute namespace stays uniform across TS + shell tooling (`packages/cli/src/commands/emit-evidence.ts:148-163`) |
+| Layer                   | Technology                   | Version                                               | Purpose                                                                                                                       | Why This                                                                                                                                                                                                                                                                    |
+| ----------------------- | ---------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace orchestration | pnpm workspaces              | 10.8.1                                                | One install, one lockfile, recursive scripts via `pnpm -r run X`                                                              | Faster + content-addressable store; pinned via `packageManager` so CI and dev are bit-equal; alternative (npm/yarn) loses the workspace-protocol shorthand and the `--filter` ergonomics that `@j-rig/cli`'s build leans on                                                 |
+| Language baseline       | TypeScript 5.8 strict        | strict + `verbatimModuleSyntax` (`tsconfig.json:6-7`) | Type safety for the rules engine and the in-toto/cosign envelope shapes                                                       | `verbatimModuleSyntax` forces explicit `import type` annotations and prevents accidental runtime imports of pure-type modules — important because the Provider interface (`packages/core/src/providers/types.ts:23`) is "types only, no runtime imports beyond other types" |
+| Validation              | Zod 4                        | 4.4.3                                                 | Runtime contract enforcement for skill frontmatter, eval specs, eval contracts, evidence bundles, gate-result/v1 predicate    | Zod's TS-first ergonomics + `.strict()` + `.superRefine()` let the Evidence Bundle schema express cross-field invariants (subject.name == predicate.gate_id; subject.digest.sha256 == predicate.input_hash) — `packages/core/src/schemas/evidence-bundle.ts:113-129`        |
+| Persistence             | better-sqlite3 + drizzle-orm | 12.10 / 0.45.2                                        | Local evidence store: runs, criterion results, artifacts, skill versions                                                      | Sync API (no async overhead per-row); single-file DB matches the "throw-away local evidence" intent; drizzle gives type-safe queries that don't drift from `schema.ts`                                                                                                      |
+| Build                   | tsup                         | 8.4                                                   | ESM-only bundling with declaration files                                                                                      | Wraps esbuild for speed; emits `.d.ts` + source maps; per-package `tsup.config.ts` in `@j-rig/core`                                                                                                                                                                         |
+| Test                    | Vitest                       | 3.1                                                   | Co-located `.test.ts` files alongside source; `vitest.config.ts:5` globs `packages/*/src/**/*.test.ts` + `tests/**/*.test.ts` | Native ESM, native TS; no separate babel/transformer config                                                                                                                                                                                                                 |
+| Signing                 | cosign                       | External (subprocess)                                 | DSSE attestation envelope + optional Rekor transparency log                                                                   | Industry-standard Sigstore tool; subprocess invocation (`packages/cli/src/commands/emit-evidence.ts:280-296`) avoids the awkward Node bindings that the cosign project does not officially publish                                                                          |
+| OTel emission           | Manual (no SDK)              | N/A                                                   | One-shot `agent.rollout.gate.evaluated` event on stderr when `AUDIT_HARNESS_OTEL=1`                                           | Deliberate: matches the audit-harness shell `emit-evidence.sh` behavior so the platform's OTel attribute namespace stays uniform across TS + shell tooling (`packages/cli/src/commands/emit-evidence.ts:148-163`)                                                           |
 
 ### System Diagram
 
-```
+```text
 +--------------------------------------------------------------+
 | j-rig CLI (packages/cli/src/index.ts)                        |
 |                                                              |
@@ -157,7 +158,7 @@ The blast radius of any one step's failure is bounded by the next step's defensi
 
 ### Dependency Graph
 
-```
+```text
 @j-rig/core   <-- the rules engine; no internal package depends on @j-rig/db or @j-rig/cli
    |
    v depends on: zod, yaml, gray-matter, @types/node (dev)
@@ -171,12 +172,14 @@ j-rig binary  <-- packages/cli/dist/index.js; entrypoint per `bin` map in cli/pa
 ```
 
 Build order (enforced by pnpm's topological recursion, `pnpm -r run build` in `package.json:12`):
+
 1. `@j-rig/core` (no internal deps)
 2. `@j-rig/db` (depends on core via types)
 3. `@j-rig/cli` (depends on both)
 4. `@j-rig/dashboard` (no scripts — skipped silently)
 
 What happens when each dependency is unavailable:
+
 - **`@j-rig/core` build fails** -> `db` and `cli` cascade fail; nothing runs. The pnpm `--frozen-lockfile` install in CI catches version drift early.
 - **`@j-rig/db` build fails** -> CLI's `eval` command throws on import; `check` and `validate` still work (they don't touch the DB).
 - **better-sqlite3 native binding** is a postinstall compile. Listed in `package.json:38-43` under `pnpm.onlyBuiltDependencies` alongside `esbuild`. If the native build fails, the package fails to install. Common cause: glibc skew on alpine images.
@@ -277,7 +280,7 @@ What happens when each dependency is unavailable:
 
 ### Layout
 
-```
+```text
 j-rig-binary-eval/
 +- packages/                       # workspace packages (pnpm-workspace.yaml:1-2)
 |  +- core/                        # @j-rig/core: rules engine; ~9k LOC; 16 subsystems
@@ -350,18 +353,18 @@ j-rig-binary-eval/
 
 These are the files where a single bug breaks an outsized portion of the system. Read these first when triaging:
 
-| Path | Role | Why it's load-bearing |
-|---|---|---|
-| `packages/core/src/governance/scoring.ts:51-60` | `decideRollout()` | The four-line if/else that produces every ship/warn/block/obsolete_review verdict. Every consumer reads its return value. |
+| Path                                                  | Role                                            | Why it's load-bearing                                                                                                                                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/governance/scoring.ts:51-60`       | `decideRollout()`                               | The four-line if/else that produces every ship/warn/block/obsolete_review verdict. Every consumer reads its return value.                                                                                       |
 | `packages/core/src/schemas/evidence-bundle.ts:54-145` | Zod gate-result/v1 + Evidence Statement schemas | The cross-tool contract. Every IEP gate emits this shape. Until `iaj-E02` migrates to `@intentsolutions/core@0.1.0`, this file is the local source of truth — and a divergence from the kernel is a silent bug. |
-| `packages/cli/src/commands/emit-evidence.ts:142-303` | The `j-rig emit-evidence` command | The single producer of signed in-toto Statements in this repo. Cosign-subprocess error handling, artifact-hash-equals-input-hash check, predicate-body-only flag — all live here. |
-| `packages/db/src/lifecycle.ts:7-21` | Run-status state machine | Enforces the only legal transitions. A bug here lets a run end in an invalid state and breaks every downstream query that filters on `status='completed'`. |
-| `packages/db/src/schema.ts:6-80` | Drizzle table definitions | The shape of every persisted row. Schema drift between this file and the application code is the most common breakage cause. |
-| `packages/cli/src/commands/eval.ts:75-260` | Full pipeline orchestration | The end-to-end critical-path code. A bug in the orchestration order (e.g., transitioning to completed before persisting judgments) leaves the DB in an inconsistent state. |
-| `packages/core/src/providers/types.ts:150-187` | Provider interface | The contract every provider adapter must satisfy. The PB-7 measurement protocol is anchored to this surface. |
-| `packages/cli/src/providers/anthropic.ts:1-83` | Stub providers | Currently used unconditionally. Replacing these is the post-PB-7 single biggest behavior change. |
-| `.github/workflows/release.yml:75-83` | Test step in release pipeline | The `|| true` after the test invocation means a failing test does not block a release. This is the single most concerning CI bug. |
-| `scripts/audit-harness` + `.audit-harness/` | Vendored harness | If this vanishes or the hash drifts, every pre-commit gate fails. Hash-pinned via `audit-harness verify`. |
+| `packages/cli/src/commands/emit-evidence.ts:142-303`  | The `j-rig emit-evidence` command               | The single producer of signed in-toto Statements in this repo. Cosign-subprocess error handling, artifact-hash-equals-input-hash check, predicate-body-only flag — all live here.                               |
+| `packages/db/src/lifecycle.ts:7-21`                   | Run-status state machine                        | Enforces the only legal transitions. A bug here lets a run end in an invalid state and breaks every downstream query that filters on `status='completed'`.                                                      |
+| `packages/db/src/schema.ts:6-80`                      | Drizzle table definitions                       | The shape of every persisted row. Schema drift between this file and the application code is the most common breakage cause.                                                                                    |
+| `packages/cli/src/commands/eval.ts:75-260`            | Full pipeline orchestration                     | The end-to-end critical-path code. A bug in the orchestration order (e.g., transitioning to completed before persisting judgments) leaves the DB in an inconsistent state.                                      |
+| `packages/core/src/providers/types.ts:150-187`        | Provider interface                              | The contract every provider adapter must satisfy. The PB-7 measurement protocol is anchored to this surface.                                                                                                    |
+| `packages/cli/src/providers/anthropic.ts:1-83`        | Stub providers                                  | Currently used unconditionally. Replacing these is the post-PB-7 single biggest behavior change.                                                                                                                |
+| `.github/workflows/release.yml:75-83`                 | Test step in release pipeline                   | The `\|\| true` after the test invocation means a failing test does not block a release. This is the single most concerning CI bug.                                                                             |
+| `scripts/audit-harness` + `.audit-harness/`           | Vendored harness                                | If this vanishes or the hash drifts, every pre-commit gate fails. Hash-pinned via `audit-harness verify`.                                                                                                       |
 
 ---
 
@@ -369,13 +372,13 @@ These are the files where a single bug breaks an outsized portion of the system.
 
 ### Prerequisites
 
-| Tool | Version | Install | Verify |
-|---|---|---|---|
-| Node.js | >=20 (CI uses 22) | `fnm install 22 && fnm use 22` (or nvm equivalent) | `node --version` -> `v22.x.x` |
-| pnpm | 10.8.1 (pinned by `packageManager`) | `corepack enable && corepack prepare pnpm@10.8.1 --activate` | `pnpm --version` -> `10.8.1` |
-| Git | recent | system package manager | `git --version` |
-| Optional: cosign | recent | https://docs.sigstore.dev/cosign/installation/ | `cosign version` |
-| Optional: bash | 4+ | system shell | needed for `scripts/audit-harness` wrapper |
+| Tool             | Version                             | Install                                                      | Verify                                     |
+| ---------------- | ----------------------------------- | ------------------------------------------------------------ | ------------------------------------------ |
+| Node.js          | >=20 (CI uses 22)                   | `fnm install 22 && fnm use 22` (or nvm equivalent)           | `node --version` -> `v22.x.x`              |
+| pnpm             | 10.8.1 (pinned by `packageManager`) | `corepack enable && corepack prepare pnpm@10.8.1 --activate` | `pnpm --version` -> `10.8.1`               |
+| Git              | recent                              | system package manager                                       | `git --version`                            |
+| Optional: cosign | recent                              | <https://docs.sigstore.dev/cosign/installation/>             | `cosign version`                           |
+| Optional: bash   | 4+                                  | system shell                                                 | needed for `scripts/audit-harness` wrapper |
 
 ### Zero to Running
 
@@ -428,16 +431,16 @@ A first-week engineer should know, by the end of day one, that `pnpm run check` 
 
 ### Common Setup Problems
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `Error: Cannot find module '@j-rig/core'` when running CLI | Did not build first | `pnpm run build` — workspace `dist/` outputs are not source; the bin shebang points at compiled JS |
-| `Error: better-sqlite3 was compiled against a different Node version` | Native binding skew (e.g., Node version changed after install) | `pnpm rebuild better-sqlite3` or delete `node_modules` + `pnpm install` |
-| `command failed: cosign attest-blob ...` from `emit-evidence --sign` | `cosign` not on PATH | Install per the Sigstore docs; verify `cosign version` works |
-| `Invalid eval spec: ... unknown key` | The eval-spec.yaml uses fields that don't match the Zod schema | Diff against a fixture in `packages/core/fixtures/valid/` |
-| All `j-rig eval` runs return "Ship" verdict | Stub providers are in use (Decision 7 cost surface) | Until PB-7 lands: do not use `j-rig eval` output as ground truth. Use `j-rig check` (deterministic) for real signal |
-| `pnpm install` re-builds `better-sqlite3` every time | The `onlyBuiltDependencies` list whitelists the native compile; this is expected, not a bug | Accept the postinstall; CI caches it |
-| `pnpm run check` reports lint errors only in `000-docs/` | The flat-config `ignores` array (`eslint.config.mjs:16-23`) should exclude `000-docs/`; verify the ignore list | Re-run `pnpm install` if config changed |
-| `tsc --noEmit` finds errors in test files but not source | `tests/tsconfig.json` is a separate project; root `tsc --noEmit -p tests/tsconfig.json` runs first per `package.json:19` | Fix the test file or update its tsconfig |
+| Symptom                                                               | Cause                                                                                                                    | Fix                                                                                                                 |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `Error: Cannot find module '@j-rig/core'` when running CLI            | Did not build first                                                                                                      | `pnpm run build` — workspace `dist/` outputs are not source; the bin shebang points at compiled JS                  |
+| `Error: better-sqlite3 was compiled against a different Node version` | Native binding skew (e.g., Node version changed after install)                                                           | `pnpm rebuild better-sqlite3` or delete `node_modules` + `pnpm install`                                             |
+| `command failed: cosign attest-blob ...` from `emit-evidence --sign`  | `cosign` not on PATH                                                                                                     | Install per the Sigstore docs; verify `cosign version` works                                                        |
+| `Invalid eval spec: ... unknown key`                                  | The eval-spec.yaml uses fields that don't match the Zod schema                                                           | Diff against a fixture in `packages/core/fixtures/valid/`                                                           |
+| All `j-rig eval` runs return "Ship" verdict                           | Stub providers are in use (Decision 7 cost surface)                                                                      | Until PB-7 lands: do not use `j-rig eval` output as ground truth. Use `j-rig check` (deterministic) for real signal |
+| `pnpm install` re-builds `better-sqlite3` every time                  | The `onlyBuiltDependencies` list whitelists the native compile; this is expected, not a bug                              | Accept the postinstall; CI caches it                                                                                |
+| `pnpm run check` reports lint errors only in `000-docs/`              | The flat-config `ignores` array (`eslint.config.mjs:16-23`) should exclude `000-docs/`; verify the ignore list           | Re-run `pnpm install` if config changed                                                                             |
+| `tsc --noEmit` finds errors in test files but not source              | `tests/tsconfig.json` is a separate project; root `tsc --noEmit -p tests/tsconfig.json` runs first per `package.json:19` | Fix the test file or update its tsconfig                                                                            |
 
 ---
 
@@ -445,47 +448,51 @@ A first-week engineer should know, by the end of day one, that `pnpm run check` 
 
 ### Command Map
 
-| Task | Command | Notes |
-|---|---|---|
-| Install deps | `pnpm install` | Frozen-lockfile in CI; mutable locally |
-| Run locally (full CLI) | `node packages/cli/dist/index.js <subcommand>` | Build first |
-| Build | `pnpm run build` | Recursive over workspaces; emits each package's `dist/` |
-| Build single package | `pnpm --filter @j-rig/core run build` | Useful for tight loops |
-| Lint | `pnpm run lint` | ESLint flat config; auto-fix with `pnpm run lint:fix` |
-| Format | `pnpm run format` (or `format:check` for CI) | Prettier |
-| Typecheck | `pnpm run typecheck` | tsc --noEmit on tests + recursive on packages |
-| Test | `pnpm run test` | vitest run (one-shot) |
-| Test watch | `pnpm run test:watch` | vitest in watch mode |
-| Full gate | `pnpm run check` | lint + typecheck + test; the local pre-merge bar |
-| Clean | `pnpm run clean` | Recursive `rm -rf dist` per package |
-| Deploy production | N/A — this is a CLI artifact, not a hosted service | The "deploy" is `git tag vX.Y.Z` -> CI cuts GitHub Release |
-| View logs | N/A — no service | Run-time logs are stdout/stderr of the CLI |
-| Rollback | N/A | Older versions live as historical GitHub Releases; consumers pin via npm-equivalent install of the tagged source |
-| Run audit harness verify | `scripts/audit-harness verify` | Verifies hash-pinned policy files; exit 2 = HARNESS_TAMPERED |
-| Run audit harness init | `scripts/audit-harness init` | After ENGINEER-REVIEWED edits to policy files; rewrites the `.harness-hash` manifest |
-| Run escape-scan | `scripts/audit-harness escape-scan --staged` | Pre-commit gate; detects escape attempts in staged diff |
-| Emit unsigned evidence | `node packages/cli/dist/index.js emit-evidence --gate-id ... --result PASS ...` | Direct-mode flags; outputs JSON to stdout |
-| Emit signed evidence | `node packages/cli/dist/index.js emit-evidence --sign --key cosign.key --artifact <path> ...` | Requires cosign on PATH; `--artifact` is mandatory under `--sign` |
+| Task                     | Command                                                                                       | Notes                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Install deps             | `pnpm install`                                                                                | Frozen-lockfile in CI; mutable locally                                                                           |
+| Run locally (full CLI)   | `node packages/cli/dist/index.js <subcommand>`                                                | Build first                                                                                                      |
+| Build                    | `pnpm run build`                                                                              | Recursive over workspaces; emits each package's `dist/`                                                          |
+| Build single package     | `pnpm --filter @j-rig/core run build`                                                         | Useful for tight loops                                                                                           |
+| Lint                     | `pnpm run lint`                                                                               | ESLint flat config; auto-fix with `pnpm run lint:fix`                                                            |
+| Format                   | `pnpm run format` (or `format:check` for CI)                                                  | Prettier                                                                                                         |
+| Typecheck                | `pnpm run typecheck`                                                                          | tsc --noEmit on tests + recursive on packages                                                                    |
+| Test                     | `pnpm run test`                                                                               | vitest run (one-shot)                                                                                            |
+| Test watch               | `pnpm run test:watch`                                                                         | vitest in watch mode                                                                                             |
+| Full gate                | `pnpm run check`                                                                              | lint + typecheck + test; the local pre-merge bar                                                                 |
+| Clean                    | `pnpm run clean`                                                                              | Recursive `rm -rf dist` per package                                                                              |
+| Deploy production        | N/A — this is a CLI artifact, not a hosted service                                            | The "deploy" is `git tag vX.Y.Z` -> CI cuts GitHub Release                                                       |
+| View logs                | N/A — no service                                                                              | Run-time logs are stdout/stderr of the CLI                                                                       |
+| Rollback                 | N/A                                                                                           | Older versions live as historical GitHub Releases; consumers pin via npm-equivalent install of the tagged source |
+| Run audit harness verify | `scripts/audit-harness verify`                                                                | Verifies hash-pinned policy files; exit 2 = HARNESS_TAMPERED                                                     |
+| Run audit harness init   | `scripts/audit-harness init`                                                                  | After ENGINEER-REVIEWED edits to policy files; rewrites the `.harness-hash` manifest                             |
+| Run escape-scan          | `scripts/audit-harness escape-scan --staged`                                                  | Pre-commit gate; detects escape attempts in staged diff                                                          |
+| Emit unsigned evidence   | `node packages/cli/dist/index.js emit-evidence --gate-id ... --result PASS ...`               | Direct-mode flags; outputs JSON to stdout                                                                        |
+| Emit signed evidence     | `node packages/cli/dist/index.js emit-evidence --sign --key cosign.key --artifact <path> ...` | Requires cosign on PATH; `--artifact` is mandatory under `--sign`                                                |
 
 ### Deployment
 
 This repo does not "deploy" to an environment in the traditional sense. The release artifact is a GitHub Release. The pipeline is `.github/workflows/release.yml`.
 
-**Pre-flight checklist**
+#### Pre-flight checklist
+
 1. `pnpm run check` is green locally on the merge candidate.
 2. No uncommitted changes (`release.yml:64-68` verifies this).
 3. CHANGELOG.md is current (the workflow auto-prepends an entry, but a manual review is wise for messaging).
 4. If a manual bump is needed: trigger `workflow_dispatch` with `bump: major|minor|patch`. Otherwise the auto path detects from conventional-commit prefixes (`BREAKING CHANGE`, `feat:`, anything else -> patch).
 
-**Execution steps**
+#### Execution steps
+
 - Auto path: push to `main`. The `release.yml` `on.push.branches: [main]` trigger fires.
 - Manual path: GitHub UI -> Actions -> Release -> Run workflow -> select bump type and dry-run flag.
 
-**Verification**
+#### Verification
+
 - The workflow's "Verify readiness" step (`release.yml:62-83`) checks for uncommitted changes and runs tests. WARNING: the test step at `release.yml:73-74` uses `|| true`, so test failures do NOT block the release. Fix: change to `pnpm run test` without `|| true`. This is recorded as a high-priority finding in Section 11.
 - After the workflow completes, `git tag` shows the new tag; `gh release view vX.Y.Z` shows the release page.
 
-**Rollback protocol**
+#### Rollback protocol
+
 - There is no automatic rollback. To revert: `git revert <release commit>` + push, then trigger a new release.
 - To delete a bad release: `gh release delete vX.Y.Z` + `git push origin :refs/tags/vX.Y.Z`. Be aware that any downstream consumer that pinned to the deleted tag will break.
 
@@ -498,12 +505,12 @@ This repo does not "deploy" to an environment in the traditional sense. The rele
 
 ### Incident Response
 
-| Severity | Definition | Response Time | Playbook |
-|---|---|---|---|
-| P0 | A release is published with a broken `decideRollout()` that ships when it should block | 24 hours per SECURITY.md ack target | Revert the commit, cut a patch release, post-mortem in `000-docs/` |
-| P1 | A release passes CI but breaks the eval pipeline for downstream consumers | 7 days per SECURITY.md High severity | Yank the release, identify the failing change, fix, cut a patch release |
-| P2 | A non-critical schema field is added without backward-compat shim | 30 days per Medium severity | Add the compat shim in a follow-up release; document the break |
-| P3 | Docs drift or a minor lint regression | 90 days per Low severity | Fix on next normal release cycle |
+| Severity | Definition                                                                             | Response Time                        | Playbook                                                                |
+| -------- | -------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| P0       | A release is published with a broken `decideRollout()` that ships when it should block | 24 hours per SECURITY.md ack target  | Revert the commit, cut a patch release, post-mortem in `000-docs/`      |
+| P1       | A release passes CI but breaks the eval pipeline for downstream consumers              | 7 days per SECURITY.md High severity | Yank the release, identify the failing change, fix, cut a patch release |
+| P2       | A non-critical schema field is added without backward-compat shim                      | 30 days per Medium severity          | Add the compat shim in a follow-up release; document the break          |
+| P3       | Docs drift or a minor lint regression                                                  | 90 days per Low severity             | Fix on next normal release cycle                                        |
 
 ---
 
@@ -587,13 +594,13 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 
 ### Access Control
 
-| Role | Purpose | Permissions | MFA |
-|---|---|---|---|
-| Maintainer (Jeremy Longshore) | Repo owner; merges to main; cuts releases | Full GitHub admin on the repo | Yes (GitHub-enforced for Intent Solutions org) |
-| Contributors | PR-only access | Open PRs against feature branches; cannot push to main | Yes (GitHub-enforced) |
-| Bots (Dependabot, Gemini code-assist) | Automated dep PRs + AI code review | Read+PR scope; cannot merge | N/A |
-| End users | Run the CLI on their machine | Local execution; no remote auth | N/A |
-| `security@jeremylongshore.com` | Vulnerability intake mailbox | Per SECURITY.md | N/A |
+| Role                                  | Purpose                                   | Permissions                                            | MFA                                            |
+| ------------------------------------- | ----------------------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
+| Maintainer (Jeremy Longshore)         | Repo owner; merges to main; cuts releases | Full GitHub admin on the repo                          | Yes (GitHub-enforced for Intent Solutions org) |
+| Contributors                          | PR-only access                            | Open PRs against feature branches; cannot push to main | Yes (GitHub-enforced)                          |
+| Bots (Dependabot, Gemini code-assist) | Automated dep PRs + AI code review        | Read+PR scope; cannot merge                            | N/A                                            |
+| End users                             | Run the CLI on their machine              | Local execution; no remote auth                        | N/A                                            |
+| `security@jeremylongshore.com`        | Vulnerability intake mailbox              | Per SECURITY.md                                        | N/A                                            |
 
 ### Secrets
 
@@ -605,6 +612,7 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 ### Honest Security Assessment
 
 **Implemented and verifiable:**
+
 - Apache 2.0 license + NOTICE attribution (legal hygiene).
 - Pinned dependencies via `pnpm-lock.yaml` (supply-chain pinning).
 - Dependabot enabled (auto-PR for dep updates).
@@ -615,6 +623,7 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 - CISO gate G-2 (env-var spillover) is implemented at `g2-env-var-spillover.ts`.
 
 **Aspirational or partial:**
+
 - DNSSEC + CAA-record pinning on `evals.intentsolutions.io` is a prerequisite for first signed attestation per ISEDC CISO binding. NOT YET enforced at the DNS layer.
 - No SBOM is published with releases. The release workflow does not generate `cyclonedx` or `spdx` output. (Easy to add via `cyclonedx-bom` npm.)
 - The release workflow's test step is gated by `|| true` (see Section 8.2). A failing test does not block a release. This is a CI-integrity finding, not a runtime-security one, but it weakens the trust chain.
@@ -622,6 +631,7 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 - The `@intentsolutions/audit-harness` is vendored, not installed via npm. Vendoring is intentional (avoids tying every Intent Solutions repo to a single npm publish cadence) but means upstream security fixes don't propagate automatically.
 
 **Threat model gaps:**
+
 - Arbitrary YAML loading. `parseAndValidateYaml` (`packages/core/src/parsers/yaml-parser.ts`) reads user-supplied eval specs. Zod validates the parsed object, but the `yaml` package itself could be vulnerable to malicious input that exploits a parser bug. The package is `yaml@2.8.3` which is recent and well-audited; the risk is low but non-zero.
 - Cosign subprocess invocation reads `--key` paths from CLI flags. A user who can supply CLI args could point `--key` at a sensitive file; cosign opens it. This is a local-only attack surface (the CLI is local), but worth noting.
 - The CLI does not sanitize skill paths. A SKILL.md at `/etc/passwd/SKILL.md` would fail the parser, but a SKILL.md inside a malicious skill directory could include arbitrary content the harness will print to stdout (chalk + console.log). No XSS surface (CLI output, not HTML), but log-injection is theoretically possible.
@@ -632,14 +642,14 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 
 ### Monthly Costs
 
-| Resource | Cost | Notes |
-|---|---|---|
-| GitHub repo + Actions | $0 (free tier for public repo) | CI minutes are unlimited for public repos |
-| `npm` distribution | $0 — none of the four packages are published | Internal monorepo only |
-| GitHub Sponsors / Buy Me a Coffee | Variable inbound; not an outbound cost | `.github/FUNDING.yml` is set up |
-| LLM API spend (per j-rig eval run) | Currently $0 because stubs are active | Post-PB-7: per-eval cost depends on locked provider + token usage |
-| Sigstore / Rekor | $0 (public good infrastructure) | Subject to fair-use limits |
-| Local development | $0 in marginal cost | All tooling is OSS |
+| Resource                           | Cost                                         | Notes                                                             |
+| ---------------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| GitHub repo + Actions              | $0 (free tier for public repo)               | CI minutes are unlimited for public repos                         |
+| `npm` distribution                 | $0 — none of the four packages are published | Internal monorepo only                                            |
+| GitHub Sponsors / Buy Me a Coffee  | Variable inbound; not an outbound cost       | `.github/FUNDING.yml` is set up                                   |
+| LLM API spend (per j-rig eval run) | Currently $0 because stubs are active        | Post-PB-7: per-eval cost depends on locked provider + token usage |
+| Sigstore / Rekor                   | $0 (public good infrastructure)              | Subject to fair-use limits                                        |
+| Local development                  | $0 in marginal cost                          | All tooling is OSS                                                |
 
 ### Performance
 
@@ -696,34 +706,34 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 
 ### Implementation Status
 
-| Component | Status | Evidence |
-|---|---|---|
-| `@j-rig/core` schemas | IMPLEMENTED | `packages/core/src/schemas/` (8 files); Zod + cross-field invariants |
-| `@j-rig/core` parsers | IMPLEMENTED | `packages/core/src/parsers/` (yaml, skill-md, agents-md) |
-| `@j-rig/core` deterministic checks | IMPLEMENTED | `packages/core/src/checks/` + fixtures |
-| `@j-rig/core` trigger layer | IMPLEMENTED | `packages/core/src/trigger/` + tests |
-| `@j-rig/core` execution layer | IMPLEMENTED | `packages/core/src/execution/` + tests |
-| `@j-rig/core` judgment layer | IMPLEMENTED | `packages/core/src/judgment/` + calibration + tests |
-| `@j-rig/core` governance | IMPLEMENTED | `packages/core/src/governance/` — `decideRollout()`, regression, baseline |
-| `@j-rig/core` optimizer | IMPLEMENTED | `packages/core/src/optimizer/` + tests |
-| `@j-rig/core` drift | IMPLEMENTED | `packages/core/src/drift/` + tests |
-| `@j-rig/core` evidence I/O | IMPLEMENTED | `packages/core/src/evidence/` + tests |
-| `@j-rig/core` intentional-mapping | IMPLEMENTED (MM-1..MM-6) | `packages/core/src/intentional-mapping/` |
-| `@j-rig/core` Provider interface | IMPLEMENTED (types only) | `packages/core/src/providers/types.ts` |
-| `@j-rig/core` CISO gates G-1, G-2 | IMPLEMENTED | `packages/core/src/providers/ciso-gates/` + tests |
-| `@j-rig/core` EC-1..EC-5 eval cases | IMPLEMENTED | `packages/core/src/providers/eval-cases/` |
-| `@j-rig/core` score-card scorer | IMPLEMENTED | `packages/core/src/providers/score-card/` + DR-draft generator |
-| `@j-rig/cli` 7 subcommands | IMPLEMENTED (with stub providers) | `packages/cli/src/commands/` |
-| `@j-rig/cli` provider implementation | STUB ONLY | `packages/cli/src/providers/anthropic.ts` |
-| `@j-rig/db` schema | IMPLEMENTED | `packages/db/src/schema.ts` |
-| `@j-rig/db` state machine + evidence I/O | IMPLEMENTED | `packages/db/src/lifecycle.ts`, `evidence.ts` |
-| `@j-rig/dashboard` | PLACEHOLDER | `packages/dashboard/package.json` (no `src/`, no scripts) |
-| Sigstore signing | IMPLEMENTED | `packages/cli/src/commands/emit-evidence.ts:209-303` |
-| Audit-harness vendoring | IMPLEMENTED (v0.1.0) | `.audit-harness/VERSION`, `scripts/audit-harness` |
-| CI lint + typecheck + test | IMPLEMENTED | `.github/workflows/ci.yml` |
-| Release automation | IMPLEMENTED (with test-gate bug) | `.github/workflows/release.yml` |
-| Eval packs (Epic 10) | PLACEHOLDER | `eval-packs/README.md` |
-| Cross-tool Evidence Bundle dep on kernel | NOT YET | tracked as `iaj-E02` |
+| Component                                | Status                            | Evidence                                                                  |
+| ---------------------------------------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `@j-rig/core` schemas                    | IMPLEMENTED                       | `packages/core/src/schemas/` (8 files); Zod + cross-field invariants      |
+| `@j-rig/core` parsers                    | IMPLEMENTED                       | `packages/core/src/parsers/` (yaml, skill-md, agents-md)                  |
+| `@j-rig/core` deterministic checks       | IMPLEMENTED                       | `packages/core/src/checks/` + fixtures                                    |
+| `@j-rig/core` trigger layer              | IMPLEMENTED                       | `packages/core/src/trigger/` + tests                                      |
+| `@j-rig/core` execution layer            | IMPLEMENTED                       | `packages/core/src/execution/` + tests                                    |
+| `@j-rig/core` judgment layer             | IMPLEMENTED                       | `packages/core/src/judgment/` + calibration + tests                       |
+| `@j-rig/core` governance                 | IMPLEMENTED                       | `packages/core/src/governance/` — `decideRollout()`, regression, baseline |
+| `@j-rig/core` optimizer                  | IMPLEMENTED                       | `packages/core/src/optimizer/` + tests                                    |
+| `@j-rig/core` drift                      | IMPLEMENTED                       | `packages/core/src/drift/` + tests                                        |
+| `@j-rig/core` evidence I/O               | IMPLEMENTED                       | `packages/core/src/evidence/` + tests                                     |
+| `@j-rig/core` intentional-mapping        | IMPLEMENTED (MM-1..MM-6)          | `packages/core/src/intentional-mapping/`                                  |
+| `@j-rig/core` Provider interface         | IMPLEMENTED (types only)          | `packages/core/src/providers/types.ts`                                    |
+| `@j-rig/core` CISO gates G-1, G-2        | IMPLEMENTED                       | `packages/core/src/providers/ciso-gates/` + tests                         |
+| `@j-rig/core` EC-1..EC-5 eval cases      | IMPLEMENTED                       | `packages/core/src/providers/eval-cases/`                                 |
+| `@j-rig/core` score-card scorer          | IMPLEMENTED                       | `packages/core/src/providers/score-card/` + DR-draft generator            |
+| `@j-rig/cli` 7 subcommands               | IMPLEMENTED (with stub providers) | `packages/cli/src/commands/`                                              |
+| `@j-rig/cli` provider implementation     | STUB ONLY                         | `packages/cli/src/providers/anthropic.ts`                                 |
+| `@j-rig/db` schema                       | IMPLEMENTED                       | `packages/db/src/schema.ts`                                               |
+| `@j-rig/db` state machine + evidence I/O | IMPLEMENTED                       | `packages/db/src/lifecycle.ts`, `evidence.ts`                             |
+| `@j-rig/dashboard`                       | PLACEHOLDER                       | `packages/dashboard/package.json` (no `src/`, no scripts)                 |
+| Sigstore signing                         | IMPLEMENTED                       | `packages/cli/src/commands/emit-evidence.ts:209-303`                      |
+| Audit-harness vendoring                  | IMPLEMENTED (v0.1.0)              | `.audit-harness/VERSION`, `scripts/audit-harness`                         |
+| CI lint + typecheck + test               | IMPLEMENTED                       | `.github/workflows/ci.yml`                                                |
+| Release automation                       | IMPLEMENTED (with test-gate bug)  | `.github/workflows/release.yml`                                           |
+| Eval packs (Epic 10)                     | PLACEHOLDER                       | `eval-packs/README.md`                                                    |
+| Cross-tool Evidence Bundle dep on kernel | NOT YET                           | tracked as `iaj-E02`                                                      |
 
 ---
 
@@ -758,17 +768,17 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 
 ### URLs
 
-| Resource | URL |
-|---|---|
-| Repo (GitHub) | https://github.com/jeremylongshore/j-rig-binary-eval |
-| Releases | https://github.com/jeremylongshore/j-rig-binary-eval/releases |
-| CI status | https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml |
-| Evidence Bundle SPEC (lab) | https://github.com/jeremylongshore/intent-eval-lab/blob/main/specs/evidence-bundle/v0.1.0-draft/SPEC.md |
-| Kernel package (npm) | https://www.npmjs.com/package/@intentsolutions/core |
-| Audit harness (npm) | https://www.npmjs.com/package/@intentsolutions/audit-harness |
-| Audit harness (GitHub) | https://github.com/jeremylongshore/audit-harness |
-| Predicate URI (NOT yet DNSSEC-pinned) | https://evals.intentsolutions.io/gate-result/v1 |
-| Security intake | mailto:security@jeremylongshore.com |
+| Resource                              | URL                                                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Repo (GitHub)                         | <https://github.com/jeremylongshore/j-rig-binary-eval>                                                    |
+| Releases                              | <https://github.com/jeremylongshore/j-rig-binary-eval/releases>                                           |
+| CI status                             | <https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml>                           |
+| Evidence Bundle SPEC (lab)            | <https://github.com/jeremylongshore/intent-eval-lab/blob/main/specs/evidence-bundle/v0.1.0-draft/SPEC.md> |
+| Kernel package (npm)                  | <https://www.npmjs.com/package/@intentsolutions/core>                                                     |
+| Audit harness (npm)                   | <https://www.npmjs.com/package/@intentsolutions/audit-harness>                                            |
+| Audit harness (GitHub)                | <https://github.com/jeremylongshore/audit-harness>                                                        |
+| Predicate URI (NOT yet DNSSEC-pinned) | <https://evals.intentsolutions.io/gate-result/v1>                                                         |
+| Security intake                       | mailto:security@jeremylongshore.com                                                                       |
 
 ### First-Week Checklist
 
@@ -794,12 +804,12 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 - **Binary criterion**: a yes-or-no evaluation question. No partial credit. Either the criterion passed or it did not. The non-negotiable design principle in `CLAUDE.md:48-58`.
 - **Blocker**: a criterion whose failure cannot be averaged out. Any blocker failure -> `decideRollout()` returns `block`.
 - **Cosign**: the Sigstore signing CLI; produces DSSE envelopes; can push to Rekor transparency logs.
-- **DSSE**: Dead Simple Signing Envelope; a binary signing format that wraps a payload + signature(s). https://github.com/secure-systems-lab/dsse
+- **DSSE**: Dead Simple Signing Envelope; a binary signing format that wraps a payload + signature(s). <https://github.com/secure-systems-lab/dsse>
 - **Evidence Bundle**: the cross-tool unification thesis. Every IEP gate emits an in-toto Statement v1 carrying a `gate-result/v1` predicate. Multiple statements compose a bundle.
 - **EC-N (eval-case)**: one of the five PB-7 measurement-protocol test surfaces (EC-1 single completion, EC-2 streaming, EC-3 tool calling, EC-4 error categories, EC-5 batching).
 - **gate-result/v1**: the predicate URI `https://evals.intentsolutions.io/gate-result/v1` carried inside an in-toto Statement v1 to identify the evaluation predicate.
 - **Intent Eval Platform (IEP)**: the five-repo umbrella under `~/000-projects/intent-eval-platform/` that converges via the Evidence Bundle.
-- **in-toto Statement v1**: a versioned attestation schema; `_type: https://in-toto.io/Statement/v1`; carries one or more subjects and a typed predicate. https://github.com/in-toto/attestation
+- **in-toto Statement v1**: a versioned attestation schema; `_type: https://in-toto.io/Statement/v1`; carries one or more subjects and a typed predicate. <https://github.com/in-toto/attestation>
 - **ISEDC**: Intent Solutions Executive Decision Council — the 7-seat adversarial decision body that adjudicates architectural decisions.
 - **MM-N (intentional-mapping category)**: failure-mode checker that walks an OTel trace and classifies whether a known failure shape (async race, shape drift, cooldown, etc.) has manifested. MM-1 through MM-6 implemented.
 - **PB-7**: the provider-adapter measurement protocol committed BEFORE the prototypes were written; § 6 enumerates CISO gates G-1 and G-2.
@@ -818,8 +828,8 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 - Epic AARs: `000-docs/{009,011,012,013,014,015,016,017}-OD-REPT-epic-*-aar.md`
 - PB-7 protocol: `000-docs/018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md`
 - Parent CLAUDE.md: `~/000-projects/intent-eval-platform/CLAUDE.md`
-- Anthropic Claude Code skills doc: https://code.claude.com/docs/en/skills
-- AgentSkills.io spec: https://agentskills.io/specification
+- Anthropic Claude Code skills doc: <https://code.claude.com/docs/en/skills>
+- AgentSkills.io spec: <https://agentskills.io/specification>
 
 ### C. Troubleshooting Playbooks
 
@@ -837,10 +847,12 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 1. Verify cosign on PATH: `cosign version` (expect >= 2.0.0).
 2. Verify the key file is readable: `cat $KEY_FILE | head -1`.
 3. Verify the artifact path exists AND its sha256 matches `--input-hash`:
+
    ```bash
    sha256sum <artifact-path>
    # Compare to --input-hash (without the sha256: prefix)
    ```
+
 4. Try keyless mode if key mode fails: `--keyless --rekor-url https://rekor.sigstore.dev`.
 5. Capture cosign stderr: re-run with `-v` (cosign verbose) by setting `--cosign-bin "/path/to/cosign -v"` workaround.
 
@@ -850,7 +862,7 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 2. Use `j-rig check` instead — it is deterministic and produces real signal.
 3. If you need actual functional evaluation, wait for PB-7 to lock the adapter, OR (temporarily) replace the imports in `packages/cli/src/commands/eval.ts:34-37` with a hand-rolled adapter against the Anthropic SDK and rebuild locally.
 
-**Playbook: Schema-divergence error when validating an Evidence Bundle from a different IEP repo**
+#### Playbook: Schema-divergence error when validating an Evidence Bundle from a different IEP repo
 
 1. Confirm both producer and consumer are on compatible versions of the gate-result/v1 schema.
 2. If consumer is `@intentsolutions/core@0.1.0` and producer is this repo's `@j-rig/core`, both schemas should be field-equivalent today, but the `iaj-E02` migration is the durable fix.
