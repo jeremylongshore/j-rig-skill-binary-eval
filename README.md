@@ -1,5 +1,7 @@
 # j-rig-binary-eval
 
+Part of the **[Intent Eval Platform](https://github.com/intent-solutions-io/intent-eval-platform)** — the umbrella mapping the six repos that converge via a shared Evidence Bundle schema.
+
 > Software-grade release discipline for Claude Skills
 
 Binary evaluation harness that treats `SKILL.md` artifacts as production software. Package integrity, trigger precision, functional quality, regression gating, baseline comparison, model-aware testing, and evidence-backed rollout decisions — all through binary yes/no criteria with external evaluators.
