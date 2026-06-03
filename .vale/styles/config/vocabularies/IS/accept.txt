@@ -1,6 +1,7 @@
 actionability
 agentic
 (?i)anthropic
+args
 async
 auditable
 automatable
@@ -14,6 +15,7 @@ Caddy
 charset
 (?i)config
 (?i)cosign
+cron
 debuggable
 dedup
 Dependabot
@@ -34,6 +36,7 @@ footgun
 Gemfile
 Goodhart
 hardcode
+hardcoding
 hoc
 Hugo
 (?i)hypothesis
@@ -42,6 +45,7 @@ inspectable
 interpretability
 ISEDC
 jeremylongshore
+JRig
 JSONL
 Kubernetes
 Lamport
@@ -110,6 +114,7 @@ subprocess
 substring
 Tailscale
 toolchain
+tokenization
 tsup
 Twenty
 typecheck
