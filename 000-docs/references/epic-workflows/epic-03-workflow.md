@@ -1,6 +1,7 @@
 # Epic 03 — Package Integrity and Deterministic Checks — Workflow
 
 ## Inputs
+
 - Eval spec / contract schemas from Epic 02
 - YAML parsing + validation utilities from Epic 02
 - SKILL.md parser from Epic 02
@@ -8,7 +9,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  03.1 Build Package Integrity Checker │
 │                                       │
@@ -94,6 +95,7 @@
 ```
 
 ## Outputs
+
 - Package integrity checker (zero-API-cost preflight gate)
 - Deterministic check registry (reusable, extensible)
 - Structured result objects with hard-failure / warning / pass semantics
@@ -102,6 +104,7 @@
 - Carry-forward: deterministic result shapes for Epic 04 persistence
 
 ## Key Artifacts
+
 - Package integrity checker module
 - Deterministic check registry (contains, not-contains, regex, struct-output)
 - Reference validation logic

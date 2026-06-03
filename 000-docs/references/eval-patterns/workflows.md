@@ -179,15 +179,15 @@ Generate structured report:
 
 ## Choosing the Right Pattern
 
-| If your skill... | Use this pattern |
-|-----------------|-----------------|
-| Does one thing in fixed order | Sequential |
-| Handles different input types | Conditional |
-| Needs user decisions | Wizard-Style |
-| Does something risky/irreversible | Plan-Validate-Execute |
-| Needs iterative quality | Feedback Loop |
-| Explores and reports on code | Search-Analyze-Report |
-| Combines multiple concerns | Compose patterns together |
+| If your skill...                  | Use this pattern          |
+| --------------------------------- | ------------------------- |
+| Does one thing in fixed order     | Sequential                |
+| Handles different input types     | Conditional               |
+| Needs user decisions              | Wizard-Style              |
+| Does something risky/irreversible | Plan-Validate-Execute     |
+| Needs iterative quality           | Feedback Loop             |
+| Explores and reports on code      | Search-Analyze-Report     |
+| Combines multiple concerns        | Compose patterns together |
 
 Patterns can be composed. A deployment skill might use:
 Wizard (gather config) → Plan-Validate-Execute (deploy) → Feedback Loop (health check).

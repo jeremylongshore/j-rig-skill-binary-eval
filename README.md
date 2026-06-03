@@ -36,26 +36,26 @@ Every criterion is binary (yes/no). The evaluator is always separate from the sk
 
 ### W5
 
-| | |
-|---|---|
-| **Who** | Claude Skill authors, skill pack maintainers, enterprise skill library operators |
-| **What** | Evaluation harness + regression gate + optimization engine for Claude Skills |
-| **Where** | Local CLI (author workflow), CI/CD (PR gate), team dashboard (reporting) |
-| **When** | Every skill change: new skill, description edit, body rewrite, model update |
-| **Why** | Skills are production software — they need release-quality discipline, not vibes |
+|           |                                                                                  |
+| --------- | -------------------------------------------------------------------------------- |
+| **Who**   | Claude Skill authors, skill pack maintainers, enterprise skill library operators |
+| **What**  | Evaluation harness + regression gate + optimization engine for Claude Skills     |
+| **Where** | Local CLI (author workflow), CI/CD (PR gate), team dashboard (reporting)         |
+| **When**  | Every skill change: new skill, description edit, body rewrite, model update      |
+| **Why**   | Skills are production software — they need release-quality discipline, not vibes |
 
 ### Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Runtime | TypeScript, Node.js 20+, pnpm |
-| CLI/Parsing | commander, @clack/prompts, picocolors, yaml, unified/remark |
-| Validation | zod |
-| LLM Integration | @anthropic-ai/sdk |
-| Persistence | better-sqlite3, drizzle-orm |
-| Concurrency | p-limit, async-retry |
-| Artifact Extraction | pdf-parse, mammoth |
-| Dashboard (future) | Next.js, Tailwind, shadcn/ui |
+| Layer               | Technology                                                  |
+| ------------------- | ----------------------------------------------------------- |
+| Runtime             | TypeScript, Node.js 20+, pnpm                               |
+| CLI/Parsing         | commander, @clack/prompts, picocolors, yaml, unified/remark |
+| Validation          | zod                                                         |
+| LLM Integration     | @anthropic-ai/sdk                                           |
+| Persistence         | better-sqlite3, drizzle-orm                                 |
+| Concurrency         | p-limit, async-retry                                        |
+| Artifact Extraction | pdf-parse, mammoth                                          |
+| Dashboard (future)  | Next.js, Tailwind, shadcn/ui                                |
 
 ### Key Differentiators
 
@@ -73,7 +73,7 @@ Every criterion is binary (yes/no). The evaluator is always separate from the sk
 
 ### Architecture (Seven Layers)
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │                   CLI / CI / API                 │  Layer 7: Surfaces
 ├─────────────────────────────────────────────────┤
@@ -91,30 +91,30 @@ Every criterion is binary (yes/no). The evaluator is always separate from the sk
 └─────────────────────────────────────────────────┘
 ```
 
-| Layer | Responsibility | Key Entities |
-|-------|---------------|-------------|
-| **Spec** | Human-authored YAML eval contracts, criteria, test cases | `eval_specs`, `criteria`, `test_cases` |
-| **Execution** | Runs skills against trigger, functional, regression, adversarial, baseline cases | `runs`, `skill_versions` |
-| **Observation** | Captures outputs, artifacts, cost, latency, timing, observed outcomes | `observed_outcomes`, `outputs` |
-| **Judgment** | Deterministic checks first, external LLM judges second, calibration, disagreement handling | `criterion_results` |
-| **Optimization** | Failure clustering, weakest-criterion targeting, single atomic changes, accept/reject/revert | `experiments` |
-| **Evidence** | Stores runs, scores, artifacts, diffs, regressions, baselines, launch reports | `regressions`, `baselines`, `launch_reports` |
-| **CLI/CI/API** | Local author workflows, PR gating, team reporting, dashboard | — |
+| Layer            | Responsibility                                                                               | Key Entities                                 |
+| ---------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Spec**         | Human-authored YAML eval contracts, criteria, test cases                                     | `eval_specs`, `criteria`, `test_cases`       |
+| **Execution**    | Runs skills against trigger, functional, regression, adversarial, baseline cases             | `runs`, `skill_versions`                     |
+| **Observation**  | Captures outputs, artifacts, cost, latency, timing, observed outcomes                        | `observed_outcomes`, `outputs`               |
+| **Judgment**     | Deterministic checks first, external LLM judges second, calibration, disagreement handling   | `criterion_results`                          |
+| **Optimization** | Failure clustering, weakest-criterion targeting, single atomic changes, accept/reject/revert | `experiments`                                |
+| **Evidence**     | Stores runs, scores, artifacts, diffs, regressions, baselines, launch reports                | `regressions`, `baselines`, `launch_reports` |
+| **CLI/CI/API**   | Local author workflows, PR gating, team reporting, dashboard                                 | —                                            |
 
 ### Epic Roadmap (10 Epics, Sequential)
 
-| # | Epic | Scope |
-|---|------|-------|
-| 01 | Repo Foundation | Workspace skeleton, governance, CI |
-| 02 | Spec Layer | YAML eval contracts, criteria schema, test case format |
-| 03 | Package Integrity | Deterministic structure/metadata validation |
-| 04 | Evidence Layer | SQLite persistence, run lifecycle, evidence serialization |
-| 05 | Trigger Harness | Roster builder, trigger simulation, precision/recall |
-| 06 | Functional Execution | Skill invocation, context injection, artifact capture |
-| 07 | Judgment Layer | Binary judge engine, calibration, per-model matrix |
-| 08 | Regression/CLI/CI | Regression comparison, baseline gating, score aggregation, CLI, PR gate |
-| 09 | Optimizer | Failure clustering, one-change proposals, experiment runner |
-| 10 | Team Product | Dashboard, eval packs, drift reevaluation, obsolete-review |
+| #   | Epic                 | Scope                                                                   |
+| --- | -------------------- | ----------------------------------------------------------------------- |
+| 01  | Repo Foundation      | Workspace skeleton, governance, CI                                      |
+| 02  | Spec Layer           | YAML eval contracts, criteria schema, test case format                  |
+| 03  | Package Integrity    | Deterministic structure/metadata validation                             |
+| 04  | Evidence Layer       | SQLite persistence, run lifecycle, evidence serialization               |
+| 05  | Trigger Harness      | Roster builder, trigger simulation, precision/recall                    |
+| 06  | Functional Execution | Skill invocation, context injection, artifact capture                   |
+| 07  | Judgment Layer       | Binary judge engine, calibration, per-model matrix                      |
+| 08  | Regression/CLI/CI    | Regression comparison, baseline gating, score aggregation, CLI, PR gate |
+| 09  | Optimizer            | Failure clustering, one-change proposals, experiment runner             |
+| 10  | Team Product         | Dashboard, eval packs, drift reevaluation, obsolete-review              |
 
 ### Non-Negotiable Design Principles
 
@@ -131,16 +131,16 @@ Every criterion is binary (yes/no). The evaluator is always separate from the sk
 
 Self-contained library of templates, reference standards, agent patterns, and workflow diagrams under [`000-docs/`](000-docs/000-INDEX.md):
 
-| Directory | Contents |
-|-----------|----------|
-| `templates/skill-templates/` | 6 SKILL.md structural patterns |
-| `templates/eval-schemas/` | Eval JSON schemas |
-| `references/skill-standards/` | AgentSkills.io spec, source-of-truth, frontmatter, validation rules |
-| `references/eval-patterns/` | Eval methodology, workflows, output patterns |
-| `references/agents/` | Grader, comparator, analyzer agent patterns |
-| `references/enterprise-standards/` | 100-point rubric, production validator schema registry |
-| `references/drift-and-consistency/` | Drift categories, source-of-truth hierarchy |
-| `references/epic-workflows/` | 10 ASCII workflow diagrams (one per epic) |
+| Directory                           | Contents                                                            |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `templates/skill-templates/`        | 6 SKILL.md structural patterns                                      |
+| `templates/eval-schemas/`           | Eval JSON schemas                                                   |
+| `references/skill-standards/`       | AgentSkills.io spec, source-of-truth, frontmatter, validation rules |
+| `references/eval-patterns/`         | Eval methodology, workflows, output patterns                        |
+| `references/agents/`                | Grader, comparator, analyzer agent patterns                         |
+| `references/enterprise-standards/`  | 100-point rubric, production validator schema registry              |
+| `references/drift-and-consistency/` | Drift categories, source-of-truth hierarchy                         |
+| `references/epic-workflows/`        | 10 ASCII workflow diagrams (one per epic)                           |
 
 ### Current Status
 

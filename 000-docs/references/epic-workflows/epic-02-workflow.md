@@ -1,13 +1,14 @@
 # Epic 02 — Spec Layer and Contract System — Workflow
 
 ## Inputs
+
 - Coherent repo structure from Epic 01
 - TypeScript / pnpm / Node baseline from Epic 01
 - Package skeleton (`packages/core`) from Epic 01
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  02.1 Design Eval Spec Schema         │
 │                                       │
@@ -101,6 +102,7 @@
 ```
 
 ## Outputs
+
 - Formal eval spec schema (machine-readable evaluation definition)
 - Formal eval contract schema (human-readable definition-of-done)
 - Criterion and test case type schemas
@@ -111,6 +113,7 @@
 - End-of-epic AAR
 
 ## Key Artifacts
+
 - Eval spec schema definition (TypeScript types + Zod/validation)
 - Eval contract schema definition
 - Criterion schema (binary, blocker, weighted, deterministic, judge-based, regression, pack-sensitive, baseline)

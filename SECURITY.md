@@ -2,16 +2,16 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| latest | Yes |
+| Version  | Supported   |
+| -------- | ----------- |
+| latest   | Yes         |
 | < latest | Best effort |
 
 ## Reporting a Vulnerability
 
 **Please do NOT open public issues for security concerns.**
 
-Email **security@jeremylongshore.com** with:
+Email **<security@jeremylongshore.com>** with:
 
 - Type of issue (e.g., buffer overflow, injection, privilege escalation)
 - Full paths of related source files
@@ -23,25 +23,25 @@ Email **security@jeremylongshore.com** with:
 
 ### Response Timeline
 
-| Stage | Timeframe |
-|-------|-----------|
-| Acknowledgment | 24 hours |
-| Initial assessment | 48 hours |
-| Status update | 5 business days |
-| Resolution | Depends on severity |
+| Stage              | Timeframe           |
+| ------------------ | ------------------- |
+| Acknowledgment     | 24 hours            |
+| Initial assessment | 48 hours            |
+| Status update      | 5 business days     |
+| Resolution         | Depends on severity |
 
 ### Severity Levels
 
-| Severity | CVSS | Examples | Target Resolution |
-|----------|------|---------|-------------------|
-| Critical | 9.0–10.0 | Remote code execution, credential theft | 24 hours |
-| High | 7.0–8.9 | Privilege escalation, data exposure | 7 days |
-| Medium | 4.0–6.9 | Cross-site scripting, denial of service | 30 days |
-| Low | 0.1–3.9 | Information disclosure, minor issues | 90 days |
+| Severity | CVSS     | Examples                                | Target Resolution |
+| -------- | -------- | --------------------------------------- | ----------------- |
+| Critical | 9.0–10.0 | Remote code execution, credential theft | 24 hours          |
+| High     | 7.0–8.9  | Privilege escalation, data exposure     | 7 days            |
+| Medium   | 4.0–6.9  | Cross-site scripting, denial of service | 30 days           |
+| Low      | 0.1–3.9  | Information disclosure, minor issues    | 90 days           |
 
 ## Disclosure Process
 
-1. **Report** — You email the details to security@jeremylongshore.com
+1. **Report** — You email the details to <security@jeremylongshore.com>
 2. **Triage** — We assess severity and impact
 3. **Fix** — We develop and test a patch
 4. **Notify** — We inform affected users
@@ -70,6 +70,6 @@ We appreciate responsible disclosure. Reporters who follow this policy will rece
 
 ## Contact
 
-- **Security reports**: security@jeremylongshore.com
-- **General inquiries**: jeremy@jeremylongshore.com
+- **Security reports**: <security@jeremylongshore.com>
+- **General inquiries**: <jeremy@jeremylongshore.com>
 - **Response time**: 24 hours for initial acknowledgment

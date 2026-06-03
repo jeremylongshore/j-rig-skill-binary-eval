@@ -118,7 +118,8 @@ By the end of Epic 08, the repo should have:
 **Purpose**
 Compare evaluation runs over time so the system can identify what improved, what regressed, and what stayed stable.
 
-**Acceptance**
+#### Acceptance
+
 - The system can compare at least two runs tied to the same skill/version lineage.
 - Comparison identifies:
   - newly passing results
@@ -128,11 +129,13 @@ Compare evaluation runs over time so the system can identify what improved, what
 - Comparison can operate at criterion level and test-case level where data exists.
 - Results are structured and retrievable, not just printed.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 04 and 07 complete
 - Blocks: 08.2, 08.3, 08.4, 08.5
 
-**Evidence**
+#### Evidence
+
 - comparison engine implementation
 - sample before/after compare outputs
 - tests for compare behavior
@@ -144,18 +147,21 @@ Compare evaluation runs over time so the system can identify what improved, what
 **Purpose**
 Implement the non-negotiable protection rules that prevent a rollout from passing when it breaks sacred regression cases or newly fails blockers.
 
-**Acceptance**
+#### Acceptance
+
 - The system can identify sacred regression failures explicitly.
 - The system can identify newly failing blocker criteria explicitly.
 - These outcomes are represented as release-blocking signals.
 - Logic is documented and test-covered.
 - The implementation makes clear that blockers cannot be averaged away.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.1
 - Blocks: 08.4, 08.5, 08.6, Epic 09
 
-**Evidence**
+#### Evidence
+
 - sacred regression enforcement implementation
 - blocked-case examples
 - tests covering blocker and sacred-failure behavior
@@ -167,7 +173,8 @@ Implement the non-negotiable protection rules that prevent a rollout from passin
 **Purpose**
 Measure whether a skill still adds value relative to running without the skill loaded.
 
-**Acceptance**
+#### Acceptance
+
 - The system can compare skill-on vs skill-off runs where baseline data exists.
 - Baseline deltas are represented explicitly.
 - The system can identify cases where:
@@ -177,11 +184,13 @@ Measure whether a skill still adds value relative to running without the skill l
   - the skill appears obsolete or nearly obsolete
 - Output is documented and retrievable.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 04, 06, and 07 complete
 - Blocks: 08.4, 08.5, 08.6, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - baseline compare implementation
 - example baseline reports
 - tests for positive/neutral/negative baseline deltas
@@ -193,7 +202,8 @@ Measure whether a skill still adds value relative to running without the skill l
 **Purpose**
 Turn criterion and comparison evidence into a clear, explainable launch-readiness calculation without black-box magic.
 
-**Acceptance**
+#### Acceptance
+
 - The aggregation formula is explicit and documented.
 - The system can compute:
   - weighted score
@@ -203,11 +213,13 @@ Turn criterion and comparison evidence into a clear, explainable launch-readines
 - Launch-readiness logic is deterministic and test-covered.
 - There is no silent override path for blocker failures.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.1, 08.2, 08.3
 - Blocks: 08.5, 08.6, 08.7, Epic 09
 
-**Evidence**
+#### Evidence
+
 - score aggregation implementation
 - example score breakdowns
 - tests for calculation behavior
@@ -219,7 +231,8 @@ Turn criterion and comparison evidence into a clear, explainable launch-readines
 **Purpose**
 Translate scoring and governance signals into the canonical product decisions later surfaces will use.
 
-**Acceptance**
+#### Acceptance
+
 - The system produces recommendation states including:
   - pass
   - warn
@@ -229,11 +242,13 @@ Translate scoring and governance signals into the canonical product decisions la
 - Recommendation objects are persisted and retrievable.
 - The mapping from evidence to recommendation is documented and test-covered.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.2, 08.3, 08.4
 - Blocks: 08.6, 08.7, 08.8, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - recommendation engine implementation
 - examples for each recommendation state
 - tests for recommendation behavior
@@ -245,7 +260,8 @@ Translate scoring and governance signals into the canonical product decisions la
 **Purpose**
 Expose the core local user workflows so skill authors and maintainers can actually use the product outside of test code.
 
-**Acceptance**
+#### Acceptance
+
 - CLI commands exist for the agreed local workflows, such as:
   - init
   - run
@@ -255,11 +271,13 @@ Expose the core local user workflows so skill authors and maintainers can actual
 - CLI output is readable and aligned with future CI/reporting needs.
 - Error behavior is explicit and helpful.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.4, 08.5
 - Blocks: 08.7, 08.8, Epic 10
 
-**Evidence**
+#### Evidence
+
 - CLI command implementation
 - sample CLI outputs
 - tests covering command behavior
@@ -271,18 +289,21 @@ Expose the core local user workflows so skill authors and maintainers can actual
 **Purpose**
 Bring release governance into automated repo workflows.
 
-**Acceptance**
+#### Acceptance
+
 - CI can evaluate changed skills or the configured scope.
 - CI output includes recommendation state and supporting signals.
 - Blocker and sacred regression failures can fail CI appropriately.
 - PR/report output is understandable and concise.
 - Behavior is documented for maintainers.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.5, 08.6
 - Blocks: 08.8, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - CI workflow/config
 - example CI report output
 - tests or dry-run evidence of CI gating behavior
@@ -294,7 +315,8 @@ Bring release governance into automated repo workflows.
 **Purpose**
 Close the epic with proof that J-Rig Binary Eval can now make and enforce release decisions.
 
-**Acceptance**
+#### Acceptance
+
 - Compare outputs and recommendation objects are persisted.
 - CLI and CI workflows are demonstrated with realistic examples.
 - Docs explain scoring, baseline, regression, and recommendation logic honestly.
@@ -302,11 +324,13 @@ Close the epic with proof that J-Rig Binary Eval can now make and enforce releas
 - End-of-epic AAR is created.
 - Carry-forward notes for Epics 09 and 10 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 08.6, 08.7
 - Blocks: Epic 09
 
-**Evidence**
+#### Evidence
+
 - persisted compare example
 - persisted recommendation example
 - CLI output examples
@@ -324,6 +348,7 @@ Close the epic with proof that J-Rig Binary Eval can now make and enforce releas
 The system should not drift into opaque scoring theater.
 
 J-Rig Binary Eval must be able to explain:
+
 - why something passed
 - why something warned
 - why something blocked
@@ -342,6 +367,7 @@ This epic should preserve the product rule that sacred regressions and blocker f
 The no-skill baseline comparison is not a vanity metric.
 
 It is how the product determines whether a skill:
+
 - still adds value
 - should be narrowed
 - should be merged
@@ -354,6 +380,7 @@ This should be represented as a first-class comparison surface.
 Before a dashboard exists, the CLI is the product.
 
 That means:
+
 - commands must be coherent
 - output must be useful
 - local author workflows must be friction-aware
@@ -407,18 +434,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Score aggregation becomes too magical
+
 If later readers cannot understand how a result was computed, trust will fall fast.
 
 ### Baseline comparison is underused
+
 If the system only computes baseline deltas but does not let them influence outcomes, obsolete skills will linger.
 
 ### CLI becomes a dumping ground
+
 If commands are inconsistent or their outputs are messy, the product will feel weaker than it is.
 
 ### CI reports are technically correct but unreadable
+
 A rollout gate that speaks in machine gibberish is still friction for humans.
 
 ### Sacred regression enforcement gets softened
+
 If blocker or sacred-failure logic gains "just this once" escape hatches, the whole governance story weakens.
 
 ---
@@ -438,6 +470,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -449,9 +482,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-08-regression-baseline-scoring-cli-and-ci-gate`
 
 ### Commit style
+
 - `feat(epic-08): add regression comparison engine`
 - `feat(epic-08): enforce sacred regression and blocker rules`
 - `feat(epic-08): add baseline and no-skill comparison`
@@ -464,6 +499,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-08): add epic 08 aar`
 
 ### PR title
+
 `[EPIC 08] Regression, baseline, scoring, CLI, and CI gate`
 
 ---
@@ -473,6 +509,7 @@ When Claude Code works this epic, it should:
 The Epic 08 AAR must include:
 
 ### What shipped
+
 - compare engine completed
 - sacred regression enforcement completed
 - baseline compare completed
@@ -483,6 +520,7 @@ The Epic 08 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - sample compare output
 - sample sacred regression block case
 - sample baseline delta report
@@ -493,11 +531,13 @@ The Epic 08 AAR must include:
 - test outputs
 
 ### Open risks
+
 - any scoring thresholds likely to need tuning
 - any CI ergonomics still rough
 - any baseline edge cases later optimizer/team work must respect
 
 ### What later epics inherit
+
 - canonical recommendation states
 - compare and baseline outputs as source-of-truth inputs
 - CLI and CI entrypoints now considered real product surfaces

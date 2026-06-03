@@ -10,12 +10,12 @@
 
 ## Response Times
 
-| Channel | Response Time |
-|---------|--------------|
-| Security reports | 24 hours |
-| Bug reports | 3 business days |
-| Feature requests | 1 week |
-| General questions | 1 week |
+| Channel           | Response Time   |
+| ----------------- | --------------- |
+| Security reports  | 24 hours        |
+| Bug reports       | 3 business days |
+| Feature requests  | 1 week          |
+| General questions | 1 week          |
 
 ## Before Opening an Issue
 
@@ -25,5 +25,5 @@
 
 ## Contact
 
-- **Email**: jeremy@jeremylongshore.com
+- **Email**: <jeremy@jeremylongshore.com>
 - **GitHub**: [@jeremylongshore](https://github.com/jeremylongshore)

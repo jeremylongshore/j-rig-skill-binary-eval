@@ -1,6 +1,7 @@
 # Epic 05 — Trigger Harness and Skill Roster Simulation — Workflow
 
 ## Inputs
+
 - Eval spec / contract schemas from Epic 02
 - SKILL.md parser from Epic 02
 - Package integrity checker from Epic 03 (preflight gate)
@@ -9,7 +10,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  05.1 Build Available-Skills          │
 │  Roster Builder                       │
@@ -110,6 +111,7 @@
 ```
 
 ## Outputs
+
 - Available-skills roster builder
 - Sibling-skill / pack context model
 - Trigger simulation runner (first model-backed evaluation layer)
@@ -120,6 +122,7 @@
 - Carry-forward: trigger results and metrics for Epics 07, 08, 09
 
 ## Key Artifacts
+
 - Roster builder module
 - Sibling-skill context handler
 - Trigger test case parser / categorizer

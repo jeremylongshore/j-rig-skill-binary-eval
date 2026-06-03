@@ -119,17 +119,20 @@ By the end of Epic 05, the repo should have:
 **Purpose**
 Construct the simulated skill roster that the trigger harness will present to the evaluator when deciding which skill should activate.
 
-**Acceptance**
+#### Acceptance
+
 - The system can build an available-skills representation from one target skill plus optional sibling skills.
 - The roster builder uses canonical parsed skill metadata rather than ad hoc string assembly.
 - The representation is stable and reusable across trigger tests.
 - The formatting is documented well enough that later debugging is possible.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 02 and 04 complete
 - Blocks: 05.2, 05.3, 05.4, 05.5
 
-**Evidence**
+#### Evidence
+
 - roster builder implementation
 - example roster outputs
 - tests covering single-skill and multi-skill rosters
@@ -141,17 +144,20 @@ Construct the simulated skill roster that the trigger harness will present to th
 **Purpose**
 Model the context needed to evaluate trigger behavior honestly when multiple related skills exist together.
 
-**Acceptance**
+#### Acceptance
+
 - The harness can include sibling skills from spec/context definitions.
 - Pack-aware testing is supported without requiring everything to run in isolation.
 - Missing or malformed sibling references fail clearly.
 - The pack context model is documented and aligns with Epic 02 schemas.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.1
 - Blocks: 05.4, 05.5, 05.6
 
-**Evidence**
+#### Evidence
+
 - sibling context implementation
 - fixtures/examples with multiple skills
 - tests for valid and invalid sibling configurations
@@ -163,7 +169,8 @@ Model the context needed to evaluate trigger behavior honestly when multiple rel
 **Purpose**
 Create a robust structure for expressing the different kinds of trigger cases the system must evaluate.
 
-**Acceptance**
+#### Acceptance
+
 - Trigger cases support at least:
   - should-trigger
   - should-not-trigger
@@ -176,11 +183,13 @@ Create a robust structure for expressing the different kinds of trigger cases th
 - Trigger expectations are explicit and machine-readable.
 - The format is documented and fixture-backed.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epic 02 complete
 - Blocks: 05.4, 05.5, 05.6
 
-**Evidence**
+#### Evidence
+
 - trigger test case schema usage examples
 - valid/invalid fixtures
 - tests for parsing and categorization
@@ -192,7 +201,8 @@ Create a robust structure for expressing the different kinds of trigger cases th
 **Purpose**
 Run the actual routing approximation that asks which skill would likely activate for a given user request and available-skills roster.
 
-**Acceptance**
+#### Acceptance
+
 - The runner can execute trigger cases using the candidate skill plus context/siblings.
 - It can classify responses as:
   - correct trigger
@@ -204,11 +214,13 @@ Run the actual routing approximation that asks which skill would likely activate
 - The runner captures raw prompt/response evidence cleanly.
 - Failures and API issues are surfaced in structured form.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.1, 05.2, 05.3
 - Blocks: 05.5, 05.6, 05.7
 
-**Evidence**
+#### Evidence
+
 - trigger runner implementation
 - sample executed trigger runs
 - stored raw evidence examples
@@ -221,7 +233,8 @@ Run the actual routing approximation that asks which skill would likely activate
 **Purpose**
 Turn raw trigger outcomes into real metrics that can be used later for governance and comparison.
 
-**Acceptance**
+#### Acceptance
+
 - The system computes at least:
   - trigger precision
   - trigger recall
@@ -232,11 +245,13 @@ Turn raw trigger outcomes into real metrics that can be used later for governanc
 - Result classification is stable and documented.
 - Metric output is compatible with future scoring/reporting work.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.4
 - Blocks: 05.6, 05.7, Epic 08
 
-**Evidence**
+#### Evidence
+
 - metric computation implementation
 - example per-skill metric outputs
 - tests covering classification-to-metric translation
@@ -248,17 +263,20 @@ Turn raw trigger outcomes into real metrics that can be used later for governanc
 **Purpose**
 Detect when related skills are colliding in ways that make rollout unsafe or low quality.
 
-**Acceptance**
+#### Acceptance
+
 - The system can identify likely overlap/confusion pairs among sibling skills.
 - Pack-level confusion output is explicit, not buried in raw logs.
 - It is possible to see when one skill is stealing activations from another.
 - Thresholds or flags for concerning overlap are documented, even if final gating policy comes later.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.2, 05.4, 05.5
 - Blocks: 05.7, Epic 08, Epic 09
 
-**Evidence**
+#### Evidence
+
 - confusion analysis implementation
 - example outputs for overlapping skills
 - tests or fixtures that demonstrate confusion detection
@@ -270,17 +288,20 @@ Detect when related skills are colliding in ways that make rollout unsafe or low
 **Purpose**
 Store trigger-run evidence in the canonical evidence system so later compare, scoring, and optimization layers can consume it.
 
-**Acceptance**
+#### Acceptance
+
 - Trigger runs are persisted using the Epic 04 evidence model.
 - Raw evidence and summarized results are both stored appropriately.
 - Retrieval helpers can access trigger outcomes and metrics cleanly.
 - The storage shape is documented for future users.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.4, 05.5, 05.6
 - Blocks: 05.8, Epic 08, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - persisted trigger run examples
 - retrieval examples
 - tests for storage/readback of trigger evidence
@@ -292,7 +313,8 @@ Store trigger-run evidence in the canonical evidence system so later compare, sc
 **Purpose**
 Close the epic with proof that trigger evaluation is real, useful, and honestly documented.
 
-**Acceptance**
+#### Acceptance
+
 - Trigger tests run on realistic sample skills.
 - Positive, negative, ambiguous, and sibling-confusion cases are demonstrated.
 - Docs explain how the harness approximates routing and where it may differ from real Claude Code behavior.
@@ -300,11 +322,13 @@ Close the epic with proof that trigger evaluation is real, useful, and honestly 
 - End-of-epic AAR is created.
 - Carry-forward notes for Epics 07-09 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 05.5, 05.6, 05.7
 - Blocks: Epic 06 conceptually adjacent, Epic 08 directly
 
-**Evidence**
+#### Evidence
+
 - trigger run outputs
 - confusion analysis outputs
 - docs path(s)
@@ -337,6 +361,7 @@ The goal is strong relative comparison and actionable release evidence.
 A skill that triggers on everything is not "working."
 
 This epic must preserve the idea that trigger quality is made of both:
+
 - positive activation
 - non-activation restraint
 
@@ -397,18 +422,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Overclaiming fidelity to Claude Code routing
+
 If the docs imply this is a perfect replica of real routing, trust will drop later.
 
 ### Isolation-only evaluation
+
 Testing a skill alone can overestimate trigger quality badly. Pack-aware cases must be real.
 
 ### Weak negative case coverage
+
 If the system mostly tests should-trigger prompts, trigger quality metrics will be misleading.
 
 ### Ambiguous-case handling gets ignored
+
 Some of the most useful trigger intelligence comes from gray-area prompts. Those cannot be treated as noise.
 
 ### Raw outputs without useful classification
+
 If the system stores only prompt/response blobs and not structured classification, later compare and scoring logic will inherit cleanup pain.
 
 ---
@@ -428,6 +458,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -439,9 +470,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-05-trigger-harness-and-skill-roster-simulation`
 
 ### Commit style
+
 - `feat(epic-05): add available skills roster builder`
 - `feat(epic-05): add sibling context and trigger case handling`
 - `feat(epic-05): add trigger simulation runner`
@@ -453,6 +486,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-05): add epic 05 aar`
 
 ### PR title
+
 `[EPIC 05] Trigger harness and skill roster simulation`
 
 ---
@@ -462,6 +496,7 @@ When Claude Code works this epic, it should:
 The Epic 05 AAR must include:
 
 ### What shipped
+
 - roster builder completed
 - sibling context handling completed
 - trigger runner completed
@@ -470,6 +505,7 @@ The Epic 05 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - sample positive trigger run
 - sample negative trigger run
 - sample ambiguous/confusion case
@@ -478,11 +514,13 @@ The Epic 05 AAR must include:
 - docs paths
 
 ### Open risks
+
 - any known approximation limitations
 - any trigger cases still weakly covered
 - any pack-confusion scenarios deferred or simplified
 
 ### What later epics inherit
+
 - trigger result shapes now considered canonical
 - confusion analysis outputs future scoring must respect
 - retrieval conventions later compare/optimizer work must use

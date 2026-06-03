@@ -67,24 +67,28 @@ model: inherit
 ### {{EXAMPLE_1_TITLE}}
 
 **Input:**
-```
+
+```text
 {{EXAMPLE_1_INPUT}}
 ```
 
 **Output:**
-```
+
+```text
 {{EXAMPLE_1_OUTPUT}}
 ```
 
 ### {{EXAMPLE_2_TITLE}}
 
 **Input:**
-```
+
+```text
 {{EXAMPLE_2_INPUT}}
 ```
 
 **Output:**
-```
+
+```text
 {{EXAMPLE_2_OUTPUT}}
 ```
 
@@ -95,8 +99,8 @@ model: inherit
 
 ## Error Handling
 
-| Error | Cause | Solution |
-|-------|-------|----------|
+| Error       | Cause       | Solution       |
+| ----------- | ----------- | -------------- |
 | {{ERROR_1}} | {{CAUSE_1}} | {{SOLUTION_1}} |
 | {{ERROR_2}} | {{CAUSE_2}} | {{SOLUTION_2}} |
 

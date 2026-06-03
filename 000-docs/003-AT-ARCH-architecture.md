@@ -12,13 +12,13 @@
 
 ## Component Design
 
-| Component | Responsibility |
-|-----------|---------------|
+| Component          | Responsibility        |
+| ------------------ | --------------------- |
 | <!-- component --> | <!-- what it does --> |
 
 ## Data Flow
 
-```
+```text
 [Input] → [Processing] → [Output]
 ```
 
@@ -26,8 +26,8 @@
 
 ## Integration Points
 
-| Endpoint/Service | Method | Purpose |
-|-----------------|--------|---------|
+| Endpoint/Service  | Method                | Purpose          |
+| ----------------- | --------------------- | ---------------- |
 | <!-- endpoint --> | <!-- GET/POST/etc --> | <!-- purpose --> |
 
 ## Security Model
@@ -39,14 +39,14 @@
 
 ## Error Handling
 
-| Error | Code | Message | Recovery |
-|-------|------|---------|----------|
+| Error          | Code          | Message          | Recovery          |
+| -------------- | ------------- | ---------------- | ----------------- |
 | <!-- error --> | <!-- code --> | <!-- message --> | <!-- recovery --> |
 
 ## Performance
 
-| Operation | Target | Max |
-|-----------|--------|-----|
+| Operation          | Target                  | Max                  |
+| ------------------ | ----------------------- | -------------------- |
 | <!-- operation --> | <!-- target latency --> | <!-- max latency --> |
 
 ## Infrastructure

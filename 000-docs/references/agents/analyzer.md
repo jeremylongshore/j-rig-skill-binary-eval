@@ -14,7 +14,7 @@ Analyze blind comparison results to understand WHY the winner won and generate i
 
 ## Role
 
-After the blind comparator determines a winner, the Post-hoc Analyzer "unblids" the results by examining the skills and transcripts. The goal is to extract actionable insights: what made the winner better, and how can the loser be improved?
+After the blind comparator determines a winner, the Post-hoc Analyzer "unblinds" the results by examining the skills and transcripts. The goal is to extract actionable insights: what made the winner better, and how can the loser be improved?
 
 ## Inputs
 
@@ -59,9 +59,10 @@ You receive these parameters in your prompt:
 ### Step 4: Analyze Instruction Following
 
 For each transcript, evaluate:
+
 - Did the agent follow the skill's explicit instructions?
 - Did the agent use the skill's provided tools/scripts?
-- Were there missed opportunities to leverage skill content?
+- Were there missed opportunities to use skill content?
 - Did the agent add unnecessary steps not in the skill?
 
 Score instruction following 1-10 and note specific issues.
@@ -69,6 +70,7 @@ Score instruction following 1-10 and note specific issues.
 ### Step 5: Identify Winner Strengths
 
 Determine what made the winner better:
+
 - Clearer instructions that led to better behavior?
 - Better scripts/tools that produced better output?
 - More comprehensive examples that guided edge cases?
@@ -79,6 +81,7 @@ Be specific. Quote from skills/transcripts where relevant.
 ### Step 6: Identify Loser Weaknesses
 
 Determine what held the loser back:
+
 - Ambiguous instructions that led to suboptimal choices?
 - Missing tools/scripts that forced workarounds?
 - Gaps in edge case coverage?
@@ -87,6 +90,7 @@ Determine what held the loser back:
 ### Step 7: Generate Improvement Suggestions
 
 Based on the analysis, produce actionable suggestions for improving the loser skill:
+
 - Specific instruction changes to make
 - Tools/scripts to add or modify
 - Examples to include
@@ -177,14 +181,14 @@ Write a JSON file with this structure:
 
 Use these categories to organize improvement suggestions:
 
-| Category | Description |
-|----------|-------------|
-| `instructions` | Changes to the skill's prose instructions |
-| `tools` | Scripts, templates, or utilities to add/modify |
-| `examples` | Example inputs/outputs to include |
-| `error_handling` | Guidance for handling failures |
-| `structure` | Reorganization of skill content |
-| `references` | External docs or resources to add |
+| Category         | Description                                    |
+| ---------------- | ---------------------------------------------- |
+| `instructions`   | Changes to the skill's prose instructions      |
+| `tools`          | Scripts, templates, or utilities to add/modify |
+| `examples`       | Example inputs/outputs to include              |
+| `error_handling` | Guidance for handling failures                 |
+| `structure`      | Reorganization of skill content                |
+| `references`     | External docs or resources to add              |
 
 ## Priority Levels
 
@@ -194,15 +198,15 @@ Use these categories to organize improvement suggestions:
 
 ---
 
-# Analyzing Benchmark Results
+## Analyzing Benchmark Results
 
 When analyzing benchmark results, the analyzer's purpose is to **surface patterns and anomalies** across multiple runs, not suggest skill improvements.
 
-## Role
+### Role
 
 Review all benchmark run results and generate freeform notes that help the user understand skill performance. Focus on patterns that wouldn't be visible from aggregate metrics alone.
 
-## Inputs
+### Inputs
 
 You receive these parameters in your prompt:
 
@@ -210,45 +214,50 @@ You receive these parameters in your prompt:
 - **skill_path**: Path to the skill being benchmarked
 - **output_path**: Where to save the notes (as JSON array of strings)
 
-## Process
+### Process
 
-### Step 1: Read Benchmark Data
+#### Step 1: Read Benchmark Data
 
 1. Read the benchmark.json containing all run results
 2. Note the configurations tested (with_skill, without_skill)
 3. Understand the run_summary aggregates already calculated
 
-### Step 2: Analyze Per-Assertion Patterns
+#### Step 2: Analyze Per-Assertion Patterns
 
 For each expectation across all runs:
+
 - Does it **always pass** in both configurations? (may not differentiate skill value)
 - Does it **always fail** in both configurations? (may be broken or beyond capability)
 - Does it **always pass with skill but fail without**? (skill clearly adds value here)
 - Does it **always fail with skill but pass without**? (skill may be hurting)
 - Is it **highly variable**? (flaky expectation or non-deterministic behavior)
 
-### Step 3: Analyze Cross-Eval Patterns
+#### Step 3: Analyze Cross-Eval Patterns
 
 Look for patterns across evals:
+
 - Are certain eval types consistently harder/easier?
 - Do some evals show high variance while others are stable?
 - Are there surprising results that contradict expectations?
 
-### Step 4: Analyze Metrics Patterns
+#### Step 4: Analyze Metrics Patterns
 
 Look at time_seconds, tokens, tool_calls:
+
 - Does the skill significantly increase execution time?
 - Is there high variance in resource usage?
 - Are there outlier runs that skew the aggregates?
 
-### Step 5: Generate Notes
+#### Step 5: Generate Notes
 
 Write freeform observations as a list of strings. Each note should:
+
 - State a specific observation
 - Be grounded in the data (not speculation)
 - Help the user understand something the aggregate metrics don't show
 
 Examples:
+
 - "Assertion 'Output is a PDF file' passes 100% in both configurations - may not differentiate skill value"
 - "Eval 3 shows high variance (50% ± 40%) - run 2 had an unusual failure that may be flaky"
 - "Without-skill runs consistently fail on table extraction expectations (0% pass rate)"
@@ -256,7 +265,7 @@ Examples:
 - "Token usage is 80% higher with skill, primarily due to script output parsing"
 - "All 3 without-skill runs for eval 1 produced empty output"
 
-### Step 6: Write Notes
+#### Step 6: Write Notes
 
 Save notes to `{output_path}` as a JSON array of strings:
 
@@ -269,15 +278,17 @@ Save notes to `{output_path}` as a JSON array of strings:
 ]
 ```
 
-## Guidelines
+### Guidelines
 
 **DO:**
+
 - Report what you observe in the data
 - Be specific about which evals, expectations, or runs you're referring to
 - Note patterns that aggregate metrics would hide
 - Provide context that helps interpret the numbers
 
 **DO NOT:**
+
 - Suggest improvements to the skill (that's for the improvement step, not benchmarking)
 - Make subjective quality judgments ("the output was good/bad")
 - Speculate about causes without evidence

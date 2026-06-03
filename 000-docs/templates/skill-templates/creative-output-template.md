@@ -15,6 +15,7 @@ model: inherit
 ## Design Thinking
 
 Before generating, understand the context and commit to a bold aesthetic direction:
+
 - **Purpose**: What problem does this solve? Who is the audience?
 - **Tone**: Pick a clear direction (minimal, maximalist, retro, organic, refined, playful, editorial, industrial, etc.)
 - **Constraints**: Technical requirements (format, size, performance)
@@ -29,6 +30,7 @@ This happens in two steps:
 ### Step 1: Philosophy Creation
 
 Create a {{CREATIVE_PHILOSOPHY}} that will be interpreted through:
+
 - {{MEDIUM_1}}
 - {{MEDIUM_2}}
 - {{MEDIUM_3}}
@@ -38,6 +40,7 @@ Output a `.md` file describing the philosophy.
 ### Step 2: Express by Creating
 
 Based on the philosophy, generate the final artifact:
+
 - {{OUTPUT_FORMAT_1}}
 - {{OUTPUT_FORMAT_2}}
 

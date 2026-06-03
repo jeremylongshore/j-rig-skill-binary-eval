@@ -1,6 +1,7 @@
 # Epic 08 — Regression, Baseline, Scoring, CLI, and CI Gate — Workflow
 
 ## Inputs
+
 - Eval spec / contract schemas from Epic 02
 - Deterministic results from Epic 03
 - Evidence model, persistence, query helpers from Epic 04
@@ -10,7 +11,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────────────────────────────┐
 │                     COMPARISON LAYER                          │
 │                                                               │
@@ -125,6 +126,7 @@
 ```
 
 ## Outputs
+
 - Regression comparison engine (run-over-run diff)
 - Sacred regression + blocker enforcement (non-negotiable blocks)
 - Baseline / no-skill comparison (value-add measurement)
@@ -136,6 +138,7 @@
 - Carry-forward: governance outputs for Epic 09 optimizer, Epic 10 team product
 
 ## Key Artifacts
+
 - Regression comparison engine module
 - Sacred regression / blocker enforcement module
 - Baseline comparator module

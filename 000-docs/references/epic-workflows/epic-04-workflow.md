@@ -1,6 +1,7 @@
 # Epic 04 — Evidence Layer, Persistence, and Run Lifecycle — Workflow
 
 ## Inputs
+
 - Deterministic result objects from Epic 03
 - Reporting output format from Epic 03
 - Eval spec / contract schemas from Epic 02
@@ -8,7 +9,7 @@
 
 ## Flow
 
-```
+```text
 ┌───────────────────────────────────────┐
 │  04.1 Design Canonical Run &          │
 │  Evidence Data Model                  │
@@ -112,6 +113,7 @@
 ```
 
 ## Outputs
+
 - Canonical run / evidence data model
 - SQLite-backed persistence layer (packages/db)
 - Run lifecycle state machine (pending -> running -> completed/failed/blocked/timed_out/canceled)
@@ -121,6 +123,7 @@
 - Carry-forward: evidence model for Epics 05, 06, 08, 09
 
 ## Key Artifacts
+
 - SQLite schema / migration files
 - Run entity tables (skills, versions, runs, outputs, criteria_results, artifacts)
 - Run lifecycle state model

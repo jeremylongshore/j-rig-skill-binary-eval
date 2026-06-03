@@ -17,51 +17,51 @@ The eval spec is written in YAML and defines criteria, test cases, model targets
 
 ### Required Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec_version` | `"1.0"` | Schema version (always "1.0" currently) |
-| `skill_name` | string | Kebab-case skill name (e.g. `commit-message-writer`) |
-| `description` | string | What this eval spec covers |
-| `criteria` | array | At least one binary criterion |
-| `test_cases` | array | At least one test case |
+| Field          | Type    | Description                                          |
+| -------------- | ------- | ---------------------------------------------------- |
+| `spec_version` | `"1.0"` | Schema version (always "1.0" currently)              |
+| `skill_name`   | string  | Kebab-case skill name (e.g. `commit-message-writer`) |
+| `description`  | string  | What this eval spec covers                           |
+| `criteria`     | array   | At least one binary criterion                        |
+| `test_cases`   | array   | At least one test case                               |
 
 ### Optional Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `models` | array | `["sonnet"]` | Models to test independently (`haiku`, `sonnet`, `opus`) |
-| `siblings` | array | — | Sibling skills for pack-sensitive evaluation |
-| `tags` | array | — | Categorization tags |
+| Field      | Type  | Default      | Description                                              |
+| ---------- | ----- | ------------ | -------------------------------------------------------- |
+| `models`   | array | `["sonnet"]` | Models to test independently (`haiku`, `sonnet`, `opus`) |
+| `siblings` | array | —            | Sibling skills for pack-sensitive evaluation             |
+| `tags`     | array | —            | Categorization tags                                      |
 
 ### Criterion Schema
 
 Every criterion is binary — it resolves to yes or no. No gradients.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | yes | Unique within the spec |
-| `description` | string | yes | What is being checked |
-| `method` | `"deterministic"` or `"judge"` | yes | How to evaluate |
-| `blocker` | boolean | no (default: false) | Blocks release if failed |
-| `regression_critical` | boolean | no (default: false) | Regression blocks release |
-| `baseline_sensitive` | boolean | no (default: false) | Compare against naked model |
-| `pack_sensitive` | boolean | no (default: false) | Evaluate with sibling context |
-| `judge_prompt` | string | no | Prompt template for judge method |
-| `deterministic_check` | string | no | Check ID for deterministic method |
+| Field                 | Type                           | Required            | Description                       |
+| --------------------- | ------------------------------ | ------------------- | --------------------------------- |
+| `id`                  | string                         | yes                 | Unique within the spec            |
+| `description`         | string                         | yes                 | What is being checked             |
+| `method`              | `"deterministic"` or `"judge"` | yes                 | How to evaluate                   |
+| `blocker`             | boolean                        | no (default: false) | Blocks release if failed          |
+| `regression_critical` | boolean                        | no (default: false) | Regression blocks release         |
+| `baseline_sensitive`  | boolean                        | no (default: false) | Compare against naked model       |
+| `pack_sensitive`      | boolean                        | no (default: false) | Evaluate with sibling context     |
+| `judge_prompt`        | string                         | no                  | Prompt template for judge method  |
+| `deterministic_check` | string                         | no                  | Check ID for deterministic method |
 
 ### Test Case Schema
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | yes | Unique within the spec |
-| `description` | string | yes | What this test checks |
-| `tier` | `"core"`, `"edge"`, `"regression"`, `"adversarial"` | yes | When/how strictly evaluated |
-| `prompt` | string | yes | User prompt to send |
-| `trigger_expectation` | `"should_trigger"` or `"should_not_trigger"` | no | Expected trigger behavior |
-| `expected_artifacts` | array of strings | no | Expected output files |
-| `expected_output_contains` | array of strings | no | Strings that must appear in output |
-| `context_hints` | object | no | Additional context for runner |
-| `criteria_ids` | array of strings | no | Which criteria to evaluate (defaults to all) |
+| Field                      | Type                                                | Required | Description                                  |
+| -------------------------- | --------------------------------------------------- | -------- | -------------------------------------------- |
+| `id`                       | string                                              | yes      | Unique within the spec                       |
+| `description`              | string                                              | yes      | What this test checks                        |
+| `tier`                     | `"core"`, `"edge"`, `"regression"`, `"adversarial"` | yes      | When/how strictly evaluated                  |
+| `prompt`                   | string                                              | yes      | User prompt to send                          |
+| `trigger_expectation`      | `"should_trigger"` or `"should_not_trigger"`        | no       | Expected trigger behavior                    |
+| `expected_artifacts`       | array of strings                                    | no       | Expected output files                        |
+| `expected_output_contains` | array of strings                                    | no       | Strings that must appear in output           |
+| `context_hints`            | object                                              | no       | Additional context for runner                |
+| `criteria_ids`             | array of strings                                    | no       | Which criteria to evaluate (defaults to all) |
 
 ### Example
 
@@ -108,24 +108,24 @@ The eval contract captures what the skill is *for*, what triggers it, what block
 
 ### Required Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `contract_version` | `"1.0"` | Schema version |
-| `skill_name` | string | Kebab-case skill name |
-| `purpose` | string | What the skill does — one clear sentence |
-| `trigger_boundary.should_trigger` | array | Prompts that should activate the skill |
-| `trigger_boundary.should_not_trigger` | array | Prompts that should NOT activate |
-| `success_criteria` | array | Observable outcomes that count as success |
-| `blockers` | array | Sacred failures that block release |
+| Field                                 | Type    | Description                               |
+| ------------------------------------- | ------- | ----------------------------------------- |
+| `contract_version`                    | `"1.0"` | Schema version                            |
+| `skill_name`                          | string  | Kebab-case skill name                     |
+| `purpose`                             | string  | What the skill does — one clear sentence  |
+| `trigger_boundary.should_trigger`     | array   | Prompts that should activate the skill    |
+| `trigger_boundary.should_not_trigger` | array   | Prompts that should NOT activate          |
+| `success_criteria`                    | array   | Observable outcomes that count as success |
+| `blockers`                            | array   | Sacred failures that block release        |
 
 ### Optional Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `safety_boundaries` | array | What the skill must never do |
-| `baseline_expectation` | string | What the naked model does without the skill |
-| `evidence_rules.require_artifacts` | boolean | Whether artifacts are required |
-| `evidence_rules.require_output_validation` | boolean | Whether output must be validated |
+| Field                                      | Type    | Description                                 |
+| ------------------------------------------ | ------- | ------------------------------------------- |
+| `safety_boundaries`                        | array   | What the skill must never do                |
+| `baseline_expectation`                     | string  | What the naked model does without the skill |
+| `evidence_rules.require_artifacts`         | boolean | Whether artifacts are required              |
+| `evidence_rules.require_output_validation` | boolean | Whether output must be validated            |
 
 ### Example
 
@@ -163,24 +163,24 @@ baseline_expectation: >
 
 ## Spec vs Contract: When to Use Each
 
-| Aspect | Eval Spec | Eval Contract |
-|--------|-----------|---------------|
-| **Audience** | Machine (harness/runners) | Human (authors/reviewers) |
-| **Content** | Criteria, test cases, models | Purpose, boundaries, blockers |
-| **Format** | Strict schema, validated | Descriptive, pre-negotiated |
-| **Changes** | When eval logic changes | When product requirements change |
+| Aspect       | Eval Spec                    | Eval Contract                    |
+| ------------ | ---------------------------- | -------------------------------- |
+| **Audience** | Machine (harness/runners)    | Human (authors/reviewers)        |
+| **Content**  | Criteria, test cases, models | Purpose, boundaries, blockers    |
+| **Format**   | Strict schema, validated     | Descriptive, pre-negotiated      |
+| **Changes**  | When eval logic changes      | When product requirements change |
 
 ---
 
 ## Common Validation Failures
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Must be kebab-case` | Skill name has uppercase or special chars | Use `my-skill-name` format |
-| `Invalid enum value` | Wrong method, tier, or model value | Check allowed values above |
-| `Array must contain at least 1 element(s)` | Empty criteria, test cases, or blockers | Add at least one entry |
-| `Invalid YAML` | Syntax error in YAML | Check for unquoted colons, bad indentation |
-| `must use third person` | Description uses "I can" or "You should" | Rewrite in third person |
+| Error                                      | Cause                                     | Fix                                        |
+| ------------------------------------------ | ----------------------------------------- | ------------------------------------------ |
+| `Must be kebab-case`                       | Skill name has uppercase or special chars | Use `my-skill-name` format                 |
+| `Invalid enum value`                       | Wrong method, tier, or model value        | Check allowed values above                 |
+| `Array must contain at least 1 element(s)` | Empty criteria, test cases, or blockers   | Add at least one entry                     |
+| `Invalid YAML`                             | Syntax error in YAML                      | Check for unquoted colons, bad indentation |
+| `must use third person`                    | Description uses "I can" or "You should"  | Rewrite in third person                    |
 
 **Important**: Quote any YAML string values that contain colons (`:`) to prevent parse errors.
 

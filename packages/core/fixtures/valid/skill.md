@@ -26,7 +26,7 @@ Generate a commit message for the currently staged changes.
 
 ## Format
 
-```
+```text
 type(scope): subject line
 
 Optional body explaining the motivation for the change.

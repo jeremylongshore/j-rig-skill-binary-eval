@@ -1,11 +1,11 @@
 # 018-AT-SPEC — PB-7 provider adapter measurement protocol
 
-| Field | Value |
-|---|---|
-| **Date** | 2026-05-12 |
-| **Status** | Normative — gating doc per ISEDC v1 Q5 CTO binding constraint |
-| **Plan reference** | Milestone 4 of `~/.claude/plans/se-the-council-bubbly-frog.md` |
-| **Source decisions** | `intent-eval-platform/intent-eval-lab/000-docs/004-AT-DECR-isedc-council-record-2026-05-10.md` § Q5 |
+| Field                                 | Value                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Date**                              | 2026-05-12                                                                                               |
+| **Status**                            | Normative — gating doc per ISEDC v1 Q5 CTO binding constraint                                            |
+| **Plan reference**                    | Milestone 4 of `~/.claude/plans/se-the-council-bubbly-frog.md`                                           |
+| **Source decisions**                  | `intent-eval-platform/intent-eval-lab/000-docs/004-AT-DECR-isedc-council-record-2026-05-10.md` § Q5      |
 | **Locks (when measurement complete)** | A new Decision Record `0NN-AT-DECR-provider-adapter-choice-<date>.md` in this same `000-docs/` directory |
 
 ---
@@ -88,21 +88,21 @@ The five eval cases (§ 4) feed four scoring dimensions. The candidate with the 
 
 ### R5.1 — Type safety
 
-| Score | Criterion |
-|---|---|
-| 3 | Full TypeScript types across all 5 eval cases; `tsc --strict` clean; tool-call schemas type-narrow correctly |
-| 2 | Types cover the public API but some internals use `any` or `unknown`; `tsc --strict` clean |
-| 1 | Types are partial or `tsc --strict` produces warnings |
-| 0 | Untyped; `any` pervasive |
+| Score | Criterion                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------ |
+| 3     | Full TypeScript types across all 5 eval cases; `tsc --strict` clean; tool-call schemas type-narrow correctly |
+| 2     | Types cover the public API but some internals use `any` or `unknown`; `tsc --strict` clean                   |
+| 1     | Types are partial or `tsc --strict` produces warnings                                                        |
+| 0     | Untyped; `any` pervasive                                                                                     |
 
 ### R5.2 — Lines of code (LOC) for the adapter implementation
 
-| Score | Criterion |
-|---|---|
-| 3 | Adapter implementation < 300 LOC for the 5 eval cases |
-| 2 | 300-600 LOC |
-| 1 | 600-1000 LOC |
-| 0 | > 1000 LOC |
+| Score | Criterion                                             |
+| ----- | ----------------------------------------------------- |
+| 3     | Adapter implementation < 300 LOC for the 5 eval cases |
+| 2     | 300-600 LOC                                           |
+| 1     | 600-1000 LOC                                          |
+| 0     | > 1000 LOC                                            |
 
 Counted via `cloc packages/cli/src/providers/{candidate}.ts` excluding tests and fixtures (matches the existing naming convention in that directory: `anthropic.ts`, `openai.ts`, etc.). LOC is a proxy for the SDK's level of abstraction; a low-LOC wrapper indicates the underlying SDK already normalizes most of the surface.
 
@@ -110,12 +110,12 @@ Counted via `cloc packages/cli/src/providers/{candidate}.ts` excluding tests and
 
 For each of the 5 eval cases, score:
 
-| Score | Criterion |
-|---|---|
-| 3 | Adapter handles the case for ALL three providers (Anthropic, OpenAI, Gemini) with identical caller-side code |
-| 2 | Handles 2 of 3 providers identically; one requires provider-specific caller code |
-| 1 | Handles 1 of 3; or all 3 with significant per-provider divergence in caller-side code |
-| 0 | Does not handle the case at all |
+| Score | Criterion                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------ |
+| 3     | Adapter handles the case for ALL three providers (Anthropic, OpenAI, Gemini) with identical caller-side code |
+| 2     | Handles 2 of 3 providers identically; one requires provider-specific caller code                             |
+| 1     | Handles 1 of 3; or all 3 with significant per-provider divergence in caller-side code                        |
+| 0     | Does not handle the case at all                                                                              |
 
 Total possible: 15. Reported as a fraction of 15 in the Decision Record.
 
@@ -123,12 +123,12 @@ Total possible: 15. Reported as a fraction of 15 in the Decision Record.
 
 For the 5 error categories in EC-4, score:
 
-| Score | Criterion |
-|---|---|
-| 3 | Maps to a unified error type with category and provider both surfaced; documented |
-| 2 | Maps to a unified error type but category boundaries unclear |
-| 1 | Surfaces a provider-specific error class; caller must switch on provider |
-| 0 | Throws a generic Error; category not recoverable |
+| Score | Criterion                                                                         |
+| ----- | --------------------------------------------------------------------------------- |
+| 3     | Maps to a unified error type with category and provider both surfaced; documented |
+| 2     | Maps to a unified error type but category boundaries unclear                      |
+| 1     | Surfaces a provider-specific error class; caller must switch on provider          |
+| 0     | Throws a generic Error; category not recoverable                                  |
 
 Total possible: 15.
 
@@ -201,15 +201,15 @@ The Decision Record that locks the choice **MUST**:
 
 ## 11. Process — what runs when
 
-| Step | Owner | Deliverable | Source ref |
-|---|---|---|---|
-| 1 | engineering | This protocol committed to repo | This doc (Milestone 4) |
-| 2 | engineering | LiteLLM prototype implementing the 5 eval cases + 2 CISO gates | Phase 2 of M4 |
-| 3 | engineering | Vercel AI SDK prototype implementing the 5 eval cases + 2 CISO gates | Phase 2 of M4 |
-| 4 | engineering | Score-card spreadsheet (the actual data per § 5) | Phase 3 of M4 |
-| 5 | GC seat | License audit per § 8 | Phase 3 of M4 |
-| 6 | acting head of board | Decision Record convened, evaluating the data per § 10 acceptance | Phase 4 of M4 |
-| 7 | engineering | Loser-prototype deletion; winner-adapter promoted to `packages/cli/src/providers/`; CISO gate test suite committed to CI | Phase 5 of M4 |
+| Step | Owner                | Deliverable                                                                                                              | Source ref             |
+| ---- | -------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| 1    | engineering          | This protocol committed to repo                                                                                          | This doc (Milestone 4) |
+| 2    | engineering          | LiteLLM prototype implementing the 5 eval cases + 2 CISO gates                                                           | Phase 2 of M4          |
+| 3    | engineering          | Vercel AI SDK prototype implementing the 5 eval cases + 2 CISO gates                                                     | Phase 2 of M4          |
+| 4    | engineering          | Score-card spreadsheet (the actual data per § 5)                                                                         | Phase 3 of M4          |
+| 5    | GC seat              | License audit per § 8                                                                                                    | Phase 3 of M4          |
+| 6    | acting head of board | Decision Record convened, evaluating the data per § 10 acceptance                                                        | Phase 4 of M4          |
+| 7    | engineering          | Loser-prototype deletion; winner-adapter promoted to `packages/cli/src/providers/`; CISO gate test suite committed to CI | Phase 5 of M4          |
 
 Steps 2 + 3 can run in parallel. Steps 4 + 5 gate Step 6.
 

@@ -113,17 +113,20 @@ By the end of Epic 10, the repo should have:
 **Purpose**
 Provide a browsable interface for teams to inspect runs, recommendations, regressions, and skill health over time.
 
-**Acceptance**
+#### Acceptance
+
 - A team-facing read surface exists.
 - It can display key entities such as skills, runs, recommendations, and compare results.
 - The surface is useful enough to inspect system state without dropping directly into raw database/filesystem artifacts.
 - The implementation aligns with the current product scope and does not overbuild beyond the available data model.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 04, 08, and 09 complete
 - Blocks: 10.2, 10.4, 10.6
 
-**Evidence**
+#### Evidence
+
 - UI/read surface implementation
 - example screenshots or equivalent evidence
 - tests or validation for key routes/views
@@ -135,7 +138,8 @@ Provide a browsable interface for teams to inspect runs, recommendations, regres
 **Purpose**
 Make it easy for teams to inspect how a skill evolved, what experiments were attempted, and why recommendations changed over time.
 
-**Acceptance**
+#### Acceptance
+
 - Experiment history is retrievable and visible in a human-friendly form.
 - Recommendation history is retrievable and visible in a human-friendly form.
 - It is possible to understand:
@@ -145,11 +149,13 @@ Make it easy for teams to inspect how a skill evolved, what experiments were att
   - whether it was accepted or rejected
 - History views align with canonical evidence structures.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 10.1 and Epics 08-09 complete
 - Blocks: 10.6, 10.7
 
-**Evidence**
+#### Evidence
+
 - history view implementation
 - example experiment/recommendation history views
 - tests or validation for history retrieval
@@ -161,7 +167,8 @@ Make it easy for teams to inspect how a skill evolved, what experiments were att
 **Purpose**
 Provide reusable starting points for common Claude Skill categories so teams do not need to author every eval definition from scratch.
 
-**Acceptance**
+#### Acceptance
+
 - Initial eval packs exist for agreed starter categories such as:
   - document creation
   - code generation
@@ -172,11 +179,13 @@ Provide reusable starting points for common Claude Skill categories so teams do 
 - Packs align with the product's canonical spec/contract model.
 - Pack reuse assumptions are documented honestly.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 02, 03, 05, 06, and 07 complete
 - Blocks: 10.6, future post-v1 adoption work
 
-**Evidence**
+#### Evidence
+
 - eval pack directories/files
 - docs for pack usage
 - validation showing packs conform to schema
@@ -188,17 +197,20 @@ Provide reusable starting points for common Claude Skill categories so teams do 
 **Purpose**
 Make the system usable in shared team contexts rather than only from local CLI and CI entrypoints.
 
-**Acceptance**
+#### Acceptance
+
 - There is an internal API or equivalent structured access surface for key data/actions where appropriate.
 - The implementation supports team workflows without undermining the CLI-first foundation.
 - Exposed surfaces are documented and scoped to the current product, not speculative platform sprawl.
 - Security/scope boundaries are at least minimally documented where relevant.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 10.1 and Epics 04, 08 complete
 - Blocks: 10.6, 10.7
 
-**Evidence**
+#### Evidence
+
 - API/integration surface implementation
 - example requests or usage
 - tests or validation for core integration paths
@@ -210,17 +222,20 @@ Make the system usable in shared team contexts rather than only from local CLI a
 **Purpose**
 Allow teams to detect when model changes, prompt shifts, or other drift causes previously healthy skills to degrade or become obsolete.
 
-**Acceptance**
+#### Acceptance
+
 - The system can schedule or otherwise support periodic reevaluation.
 - Drift reevaluation results are distinguishable from ad hoc/manual runs.
 - The system can surface meaningful changes from prior known-good states.
 - The workflow is documented and ties into the existing evidence/governance model.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 04, 07, and 08 complete
 - Blocks: 10.6, 10.7
 
-**Evidence**
+#### Evidence
+
 - scheduled reevaluation implementation
 - example drift run(s)
 - example drift comparison output
@@ -233,17 +248,20 @@ Allow teams to detect when model changes, prompt shifts, or other drift causes p
 **Purpose**
 Make baseline-value and drift findings actionable when a skill appears redundant, stale, or strategically weak.
 
-**Acceptance**
+#### Acceptance
+
 - The system can surface obsolete-review as an operational state, not just a recommendation string.
 - There is a documented workflow for what happens when a skill is flagged as obsolete, low-value, or drifted.
 - Related states such as review-needed, retire, merge, or narrow can be represented if in scope.
 - The workflow connects baseline, drift, and recommendation evidence coherently.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 10.2, 10.4, 10.5
 - Blocks: 10.7, final closeout
 
-**Evidence**
+#### Evidence
+
 - obsolete-review workflow implementation
 - example flagged skill case
 - docs describing the operational path
@@ -255,7 +273,8 @@ Make baseline-value and drift findings actionable when a skill appears redundant
 **Purpose**
 Close the epic with proof that the system can now be operated over time by a team, not just executed once by a developer.
 
-**Acceptance**
+#### Acceptance
+
 - Team-facing read/report surfaces are demonstrated.
 - Eval packs are documented and usable.
 - Scheduled reevaluation is demonstrated.
@@ -265,11 +284,13 @@ Close the epic with proof that the system can now be operated over time by a tea
 - End-of-epic AAR is created.
 - A clear post-v1 roadmap is written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 10.2, 10.3, 10.4, 10.5, 10.6
 - Blocks: final v1 closeout
 
-**Evidence**
+#### Evidence
+
 - screenshots or equivalent evidence of team-facing views
 - docs path(s)
 - example eval pack usage
@@ -294,6 +315,7 @@ No UI-only magic.
 Reusable eval packs are one of the clearest ways the system becomes valuable faster for real users.
 
 They should:
+
 - reflect real categories
 - be schema-valid
 - be documented
@@ -310,6 +332,7 @@ Scheduled reevaluation is how the product stays honest when models and routing b
 Not every skill should live forever.
 
 This epic should make it operationally normal to say:
+
 - this skill still helps
 - this skill barely helps
 - this skill should be narrowed
@@ -319,12 +342,14 @@ This epic should make it operationally normal to say:
 ### Team-facing surfaces should be useful, not decorative
 
 The read surfaces should prioritize:
+
 - clarity
 - evidence
 - history
 - actionability
 
 not:
+
 - flashy dashboards with weak substance
 - aesthetic polish at the expense of operational value
 
@@ -367,18 +392,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Dashboard becomes a vanity layer
+
 If the team-facing product looks nice but does not expose real evidence or history, it will feel hollow fast.
 
 ### Eval packs become rigid templates nobody trusts
+
 If packs are too generic or poorly documented, they will not become a real adoption lever.
 
 ### Drift reevaluation exists but is not actionable
+
 Scheduled reevaluation must lead to understandable outcomes, not just more data exhaust.
 
 ### Obsolete-review is surfaced but no one knows what to do next
+
 The operational workflow matters as much as the label.
 
 ### Team/API surfaces fork logic from CLI/CI
+
 That would create multiple truths and weaken the product.
 
 ---
@@ -397,6 +427,7 @@ When Claude Code works this epic, it should:
 - write a clear post-v1 roadmap at the end
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -408,9 +439,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-10-team-product-eval-packs-and-drift-operations`
 
 ### Commit style
+
 - `feat(epic-10): add initial team-facing read surface`
 - `feat(epic-10): add experiment and recommendation history views`
 - `feat(epic-10): add starter eval packs`
@@ -422,6 +455,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-10): add epic 10 aar and post-v1 roadmap`
 
 ### PR title
+
 `[EPIC 10] Team product, eval packs, and drift operations`
 
 ---
@@ -431,6 +465,7 @@ When Claude Code works this epic, it should:
 The Epic 10 AAR must include:
 
 ### What shipped
+
 - team-facing read surface completed
 - history views completed
 - starter eval packs completed
@@ -440,6 +475,7 @@ The Epic 10 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - screenshots or equivalent outputs of team-facing views
 - sample experiment history view
 - sample recommendation history view
@@ -450,11 +486,13 @@ The Epic 10 AAR must include:
 - test outputs
 
 ### Open risks
+
 - any team-surface rough edges
 - any eval-pack categories still thin
 - any drift/ops workflows likely to need strengthening post-v1
 
 ### Post-v1 roadmap should include
+
 - next product hardening priorities
 - highest-value UX improvements
 - team/admin/reporting improvements

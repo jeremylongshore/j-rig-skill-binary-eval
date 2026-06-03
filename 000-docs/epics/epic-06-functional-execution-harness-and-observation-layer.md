@@ -117,17 +117,20 @@ By the end of Epic 06, the repo should have:
 **Purpose**
 Create the execution harness that simulates invoking a Claude Skill after it has been selected.
 
-**Acceptance**
+#### Acceptance
+
 - The simulator can take a parsed skill and a functional test case and run them through the configured execution path.
 - The simulator uses canonical parsed `SKILL.md` content rather than stringly-typed shortcuts.
 - The invocation path is explicit and debuggable.
 - The simulator emits structured execution records, not just console output.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: Epics 02, 04, and 05 complete
 - Blocks: 06.2, 06.3, 06.4, 06.5, 06.6
 
-**Evidence**
+#### Evidence
+
 - simulator implementation
 - example execution records
 - tests for basic invocation behavior
@@ -139,18 +142,21 @@ Create the execution harness that simulates invoking a Claude Skill after it has
 **Purpose**
 Provide the execution harness with the context a skill needs to behave meaningfully, such as base path, referenced local files, and test-case context hints.
 
-**Acceptance**
+#### Acceptance
+
 - The harness can inject skill body context cleanly.
 - Base path handling is explicit and documented.
 - Related local file content can be included when required by the test case or spec.
 - Missing/invalid context is surfaced clearly rather than silently ignored.
 - The implementation aligns with the contract/test-case definitions from Epic 02.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.1
 - Blocks: 06.3, 06.4, 06.5
 
-**Evidence**
+#### Evidence
+
 - context injection implementation
 - examples with and without file/context hints
 - tests covering valid and invalid context scenarios
@@ -162,17 +168,20 @@ Provide the execution harness with the context a skill needs to behave meaningfu
 **Purpose**
 Record what the execution harness actually produced so later judgment and compare layers have something real to evaluate.
 
-**Acceptance**
+#### Acceptance
+
 - Raw text output is captured per execution run.
 - Relevant execution transcript or structured exchange data is captured in a stable form.
 - Output capture is tied to canonical run records from Epic 04.
 - The capture format is documented and retrieval-friendly.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.1, 06.2
 - Blocks: 06.4, 06.5, 06.6, Epic 07
 
-**Evidence**
+#### Evidence
+
 - stored raw output examples
 - retrieval example(s)
 - tests for output capture and linkage
@@ -184,17 +193,20 @@ Record what the execution harness actually produced so later judgment and compar
 **Purpose**
 Support functional evaluation for skills that create files or structured artifacts rather than only plain text.
 
-**Acceptance**
+#### Acceptance
+
 - The harness can capture generated artifact files where supported.
 - Artifact metadata is recorded and linked to execution runs.
 - File-producing skills are treated as first-class execution cases, not edge cases.
 - Failure to produce an expected artifact is represented explicitly in the observed outcome.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.1, 06.2
 - Blocks: 06.5, 06.6, Epic 07
 
-**Evidence**
+#### Evidence
+
 - artifact capture implementation
 - example artifact-producing execution runs
 - tests for artifact capture and missing-artifact cases
@@ -206,17 +218,20 @@ Support functional evaluation for skills that create files or structured artifac
 **Purpose**
 Extract useful text/content from generated artifacts so later judgment and comparison layers can evaluate outputs that are not naturally plain text.
 
-**Acceptance**
+#### Acceptance
+
 - Initial extraction helpers exist for at least the first supported formats where relevant.
 - Extraction behavior is documented and test-covered.
 - Extraction results are tied back to the observed outcome/evidence model.
 - Unsupported artifact types fail clearly rather than silently disappearing.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.4
 - Blocks: 06.6, Epic 07, Epic 08
 
-**Evidence**
+#### Evidence
+
 - extraction helper implementation
 - example extracted content
 - tests for supported and unsupported formats
@@ -228,7 +243,8 @@ Extract useful text/content from generated artifacts so later judgment and compa
 **Purpose**
 Turn execution results into a structured "what actually happened" record that later layers can judge and compare.
 
-**Acceptance**
+#### Acceptance
+
 - Observed outcome includes:
   - raw output or artifact result
   - success/failure/partial outcome semantics where applicable
@@ -238,11 +254,13 @@ Turn execution results into a structured "what actually happened" record that la
 - Observed outcomes are persisted using the Epic 04 evidence model.
 - The observed outcome model is documented as the source of truth for later judgment.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.3, 06.4, 06.5
 - Blocks: 06.7, Epic 07, Epic 08, Epic 09
 
-**Evidence**
+#### Evidence
+
 - observed outcome model implementation
 - stored observed outcome examples
 - tests for persistence and retrieval
@@ -254,17 +272,20 @@ Turn execution results into a structured "what actually happened" record that la
 **Purpose**
 Record the operational side of execution so later gating and optimization layers can reason about efficiency and failure modes, not just correctness.
 
-**Acceptance**
+#### Acceptance
+
 - Execution metadata includes timing and timeout behavior where available.
 - Token and/or cost metadata is captured when available from the execution path.
 - Timeout or interrupted execution states are represented clearly.
 - Metadata is linked to the same canonical run and observed outcome records.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.1, 06.3, 06.6
 - Blocks: 06.8, Epic 08, Epic 09, Epic 10
 
-**Evidence**
+#### Evidence
+
 - execution metadata capture implementation
 - example stored metadata records
 - tests for timing/timeout/cost capture behavior
@@ -276,7 +297,8 @@ Record the operational side of execution so later gating and optimization layers
 **Purpose**
 Close the epic with proof that the harness can execute skills functionally and record what actually happened, while honestly documenting where simulation still differs from live runtime reality.
 
-**Acceptance**
+#### Acceptance
+
 - Functional execution is demonstrated on realistic sample skills.
 - Both text-first and artifact-producing cases are shown where supported.
 - Docs explain what is simulated, what is directly observed, and what remains future live-mode work.
@@ -284,11 +306,13 @@ Close the epic with proof that the harness can execute skills functionally and r
 - End-of-epic AAR is created.
 - Carry-forward notes for Epics 07-09 are written.
 
-**Dependencies**
+#### Dependencies
+
 - Depends on: 06.6, 06.7
 - Blocks: Epic 07
 
-**Evidence**
+#### Evidence
+
 - example functional runs
 - example observed outcome records
 - example artifact extraction output
@@ -307,6 +331,7 @@ This epic should establish a core product rule:
 The system judges **observed outcomes**, not self-reported success messages.
 
 That means the canonical evaluation target later is:
+
 - the produced text
 - the created artifact
 - the extracted artifact content
@@ -375,18 +400,23 @@ At closeout, capture:
 ## Risks and Edge Cases
 
 ### Simulation is mistaken for perfect runtime fidelity
+
 If docs overclaim what the execution harness reproduces, later trust will erode.
 
 ### Text-only bias
+
 If the epic over-optimizes for plain text outputs, file-producing skills will become second-class citizens and later require rework.
 
 ### Missing context silently degrades runs
+
 If required execution context is absent and the system just "tries anyway" without clarity, later evaluations will be noisy and misleading.
 
 ### Artifact extraction gaps
+
 If unsupported artifacts vanish into a black hole instead of failing clearly, later judgment will be working with incomplete evidence.
 
 ### Metadata capture is too weak
+
 If the system does not record timeouts, timing, and cost cleanly now, later release and optimizer logic will inherit blind spots.
 
 ---
@@ -406,6 +436,7 @@ When Claude Code works this epic, it should:
 - produce a durable end-of-epic AAR
 
 ### Mandatory workflow reminders
+
 - verify prior epic first
 - check comments/fixes if this is a follow-up pass
 - run a repo sweep when relevant
@@ -417,9 +448,11 @@ When Claude Code works this epic, it should:
 ## Suggested Branch / Commit / PR Discipline
 
 ### Branch
+
 `feature/epic-06-functional-execution-harness-and-observation-layer`
 
 ### Commit style
+
 - `feat(epic-06): add skill invocation simulator`
 - `feat(epic-06): add execution context and base-path injection`
 - `feat(epic-06): capture raw outputs and transcripts`
@@ -432,6 +465,7 @@ When Claude Code works this epic, it should:
 - `docs(epic-06): add epic 06 aar`
 
 ### PR title
+
 `[EPIC 06] Functional execution harness and observation layer`
 
 ---
@@ -441,6 +475,7 @@ When Claude Code works this epic, it should:
 The Epic 06 AAR must include:
 
 ### What shipped
+
 - execution simulator completed
 - context injection completed
 - output and artifact capture completed
@@ -450,6 +485,7 @@ The Epic 06 AAR must include:
 - docs and tests completed
 
 ### Evidence
+
 - sample text-oriented functional run
 - sample artifact-producing functional run
 - persisted observed outcome example
@@ -458,11 +494,13 @@ The Epic 06 AAR must include:
 - docs paths
 
 ### Open risks
+
 - any known simulation limitations
 - any artifact formats deferred
 - any tool-heavy skill cases still only partially represented
 
 ### What later epics inherit
+
 - observed outcome structures now considered canonical
 - artifact extraction expectations future judgment must respect
 - execution metadata conventions later scoring/optimizer work must use

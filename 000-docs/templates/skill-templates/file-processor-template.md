@@ -20,17 +20,18 @@ model: inherit
 
 ## Quick Reference
 
-| Task | Approach |
-|------|----------|
-| Read/analyze content | {{READ_METHOD}} |
-| Create new file | {{CREATE_METHOD}} |
-| Edit existing file | {{EDIT_METHOD}} |
+| Task                 | Approach          |
+| -------------------- | ----------------- |
+| Read/analyze content | {{READ_METHOD}}   |
+| Create new file      | {{CREATE_METHOD}} |
+| Edit existing file   | {{EDIT_METHOD}}   |
 
 ## Instructions
 
 ### Step 1: Detect Operation
 
 Determine what the user needs:
+
 - **Read/extract**: Parse existing {{FILE_EXTENSION}} and return content
 - **Create**: Generate new {{FILE_EXTENSION}} from scratch
 - **Edit**: Modify existing {{FILE_EXTENSION}} in place
@@ -45,10 +46,10 @@ Save output to the user's specified path. If no path given, use the current dire
 
 ## Error Handling
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| File not found | Invalid path | Verify path with Glob |
-| Parse error | Corrupted file | Try alternate parser |
+| Error             | Cause              | Solution                   |
+| ----------------- | ------------------ | -------------------------- |
+| File not found    | Invalid path       | Verify path with Glob      |
+| Parse error       | Corrupted file     | Try alternate parser       |
 | Permission denied | Read-only location | Ask user for writable path |
 
 <!-- Source pattern: https://github.com/anthropics/skills/blob/main/skills/docx/SKILL.md -->

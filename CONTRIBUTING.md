@@ -48,9 +48,11 @@ pnpm run check
 
 1. Fork the repository
 2. Create a feature branch from `main`:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
+
 3. Make your changes
 4. Write or update tests
 5. Ensure all tests pass
@@ -61,12 +63,12 @@ pnpm run check
 
 ### Branch Strategy
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready code |
-| `feature/*` | New features |
-| `fix/*` | Bug fixes |
-| `docs/*` | Documentation changes |
+| Branch      | Purpose               |
+| ----------- | --------------------- |
+| `main`      | Production-ready code |
+| `feature/*` | New features          |
+| `fix/*`     | Bug fixes             |
+| `docs/*`    | Documentation changes |
 
 ### Testing
 
@@ -91,7 +93,7 @@ pnpm run check           # All of the above
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <subject>
 
 [optional body]
@@ -101,6 +103,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`
 
 **Examples:**
+
 - `feat(api): add user authentication endpoint`
 - `fix(parser): handle empty input gracefully`
 - `docs(readme): update installation instructions`
@@ -117,7 +120,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 - **Questions**: [GitHub Discussions](https://github.com/jeremylongshore/j-rig-binary-eval/discussions)
 - **Bugs**: [Issue Tracker](https://github.com/jeremylongshore/j-rig-binary-eval/issues)
-- **Email**: jeremy@jeremylongshore.com
+- **Email**: <jeremy@jeremylongshore.com>
 
 ## License
 

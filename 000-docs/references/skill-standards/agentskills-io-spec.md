@@ -11,17 +11,17 @@
 
 Use this file when you need to know whether a field value, name format, or structural choice is *allowed*. This is the Tier 0 authority for constraint boundaries (character limits, charset rules, required fields).
 
-| Related File | Role |
-|-------------|------|
-| [`source-of-truth.md`](source-of-truth.md) | Comprehensive authoring guide — how to build a great skill |
-| [`frontmatter-spec.md`](frontmatter-spec.md) | Field-by-field lookup — quick reference by field name |
-| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks |
+| Related File                                 | Role                                                       |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| [`source-of-truth.md`](source-of-truth.md)   | Comprehensive authoring guide — how to build a great skill |
+| [`frontmatter-spec.md`](frontmatter-spec.md) | Field-by-field lookup — quick reference by field name      |
+| [`validation-rules.md`](validation-rules.md) | Implementer's reference — how to write validation checks   |
 
 ## Directory Structure
 
 A skill is a directory containing, at minimum, a `SKILL.md` file:
 
-```
+```text
 skill-name/
 ├── SKILL.md          # Required: metadata + instructions
 ├── scripts/          # Optional: executable code
@@ -36,30 +36,30 @@ The `SKILL.md` file must contain YAML frontmatter followed by Markdown content.
 
 ### Frontmatter Fields
 
-| Field           | Required | Constraints |
-|-----------------|----------|-------------|
+| Field           | Required | Constraints                                                                                                                                                                   |
+| --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`          | **Yes**  | Max 64 characters. Lowercase letters, numbers, and hyphens only. Must not start or end with a hyphen. Must not contain consecutive hyphens. Must match parent directory name. |
-| `description`   | **Yes**  | Max 1024 characters. Non-empty. Describes what the skill does and when to use it. |
-| `license`       | No       | License name or reference to a bundled license file. |
-| `compatibility` | No       | Max 500 characters if provided. Indicates environment requirements (intended product, system packages, network access, etc.). |
-| `metadata`      | No       | Arbitrary key-value mapping (string keys → string values) for additional metadata. |
-| `allowed-tools` | No       | **Space-delimited** list of pre-approved tools the skill may use. (Experimental) |
+| `description`   | **Yes**  | Max 1024 characters. Non-empty. Describes what the skill does and when to use it.                                                                                             |
+| `license`       | No       | License name or reference to a bundled license file.                                                                                                                          |
+| `compatibility` | No       | Max 500 characters if provided. Indicates environment requirements (intended product, system packages, network access, etc.).                                                 |
+| `metadata`      | No       | Arbitrary key-value mapping (string keys → string values) for additional metadata.                                                                                            |
+| `allowed-tools` | No       | **Space-delimited** list of pre-approved tools the skill may use. (Experimental)                                                                                              |
 
 ### Hard Limits Summary
 
-| Constraint | Limit |
-|-----------|-------|
-| `name` length | 1–64 characters |
-| `name` charset | `[a-z0-9-]`, no start/end hyphen, no consecutive hyphens |
-| `name` must match | Parent directory name |
-| `description` length | 1–1024 characters |
-| `compatibility` length | 1–500 characters (if provided) |
-| `SKILL.md` body | < 500 lines recommended |
-| Instructions token budget | < 5,000 tokens recommended |
-| Aggregate description budget | 15,000 characters across ALL loaded skill descriptions |
-| `allowed-tools` syntax | Space-delimited (NOT comma-delimited) |
-| File references | One level deep from SKILL.md |
-| File reference paths | Relative paths only |
+| Constraint                   | Limit                                                    |
+| ---------------------------- | -------------------------------------------------------- |
+| `name` length                | 1–64 characters                                          |
+| `name` charset               | `[a-z0-9-]`, no start/end hyphen, no consecutive hyphens |
+| `name` must match            | Parent directory name                                    |
+| `description` length         | 1–1024 characters                                        |
+| `compatibility` length       | 1–500 characters (if provided)                           |
+| `SKILL.md` body              | < 500 lines recommended                                  |
+| Instructions token budget    | < 5,000 tokens recommended                               |
+| Aggregate description budget | 15,000 characters across ALL loaded skill descriptions   |
+| `allowed-tools` syntax       | Space-delimited (NOT comma-delimited)                    |
+| File references              | One level deep from SKILL.md                             |
+| File reference paths         | Relative paths only                                      |
 
 ### `name` Field
 
@@ -115,6 +115,7 @@ Most skills do not need this field.
 The Markdown body after frontmatter contains skill instructions. No format restrictions — write whatever helps agents perform the task effectively.
 
 Recommended sections:
+
 - Step-by-step instructions
 - Examples of inputs and outputs
 - Common edge cases
@@ -125,11 +126,11 @@ The agent loads the entire file once it decides to activate a skill. Consider sp
 
 Skills should be structured for efficient use of context:
 
-| Layer | Budget | When Loaded |
-|-------|--------|-------------|
-| **Metadata** | ~100 tokens | At startup for ALL skills |
-| **Instructions** | < 5,000 tokens recommended | When skill is activated |
-| **Resources** | As needed | Only when required |
+| Layer            | Budget                     | When Loaded               |
+| ---------------- | -------------------------- | ------------------------- |
+| **Metadata**     | ~100 tokens                | At startup for ALL skills |
+| **Instructions** | < 5,000 tokens recommended | When skill is activated   |
+| **Resources**    | As needed                  | Only when required        |
 
 Keep `SKILL.md` under 500 lines. Move detailed reference material to separate files.
 
@@ -149,6 +150,7 @@ Keep file references **one level deep** from `SKILL.md`. Avoid deeply nested ref
 ### `scripts/`
 
 Executable code that agents can run. Scripts should:
+
 - Be self-contained or clearly document dependencies
 - Include helpful error messages
 - Handle edge cases gracefully
@@ -158,6 +160,7 @@ Supported languages depend on agent implementation (Python, Bash, JavaScript com
 ### `references/`
 
 Additional documentation loaded on demand:
+
 - `REFERENCE.md` — Detailed technical reference
 - `FORMS.md` — Form templates or structured data formats
 - Domain-specific files (`finance.md`, `legal.md`, etc.)
@@ -184,36 +187,36 @@ Checks `SKILL.md` frontmatter validity and naming conventions.
 
 These fields are supported by Claude Code but are NOT part of the AgentSkills.io specification:
 
-| Field | Type | Notes |
-|-------|------|-------|
-| `model` | string | `sonnet`, `haiku`, `opus`, `inherit` |
-| `effort` | string | `low`, `medium`, `high`, `max` |
-| `argument-hint` | string | Autocomplete hint for user-invocable skills |
-| `context` | string | `fork` — run in subagent |
-| `agent` | string | Subagent type when context=fork |
-| `user-invocable` | boolean | Show in / menu (default: true) |
+| Field                      | Type    | Notes                                          |
+| -------------------------- | ------- | ---------------------------------------------- |
+| `model`                    | string  | `sonnet`, `haiku`, `opus`, `inherit`           |
+| `effort`                   | string  | `low`, `medium`, `high`, `max`                 |
+| `argument-hint`            | string  | Autocomplete hint for user-invocable skills    |
+| `context`                  | string  | `fork` — run in subagent                       |
+| `agent`                    | string  | Subagent type when context=fork                |
+| `user-invocable`           | boolean | Show in / menu (default: true)                 |
 | `disable-model-invocation` | boolean | Prevent model auto-activation (default: false) |
-| `hooks` | object | Lifecycle hooks |
+| `hooks`                    | object  | Lifecycle hooks                                |
 
 ## Enterprise Extensions (Intent Solutions)
 
 These fields extend the standard for marketplace/enterprise use:
 
-| Field | Type | Enterprise Required |
-|-------|------|-------------------|
-| `version` | string | Yes |
-| `author` | string | Yes |
-| `license` | string | Yes |
-| `compatible-with` | string | Yes |
-| `tags` | array | Yes |
+| Field             | Type   | Enterprise Required |
+| ----------------- | ------ | ------------------- |
+| `version`         | string | Yes                 |
+| `author`          | string | Yes                 |
+| `license`         | string | Yes                 |
+| `compatible-with` | string | Yes                 |
+| `tags`            | array  | Yes                 |
 
 Enterprise `ALWAYS_REQUIRED` set: `name`, `description`, `allowed-tools`, `version`, `author`, `license`, `compatible-with`, `tags`
 
 ## Invalid Fields (ERROR in Enterprise Validation)
 
-| Field | Reason |
-|-------|--------|
-| `compatibility` | AgentSkills.io field, not Anthropic. Remove. |
-| `metadata` | AgentSkills.io field, not Anthropic. Use top-level fields. |
-| `when_to_use` | Deprecated. Move content to description field. |
-| `mode` | Deprecated. Use `disable-model-invocation` instead. |
+| Field           | Reason                                                     |
+| --------------- | ---------------------------------------------------------- |
+| `compatibility` | AgentSkills.io field, not Anthropic. Remove.               |
+| `metadata`      | AgentSkills.io field, not Anthropic. Use top-level fields. |
+| `when_to_use`   | Deprecated. Move content to description field.             |
+| `mode`          | Deprecated. Use `disable-model-invocation` instead.        |

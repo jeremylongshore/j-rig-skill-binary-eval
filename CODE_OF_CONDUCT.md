@@ -44,7 +44,7 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of unacceptable behavior may be reported to the community leaders
-responsible for enforcement at **conduct@jeremylongshore.com**.
+responsible for enforcement at **<conduct@jeremylongshore.com>**.
 
 All complaints will be reviewed and investigated promptly and fairly. All
 community leaders are obligated to respect the privacy and security of the
@@ -52,11 +52,11 @@ reporter of any incident.
 
 ### Response Commitments
 
-| Commitment | Timeframe |
-|-----------|-----------|
-| Acknowledgment | 24 hours |
-| Initial response | 48 hours |
-| Resolution target | 7 days |
+| Commitment        | Timeframe |
+| ----------------- | --------- |
+| Acknowledgment    | 24 hours  |
+| Initial response  | 48 hours  |
+| Resolution target | 7 days    |
 
 ## Enforcement Guidelines
 
@@ -64,21 +64,25 @@ Community leaders will follow these Community Impact Guidelines in determining
 the consequences for any action they deem in violation of this Code of Conduct:
 
 ### 1. Correction
+
 **Impact**: Use of inappropriate language or other behavior deemed unprofessional.
 **Consequence**: A private, written warning with clarity around the nature of the
 violation. A public apology may be requested.
 
 ### 2. Warning
+
 **Impact**: A violation through a single incident or series of actions.
 **Consequence**: A warning with consequences for continued behavior. No
 interaction with the people involved for a specified period of time.
 
 ### 3. Temporary Ban
+
 **Impact**: A serious violation of community standards.
 **Consequence**: A temporary ban from any sort of interaction or public
 communication with the community for a specified period of time.
 
 ### 4. Permanent Ban
+
 **Impact**: Demonstrating a pattern of violation of community standards.
 **Consequence**: A permanent ban from any sort of public interaction within the
 community.
