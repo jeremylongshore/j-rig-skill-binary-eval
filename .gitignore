@@ -16,6 +16,9 @@ out/
 coverage/
 .nyc_output/
 
+# Generated gate reports (CRAP scores, harness summaries, etc.)
+reports/
+
 # TypeScript
 *.tsbuildinfo
 
