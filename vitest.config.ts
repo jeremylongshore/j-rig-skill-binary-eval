@@ -6,7 +6,7 @@ export default defineConfig({
     include: ["packages/*/src/**/*.test.ts", "tests/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json", "json-summary", "html"],
       include: ["packages/*/src/**/*.ts"],
       exclude: [
         "packages/*/src/**/*.test.ts",

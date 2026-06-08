@@ -1,6 +1,6 @@
 {
   "name": "j-rig-binary-eval",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Seven-layer binary evaluation harness and rollout gate for Claude Skills",
@@ -20,10 +20,13 @@
     "clean": "pnpm -r run clean",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
     "test:coverage": "vitest run --coverage",
-    "lint:md": "markdownlint-cli2"
+    "lint:md": "markdownlint-cli2",
+    "emit:evidence": "node --experimental-strip-types scripts/emit-evidence.ts",
+    "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@intentsolutions/core": "0.2.0",
     "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^10.4.1",
     "markdownlint-cli2": "^0.18.1",
