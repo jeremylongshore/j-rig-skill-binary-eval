@@ -84,3 +84,99 @@ jobs:
             --title "j-rig-binary-eval $NEXT" \
             --generate-notes \
             --latest
+
+  # ── Emit this repo's own testing evidence for the dashboard (bead nr75.11) ──
+  #
+  # Runs j-rig's real deterministic gate(s) → kernel gate-result/v1 row(s) →
+  # kernel EvidenceBundle(s) (scripts/emit-evidence.ts, fail-closed against the
+  # @intentsolutions/core schemas pinned to the version the dashboard verifies
+  # with), keyless-signs each bundle's CANONICAL bytes with cosign (Fulcio OIDC +
+  # Rekor), assembles report-manifest.json (scripts/assemble-manifest.ts), and
+  # uploads it onto this tag's Release. The dashboard's HttpManifestFetcher is
+  # pointed at:
+  #   https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases/latest/download/report-manifest.json
+  # and re-verifies OIDC subject + Rekor inclusion + DSSE + kernel schema at
+  # ingest (it never trusts this manifest at render time).
+  #
+  # The signing identity is this workflow's reusable-workflow ref
+  # (release.yml@refs/tags/vX.Y.Z), which matches the dashboard's pinned
+  # allowlist entry for `iaj` once operatorConfirmed is flipped.
+  emit-evidence:
+    name: Emit signed gate-result evidence for the dashboard
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # upload the manifest onto the Release
+      id-token: write # cosign keyless (Fulcio OIDC)
+
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages (coverage runs the workspace tests)
+        run: pnpm run build
+
+      - name: Emit-evidence self-check (kernel-valid + canonical-stable)
+        run: node --experimental-strip-types scripts/emit-evidence.ts --self-check
+
+      - name: Emit gate-result/v1 EvidenceBundle(s)
+        run: node --experimental-strip-types scripts/emit-evidence.ts --out build/evidence --ref "${GITHUB_REF}"
+
+      - name: Sign each EvidenceBundle (cosign keyless → Rekor)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          signed=0
+          for bundle in build/evidence/bundle-*.json; do
+            case "$bundle" in *.sigstore.json) continue;; esac
+            sig="${bundle%.json}.sigstore.json"
+            echo "::group::cosign sign-blob $bundle"
+            # --new-bundle-format emits the sigstore protobuf Bundle the
+            # dashboard's sigstore-js verify() consumes. WITHOUT it, cosign writes
+            # the legacy shape, which sigstore.verify() cannot parse.
+            cosign sign-blob --yes --new-bundle-format --bundle "$sig" "$bundle"
+            echo "::endgroup::"
+            signed=$((signed + 1))
+          done
+          if [ "$signed" -eq 0 ]; then
+            echo "::error::no EvidenceBundles were produced to sign"
+            exit 1
+          fi
+          echo "✓ signed $signed bundle(s)"
+
+      - name: Assemble report-manifest.json (fail-closed on shape mismatch)
+        run: node --experimental-strip-types scripts/assemble-manifest.ts --dir build/evidence --out build/evidence/report-manifest.json
+
+      - name: Publish report-manifest.json onto the Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          # The release job created the Release; upload/clobber the asset onto it.
+          # create-or-upload stays idempotent if the job is ever re-run.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" build/evidence/report-manifest.json --clobber
+          else
+            gh release create "$tag" build/evidence/report-manifest.json \
+              --title "j-rig-binary-eval $tag" --generate-notes --latest
+          fi
+          echo "✓ report-manifest.json published to release $tag"
