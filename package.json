@@ -25,7 +25,7 @@
     "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^9.25.0",
+    "@eslint/js": "^10.0.1",
     "@intentsolutions/core": "0.2.0",
     "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^10.4.1",
