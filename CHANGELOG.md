@@ -7,9 +7,37 @@ versioning follows [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — kernel migration safe slice (`iaj-E02`, IEP P1)
+
+First, non-breaking slice of the kernel schema migration (DR-018 § 6.4 Q2 Option
+α-minus). The full `@j-rig/*` v2.0.0 predicate-body migration (`result` →
+`gate_decision`, etc.) remains the single-coherent-PR work tracked below; this
+slice lands the dependency + the belt-and-suspenders equivalence proof only.
+
+- Bumped `@intentsolutions/core` `0.2.0` → `0.3.1` — the published kernel now
+  exports the folded `EvidenceStatement` row shape + cross-field invariants
+  (`@intentsolutions/core/validators/v1/evidence-statement`).
+- Added `packages/core/src/schemas/evidence-bundle.kernel-shadow.test.ts` — the
+  behavioral secondary check DR-018 § 6.4 mandates for one major version cycle.
+  Proves j-rig's local `EvidenceStatementSchema` and the kernel's agree on their
+  genuinely-overlapping surface: in-toto wrapper constants, subject-name +
+  bare-sha256 digest validation, and cross-field invariants I1
+  (`subject[0].name === predicate.gate_id`) + I2
+  (`subject[0].digest.sha256 === predicate.input_hash` sans `sha256:` prefix).
+- Forensics + AAR (`iaj-staging-stays-staging-aar`): confirmed ZERO j-rig
+  evidence rows were promoted from `sigstore_staging` to production-Rekor before
+  DR-018 (CISO carve-out pre-merge gate satisfied). See
+  `000-docs/022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md`.
+
 ### Pending
 
-- **`@j-rig/*` v2.0.0 major bump** per DR-018 ratification (consume kernel `EvidenceBundlePayload` Option α-minus). Gated on `iaj-E02b` precondition (`iec-E12` v0.2.0 release of `@intentsolutions/core`).
+- **`@j-rig/*` v2.0.0 major bump** per DR-018 ratification (migrate the predicate
+  BODY to the kernel-normative `GateResultV1` shape; consume kernel
+  `EvidenceBundlePayload` Option α-minus; re-export from `@intentsolutions/core`).
+  Gated on `iaj-E02b` precondition. The kernel side is now satisfied
+  (`@intentsolutions/core@0.3.1` ships the fold); remaining work is the breaking
+  predicate-body field migration across `composeStatement`, the CLI emit command,
+  fixtures, and the DB layer — plus CHANGELOG/MIGRATION/codemod per § 6.3.
 - npm publish path (currently no `pnpm publish` step in release.yml; consider when downstream consumers need npm-shipped `@j-rig/*` packages — separate workstream).
 
 ## [v1.1.0] - 2026-05-26
