@@ -349,12 +349,23 @@ function coverageOutcome(outDir: string): GateOutcome {
   };
 }
 
+/**
+ * Parse a declared coverage floor out of vitest config TEXT.
+ *
+ * The `lines:` token must appear INSIDE a `thresholds: {` block — a `lines:`
+ * anywhere else (a comment, a reporter option) must NOT fabricate a floor and
+ * flip the gate from advisory to pass/fail. (The previous regex made the
+ * thresholds prefix OPTIONAL, so any `lines: N` in the file matched.)
+ */
+export function parseCoverageFloor(cfgText: string): number | null {
+  const m = /\bthresholds\s*:\s*\{[\s\S]{0,400}?\blines\s*:\s*(\d+)/.exec(cfgText);
+  return m?.[1] !== undefined ? Number(m[1]) : null;
+}
+
 /** Read the lines threshold from vitest.config.ts. Returns null when undeclared. */
 function coverageFloor(): number | null {
   try {
-    const cfg = readFileSync(join(process.cwd(), 'vitest.config.ts'), 'utf8');
-    const m = /(?:thresholds?[\s\S]{0,200}?)?\blines:\s*(\d+)/.exec(cfg);
-    return m?.[1] !== undefined ? Number(m[1]) : null;
+    return parseCoverageFloor(readFileSync(join(process.cwd(), 'vitest.config.ts'), 'utf8'));
   } catch {
     return null;
   }
