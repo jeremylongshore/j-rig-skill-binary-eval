@@ -47,7 +47,11 @@ function judgeDeterministic(
     };
   }
 
-  const checkResult = runCheck(criterion.deterministic_check, outcome.output.text);
+  const checkResult = runCheck(
+    criterion.deterministic_check,
+    outcome.output.text,
+    criterion.deterministic_check_params,
+  );
 
   return {
     criterion_id: criterion.id,

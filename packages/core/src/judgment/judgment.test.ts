@@ -5,7 +5,7 @@ import type { JudgeProvider, GoldenCase } from "./types.js";
 import { CriterionSchema } from "../schemas/criterion.js";
 import type { Criterion } from "../schemas/criterion.js";
 
-function criterion(partial: { id: string; description: string; method: "deterministic" | "judge"; deterministic_check?: string; judge_prompt?: string }): Criterion {
+function criterion(partial: { id: string; description: string; method: "deterministic" | "judge"; deterministic_check?: string; deterministic_check_params?: Record<string, unknown>; judge_prompt?: string }): Criterion {
   return CriterionSchema.parse(partial);
 }
 import type { ObservedOutcome } from "../execution/types.js";
@@ -56,6 +56,53 @@ describe("judgeCriteria", () => {
 
     const results = await judgeCriteria(criteria, makeOutcome("no match"), mockJudge({}));
     expect(results[0].verdict).toBe("no");
+  });
+
+  it("forwards deterministic_check_params: contains fails when the needle is absent [f-jrig-core-1]", async () => {
+    const criteria: Criterion[] = [
+      criterion({
+        id: "c-params-miss",
+        description: "Output contains the needle",
+        method: "deterministic",
+        deterministic_check: "contains",
+        deterministic_check_params: { value: "needle" },
+      }),
+    ];
+
+    // Before the fix, params were never forwarded to runCheck, the needle
+    // defaulted to "" and EVERY output passed vacuously.
+    const results = await judgeCriteria(criteria, makeOutcome("no match here"), mockJudge({}));
+    expect(results[0].verdict).toBe("no");
+  });
+
+  it("forwards deterministic_check_params: contains passes when the needle is present [f-jrig-core-1]", async () => {
+    const criteria: Criterion[] = [
+      criterion({
+        id: "c-params-hit",
+        description: "Output contains the needle",
+        method: "deterministic",
+        deterministic_check: "contains",
+        deterministic_check_params: { value: "needle" },
+      }),
+    ];
+
+    const results = await judgeCriteria(criteria, makeOutcome("found the needle here"), mockJudge({}));
+    expect(results[0].verdict).toBe("yes");
+  });
+
+  it("parameterized check without params fails closed, not vacuously [f-jrig-core-1]", async () => {
+    const criteria: Criterion[] = [
+      criterion({
+        id: "c-no-params",
+        description: "Output contains something (params forgotten)",
+        method: "deterministic",
+        deterministic_check: "contains",
+      }),
+    ];
+
+    const results = await judgeCriteria(criteria, makeOutcome("anything"), mockJudge({}));
+    expect(results[0].verdict).toBe("no");
+    expect(results[0].reasoning).toContain("requires params.value");
   });
 
   it("fails deterministic criterion with no check defined", async () => {

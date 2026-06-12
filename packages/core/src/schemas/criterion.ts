@@ -39,6 +39,12 @@ export const CriterionSchema = z.object({
     .string()
     .optional()
     .describe("Check identifier for deterministic criteria (e.g. 'file_exists', 'regex_match')"),
+  deterministic_check_params: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      "Parameters forwarded to the deterministic check (e.g. { value: 'needle' } for 'contains', { pattern: '\\\\d+' } for 'regex_match')",
+    ),
 });
 
 export type Criterion = z.infer<typeof CriterionSchema>;

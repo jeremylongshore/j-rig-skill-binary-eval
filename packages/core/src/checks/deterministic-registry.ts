@@ -41,7 +41,19 @@ export function runCheck(
     };
   }
 
-  const passed = fn(input, params);
+  let passed: boolean;
+  try {
+    passed = fn(input, params);
+  } catch (err) {
+    // A check that cannot evaluate (e.g. a required param is missing) fails
+    // CLOSED — it must never silently count as a pass.
+    return {
+      id: `deterministic:${checkName}`,
+      description: `Deterministic check: ${checkName}`,
+      severity: "error",
+      message: `Check "${checkName}" errored: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
   return {
     id: `deterministic:${checkName}`,
     description: `Deterministic check: ${checkName}`,
@@ -59,18 +71,37 @@ export function listChecks(): string[] {
 
 // Built-in checks
 
+/**
+ * Resolve a REQUIRED check parameter. Throws when absent so runCheck reports
+ * an error result instead of the check passing vacuously against a silent
+ * default (e.g. contains '' matches everything).
+ */
+function requireParam(
+  params: Record<string, unknown> | undefined,
+  key: string,
+  checkName: string,
+): unknown {
+  const value = params?.[key];
+  if (value === undefined || value === null) {
+    throw new Error(
+      `check "${checkName}" requires params.${key}; refusing to evaluate without it`,
+    );
+  }
+  return value;
+}
+
 registerCheck("contains", (input, params) => {
-  const needle = String(params?.["value"] ?? "");
+  const needle = String(requireParam(params, "value", "contains"));
   return input.includes(needle);
 });
 
 registerCheck("not_contains", (input, params) => {
-  const needle = String(params?.["value"] ?? "");
+  const needle = String(requireParam(params, "value", "not_contains"));
   return !input.includes(needle);
 });
 
 registerCheck("regex_match", (input, params) => {
-  const pattern = String(params?.["pattern"] ?? "");
+  const pattern = String(requireParam(params, "pattern", "regex_match"));
   const flags = String(params?.["flags"] ?? "");
   try {
     return new RegExp(pattern, flags).test(input);
@@ -80,12 +111,12 @@ registerCheck("regex_match", (input, params) => {
 });
 
 registerCheck("min_length", (input, params) => {
-  const min = Number(params?.["min"] ?? 0);
+  const min = Number(requireParam(params, "min", "min_length"));
   return input.length >= min;
 });
 
 registerCheck("max_length", (input, params) => {
-  const max = Number(params?.["max"] ?? Infinity);
+  const max = Number(requireParam(params, "max", "max_length"));
   return input.length <= max;
 });
 

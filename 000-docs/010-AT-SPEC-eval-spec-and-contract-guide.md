@@ -48,6 +48,7 @@ Every criterion is binary — it resolves to yes or no. No gradients.
 | `pack_sensitive`      | boolean                        | no (default: false) | Evaluate with sibling context     |
 | `judge_prompt`        | string                         | no                  | Prompt template for judge method  |
 | `deterministic_check` | string                         | no                  | Check ID for deterministic method |
+| `deterministic_check_params` | object (free-form)      | no                  | Params forwarded to the check (e.g. `{ "value": "needle" }` for `contains`) |
 
 ### Test Case Schema
 
