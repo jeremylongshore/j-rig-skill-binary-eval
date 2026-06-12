@@ -120,7 +120,11 @@ export const EvidenceStatementSchema = z
         message: `subject[0].name (${subjectName}) must equal predicate.gate_id (${stmt.predicate.gate_id}) per SPEC § R8`,
       });
     }
-    if (subjectDigest && `sha256:${subjectDigest}` !== stmt.predicate.input_hash) {
+    // No truthiness pre-check: SubjectSchema guarantees a 64-hex digest when
+    // parsing succeeds, and if the digest were ever absent the invariant must
+    // FAIL (sha256:undefined never equals a valid input_hash) rather than be
+    // silently skipped (fail-open).
+    if (`sha256:${subjectDigest}` !== stmt.predicate.input_hash) {
       ctx.addIssue({
         code: "custom",
         path: ["subject", 0, "digest", "sha256"],

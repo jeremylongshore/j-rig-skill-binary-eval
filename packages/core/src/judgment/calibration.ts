@@ -47,7 +47,10 @@ export async function runCalibration(
     correct,
     incorrect,
     unsure,
-    accuracy: total > 0 ? correct / total : 1,
+    // Fail CLOSED on an empty golden set: zero cases proves nothing about
+    // judge accuracy, so it must not report 100% and silently satisfy any
+    // calibration threshold a caller applies.
+    accuracy: total > 0 ? correct / total : 0,
     mismatches,
   };
 }

@@ -70,6 +70,7 @@ interface EmitEvidenceOptions {
   keyless?: boolean;
   rekorUrl?: string;
   predicateBodyOnly?: boolean;
+  fullStatement?: boolean;
   cosignBin?: string;
   artifact?: string;
 }
@@ -128,7 +129,11 @@ export function registerEmitEvidenceCommand(program: Command): void {
     )
     .option(
       "--predicate-body-only",
-      "Emit ONLY the predicate body (cosign-friendly). Cosign attest-blob then wraps it in its own Statement envelope. Without this, emits the full v1 Statement.",
+      "Plain (unsigned) mode: emit ONLY the predicate body instead of the full v1 Statement. The signing path ALWAYS sends the predicate body to cosign (which wraps it in its own Statement envelope) unless --full-statement is given.",
+    )
+    .option(
+      "--full-statement",
+      "Signing mode: pass the full pre-formed in-toto Statement to cosign's --predicate instead of the predicate body. cosign attest-blob will then NEST it inside its own Statement (double-wrapped); only for consumers that expect the nested form.",
     )
     .option(
       "--cosign-bin <path>",
@@ -218,6 +223,13 @@ function signAndEmit(
     return 1;
   }
 
+  if (opts.fullStatement && opts.predicateBodyOnly) {
+    process.stderr.write(
+      "j-rig emit-evidence: --full-statement and --predicate-body-only are mutually exclusive\n",
+    );
+    return 1;
+  }
+
   // --artifact is required for signing — without the original bytes, the
   // DSSE envelope's subject digest cannot match predicate.input_hash and the
   // attestation cannot be verified by standard tooling. We refuse rather
@@ -251,13 +263,14 @@ function signAndEmit(
   const tmp = mkdtempSync(join(tmpdir(), "j-rig-emit-evidence-"));
   try {
     // Predicate file: by default we send just the predicate body (cosign
-    // wraps it in its own Statement v0.1 envelope with our predicateType).
-    // Users can opt out via --predicate-body-only=false to preserve a
-    // pre-formed Statement (which cosign will then nest).
+    // wraps it in its own Statement envelope with our predicateType), so the
+    // gate-result fields land at predicate.* where verifiers expect them.
+    // --full-statement opts out to preserve a pre-formed Statement (which
+    // cosign will then NEST — double-wrapped).
     const predicatePath = join(tmp, "predicate.json");
-    const predicateContent = opts.predicateBodyOnly
-      ? JSON.stringify(statement.predicate, null, 2)
-      : JSON.stringify(statement, null, 2);
+    const predicateContent = opts.fullStatement
+      ? JSON.stringify(statement, null, 2)
+      : JSON.stringify(statement.predicate, null, 2);
     writeFileSync(predicatePath, predicateContent);
 
     const sigPath = join(tmp, "attestation.sig");
@@ -426,6 +439,13 @@ function safeGitHead(): string {
       .toString()
       .trim();
   } catch {
+    // The sentinel satisfies COMMIT_SHA_REGEX but is semantically NOT a real
+    // commit — never embed it silently. Warn so CI logs surface the gap and
+    // operators pass --commit-sha explicitly.
+    process.stderr.write(
+      "j-rig emit-evidence: warning: could not resolve git HEAD (not a git repository?); " +
+        "embedding sentinel commit_sha '0000000' — pass --commit-sha to record the real commit\n",
+    );
     return "0000000";
   }
 }
