@@ -3,6 +3,7 @@ import {
   GateResultPredicateSchema,
   EvidenceStatementSchema,
   EvidenceBundleSchema,
+  LegacyBundleContainerSchema,
   PREDICATE_URI,
   STATEMENT_TYPE,
   GATE_ID_REGEX,
@@ -12,12 +13,24 @@ import {
 } from "./evidence-bundle.js";
 
 const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
+
+/**
+ * v2 predicate body (kernel gate-result/v1 shape):
+ *   gate_decision (lowercase: pass|fail|advisory|error)
+ *   evaluated_at (replaces timestamp, requires timezone offset)
+ *   gate_name, gate_version, gate_reasons, coverage, policy_ref (NEW required)
+ */
 const VALID_PREDICATE = {
   gate_id: "audit-harness:ci:escape-scan",
-  result: "PASS" as const,
+  gate_name: "escape-scan",
+  gate_version: "2.0.0",
+  gate_decision: "pass" as const,
+  gate_reasons: ["all criteria met"],
+  coverage: { dimensions_evaluated: ["lines"], dimensions_skipped: [] },
+  policy_ref: `sha256:${SHA}:vitest.config.ts`,
   policy_hash: `sha256:${SHA}`,
   input_hash: `sha256:${SHA}`,
-  timestamp: "2026-05-12T03:24:04Z",
+  evaluated_at: "2026-05-12T03:24:04Z",
   runner: "audit-harness@0.3.0",
   commit_sha: "abc1234",
 };
@@ -103,7 +116,7 @@ describe("COMMIT_SHA_REGEX", () => {
   });
 });
 
-describe("GateResultPredicateSchema", () => {
+describe("GateResultPredicateSchema (v2 kernel gate-result/v1 shape)", () => {
   it("accepts a complete valid predicate", () => {
     expect(GateResultPredicateSchema.safeParse(VALID_PREDICATE).success).toBe(true);
   });
@@ -112,12 +125,49 @@ describe("GateResultPredicateSchema", () => {
     delete (invalid as { gate_id?: string }).gate_id;
     expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
   });
+  it("rejects missing required v2 field (gate_name)", () => {
+    const invalid = { ...VALID_PREDICATE };
+    delete (invalid as { gate_name?: string }).gate_name;
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects missing required v2 field (gate_version)", () => {
+    const invalid = { ...VALID_PREDICATE };
+    delete (invalid as { gate_version?: string }).gate_version;
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects missing required v2 field (gate_reasons)", () => {
+    const invalid = { ...VALID_PREDICATE };
+    delete (invalid as { gate_reasons?: string[] }).gate_reasons;
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects missing required v2 field (coverage)", () => {
+    const invalid = { ...VALID_PREDICATE };
+    delete (invalid as { coverage?: unknown }).coverage;
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects missing required v2 field (policy_ref)", () => {
+    const invalid = { ...VALID_PREDICATE };
+    delete (invalid as { policy_ref?: string }).policy_ref;
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects v1 field 'result' (not in v2 schema)", () => {
+    const invalid = { ...VALID_PREDICATE, result: "PASS" };
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("rejects v1 field 'timestamp' (replaced by evaluated_at)", () => {
+    const invalid = { ...VALID_PREDICATE, timestamp: "2026-05-12T03:24:04Z" };
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
   it("rejects unknown extra fields (strict mode)", () => {
     const invalid = { ...VALID_PREDICATE, extra: "field" };
     expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
   });
-  it("requires advisory_severity when result=ADVISORY", () => {
-    const advisory = { ...VALID_PREDICATE, result: "ADVISORY" as const };
+  it("rejects NOT_APPLICABLE as gate_decision (not a valid v2 value)", () => {
+    const invalid = { ...VALID_PREDICATE, gate_decision: "NOT_APPLICABLE" };
+    expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("requires advisory_severity when gate_decision=advisory", () => {
+    const advisory = { ...VALID_PREDICATE, gate_decision: "advisory" as const };
     const check = GateResultPredicateSchema.safeParse(advisory);
     expect(check.success).toBe(false);
     if (!check.success) {
@@ -125,10 +175,10 @@ describe("GateResultPredicateSchema", () => {
       expect(msgs.some((m) => m.includes("advisory_severity"))).toBe(true);
     }
   });
-  it("accepts ADVISORY when advisory_severity present", () => {
+  it("accepts advisory when advisory_severity present", () => {
     const advisory = {
       ...VALID_PREDICATE,
-      result: "ADVISORY" as const,
+      gate_decision: "advisory" as const,
       advisory_severity: "warn" as const,
     };
     expect(GateResultPredicateSchema.safeParse(advisory).success).toBe(true);
@@ -136,6 +186,18 @@ describe("GateResultPredicateSchema", () => {
   it("rejects bad input_hash format", () => {
     const invalid = { ...VALID_PREDICATE, input_hash: "not-a-hash" };
     expect(GateResultPredicateSchema.safeParse(invalid).success).toBe(false);
+  });
+  it("accepts all valid gate_decision values (pass, fail, advisory, error)", () => {
+    for (const decision of ["pass", "fail", "error"] as const) {
+      const pred = { ...VALID_PREDICATE, gate_decision: decision };
+      expect(GateResultPredicateSchema.safeParse(pred).success).toBe(true);
+    }
+    const advisoryPred = {
+      ...VALID_PREDICATE,
+      gate_decision: "advisory" as const,
+      advisory_severity: "info" as const,
+    };
+    expect(GateResultPredicateSchema.safeParse(advisoryPred).success).toBe(true);
   });
 });
 
@@ -145,7 +207,7 @@ describe("EvidenceStatementSchema cross-field invariants (SPEC § R8-R9)", () =>
     expect(check.success).toBe(true);
   });
 
-  it("rejects subject.name != predicate.gate_id (R8)", () => {
+  it("rejects subject.name != predicate.gate_id (R8 / I1)", () => {
     const invalid = {
       ...VALID_STATEMENT,
       subject: [{ name: "audit-harness:ci:other-gate", digest: { sha256: SHA } }],
@@ -157,7 +219,7 @@ describe("EvidenceStatementSchema cross-field invariants (SPEC § R8-R9)", () =>
     }
   });
 
-  it("rejects subject.digest.sha256 != predicate.input_hash (R9)", () => {
+  it("rejects subject.digest.sha256 != predicate.input_hash (R9 / I2)", () => {
     const wrongDigest = "0".repeat(64);
     const invalid = {
       ...VALID_STATEMENT,
@@ -191,30 +253,44 @@ describe("EvidenceStatementSchema cross-field invariants (SPEC § R8-R9)", () =>
   });
 });
 
-describe("EvidenceBundleSchema container", () => {
-  it("accepts empty rows", () => {
-    expect(
-      EvidenceBundleSchema.safeParse({ bundle_format: "json-array", rows: [] }).success,
-    ).toBe(true);
+describe("EvidenceBundleSchema (v2 plain array / kernel EvidenceBundlePayload)", () => {
+  it("accepts empty array", () => {
+    expect(EvidenceBundleSchema.safeParse([]).success).toBe(true);
   });
-  it("accepts multi-row bundles", () => {
-    const bundle = {
-      bundle_format: "json-array" as const,
-      rows: [VALID_STATEMENT, VALID_STATEMENT],
-    };
-    expect(EvidenceBundleSchema.safeParse(bundle).success).toBe(true);
+  it("accepts multi-row array", () => {
+    expect(EvidenceBundleSchema.safeParse([VALID_STATEMENT, VALID_STATEMENT]).success).toBe(true);
   });
   it("propagates row-level invariant failures", () => {
     const badRow = {
       ...VALID_STATEMENT,
       subject: [{ name: "j-rig:server:other-gate", digest: { sha256: SHA } }],
     };
-    const bundle = { bundle_format: "json-array" as const, rows: [VALID_STATEMENT, badRow] };
-    expect(EvidenceBundleSchema.safeParse(bundle).success).toBe(false);
+    expect(EvidenceBundleSchema.safeParse([VALID_STATEMENT, badRow]).success).toBe(false);
+  });
+  it("rejects a non-array (old v1 container object)", () => {
+    expect(
+      EvidenceBundleSchema.safeParse({ bundle_format: "json-array", rows: [] }).success,
+    ).toBe(false);
+  });
+});
+
+describe("LegacyBundleContainerSchema (v1 backward-compat read path)", () => {
+  it("accepts the v1 container form", () => {
+    expect(
+      LegacyBundleContainerSchema.safeParse({ bundle_format: "json-array", rows: [] }).success,
+    ).toBe(true);
+  });
+  it("accepts multi-row v1 container", () => {
+    expect(
+      LegacyBundleContainerSchema.safeParse({
+        bundle_format: "json-array",
+        rows: [VALID_STATEMENT, VALID_STATEMENT],
+      }).success,
+    ).toBe(true);
   });
   it("rejects wrong bundle_format literal", () => {
     expect(
-      EvidenceBundleSchema.safeParse({ bundle_format: "jsonl", rows: [] }).success,
+      LegacyBundleContainerSchema.safeParse({ bundle_format: "jsonl", rows: [] }).success,
     ).toBe(false);
   });
 });

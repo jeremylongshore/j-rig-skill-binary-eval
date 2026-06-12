@@ -1,12 +1,20 @@
 /**
- * Evidence Bundle reader — load + validate Statements from disk in any of the
- * three container forms documented in SPEC.md § R1:
- *   1. one-file-per-row (a directory of *.json files)
- *   2. JSON Lines (.jsonl, one Statement per line)
- *   3. JSON array container ({"bundle_format": "json-array", "rows": [...]})
+ * Evidence Bundle reader — v2.0.0 (DR-018, iaj-E02).
  *
- * All three normalize to the same in-memory shape: EvidenceStatement[].
+ * Loads + validates Statements from disk in any of the supported forms:
+ *   1. One-file-per-row: a directory of *.json files (each is one Statement)
+ *   2. JSON Lines: .jsonl file, one Statement per line
+ *   3. v2 plain array: .json file containing a JSON array of Statements
+ *      (EvidenceBundlePayload wire format per kernel)
+ *   4. v1 legacy WRAPPER: .json file with `{ bundle_format: "json-array", rows: [...] }`
+ *      — the CONTAINER FORM is understood for backward compat, but every ROW inside
+ *      it is still validated against the v2 (gate-result/v1) predicate schema.
+ *      A genuine v1-BODIED row (using `result`/`timestamp` instead of
+ *      `gate_decision`/`evaluated_at`) WILL be rejected as a row-level error.
+ *      To consume v1 bundles, re-emit them with the current gate implementation
+ *      using the new required flags (P2 reader comment fix).
  *
+ * All forms normalize to the same in-memory shape: EvidenceStatement[].
  * Each row is independently validated. R2 row-independence: a malformed row
  * is reported but does not invalidate sibling rows; the caller decides how to
  * handle a partial-failure bundle.
@@ -29,11 +37,13 @@ export interface ReadBundleResult {
  * Read + validate an Evidence Bundle from a path. The path may be:
  *   - a directory  → reads every *.json child as one Statement
  *   - a .jsonl file → one Statement per non-empty line
- *   - a .json file → either a single Statement OR an EvidenceBundle container
+ *   - a .json file → plain JSON array (v2), a single Statement, OR a
+ *     v1 `{ bundle_format: "json-array", rows: [...] }` container WRAPPER.
+ *     NOTE: the v1 WRAPPER is understood; v1 BODIES are not — every row
+ *     is validated against the v2 predicate schema regardless of the container
+ *     form. v1-bodied rows are reported as row errors.
  *
- * Returns the union of all valid rows and a per-row error list. The caller
- * decides what to do with rows.length === 0 (treat as empty bundle, NOT as
- * "everything failed" — SPEC.md § R2 is explicit about partial validity).
+ * Returns the union of all valid rows and a per-row error list.
  */
 export function readBundle(path: string): ReadBundleResult {
   const result: ReadBundleResult = { rows: [], errors: [] };
@@ -91,7 +101,7 @@ export function readBundle(path: string): ReadBundleResult {
     return result;
   }
 
-  // Single .json file: either a Statement or a json-array container.
+  // Single .json file: v2 plain array, v1 container, or a single Statement.
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -104,10 +114,13 @@ export function readBundle(path: string): ReadBundleResult {
     return result;
   }
 
-  // Detect container form. We only validate row-level shape (not the container
-  // wrapper) so a single bad row doesn't double-report (once at container level,
-  // once at row level). The container's bundle_format literal is checked
-  // implicitly by the presence of the "rows" array.
+  // v2 plain array form (EvidenceBundlePayload).
+  if (Array.isArray(parsed)) {
+    parsed.forEach((row, idx) => validateRow(row, idx, `${absPath}#[${idx}]`, result));
+    return result;
+  }
+
+  // v1 legacy container form { bundle_format: "json-array", rows: [...] }.
   if (parsed && typeof parsed === "object" && "bundle_format" in parsed && "rows" in parsed) {
     const fmt = (parsed as { bundle_format?: unknown }).bundle_format;
     if (fmt !== "json-array") {

@@ -12,6 +12,15 @@ export {
   SubjectSchema,
   EvidenceStatementSchema,
   EvidenceBundleSchema,
+  LegacyBundleContainerSchema,
+  GateDecisionSchema,
+  AdvisorySeveritySchema,
+  GateResultV1Schema,
+  ReplayFidelityLevelSchema,
+  SubjectSideSchema,
+  GATE_RESULT_V1_URI,
+  EvidenceBundlePayloadSchema,
+  IN_TOTO_STATEMENT_V1_TYPE,
   type GateResult,
   type AdvisorySeverity,
   type PipelineSide,
@@ -19,6 +28,9 @@ export {
   type Subject,
   type EvidenceStatement,
   type EvidenceBundle,
+  type LegacyBundleContainer,
+  type GateResultV1,
+  type EvidenceBundlePayload,
 } from "../schemas/evidence-bundle.js";
 
 export { readBundle, type ReadBundleResult } from "./reader.js";
@@ -29,4 +41,5 @@ export {
   type ComposeStatementInput,
   type BundleFormat,
   type WriteBundleOptions,
+  type CoverageInput,
 } from "./writer.js";

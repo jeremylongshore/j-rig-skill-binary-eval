@@ -1,26 +1,39 @@
 /**
- * `j-rig emit-evidence` — wrap a gate-result envelope (or build one from
- * j-rig's own verdict output) into an in-toto Statement v1 carrying the
- * Evidence Bundle predicate URI.
+ * `j-rig emit-evidence` — v2.0.0 (DR-018, iaj-E02).
+ *
+ * Wraps a gate-result envelope (or builds one from flags) into an in-toto
+ * Statement v1 carrying the gate-result/v1 predicate URI.
+ *
+ * Breaking changes from v1:
+ *   - --result now takes lowercase values: pass|fail|advisory|error (was PASS/FAIL/...)
+ *   - --result NOT_APPLICABLE is still accepted for backward-compat but routes
+ *     to coverage.dimensions_skipped (the dimension is added to skipped, a
+ *     `pass` decision is emitted). This preserves composability per DR-018 §279.
+ *   - NEW required flags (direct mode): --gate-name, --gate-version,
+ *     --coverage-evaluated (repeatable), --policy-ref
+ *   - --gate-reason (repeatable) replaces providing reasons inline; at least
+ *     one reason is expected for non-pass decisions.
+ *   - timestamp field → evaluated_at (same ISO format, now with offset)
  *
  * Two input modes:
  *
  *   1. Pipeline mode (stdin / --input):
- *        echo '{"gate_id":"...","result":"PASS",...}' | j-rig emit-evidence
+ *        echo '{"gate_id":"...","gate_decision":"pass",...}' | j-rig emit-evidence
  *      Reads a partial gate-result envelope (the same shape audit-harness
- *      gates emit via --json) and augments it with timestamp/runner/commit_sha.
+ *      gates emit via --json) and augments it with evaluated_at/runner/commit_sha.
  *
- *   2. Direct mode (--gate-id, --result, ...):
- *        j-rig emit-evidence --gate-id 'j-rig:server:MM-1' --result PASS \
+ *   2. Direct mode (--gate-id, --gate-decision, ...):
+ *        j-rig emit-evidence --gate-id 'j-rig:server:MM-1' --gate-decision pass \
+ *          --gate-name coverage-check --gate-version 2.0.0 \
+ *          --gate-reason "all lines covered" \
+ *          --coverage-evaluated lines --coverage-evaluated branches \
+ *          --policy-ref sha256:abc...def:vitest.config.ts \
  *          --input-hash sha256:... --policy-hash sha256:...
- *      Builds a row from explicit flags. Useful for shell-driving from the
- *      eval CLI when refactoring is in flight.
  *
  * Output:
  *   stdout = the in-toto Statement JSON (single line, ready for piping to
  *            cosign attest-blob or to a Bundle accumulator)
- *   stderr = log lines (best-effort OTel agent.rollout.gate.evaluated event
- *            when AUDIT_HARNESS_OTEL=1 or OTEL_EXPORTER_OTLP_ENDPOINT set)
+ *   stderr = log lines
  *
  * Exit codes:
  *   0  Statement emitted
@@ -56,9 +69,15 @@ interface EmitEvidenceOptions {
   output?: string;
   runnerVersion?: string;
   commitSha?: string;
-  // Direct-mode flags
+  // Direct-mode flags (v2 field names)
   gateId?: string;
-  result?: string;
+  gateDecision?: string;
+  gateName?: string;
+  gateVersion?: string;
+  gateReason?: string[];
+  coverageEvaluated?: string[];
+  coverageSkipped?: string[];
+  policyRef?: string;
   inputHash?: string;
   policyHash?: string;
   failureMode?: string;
@@ -68,11 +87,17 @@ interface EmitEvidenceOptions {
   sign?: boolean;
   key?: string;
   keyless?: boolean;
-  rekorUrl?: string;
+  rekorUrl?: string | boolean;  // boolean true when flag used without a value (Commander [url] form)
   predicateBodyOnly?: boolean;
   cosignBin?: string;
   artifact?: string;
 }
+
+/**
+ * Sentinel used internally when CLI receives --result NOT_APPLICABLE.
+ * This is not a valid gate_decision; it routes to coverage.dimensions_skipped.
+ */
+const NOT_APPLICABLE_SENTINEL = "NOT_APPLICABLE" as const;
 
 const DEFAULT_RUNNER_VERSION = "j-rig@0.0.0-dev"; // overridden when packaged
 
@@ -95,15 +120,39 @@ export function registerEmitEvidenceCommand(program: Command): void {
       "--commit-sha <sha>",
       "Override commit SHA (default: git rev-parse HEAD)",
     )
-    // Direct-mode flags
+    // Direct-mode flags (v2)
     .option("--gate-id <id>", "Direct mode: gate id (e.g. 'j-rig:server:MM-1')")
-    .option("--result <r>", "Direct mode: PASS|FAIL|ADVISORY|NOT_APPLICABLE")
+    .option(
+      "--gate-decision <d>",
+      "Direct mode: pass|fail|advisory|error (or NOT_APPLICABLE for backward-compat; routes to coverage.dimensions_skipped)",
+    )
+    .option("--gate-name <name>", "Direct mode: gate name in lowercase kebab-case (e.g. 'coverage-check')")
+    .option("--gate-version <ver>", "Direct mode: gate SemVer (e.g. '2.0.0')")
+    .option(
+      "--gate-reason <reason>",
+      "Direct mode: reason string (repeatable; at least one for non-pass decisions)",
+      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      [] as string[],
+    )
+    .option(
+      "--coverage-evaluated <dim>",
+      "Direct mode: dimension that was evaluated (repeatable)",
+      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      [] as string[],
+    )
+    .option(
+      "--coverage-skipped <dim>",
+      "Direct mode: dimension that was skipped / not applicable (repeatable)",
+      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      [] as string[],
+    )
+    .option("--policy-ref <ref>", "Direct mode: policy reference sha256:<hex>:<path>")
     .option("--input-hash <h>", "Direct mode: sha256:<64-hex>")
     .option("--policy-hash <h>", "Direct mode: sha256:<64-hex>")
-    .option("--failure-mode <m>", "Direct mode: failure_mode (when result=FAIL)")
+    .option("--failure-mode <m>", "Direct mode: failure_mode (when gate-decision=fail)")
     .option(
       "--advisory-severity <s>",
-      "Direct mode: info|warn|error (when result=ADVISORY)",
+      "Direct mode: info|warn|error (when gate-decision=advisory)",
     )
     .option(
       "--metadata <json>",
@@ -123,8 +172,8 @@ export function registerEmitEvidenceCommand(program: Command): void {
       "cosign keyless signing via Fulcio OIDC (requires terminal). Implies --sign.",
     )
     .option(
-      "--rekor-url <url>",
-      "Push the signed attestation to Rekor at <url> (default: https://rekor.sigstore.dev when used without value). Implies --sign.",
+      "--rekor-url [url]",
+      "Push the signed attestation to Rekor at <url> (defaults to https://rekor.sigstore.dev when flag is used without a value). Implies --sign.",
     )
     .option(
       "--predicate-body-only",
@@ -153,11 +202,11 @@ export function registerEmitEvidenceCommand(program: Command): void {
             name: "agent.rollout.gate.evaluated",
             attributes: {
               "gate.id": composed.gateId,
-              "gate.result": composed.result,
+              "gate.decision": composed.gateDecision,
               "gate.runner": composed.runner,
               "gate.commit_sha": composed.commitSha,
             },
-            timestamp: statement.predicate.timestamp,
+            timestamp: statement.predicate.evaluated_at,
           };
           process.stderr.write(`[OTEL] ${JSON.stringify(evt)}\n`);
         }
@@ -169,7 +218,7 @@ export function registerEmitEvidenceCommand(program: Command): void {
           opts.rekorUrl !== undefined;
 
         if (!wantsSigning) {
-          // Plain mode (Phase 1 behavior preserved): emit the chosen shape.
+          // Plain mode: emit the chosen shape.
           const out = opts.predicateBodyOnly
             ? JSON.stringify(statement.predicate)
             : serializeStatement(statement);
@@ -178,15 +227,15 @@ export function registerEmitEvidenceCommand(program: Command): void {
         }
 
         // Signing mode: invoke cosign attest-blob over a synthetic blob whose
-        // sha256 matches the predicate's input_hash. Per SPEC § R10 the
-        // resulting DSSE envelope wraps the predicate body in a Statement;
-        // cosign's outer wrap uses Statement v0.1 (cosign default).
+        // sha256 matches the predicate's input_hash.
         const exitCode = signAndEmit(statement, composed, opts);
         process.exit(exitCode);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         process.stderr.write(`j-rig emit-evidence: ${msg}\n`);
-        process.exit(opts.output ? 2 : 1);
+        // Pre-write/validation failures always exit 1 regardless of --output.
+        // signAndEmit's explicit 1/2/3 codes are left unchanged (P1 fix).
+        process.exit(1);
       }
     });
 }
@@ -218,10 +267,6 @@ function signAndEmit(
     return 1;
   }
 
-  // --artifact is required for signing — without the original bytes, the
-  // DSSE envelope's subject digest cannot match predicate.input_hash and the
-  // attestation cannot be verified by standard tooling. We refuse rather
-  // than produce a misleading attestation.
   if (!opts.artifact) {
     process.stderr.write(
       "j-rig emit-evidence: --sign requires --artifact <path> pointing at the file whose sha256 equals predicate.input_hash. " +
@@ -236,9 +281,6 @@ function signAndEmit(
     );
     return 1;
   }
-  // Verify the artifact's sha256 matches predicate.input_hash BEFORE signing.
-  // If they diverge, the resulting attestation would be cryptographically
-  // unverifiable; failing now is better than emitting a broken envelope.
   const artifactBytes = readFileSync(artifactAbs);
   const actualHash = `sha256:${createHash("sha256").update(artifactBytes).digest("hex")}`;
   if (actualHash !== composed.inputHash) {
@@ -248,12 +290,17 @@ function signAndEmit(
     return 1;
   }
 
+  // Normalize rekorUrl: --rekor-url with no value sets boolean true in Commander [url] form.
+  // Default to the public Rekor instance when the flag is present but no URL given.
+  const rekorUrlStr =
+    opts.rekorUrl === true
+      ? "https://rekor.sigstore.dev"
+      : typeof opts.rekorUrl === "string"
+        ? opts.rekorUrl
+        : undefined;
+
   const tmp = mkdtempSync(join(tmpdir(), "j-rig-emit-evidence-"));
   try {
-    // Predicate file: by default we send just the predicate body (cosign
-    // wraps it in its own Statement v0.1 envelope with our predicateType).
-    // Users can opt out via --predicate-body-only=false to preserve a
-    // pre-formed Statement (which cosign will then nest).
     const predicatePath = join(tmp, "predicate.json");
     const predicateContent = opts.predicateBodyOnly
       ? JSON.stringify(statement.predicate, null, 2)
@@ -269,11 +316,11 @@ function signAndEmit(
       "https://evals.intentsolutions.io/gate-result/v1",
       "--output-signature",
       sigPath,
-      `--tlog-upload=${opts.rekorUrl || opts.keyless ? "true" : "false"}`,
+      `--tlog-upload=${rekorUrlStr || opts.keyless ? "true" : "false"}`,
     ];
     if (opts.key) args.push("--key", opts.key);
     else if (opts.keyless) args.push("--yes"); // cosign keyless OIDC accept
-    if (opts.rekorUrl) args.push("--rekor-url", opts.rekorUrl);
+    if (rekorUrlStr) args.push("--rekor-url", rekorUrlStr);
     args.push(artifactAbs);
 
     const cosignBin = opts.cosignBin ?? "cosign";
@@ -296,7 +343,7 @@ function signAndEmit(
     const sig = readFileSync(sigPath, "utf-8").trim();
     writeOut(sig, opts);
     process.stderr.write(
-      `emit-evidence: signed envelope emitted${opts.rekorUrl ? ` (Rekor: ${opts.rekorUrl})` : ""}\n`,
+      `emit-evidence: signed envelope emitted${rekorUrlStr ? ` (Rekor: ${rekorUrlStr})` : ""}\n`,
     );
     return 0;
   } finally {
@@ -310,29 +357,32 @@ async function buildComposeInput(
   const runner = opts.runnerVersion ?? DEFAULT_RUNNER_VERSION;
   const commitSha = opts.commitSha ?? safeGitHead();
 
-  // Direct mode: explicit flags trump stdin.
-  if (opts.gateId || opts.result || opts.inputHash || opts.policyHash) {
+  // Direct mode: any of these flags being present activates direct mode.
+  // Explicitly include --gate-name/--gate-version/--policy-ref so that
+  // passing only one of the new-required flags does not fall through to
+  // pipeline mode and block on stdin (nit fix).
+  if (
+    opts.gateId ||
+    opts.gateDecision ||
+    opts.gateName ||
+    opts.gateVersion ||
+    opts.policyRef ||
+    opts.inputHash ||
+    opts.policyHash
+  ) {
     const missing: string[] = [];
     if (!opts.gateId) missing.push("--gate-id");
-    if (!opts.result) missing.push("--result");
+    if (!opts.gateDecision) missing.push("--gate-decision");
     if (!opts.inputHash) missing.push("--input-hash");
     if (!opts.policyHash) missing.push("--policy-hash");
+    if (!opts.gateName) missing.push("--gate-name");
+    if (!opts.gateVersion) missing.push("--gate-version");
+    if (!opts.policyRef) missing.push("--policy-ref");
     if (missing.length) {
       throw new Error(`direct mode requires: ${missing.join(", ")}`);
     }
-    return {
-      gateId: opts.gateId!,
-      result: parseResult(opts.result!),
-      policyHash: opts.policyHash!,
-      inputHash: opts.inputHash!,
-      runner,
-      commitSha,
-      metadata: opts.metadata ? parseMetadata(opts.metadata) : undefined,
-      failureMode: opts.failureMode,
-      advisorySeverity: opts.advisorySeverity
-        ? parseSeverity(opts.advisorySeverity)
-        : undefined,
-    };
+
+    return buildFromDirectFlags(opts, runner, commitSha);
   }
 
   // Pipeline mode: read JSON from --input or stdin.
@@ -349,17 +399,62 @@ async function buildComposeInput(
     throw new Error(`input is not valid JSON: ${(err as Error).message}`);
   }
 
-  const required = ["gate_id", "result", "input_hash", "policy_hash"] as const;
-  const missing = required.filter((k) => !(k in parsed));
+  // Pipeline mode validates required keys strictly. The v1→v2 field RENAMES
+  // (result→gate_decision, timestamp→evaluated_at) are lossless mappings and
+  // are supported for backward compat. The genuinely-NEW v2 fields (gate_name,
+  // gate_version, gate_reasons, policy_ref) are REQUIRED — no silent defaults.
+  // Synthesizing them would produce fabricated provenance in a signable
+  // in-toto statement (P0 fix, consensus option a).
+  const required: string[] = ["gate_id", "input_hash", "policy_hash"];
+  const missing: string[] = required.filter((k) => !(k in parsed));
+  // Require either gate_decision (v2) or result (v1 compat rename)
+  if (!("gate_decision" in parsed) && !("result" in parsed)) {
+    missing.push("gate_decision");
+  }
+  // Require the genuinely-new v2 fields — no fallback synthesis (P0 fix).
+  if (!("gate_name" in parsed)) missing.push("gate_name");
+  if (!("gate_version" in parsed)) missing.push("gate_version");
+  if (!("gate_reasons" in parsed)) missing.push("gate_reasons");
+  if (!("policy_ref" in parsed)) missing.push("policy_ref");
+
   if (missing.length) {
     throw new Error(
-      `gate-result envelope missing required keys: ${missing.join(", ")}`,
+      `gate-result envelope missing required v2 field(s): ${missing.join(", ")}. ` +
+      `A v1-shaped envelope (lacking gate_name/gate_version/gate_reasons/policy_ref) must ` +
+      `be re-emitted via the gate that produced it with the --gate-name/--gate-version/` +
+      `--gate-reasons/--policy-ref flags set. Pipeline mode will not synthesize these ` +
+      `fields because doing so produces fabricated provenance in the signed statement.`,
     );
   }
 
+  // Resolve gate_decision: prefer v2 gate_decision, fall back to v1 result mapping (lossless rename).
+  const rawDecision = "gate_decision" in parsed
+    ? String(parsed.gate_decision)
+    : mapV1ResultToV2Decision(String(parsed.result ?? ""));
+
+  // v1 compat: NOT_APPLICABLE routes to coverage.dimensions_skipped
+  const { gateDecision, extraSkipped, extraReasons } = resolveDecision(rawDecision);
+
+  const coverageEvaluated = Array.isArray(parsed.coverage_evaluated)
+    ? (parsed.coverage_evaluated as string[])
+    : [];
+  const coverageSkipped = [
+    ...extraSkipped,
+    ...(Array.isArray(parsed.coverage_skipped) ? (parsed.coverage_skipped as string[]) : []),
+  ];
+  const gateReasons = [
+    ...(Array.isArray(parsed.gate_reasons) ? (parsed.gate_reasons as string[]) : []),
+    ...extraReasons,
+  ];
+
   return {
     gateId: String(parsed.gate_id),
-    result: parseResult(String(parsed.result)),
+    gateDecision,
+    gateName: String(parsed.gate_name),
+    gateVersion: String(parsed.gate_version),
+    gateReasons,
+    coverage: { dimensionsEvaluated: coverageEvaluated, dimensionsSkipped: coverageSkipped },
+    policyRef: String(parsed.policy_ref),
     policyHash: String(parsed.policy_hash),
     inputHash: String(parsed.input_hash),
     runner,
@@ -373,11 +468,105 @@ async function buildComposeInput(
   };
 }
 
-function parseResult(s: string): GateResult {
+function buildFromDirectFlags(
+  opts: EmitEvidenceOptions,
+  runner: string,
+  commitSha: string,
+): ComposeStatementInput {
+  // NOT_APPLICABLE routing: if --gate-decision NOT_APPLICABLE, emit a pass with
+  // the reserved token added to dimensionsSkipped (DR-018 §279).
+  const rawDecision = opts.gateDecision!;
+  const { gateDecision, extraSkipped, extraReasons } = resolveDecision(rawDecision);
+
+  const coverageSkipped = [
+    ...extraSkipped,
+    ...(opts.coverageSkipped ?? []),
+  ];
+  const gateReasons = [
+    ...(opts.gateReason ?? []),
+    ...extraReasons,
+  ];
+
+  return {
+    gateId: opts.gateId!,
+    gateDecision,
+    gateName: opts.gateName!,
+    gateVersion: opts.gateVersion!,
+    gateReasons,
+    coverage: {
+      dimensionsEvaluated: opts.coverageEvaluated ?? [],
+      dimensionsSkipped: coverageSkipped,
+    },
+    policyRef: opts.policyRef!,
+    policyHash: opts.policyHash!,
+    inputHash: opts.inputHash!,
+    runner,
+    commitSha,
+    metadata: opts.metadata ? parseMetadata(opts.metadata) : undefined,
+    failureMode: opts.failureMode,
+    advisorySeverity: opts.advisorySeverity
+      ? parseSeverity(opts.advisorySeverity)
+      : undefined,
+  };
+}
+
+/**
+ * Reserved token for NOT_APPLICABLE routing. Uses a non-colliding name so it
+ * can never shadow a real dimension name passed via --coverage-skipped (P1 fix).
+ * Verifiers reading `pass + empty dimensions_evaluated + this token` MUST treat
+ * the row as a non-verdict, NOT a green light — document this in MIGRATION.md.
+ */
+const NOT_APPLICABLE_SKIPPED_TOKEN = "__not_applicable__" as const;
+
+/**
+ * Resolve a raw decision string into a valid GateResult plus any extra
+ * dimensions to add to coverage.dimensionsSkipped and any extra reasons to
+ * append to gate_reasons.
+ *
+ * NOT_APPLICABLE → {
+ *   gateDecision: "pass",
+ *   extraSkipped: ["__not_applicable__"],
+ *   extraReasons: ["routed from NOT_APPLICABLE per DR-018 §279 — non-verdict, not a pass"]
+ * }
+ * All other values → validated as GateResult, no extras.
+ */
+export function resolveDecision(raw: string): {
+  gateDecision: GateResult;
+  extraSkipped: string[];
+  extraReasons: string[];
+} {
+  if (raw === NOT_APPLICABLE_SENTINEL || raw.toUpperCase() === NOT_APPLICABLE_SENTINEL) {
+    return {
+      gateDecision: "pass",
+      extraSkipped: [NOT_APPLICABLE_SKIPPED_TOKEN],
+      extraReasons: [
+        "routed from NOT_APPLICABLE per DR-018 §279 — non-verdict, not a pass",
+      ],
+    };
+  }
+  return { gateDecision: parseDecision(raw), extraSkipped: [], extraReasons: [] };
+}
+
+/**
+ * Map v1 result values (uppercase PASS/FAIL/ADVISORY/NOT_APPLICABLE) to
+ * v2 gate_decision values (lowercase pass/fail/advisory/error).
+ * Exported for unit testing (P2 fix).
+ */
+export function mapV1ResultToV2Decision(v1: string): string {
+  switch (v1.toUpperCase()) {
+    case "PASS": return "pass";
+    case "FAIL": return "fail";
+    case "ADVISORY": return "advisory";
+    case "NOT_APPLICABLE": return NOT_APPLICABLE_SENTINEL;
+    default: return v1.toLowerCase();
+  }
+}
+
+function parseDecision(s: string): GateResult {
   const check = GateResultEnum.safeParse(s);
   if (!check.success) {
     throw new Error(
-      `invalid result '${s}' (expected one of: ${GateResultEnum.options.join(", ")})`,
+      `invalid gate_decision '${s}' (expected one of: ${GateResultEnum.options.join(", ")})`,
     );
   }
   return check.data;
@@ -404,6 +593,7 @@ function parseMetadata(s: string): Record<string, unknown> {
     throw new Error(`--metadata is not a valid JSON object: ${(err as Error).message}`);
   }
 }
+
 
 async function readInputJson(inputPath?: string): Promise<string> {
   if (inputPath) {

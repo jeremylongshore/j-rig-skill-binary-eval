@@ -1,39 +1,99 @@
 /**
- * Evidence Bundle schemas — Zod mirrors of the v0.1.0-draft spec at
- * https://github.com/jeremylongshore/intent-eval-lab/blob/main/specs/evidence-bundle/v0.1.0-draft/SPEC.md
+ * Evidence Bundle schemas — v2.0.0 kernel migration (DR-018, iaj-E02).
  *
- * Source-of-truth JSON Schema is at
- *   intent-eval-lab/specs/evidence-bundle/v0.1.0-draft/schema/gate-result.schema.json
+ * Per ISEDC Session 5 Q2 Option α: the kernel `@intentsolutions/core` is now
+ * the canonical schema authority. This file RE-EXPORTS the kernel's
+ * `EvidenceStatementSchema` / `EvidenceBundlePayloadSchema` as j-rig's public
+ * surface and RETAINS j-rig's original behavioral cross-field invariant checks
+ * as a secondary `.superRefine` layered on top — one-cycle retention as
+ * mandated by DR-018 § 6.3 ("belt-and-suspenders" guard, to be removed in v3).
  *
- * This file MUST stay in lock-step with that schema. Any divergence is a bug
- * in this file (the lab spec wins). The conformance test in
- *   evidence-bundle.test.ts
- * validates this Zod schema against the same example fixtures the lab spec uses.
+ * BREAKING changes from v1.x (v0.1.0-draft shape → kernel gate-result/v1):
+ *   - `result` (PASS/FAIL/ADVISORY/NOT_APPLICABLE) → `gate_decision` (pass/fail/advisory/error)
+ *   - `timestamp` → `evaluated_at` (same RFC 3339 format, now with offset)
+ *   - NEW required: gate_name, gate_version, gate_reasons, coverage, policy_ref
+ *   - NOT_APPLICABLE is no longer a gate_decision value; route via coverage.dimensions_skipped
+ *   - `EvidenceBundleSchema` (json-array container) is superseded by kernel's
+ *     `EvidenceBundlePayloadSchema` (plain array of EvidenceStatement rows).
+ *     The legacy container form is kept as `LegacyBundleContainerSchema` for
+ *     backward-compatible read paths in reader.ts.
+ *
+ * Backward-compatible export aliases:
+ *   `EvidenceStatementSchema` → kernel's EvidenceStatementSchema (+ j-rig secondary check)
+ *   `EvidenceBundleSchema`    → kernel's EvidenceBundlePayloadSchema (array form)
+ *   `GateResultPredicateSchema` → kernel's GateResultV1Schema
+ *   `PREDICATE_URI`           → kernel's GATE_RESULT_V1_URI (unchanged value)
+ *   `STATEMENT_TYPE`          → kernel's IN_TOTO_STATEMENT_V1_TYPE (unchanged value)
+ *   `GateResultEnum`          → kernel's GateDecisionSchema (now lowercase: pass/fail/advisory/error)
+ *   `AdvisorySeverityEnum`    → kernel's AdvisorySeveritySchema
  */
 import { z } from "zod";
 
-/** SPEC.md § R4 — the predicate URI is immutable. */
-export const PREDICATE_URI = "https://evals.intentsolutions.io/gate-result/v1" as const;
+// ── Kernel imports (primary schema authority) ──────────────────────────────
+export {
+  EvidenceStatementSchema as KernelEvidenceStatementSchema,
+  EvidenceBundlePayloadSchema,
+  IN_TOTO_STATEMENT_V1_TYPE,
+  type EvidenceStatement as KernelEvidenceStatement,
+  type EvidenceBundlePayload,
+} from "@intentsolutions/core/validators/v1/evidence-statement";
 
-/** SPEC.md § 4 R1 — in-toto Statement v1 _type. */
-export const STATEMENT_TYPE = "https://in-toto.io/Statement/v1" as const;
+export {
+  GateResultV1Schema,
+  GateDecisionSchema,
+  AdvisorySeveritySchema,
+  ReplayFidelityLevelSchema,
+  SubjectSideSchema,
+  GATE_RESULT_V1_URI,
+  type GateResultV1,
+} from "@intentsolutions/core/validators/v1/gate-result-v1";
 
-/** SPEC.md § 5 R6 — closed enum. */
-export const GateResultEnum = z.enum(["PASS", "FAIL", "ADVISORY", "NOT_APPLICABLE"]);
-export type GateResult = z.infer<typeof GateResultEnum>;
+// Re-export the kernel's subject primitive — SubjectSchema is a backward-compat
+// alias so existing consumers keep working (P2 fix: remove local re-declaration).
+export { InTotoSubjectSchema } from "@intentsolutions/core/validators/v1/evidence-bundle";
 
-export const AdvisorySeverityEnum = z.enum(["info", "warn", "error"]);
-export type AdvisorySeverity = z.infer<typeof AdvisorySeverityEnum>;
+import {
+  EvidenceStatementSchema as KernelEvidenceStatementSchemaInternal,
+  EvidenceBundlePayloadSchema,
+  IN_TOTO_STATEMENT_V1_TYPE,
+} from "@intentsolutions/core/validators/v1/evidence-statement";
+import {
+  GateResultV1Schema,
+  GateDecisionSchema,
+  AdvisorySeveritySchema,
+  GATE_RESULT_V1_URI,
+} from "@intentsolutions/core/validators/v1/gate-result-v1";
+import { InTotoSubjectSchema } from "@intentsolutions/core/validators/v1/evidence-bundle";
 
-/** SPEC.md § 6 R8 — pipeline-hop side enum. */
+// ── Constants (values unchanged — backward-compatible aliases) ─────────────
+
+/** Canonical predicate URI — unchanged from v1 (SPEC.md § R4). */
+export const PREDICATE_URI = GATE_RESULT_V1_URI;
+
+/** in-toto Statement v1 `_type` URI — unchanged from v1. */
+export const STATEMENT_TYPE = IN_TOTO_STATEMENT_V1_TYPE;
+
+// ── Enums (backward-compatible re-exports with v2 names) ──────────────────
+
+/**
+ * Gate decision enum — v2 uses lowercase values (`pass`, `fail`, `advisory`,
+ * `error`). v1 used uppercase `PASS`, `FAIL`, `ADVISORY`, `NOT_APPLICABLE`.
+ * `NOT_APPLICABLE` is no longer a decision value (DR-018 §279): use
+ * `coverage.dimensions_skipped` instead.
+ */
+export const GateResultEnum = GateDecisionSchema;
+export type GateResult = z.infer<typeof GateDecisionSchema>;
+
+export const AdvisorySeverityEnum = AdvisorySeveritySchema;
+export type AdvisorySeverity = z.infer<typeof AdvisorySeveritySchema>;
+
+/** SPEC.md § 6 R8 — pipeline-hop side enum (retained from v1). */
 export const PipelineSideEnum = z.enum(["client", "server", "ci", "sandbox", "local"]);
 export type PipelineSide = z.infer<typeof PipelineSideEnum>;
 
-/**
- * SPEC.md § R8 — gate_id regex.
- * `tool:side:gate-id` where tool is lowercase kebab-case, side is the closed
- * enum above, and gate-id permits mixed case (MM-1..MM-6, etc.).
- */
+// ── Regex constants (retained from v1 for direct-import consumers) ─────────
+
+/** SPEC.md § R8 — gate_id regex (tool:side:gate-id). */
 export const GATE_ID_REGEX =
   /^[a-z0-9][a-z0-9-]*:(client|server|ci|sandbox|local):[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 
@@ -47,99 +107,97 @@ export const RUNNER_REGEX =
 /** Git commit SHA: 7-40 hex chars. */
 export const COMMIT_SHA_REGEX = /^[a-f0-9]{7,40}$/;
 
-/**
- * Predicate body for the gate-result/v1 predicate. Mirrors
- * gate-result.schema.json field-for-field.
- */
-export const GateResultPredicateSchema = z
-  .object({
-    gate_id: z
-      .string()
-      .regex(GATE_ID_REGEX, "gate_id must match tool:side:gate-id (SPEC § R8)"),
-    result: GateResultEnum,
-    policy_hash: z.string().regex(SHA256_PREFIXED_REGEX, "policy_hash must be sha256:<64-hex>"),
-    input_hash: z.string().regex(SHA256_PREFIXED_REGEX, "input_hash must be sha256:<64-hex>"),
-    timestamp: z
-      .string()
-      .datetime({ message: "timestamp must be a valid RFC 3339 UTC string" }),
-    runner: z.string().regex(RUNNER_REGEX, "runner must be tool@semver"),
-    commit_sha: z.string().regex(COMMIT_SHA_REGEX, "commit_sha must be 7-40 hex chars"),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-    failure_mode: z.string().optional(),
-    advisory_severity: AdvisorySeverityEnum.optional(),
-  })
-  .strict()
-  .superRefine((data, ctx) => {
-    // SPEC § R6: ADVISORY result requires advisory_severity (mirrors JSON Schema allOf/if).
-    if (data.result === "ADVISORY" && !data.advisory_severity) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["advisory_severity"],
-        message: "advisory_severity is required when result is ADVISORY (SPEC § R6)",
-      });
-    }
-  });
-
-export type GateResultPredicate = z.infer<typeof GateResultPredicateSchema>;
-
-/** SPEC.md § 6 R8-R9 — subject naming + digest invariants. */
-export const SubjectSchema = z.object({
-  name: z.string().regex(GATE_ID_REGEX, "subject.name must match the gate_id regex (SPEC § R8)"),
-  digest: z
-    .object({
-      sha256: z
-        .string()
-        .regex(/^[a-f0-9]{64}$/, "subject.digest.sha256 must be 64 hex chars (no prefix)"),
-    })
-    .strict(),
-});
-export type Subject = z.infer<typeof SubjectSchema>;
+// ── Primary schemas (Option α: kernel is structural authority) ─────────────
 
 /**
- * Full in-toto Statement v1 carrying a gate-result/v1 predicate.
+ * Predicate body for gate-result/v1. Now delegates to the kernel
+ * `GateResultV1Schema` (the canonical normative contract per DR-018).
  *
- * Cross-field invariants (SPEC § R9):
- *   - subject[0].name === predicate.gate_id
- *   - 'sha256:' + subject[0].digest.sha256 === predicate.input_hash
+ * Retained as `GateResultPredicateSchema` for backward-compatible import paths.
  */
-export const EvidenceStatementSchema = z
-  .object({
-    _type: z.literal(STATEMENT_TYPE),
-    subject: z.array(SubjectSchema).min(1),
-    predicateType: z.literal(PREDICATE_URI),
-    predicate: GateResultPredicateSchema,
-  })
-  .strict()
-  .superRefine((stmt, ctx) => {
-    const subjectName = stmt.subject[0]?.name;
-    const subjectDigest = stmt.subject[0]?.digest.sha256;
-    if (subjectName !== stmt.predicate.gate_id) {
+export const GateResultPredicateSchema = GateResultV1Schema;
+export type GateResultPredicate = z.infer<typeof GateResultV1Schema>;
+
+/**
+ * EvidenceStatement — kernel's canonical in-toto Statement v1 schema with the
+ * Blueprint B § 7.3 cross-field invariants (I1 + I2) PLUS j-rig's secondary
+ * behavioral cross-field check (Option α one-cycle retention per DR-018 § 6.3).
+ *
+ * The secondary check is a `.superRefine` layered on top of the kernel schema.
+ * It MUST agree with the kernel invariants on every input; the kernel-shadow
+ * test (`evidence-bundle.kernel-shadow.test.ts`) proves this equivalence.
+ * Remove in v3.0.0 per DR-018 one-cycle retention rule.
+ *
+ * TODO(v3.0.0): remove backward-compat alias layer per DR-018 Option α one-cycle
+ */
+export const EvidenceStatementSchema = KernelEvidenceStatementSchemaInternal.superRefine(
+  (stmt, ctx) => {
+    // Secondary behavioral cross-field invariant check (j-rig Option α retention).
+    // These mirror the kernel's I1 + I2 invariants exactly. Any disagreement
+    // between this check and the kernel is a bug in this check.
+    const subject0 = stmt.subject[0];
+    /* v8 ignore next -- .min(1) guarantees subject[0]; guard is for noUncheckedIndexedAccess */
+    if (subject0 === undefined) return;
+
+    // I1 — subject[0].name MUST equal predicate.gate_id
+    if (subject0.name !== stmt.predicate.gate_id) {
       ctx.addIssue({
         code: "custom",
         path: ["subject", 0, "name"],
-        message: `subject[0].name (${subjectName}) must equal predicate.gate_id (${stmt.predicate.gate_id}) per SPEC § R8`,
+        message:
+          "j-rig secondary check I1: subject[0].name must equal predicate.gate_id",
       });
     }
-    if (subjectDigest && `sha256:${subjectDigest}` !== stmt.predicate.input_hash) {
+
+    // I2 — subject[0].digest.sha256 MUST equal predicate.input_hash without sha256: prefix
+    const SHA256_PREFIX_LEN = "sha256:".length;
+    if (subject0.digest.sha256 !== stmt.predicate.input_hash.slice(SHA256_PREFIX_LEN)) {
       ctx.addIssue({
         code: "custom",
         path: ["subject", 0, "digest", "sha256"],
-        message: `subject[0].digest.sha256 must equal predicate.input_hash without the sha256: prefix (SPEC § R9)`,
+        message:
+          "j-rig secondary check I2: subject[0].digest.sha256 must equal predicate.input_hash without sha256: prefix",
       });
     }
-  });
+  },
+);
 
 export type EvidenceStatement = z.infer<typeof EvidenceStatementSchema>;
 
 /**
- * SPEC.md § R1 — bundle is a collection of zero-or-more Statements.
- * The "json-array" container form documented in the SPEC is what we model
- * here; JSONL and one-file-per-row forms compose the same row schema.
+ * Subject shape — backward-compatible alias for the kernel's `InTotoSubjectSchema`.
+ * The kernel's SubjectNameSchema uses the same gate_id regex and Sha256Schema
+ * enforces the same 64-hex-char constraint, so this alias is structurally
+ * equivalent to the previous hand-rolled local declaration (P2 fix: no more
+ * local re-declaration of kernel primitives).
+ *
+ * GATE_ID_REGEX and the subject-digest regex `/^[a-f0-9]{64}$/` are now derived
+ * from the kernel primitive rather than hand-rolled copies.
  */
-export const EvidenceBundleSchema = z
+// TODO(v3.0.0): remove backward-compat alias layer per DR-018 Option α one-cycle
+export const SubjectSchema = InTotoSubjectSchema;
+export type Subject = z.infer<typeof InTotoSubjectSchema>;
+
+/**
+ * EvidenceBundleSchema — backward-compatible alias for the kernel's
+ * `EvidenceBundlePayloadSchema` (an array of EvidenceStatement rows).
+ *
+ * NOTE: the v1 container form `{ bundle_format: "json-array", rows: [...] }`
+ * is available as `LegacyBundleContainerSchema` for reader backward-compat.
+ * The primary wire format in v2 is a plain JSON array (EvidenceBundlePayload).
+ */
+export const EvidenceBundleSchema = EvidenceBundlePayloadSchema;
+export type EvidenceBundle = z.infer<typeof EvidenceBundlePayloadSchema>;
+
+/**
+ * Legacy v1 bundle container form `{ bundle_format: "json-array", rows: [...] }`.
+ * Preserved for backward-compatible read paths (reader.ts can still parse old
+ * files written by v1). NOT recommended for new emit paths — use plain array.
+ */
+export const LegacyBundleContainerSchema = z
   .object({
     bundle_format: z.literal("json-array"),
     rows: z.array(EvidenceStatementSchema),
   })
   .strict();
-export type EvidenceBundle = z.infer<typeof EvidenceBundleSchema>;
+export type LegacyBundleContainer = z.infer<typeof LegacyBundleContainerSchema>;
