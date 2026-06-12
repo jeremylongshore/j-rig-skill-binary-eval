@@ -53,11 +53,13 @@ jobs:
             exit 1
           fi
 
-      - name: Full check chain
-        run: pnpm run check
-
+      # Build FIRST: workspace typecheck resolves @j-rig/core types from its
+      # built dist/ — a fresh clone has none until pnpm run build runs.
       - name: Build
         run: pnpm run build
+
+      - name: Full check chain
+        run: pnpm run check
 
       - name: Verify the artifact is self-contained
         # The published bundle must not import the PRIVATE @j-rig/core package.
