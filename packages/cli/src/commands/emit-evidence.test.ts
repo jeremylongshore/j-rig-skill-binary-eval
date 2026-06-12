@@ -21,8 +21,11 @@ const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
 
 const CLI_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../dist/index.js");
 
-function runCli(args: string[]): { stdout: string; stderr: string; code: number } {
-  const r = spawnSync("node", [CLI_PATH, ...args], { encoding: "utf-8" });
+function runCli(
+  args: string[],
+  opts?: { cwd?: string },
+): { stdout: string; stderr: string; code: number } {
+  const r = spawnSync("node", [CLI_PATH, ...args], { encoding: "utf-8", cwd: opts?.cwd });
   return { stdout: r.stdout ?? "", stderr: r.stderr ?? "", code: r.status ?? -1 };
 }
 
@@ -354,6 +357,36 @@ describe("emit-evidence CLI integration (no cosign)", () => {
       ]);
       expect(r.code).toBe(1);
       expect(r.stderr).toMatch(/mutually exclusive/);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns on stderr when commit_sha falls back to the '0000000' sentinel outside a git repo [f-jrig-core-6]", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+    try {
+      // No --commit-sha and cwd is NOT a git repository → safeGitHead falls
+      // back to the sentinel; it must do so LOUDLY, not silently.
+      const r = runCli(
+        [
+          "emit-evidence",
+          "--gate-id",
+          "j-rig:server:MM-1",
+          "--result",
+          "PASS",
+          "--input-hash",
+          `sha256:${SHA}`,
+          "--policy-hash",
+          `sha256:${SHA}`,
+          "--runner-version",
+          "j-rig@0.15.0",
+        ],
+        { cwd: tmpDir },
+      );
+      expect(r.code).toBe(0);
+      expect(r.stderr).toMatch(/sentinel commit_sha '0000000'/);
+      const stmt = JSON.parse(r.stdout);
+      expect(stmt.predicate.commit_sha).toBe("0000000");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

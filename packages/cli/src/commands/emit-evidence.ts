@@ -439,6 +439,13 @@ function safeGitHead(): string {
       .toString()
       .trim();
   } catch {
+    // The sentinel satisfies COMMIT_SHA_REGEX but is semantically NOT a real
+    // commit — never embed it silently. Warn so CI logs surface the gap and
+    // operators pass --commit-sha explicitly.
+    process.stderr.write(
+      "j-rig emit-evidence: warning: could not resolve git HEAD (not a git repository?); " +
+        "embedding sentinel commit_sha '0000000' — pass --commit-sha to record the real commit\n",
+    );
     return "0000000";
   }
 }
