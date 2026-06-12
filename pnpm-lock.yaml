@@ -94,6 +94,19 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  packages/rollout-gate:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@j-rig/core':
+        specifier: workspace:*
+        version: link:../core
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+
 packages:
 
   '@ampproject/remapping@2.3.0':

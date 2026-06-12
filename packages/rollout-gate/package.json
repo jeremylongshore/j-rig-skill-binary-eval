@@ -1,0 +1,41 @@
+{
+  "name": "@intentsolutions/rollout-gate",
+  "version": "2.0.0",
+  "private": false,
+  "description": "Thin rollout decision-logic library: consume a gate-result/v1 Evidence Bundle + a rollout policy, decide allow/block (fail closed)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeremylongshore/j-rig-skill-binary-eval.git",
+    "directory": "packages/rollout-gate"
+  },
+  "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@j-rig/core": "workspace:*"
+  }
+}
