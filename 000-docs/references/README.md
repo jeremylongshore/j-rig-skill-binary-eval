@@ -14,7 +14,7 @@ Reference standards, evaluation patterns, agent definitions, and enterprise stan
 
 | File                     | Tier  | Description                                                              |
 | ------------------------ | ----- | ------------------------------------------------------------------------ |
-| `agentskills-io-spec.md` | **0** | Official AgentSkills.io spec with all hard limits (extracted 2026-03-24) |
+| `agentskills-io-spec.md` | **0** | Tombstone — upstream spec now lives in the kernel SSoT (`@intentsolutions/core` `schemas/authoring/v1/upstream-base/`) |
 | `source-of-truth.md`     | 1     | Canonical skill standards from skill-creator                             |
 | `frontmatter-spec.md`    | 1     | Complete SKILL.md field specification                                    |
 | `validation-rules.md`    | 1     | Two-tier validation (Standard + Enterprise)                              |
