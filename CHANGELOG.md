@@ -5,6 +5,65 @@ All notable changes to `j-rig-binary-eval` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.0 - <unreleased>
+
+### BREAKING - kernel migration: gate-result/v1 predicate body (iaj-E02, DR-018)
+
+Full predicate-body migration from j-rig's v0.1.0-draft shape to the kernel
+`@intentsolutions/core` `gate-result/v1` normative shape (DR-018 Option α).
+All 5 workspace packages bump to `2.0.0` in one coherent PR.
+
+**Predicate body breaking changes:**
+- `result` (PASS/FAIL/ADVISORY/NOT_APPLICABLE) renamed to `gate_decision`
+  (pass/fail/advisory/error). Values are now lowercase.
+- `timestamp` renamed to `evaluated_at`. Timezone offset is now required.
+- `NOT_APPLICABLE` is no longer a `gate_decision` value. Route it via
+  `coverage.dimensions_skipped` instead (DR-018 §279).
+- NEW required predicate fields: `gate_name`, `gate_version`, `gate_reasons`,
+  `coverage` (`dimensions_evaluated` + `dimensions_skipped`), `policy_ref`.
+
+**TypeScript API (`ComposeStatementInput`):**
+- `result` → `gateDecision` (type: `"pass" | "fail" | "advisory" | "error"`)
+- `timestamp` → `evaluatedAt`
+- NEW required: `gateName`, `gateVersion`, `gateReasons`, `coverage`, `policyRef`
+
+**CLI (`j-rig emit-evidence`):**
+- `--result` → `--gate-decision` (lowercase values; `NOT_APPLICABLE` still
+  accepted for backward compat, routes to `coverage.dimensions_skipped`)
+- NEW required flags (direct mode): `--gate-name`, `--gate-version`, `--policy-ref`
+- NEW optional flags: `--gate-reason` (repeatable), `--coverage-evaluated`
+  (repeatable), `--coverage-skipped` (repeatable)
+
+**Wire format (`writeBundle(..., { format: "array" })`):**
+- v2 emits a plain JSON array (`EvidenceBundlePayload`) instead of the v1
+  `{ bundle_format: "json-array", rows: [...] }` container. The reader still
+  understands the v1 container form for backward-compatible reading.
+
+**Schema authority (Option α — one-cycle retention):**
+- `EvidenceStatementSchema` is now the kernel's schema with j-rig's behavioral
+  cross-field invariant checks (`superRefine`) layered on top as secondary
+  belt-and-suspenders enforcement. Remove in v3.0.0.
+- `EvidenceBundleSchema` is now an alias for kernel's `EvidenceBundlePayloadSchema`
+  (plain array). Legacy container form available as `LegacyBundleContainerSchema`.
+
+**Unchanged (immutable per ISEDC CISO binding):**
+- Predicate URI: `https://evals.intentsolutions.io/gate-result/v1`
+- Statement type: `https://in-toto.io/Statement/v1`
+- `policy_hash`, `input_hash`, `runner`, `commit_sha` semantics
+
+See `MIGRATION.md` for the full field-mapping table and downstream consumer
+upgrade instructions.
+
+### Added
+- Kernel dep: `@intentsolutions/core` bumped `0.3.1` → `0.5.0` in root devDeps
+  and added as a direct dep in `packages/core`.
+- `MIGRATION.md` at repo root: v1→v2 field-mapping table, CLI surface diff,
+  downstream consumer upgrade instructions.
+- `LegacyBundleContainerSchema` + `LegacyBundleContainer` type: backward-compat
+  read path for v1 `{ bundle_format: "json-array", rows: [...] }` bundles.
+- `CoverageInput` interface in writer: typed camelCase input for coverage fields.
+- Reader now supports v2 plain JSON array form directly (array at top level).
+
 ## [Unreleased]
 
 ### Added — kernel migration safe slice (`iaj-E02`, IEP P1)

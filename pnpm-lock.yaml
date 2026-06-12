@@ -12,8 +12,8 @@ importers:
         specifier: ^9.25.0
         version: 9.39.4
       '@intentsolutions/core':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.5.0
+        version: 0.5.0
       '@vitest/coverage-v8':
         specifier: ^2.1.8
         version: 2.1.9(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.9.1)(tsx@4.21.0)(yaml@2.9.0))
@@ -56,6 +56,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@intentsolutions/core':
+        specifier: 0.5.0
+        version: 0.5.0
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
@@ -626,8 +629,8 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@intentsolutions/core@0.3.1':
-    resolution: {integrity: sha512-g15YvJDUXgmK3BkW4ztw/6MuI/tsxk3RL+vBegHBT6SZBz+MwIffl2orWdHpFpxtOh6nkSQO1dt7o9OCQWoh0Q==}
+  '@intentsolutions/core@0.5.0':
+    resolution: {integrity: sha512-M5VQGiK6M8g63raQOQyLMCo/Y+8EZF50KVe2VvZIaayia9X+VWXaXh54nDGXIW/xbQIPF74ot3kcTZ0eye1pnQ==}
     engines: {node: '>=20.0.0', pnpm: '>=9.0.0'}
 
   '@isaacs/cliui@8.0.2':
@@ -2517,7 +2520,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@intentsolutions/core@0.3.1':
+  '@intentsolutions/core@0.5.0':
     dependencies:
       zod: 4.4.3
 

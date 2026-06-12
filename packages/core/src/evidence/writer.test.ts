@@ -12,12 +12,18 @@ import {
 
 const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
 
+/** v2 base input — all required fields per kernel gate-result/v1 shape. */
 const baseInput = {
   gateId: "j-rig:server:MM-1",
-  result: "PASS" as const,
+  gateDecision: "pass" as const,
+  gateName: "mm-1-async-race",
+  gateVersion: "2.0.0",
+  gateReasons: ["all criteria met"],
+  coverage: { dimensionsEvaluated: ["async-race"], dimensionsSkipped: [] },
+  policyRef: `sha256:${SHA}:vitest.config.ts`,
   policyHash: `sha256:${SHA}`,
   inputHash: `sha256:${SHA}`,
-  runner: "j-rig@0.15.0",
+  runner: "j-rig@2.0.0",
   commitSha: "abc1234",
 };
 
@@ -32,15 +38,60 @@ describe("composeStatement", () => {
     expect(stmt.predicate.input_hash).toBe(baseInput.inputHash);
   });
 
-  it("sets timestamp when omitted", () => {
+  it("sets evaluated_at when omitted (RFC 3339 with timezone offset)", () => {
     const stmt = composeStatement(baseInput);
-    expect(stmt.predicate.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    // RFC 3339 with offset: YYYY-MM-DDTHH:MM:SS+00:00 or ...Z
+    expect(stmt.predicate.evaluated_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
+    );
   });
 
-  it("preserves explicit timestamp", () => {
+  it("preserves sub-second precision in evaluated_at (P1 lossless fix)", () => {
+    // new Date().toISOString() includes milliseconds (.NNNz).
+    // The writer must NOT strip them — Rfc3339Schema accepts the Z suffix
+    // with fractional seconds, so no conversion is needed or correct.
+    const stmt = composeStatement(baseInput);
+    // Matches YYYY-MM-DDTHH:MM:SS.mmmZ — three-digit ms + Z suffix preserved
+    expect(stmt.predicate.evaluated_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/,
+    );
+  });
+
+  it("preserves explicit evaluatedAt", () => {
     const ts = "2026-05-12T03:24:04Z";
-    const stmt = composeStatement({ ...baseInput, timestamp: ts });
-    expect(stmt.predicate.timestamp).toBe(ts);
+    const stmt = composeStatement({ ...baseInput, evaluatedAt: ts });
+    expect(stmt.predicate.evaluated_at).toBe(ts);
+  });
+
+  it("sets gate_name on predicate", () => {
+    const stmt = composeStatement(baseInput);
+    expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
+  });
+
+  it("sets gate_version on predicate", () => {
+    const stmt = composeStatement(baseInput);
+    expect(stmt.predicate.gate_version).toBe("2.0.0");
+  });
+
+  it("sets gate_reasons on predicate", () => {
+    const stmt = composeStatement(baseInput);
+    expect(stmt.predicate.gate_reasons).toEqual(["all criteria met"]);
+  });
+
+  it("sets coverage on predicate", () => {
+    const stmt = composeStatement({
+      ...baseInput,
+      coverage: { dimensionsEvaluated: ["lines", "branches"], dimensionsSkipped: ["functions"] },
+    });
+    expect(stmt.predicate.coverage).toEqual({
+      dimensions_evaluated: ["lines", "branches"],
+      dimensions_skipped: ["functions"],
+    });
+  });
+
+  it("sets policy_ref on predicate", () => {
+    const stmt = composeStatement(baseInput);
+    expect(stmt.predicate.policy_ref).toBe(`sha256:${SHA}:vitest.config.ts`);
   });
 
   it("propagates metadata", () => {
@@ -48,25 +99,25 @@ describe("composeStatement", () => {
     expect(stmt.predicate.metadata).toEqual({ foo: "bar", n: 42 });
   });
 
-  it("includes failure_mode when result=FAIL", () => {
+  it("includes failure_mode when gateDecision=fail", () => {
     const stmt = composeStatement({
       ...baseInput,
-      result: "FAIL",
+      gateDecision: "fail",
       failureMode: "MM-4",
     });
     expect(stmt.predicate.failure_mode).toBe("MM-4");
   });
 
-  it("requires advisory_severity when result=ADVISORY", () => {
+  it("requires advisory_severity when gateDecision=advisory", () => {
     expect(() =>
-      composeStatement({ ...baseInput, result: "ADVISORY" }),
+      composeStatement({ ...baseInput, gateDecision: "advisory" }),
     ).toThrow(/advisory_severity/);
   });
 
-  it("accepts ADVISORY with severity", () => {
+  it("accepts advisory with severity", () => {
     const stmt = composeStatement({
       ...baseInput,
-      result: "ADVISORY",
+      gateDecision: "advisory",
       advisorySeverity: "warn",
     });
     expect(stmt.predicate.advisory_severity).toBe("warn");
@@ -82,6 +133,25 @@ describe("composeStatement", () => {
     expect(() =>
       composeStatement({ ...baseInput, gateId: "INVALID-Gate-Id" }),
     ).toThrow();
+  });
+
+  it("accepts error gate_decision", () => {
+    const stmt = composeStatement({ ...baseInput, gateDecision: "error" });
+    expect(stmt.predicate.gate_decision).toBe("error");
+  });
+
+  it("dimensions_skipped list is passed through to coverage", () => {
+    const stmt = composeStatement({
+      ...baseInput,
+      coverage: {
+        dimensionsEvaluated: [],
+        dimensionsSkipped: ["not-applicable"],
+      },
+      // Use pass decision — not-applicable is expressed via skipped, not decision
+      gateDecision: "pass",
+    });
+    expect(stmt.predicate.coverage.dimensions_skipped).toContain("not-applicable");
+    expect(stmt.predicate.gate_decision).toBe("pass");
   });
 });
 
@@ -106,20 +176,23 @@ describe("writeBundle", () => {
   const rows = [
     composeStatement({ ...baseInput, gateId: "j-rig:server:MM-1" }),
     composeStatement({ ...baseInput, gateId: "j-rig:server:MM-2" }),
+    // NOT_APPLICABLE expressed as pass + dimensionsSkipped per DR-018 §279
     composeStatement({
       ...baseInput,
       gateId: "j-rig:server:MM-3",
-      result: "NOT_APPLICABLE",
+      gateDecision: "pass",
+      coverage: { dimensionsEvaluated: [], dimensionsSkipped: ["not-applicable"] },
     }),
   ];
 
-  it("writes JSON array container form", () => {
+  it("writes v2 plain JSON array form", () => {
     const out = join(tmpDir, "bundle.json");
     writeBundle(rows, { format: "array", outputPath: out });
     const parsed = JSON.parse(readFileSync(out, "utf-8"));
-    expect(parsed.bundle_format).toBe("json-array");
-    expect(parsed.rows).toHaveLength(3);
-    expect(parsed.rows[2].predicate.result).toBe("NOT_APPLICABLE");
+    // v2 array format: plain array, not { bundle_format: "json-array", rows: [...] }
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(3);
+    expect(parsed[2].predicate.coverage.dimensions_skipped).toContain("not-applicable");
   });
 
   it("writes JSONL form", () => {

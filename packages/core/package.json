@@ -1,6 +1,6 @@
 {
   "name": "@j-rig/core",
-  "version": "0.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -20,6 +20,7 @@
     "dist"
   ],
   "dependencies": {
+    "@intentsolutions/core": "0.5.0",
     "gray-matter": "^4.0.3",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
