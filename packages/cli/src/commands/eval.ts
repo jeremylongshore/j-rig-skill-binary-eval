@@ -95,7 +95,12 @@ export function registerEvalCommand(program: Command): void {
         const models = opts.models.split(",").map((m) => m.trim());
         const database = openDb(opts.db);
         const skillName = skill.frontmatter.name;
-        const skillVersion = skill.frontmatter.version ?? "0.0.0";
+        // Kernel cutover [9k5h.15]: the standard tier is open-world on optional
+        // fields, so `version` is `unknown` — narrow before use.
+        const skillVersion =
+          typeof skill.frontmatter.version === "string"
+            ? skill.frontmatter.version
+            : "0.0.0";
 
         if (!opts.json) {
           console.log(header(`j-rig eval: ${skillName}`));

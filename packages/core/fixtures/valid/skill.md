@@ -5,6 +5,7 @@ author: Jeremy Longshore <jeremy@jeremylongshore.com>
 version: 1.0.0
 license: MIT
 allowed-tools: Bash(git:diff --staged)
+compatibility: Designed for Claude Code 2.x
 tags:
   - git
   - developer-tools
