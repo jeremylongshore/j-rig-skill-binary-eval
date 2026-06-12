@@ -105,6 +105,21 @@ describe("runCisoGateG2", () => {
     expect(result.reason).toMatch(/timeout/i);
   }, 5000);
 
+  it("returns promptly and restores child_process when invokeProvider NEVER settles [f-jrig-core-2]", async () => {
+    // Before the fix, the flag-based timeout never interrupted the await on a
+    // never-settling provider: this test hung past its own timeout and the
+    // child_process hooks stayed installed forever (afterEach asserts the
+    // originals are restored).
+    const result = await runCisoGateG2({
+      testKey: TEST_KEY,
+      timeoutMs: 50,
+      invokeProvider: () => new Promise<void>(() => {}),
+    });
+    expect(result.pass).toBe(false);
+    expect(result.reason).toMatch(/timeout/i);
+    expect(child_process.spawn).toBe(origSpawn);
+  }, 5000);
+
   it("invokeProvider throwing does NOT itself fail the gate", async () => {
     const result = await runCisoGateG2({
       testKey: TEST_KEY,

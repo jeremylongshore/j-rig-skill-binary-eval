@@ -62,6 +62,36 @@ describe("deterministic check registry", () => {
     expect(result.severity).toBe("error");
   });
 
+  it("contains check fails CLOSED when params.value is missing [f-jrig-core-1]", () => {
+    const result = runCheck("contains", "any output at all");
+    expect(result.severity).toBe("error");
+    expect(result.message).toContain("requires params.value");
+  });
+
+  it("not_contains check fails CLOSED when params.value is missing [f-jrig-core-1]", () => {
+    const result = runCheck("not_contains", "any output at all");
+    expect(result.severity).toBe("error");
+    expect(result.message).toContain("requires params.value");
+  });
+
+  it("regex_match check fails CLOSED when params.pattern is missing [f-jrig-core-1]", () => {
+    const result = runCheck("regex_match", "any output at all");
+    expect(result.severity).toBe("error");
+    expect(result.message).toContain("requires params.pattern");
+  });
+
+  it("min_length check fails CLOSED when params.min is missing [f-jrig-core-1]", () => {
+    const result = runCheck("min_length", "any output at all");
+    expect(result.severity).toBe("error");
+    expect(result.message).toContain("requires params.min");
+  });
+
+  it("max_length check fails CLOSED when params.max is missing [f-jrig-core-1]", () => {
+    const result = runCheck("max_length", "any output at all");
+    expect(result.severity).toBe("error");
+    expect(result.message).toContain("requires params.max");
+  });
+
   it("returns error for unknown check name", () => {
     const result = runCheck("nonexistent_check", "test");
     expect(result.severity).toBe("error");

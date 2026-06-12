@@ -150,6 +150,9 @@ export const EvidenceStatementSchema = KernelEvidenceStatementSchemaInternal.sup
     }
 
     // I2 — subject[0].digest.sha256 MUST equal predicate.input_hash without sha256: prefix
+    // No truthiness pre-check: the schema guarantees a 64-hex digest when
+    // parsing succeeds; if the digest were ever absent the invariant must
+    // FAIL rather than be silently skipped (fail-open) [f-jrig-core-5].
     const SHA256_PREFIX_LEN = "sha256:".length;
     if (subject0.digest.sha256 !== stmt.predicate.input_hash.slice(SHA256_PREFIX_LEN)) {
       ctx.addIssue({

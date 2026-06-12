@@ -151,4 +151,21 @@ describe("runCisoGateG1", () => {
     expect(result.pass).toBe(false);
     expect(result.reason).toMatch(/timeout/i);
   }, 5000);
+
+  it("returns promptly and restores stdout/stderr when invokeProvider NEVER settles [f-jrig-core-2]", async () => {
+    const origStdoutWrite = process.stdout.write;
+    const origStderrWrite = process.stderr.write;
+    // Before the fix, the flag-based timeout never interrupted the await on a
+    // never-settling provider: this test hung past its own timeout and the
+    // stdout/stderr interceptors stayed installed forever.
+    const result = await runCisoGateG1({
+      testKey: TEST_KEY,
+      timeoutMs: 50,
+      invokeProvider: () => new Promise<void>(() => {}),
+    });
+    expect(result.pass).toBe(false);
+    expect(result.reason).toMatch(/timeout/i);
+    expect(process.stdout.write).toBe(origStdoutWrite);
+    expect(process.stderr.write).toBe(origStderrWrite);
+  }, 5000);
 });

@@ -168,14 +168,22 @@ export async function runCisoGateG2(args: G2Args): Promise<G2Result> {
   } as typeof child_process.fork;
 
   const timeoutMs = args.timeoutMs ?? 30_000;
-  let timedOut = false;
-  const timeoutHandle = setTimeout(() => {
-    timedOut = true;
-  }, timeoutMs);
+  // Race the invocation against the timeout so a NEVER-settling adapter
+  // cannot block the gate forever (which would also leave the child_process
+  // hooks installed permanently). The timeout branch RESOLVES with a
+  // sentinel instead of rejecting to avoid unhandled-rejection noise; a late
+  // settlement of the losing invocation promise is absorbed by the race.
+  const TIMED_OUT = Symbol("g2-timeout");
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<typeof TIMED_OUT>((resolveTimeout) => {
+    timeoutHandle = setTimeout(() => resolveTimeout(TIMED_OUT), timeoutMs);
+  });
 
+  let timedOut = false;
   let invocationError: Error | null = null;
   try {
-    await args.invokeProvider();
+    const raced = await Promise.race([args.invokeProvider(), timeoutPromise]);
+    if (raced === TIMED_OUT) timedOut = true;
   } catch (err) {
     invocationError = err instanceof Error ? err : new Error(String(err));
   } finally {
