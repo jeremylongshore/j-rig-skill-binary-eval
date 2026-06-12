@@ -205,9 +205,9 @@ describe("calibration", () => {
     expect(result.mismatches).toHaveLength(1);
   });
 
-  it("handles empty golden cases", async () => {
+  it("fails CLOSED on empty golden cases (accuracy 0, not a vacuous 100%) [f-jrig-core-4]", async () => {
     const result = await runCalibration([], mockJudge({}));
-    expect(result.accuracy).toBe(1);
+    expect(result.accuracy).toBe(0);
     expect(result.total).toBe(0);
   });
 });
