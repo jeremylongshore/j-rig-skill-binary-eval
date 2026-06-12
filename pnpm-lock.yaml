@@ -96,13 +96,13 @@ importers:
 
   packages/rollout-gate:
     dependencies:
-      '@j-rig/core':
-        specifier: workspace:*
-        version: link:../core
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@j-rig/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
