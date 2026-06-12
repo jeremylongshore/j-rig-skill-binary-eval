@@ -5,7 +5,20 @@ All notable changes to `j-rig-binary-eval` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-## 2.0.0 - <unreleased>
+## 2.0.0 - 2026-06-12
+
+### Fixed — 2026-06-11 umbrella review (#104, merged into 2.0.0)
+
+- **P0**: judgment engine now forwards criterion params through `runCheck`;
+  built-in parameterized checks (`contains`, `regex_match`, `min_length`,
+  `max_length`) fail closed on missing params instead of passing vacuously.
+- CISO gates G-1/G-2 race the provider invocation against `timeoutMs` —
+  hung adapters no longer block forever.
+- `emit-evidence --sign` defaults to the predicate body (cosign wraps it);
+  `--full-statement` opts into the nested pre-formed Statement.
+- Coverage-floor parsing anchored to the vitest `thresholds` block.
+- Empty calibration golden sets fail closed; R9 digest invariant no longer
+  fail-open; `commit_sha` sentinel fallback warns loudly.
 
 ### BREAKING - kernel migration: gate-result/v1 predicate body (iaj-E02, DR-018)
 
