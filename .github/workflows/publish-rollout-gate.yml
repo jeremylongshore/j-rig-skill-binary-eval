@@ -1,0 +1,78 @@
+name: Publish rollout-gate
+
+# Publishes @intentsolutions/rollout-gate to npm with sigstore provenance on
+# tag push `rollout-gate-v*.*.*` (e.g. rollout-gate-v2.0.0).
+#
+# Separate tag namespace from the repo-level `v*.*.*` releases because the
+# monorepo's other packages are private — this is the ONLY published package.
+# Flow: bump packages/rollout-gate/package.json#version via PR, merge, then
+# tag from main HEAD. The job re-runs the full check chain, verifies the tag
+# matches the package version, builds, and publishes with --provenance.
+
+on:
+  push:
+    tags:
+      - "rollout-gate-v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write # sigstore provenance
+
+concurrency:
+  group: publish-rollout-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm (provenance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/rollout-gate-v}"
+          pkg_version=$(node -p "require('./packages/rollout-gate/package.json').version")
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag rollout-gate-v$tag_version does not match package version $pkg_version" >&2
+            exit 1
+          fi
+
+      - name: Full check chain
+        run: pnpm run check
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Verify the artifact is self-contained
+        # The published bundle must not import the PRIVATE @j-rig/core package.
+        run: |
+          if grep -q 'from "@j-rig/core"' packages/rollout-gate/dist/index.js; then
+            echo "dist/index.js still imports @j-rig/core — bundling regressed" >&2
+            exit 1
+          fi
+          if grep -q 'from .@j-rig/core.' packages/rollout-gate/dist/index.d.ts; then
+            echo "dist/index.d.ts still imports @j-rig/core types — dts resolve regressed" >&2
+            exit 1
+          fi
+
+      - name: Publish with provenance
+        working-directory: packages/rollout-gate
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --provenance --no-git-checks

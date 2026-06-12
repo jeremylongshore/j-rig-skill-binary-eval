@@ -32,10 +32,10 @@
   },
   "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
   "dependencies": {
-    "@j-rig/core": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1"
+    "@types/node": "^25.9.1",
+    "@j-rig/core": "workspace:*"
   }
 }
