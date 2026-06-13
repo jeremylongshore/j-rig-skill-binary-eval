@@ -180,3 +180,51 @@ jobs:
               --title "j-rig-binary-eval $tag" --generate-notes --latest
           fi
           echo "✓ report-manifest.json published to release $tag"
+
+  # ── Fire a tailnet-only ntfy alert when the tag-release fails (bead 59tx) ──
+  #
+  # Tag-triggered only — this never runs on a PR. It fires solely on a future
+  # FAILED tag-release of release/emit-evidence, joins the tailnet via Tailscale
+  # OIDC, and POSTs a high-priority ntfy alert to the tailnet-only prod-deploys
+  # topic so an operator is paged the moment a release CI run goes red.
+  alert-on-failure:
+    name: alert-on-failure
+    needs: [release, emit-evidence]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Tailscale OIDC
+
+    steps:
+      - name: Join tailnet via Tailscale OIDC
+        uses: tailscale/github-action@v4.1.2
+        with:
+          oauth-client-id: ${{ secrets.TS_OIDC_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+
+      - name: Wait for tailnet
+        run: |
+          for i in $(seq 1 20); do
+            if sudo tailscale ping --c 1 --timeout 2s 100.88.144.55; then
+              echo "✓ tailnet reachable"
+              exit 0
+            fi
+            echo "tailnet not ready yet (attempt $i/20)…"
+            sleep 2
+          done
+          echo "::error::tailnet never became reachable (100.88.144.55)"
+          exit 1
+
+      - name: Notify ntfy
+        env:
+          NTFY_AUTH_TOKEN: ${{ secrets.NTFY_AUTH_TOKEN }}
+        run: |
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -m 10 -X POST http://intentsolutions:8080/prod-deploys \
+            -H "Title: [j-rig-skill-binary-eval] Release CI FAILED" \
+            -H "Priority: high" \
+            -H "Tags: prod-deploys,rotating_light" \
+            -H "Authorization: Bearer ${NTFY_AUTH_TOKEN}" \
+            --data "Release CI failed on ref ${{ github.ref_name }} (sha ${{ github.sha }}). Run: ${run_url}"
