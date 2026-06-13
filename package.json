@@ -9,6 +9,7 @@
   },
   "packageManager": "pnpm@10.8.1",
   "scripts": {
+    "prepare": "husky",
     "build": "pnpm -r run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -22,13 +23,26 @@
     "test:coverage": "vitest run --coverage",
     "lint:md": "markdownlint-cli2",
     "emit:evidence": "node --experimental-strip-types scripts/emit-evidence.ts",
-    "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts"
+    "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts",
+    "harness:verify": "scripts/audit-harness verify",
+    "harness:init": "scripts/audit-harness init"
+  },
+  "lint-staged": {
+    "*.{ts,js,cjs,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
     "@intentsolutions/core": "0.5.0",
     "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^10.4.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "markdownlint-cli2": "^0.22.1",
     "prettier": "^3.8.3",
     "tsup": "^8.4.0",

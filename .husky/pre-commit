@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Pre-commit gate for j-rig-binary-eval.
+#
+# Mirrors the proven @intentsolutions/core enforcement wall, adapted for j-rig's
+# VENDORED audit-harness: the in-repo wrapper at scripts/audit-harness dispatches
+# to .audit-harness/scripts/ rather than the npm package, so the hook calls the
+# wrapper directly (never `pnpm exec`, never ~/.claude/ paths).
+#
+# Per IS Testing SOP: enforcement travels with the code. A fresh clone reproduces
+# this gate because the wrapper + .audit-harness/ are committed.
+
+set -e
+
+# L1: escape-scan against the staged diff (REFUSES on policy violations / a
+# HARNESS_TAMPERED hash mismatch on any pinned policy surface).
+scripts/audit-harness escape-scan --staged
+
+# L2: lint + format staged files only (eslint --fix + prettier on staged TS/JS/JSON).
+pnpm exec lint-staged
