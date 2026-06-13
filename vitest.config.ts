@@ -15,6 +15,20 @@ export default defineConfig({
         "packages/*/dist/**",
         "**/__fixtures__/**",
       ],
+      // Ratchet-from-here coverage floor. These thresholds are the measured
+      // 2026-06-12 baseline ROUNDED DOWN to the nearest whole percent, so CI is
+      // green today and the suite can only ratchet UP from here — never regress.
+      // Unlike @intentsolutions/core (100% by construction), j-rig earns its
+      // floor empirically and raises it over time. Raise these numbers when the
+      // suite improves; never lower them. autoUpdate stays false so a green run
+      // can never silently rewrite the floor downward.
+      thresholds: {
+        autoUpdate: false,
+        lines: 73,
+        statements: 73,
+        functions: 80,
+        branches: 84,
+      },
     },
   },
 });
