@@ -24,6 +24,7 @@
     "lint:md": "markdownlint-cli2",
     "emit:evidence": "node --experimental-strip-types scripts/emit-evidence.ts",
     "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts",
+    "license:audit": "node --experimental-strip-types scripts/license-audit.ts --prod",
     "harness:verify": "scripts/audit-harness verify",
     "harness:init": "scripts/audit-harness init"
   },
