@@ -1,0 +1,11 @@
+# Extra hash-pin patterns for j-rig-binary-eval.
+#
+# The default audit-harness PATTERNS pin coverage-threshold config under the
+# canonical names (.c8rc.json, stryker.conf.json) and dep-cruiser arch configs.
+# j-rig declares its coverage FLOOR inside vitest.config.ts instead, so that
+# file IS the coverage-policy surface — pinning it makes a silent threshold
+# downgrade a HARNESS_TAMPERED event (escape-scan REFUSEs the diff) rather than
+# an unnoticed edit. This mirrors how @intentsolutions/core pins its
+# coverage-policy surface; the mechanism is the supported per-repo append
+# documented in .audit-harness/scripts/harness-hash.sh.
+vitest.config.ts

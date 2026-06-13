@@ -73,10 +73,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Enforcement wall: the vendored audit-harness wrapper verifies the
+      # hash-pinned policy surface (the coverage floor in vitest.config.ts). A
+      # silent threshold downgrade trips HARNESS_TAMPERED (exit 2) and reds CI.
+      - name: Audit-harness version (smoke)
+        run: scripts/audit-harness --version
+
+      - name: Audit-harness verify (hash-pinned policy artifacts)
+        run: pnpm run harness:verify
+
       - name: Build
         run: pnpm run build
 
-      - name: Test (with coverage)
+      # test:coverage enforces the ratchet-from-here coverage floor declared in
+      # vitest.config.ts (thresholds block). Floor is the measured baseline
+      # rounded down — green today, can only ratchet up.
+      - name: Test (with coverage floor enforced)
         run: pnpm run test:coverage
 
       - name: Upload coverage to Codecov
