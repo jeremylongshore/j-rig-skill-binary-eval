@@ -53,6 +53,9 @@ importers:
       '@j-rig/db':
         specifier: workspace:*
         version: link:../db
+      '@j-rig/migrate':
+        specifier: workspace:*
+        version: link:../migrate
       chalk:
         specifier: ^5.4.0
         version: 5.6.2
@@ -99,6 +102,24 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  packages/migrate:
+    devDependencies:
+      '@j-rig/core':
+        specifier: workspace:*
+        version: link:../core
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+
+  packages/pr-comment:
+    devDependencies:
+      '@intentsolutions/rollout-gate':
+        specifier: workspace:*
+        version: link:../rollout-gate
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
 
   packages/rollout-gate:
     dependencies:

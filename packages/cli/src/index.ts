@@ -7,6 +7,8 @@ import { registerReportCommand } from "./commands/report.js";
 import { registerOptimizeCommand } from "./commands/optimize.js";
 import { registerDriftCommand } from "./commands/drift.js";
 import { registerEmitEvidenceCommand } from "./commands/emit-evidence.js";
+import { registerParseAgentsCommand } from "./commands/parse-agents.js";
+import { registerMigrateCommand } from "./commands/migrate.js";
 
 function createProgram(): Command {
   const program = new Command();
@@ -23,6 +25,8 @@ function createProgram(): Command {
   registerOptimizeCommand(program);
   registerDriftCommand(program);
   registerEmitEvidenceCommand(program);
+  registerParseAgentsCommand(program);
+  registerMigrateCommand(program);
 
   return program;
 }

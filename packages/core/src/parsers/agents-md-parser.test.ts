@@ -29,6 +29,16 @@ describe("parseAgentsMd — minimal cases", () => {
     expect(r.success).toBe(false);
   });
 
+  it("is deterministic for broken frontmatter across repeated calls", () => {
+    // Regression: gray-matter caches by input string; an input that throws on
+    // the first call must NOT report success on a second identical call.
+    const md = "---\n: : not yaml :\n---\n# x\n";
+    const first = parseAgentsMd(md);
+    const second = parseAgentsMd(md);
+    expect(first.success).toBe(false);
+    expect(second.success).toBe(false);
+  });
+
   it("preserves frontmatter when present", () => {
     const md = "---\nname: my-project\nversion: 1.0\n---\n# Title\n";
     const r = parseAgentsMd(md);
