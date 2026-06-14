@@ -1,0 +1,53 @@
+# lefthook — fast local git-hook gates for j-rig-binary-eval [mj38].
+#
+# Mirrors the cheap, staged-only subset of the CI gates (.github/workflows/ci.yml:
+# lint / typecheck / test) so obvious problems are caught locally before a push,
+# without re-running the full CI matrix. The authoritative gate remains CI; this
+# is a fast local pre-filter, intentionally non-exhaustive and NON-CI-BREAKING.
+#
+# OPT-IN — this repo already ships a husky pre-commit hook (.husky/pre-commit) as
+# the installed default (`prepare: husky` in package.json). lefthook and husky
+# both write to .git/hooks and THE LAST INSTALLER WINS, so do NOT run
+# `lefthook install` while husky is your active hook manager — pick one. This
+# file exists as a maintained, husky-equivalent alternative for contributors who
+# prefer lefthook. To switch:
+#
+#     pnpm add -D lefthook      # add the tool
+#     npx lefthook install      # lefthook now owns .git/hooks (overwrites husky)
+#
+# The pre-commit jobs below run the SAME staged gates as .husky/pre-commit, so a
+# switch is behaviour-preserving.
+#
+# Each job runs ONLY against the staged files matching its glob, so a commit that
+# touches no .ts / .js / .json files skips the irrelevant gates entirely.
+# `{staged_files}` is empty-safe: lefthook skips a job whose file list is empty
+# after glob filtering.
+
+pre-commit:
+  parallel: true
+  jobs:
+    # L1 — the canonical AI-escape gate via the VENDORED harness wrapper
+    # (scripts/audit-harness dispatches to .audit-harness/scripts/, never the npm
+    # package, never ~/.claude/ paths). REFUSES a staged diff that lowers a wall
+    # or trips a HARNESS_TAMPERED hash mismatch on a pinned policy surface.
+    - name: escape-scan
+      run: scripts/audit-harness escape-scan --staged
+
+    # L2 — lint + format staged TS/JS files only (eslint --fix + prettier,
+    # the same lint-staged config package.json already declares and the CI
+    # eslint lane enforces in full).
+    - name: eslint
+      glob: "*.{ts,js,cjs,mjs}"
+      run: pnpm exec eslint --fix {staged_files}
+
+    - name: prettier
+      glob: "*.{ts,js,cjs,mjs,json}"
+      run: pnpm exec prettier --write {staged_files}
+
+pre-push:
+  jobs:
+    # Fast full-gate pre-push: lint + typecheck + test (mirrors `pnpm run check`,
+    # the same three CI jobs). Catches what the staged pre-commit subset cannot —
+    # cross-file type breaks and test regressions — before the push reaches CI.
+    - name: check
+      run: pnpm run check
