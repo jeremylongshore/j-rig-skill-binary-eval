@@ -1,12 +1,13 @@
-// markdownlint-cli2 config for j-rig-binary-eval
+// markdownlint-cli2 config for j-rig-binary-eval.
+//
+// `config.extends` points at the shared IEP base vendored at
+// .audit-harness/configs/markdownlint.yaml (from @intentsolutions/audit-harness)
+// so the Markdown rule set lives in one place and does not silently drift across
+// the five IEP repos. Repo-specific overrides go in `config` below and win over
+// the extended base. See .audit-harness/configs/README.md for the extend snippet.
 {
   "config": {
-    "default": true,
-    "MD013": false,
-    "MD024": { "siblings_only": true },
-    "MD033": false,
-    "MD041": false,
-    "MD007": { "indent": 2 }
+    "extends": ".audit-harness/configs/markdownlint.yaml"
   },
   "globs": ["**/*.md"],
   "ignores": [
