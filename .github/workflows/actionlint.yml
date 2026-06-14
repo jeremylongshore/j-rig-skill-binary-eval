@@ -1,0 +1,32 @@
+name: Actionlint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.ref }}
+  cancel-in-progress: true
+
+# Tidy-first posture: advisory on first install. continue-on-error keeps the
+# lane non-blocking so a workflow-lint hit never reds a required check. Tighten
+# in a follow-up PR once the existing workflow corpus is clean. Mirrors
+# typos.yml / doc-quality.yml.
+jobs:
+  actionlint:
+    name: actionlint (workflow-yaml lint, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint workflow YAML with rhysd/actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          reporter: github-pr-check
+          level: warning
+          fail_on_error: false
