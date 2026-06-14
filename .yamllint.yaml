@@ -1,0 +1,21 @@
+# yamllint config for j-rig-binary-eval.
+#
+# Extends the shared IEP base vendored at .audit-harness/configs/yamllint.yaml
+# (from @intentsolutions/audit-harness) so the rule set lives in one place and
+# does not silently drift across the five IEP repos. Repo-specific overrides go
+# under `rules:` below and win over the extended base.
+#
+# See .audit-harness/configs/README.md for the per-tool extend snippets.
+extends: .audit-harness/configs/yamllint.yaml
+
+# Repo-specific overrides win over the extended base.
+ignore: |-
+  # Generated lockfile — not hand-authored YAML; its long lines are expected.
+  pnpm-lock.yaml
+  # Deliberately-malformed test fixtures (the harness asserts they FAIL to
+  # parse). Linting them would always report the syntax errors they exist to
+  # carry.
+  packages/*/fixtures/invalid/**
+  # Build output + vendored harness tree are not ours to lint.
+  **/dist/**
+  .audit-harness/**

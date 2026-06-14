@@ -1,0 +1,52 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+# Tidy-first posture: advisory on first install. continue-on-error keeps both
+# lanes non-blocking so a yamllint / markdownlint hit never reds a required
+# check (Lint / Test / Typecheck stay green-gating). Both jobs read the shared
+# IEP lint configs vendored at .audit-harness/configs/ (from
+# @intentsolutions/audit-harness) via the repo-root .yamllint.yaml /
+# .markdownlint-cli2.jsonc `extends`, so the rule set lives in one place.
+# Tighten to fail_on_error in a follow-up PR once the corpus is clean. Mirrors
+# typos.yml / actionlint.yml / doc-quality.yml.
+jobs:
+  yamllint:
+    name: yamllint (YAML lint, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint YAML with yamllint (shared IEP config)
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          config_file: .yamllint.yaml
+          strict: false
+
+  markdownlint:
+    name: markdownlint-cli2 (Markdown lint, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint Markdown with markdownlint-cli2 (shared IEP config)
+        run: pnpm exec markdownlint-cli2
