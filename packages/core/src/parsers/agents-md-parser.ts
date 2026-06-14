@@ -85,8 +85,19 @@ export interface AgentSection {
  * The parser is permissive: missing frontmatter is fine, missing sections are
  * fine, unknown sections are preserved verbatim. The only failure mode is a
  * syntactically broken frontmatter block (which gray-matter throws on).
+ *
+ * Determinism note: gray-matter keeps a process-global result cache keyed on
+ * the input string. That cache is unsafe for us — parsing a string that THROWS
+ * on the first call can return a (stale, non-throwing) cached result on a
+ * second identical call, so the same broken input would report success the
+ * second time. We clear the cache before each parse so identical input always
+ * yields an identical result. The parser stays a pure function from the
+ * caller's perspective.
  */
 export function parseAgentsMd(content: string): ParseResult<ParsedAgentsMd> {
+  // `clearCache` exists at runtime but is absent from gray-matter's published
+  // types — access it through a narrow typed view rather than `any`.
+  (matter as unknown as { clearCache?: () => void }).clearCache?.();
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(content);
@@ -144,7 +155,10 @@ function extractSections(body: string): AgentSection[] {
 
   const flush = (endLineExclusive: number): void => {
     if (current === null) return;
-    const content = lines.slice(current.startLine + 1, endLineExclusive).join("\n").trim();
+    const content = lines
+      .slice(current.startLine + 1, endLineExclusive)
+      .join("\n")
+      .trim();
     sections.push({ heading: current.heading, level: current.level, content });
   };
 
