@@ -1,0 +1,27 @@
+name: Typos
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: typos-${{ github.ref }}
+  cancel-in-progress: true
+
+# Tidy-first posture: advisory on first install. continue-on-error keeps the
+# lane non-blocking so a spelling hit never reds a required check. Tighten in a
+# follow-up PR once the existing corpus is clean. Mirrors doc-quality.yml.
+jobs:
+  typos:
+    name: typos (spell-check, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spell-check with crate-ci/typos
+        uses: crate-ci/typos@v1.29.4

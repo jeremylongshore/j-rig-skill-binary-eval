@@ -1,0 +1,68 @@
+# typos (crate-ci/typos) configuration for j-rig-binary-eval.
+#
+# Advisory lane (see .github/workflows/typos.yml). This config exists to keep
+# the spell-checker quiet on IEP domain vocabulary, acronyms, package/tool
+# names, and identifiers that are NOT typos. Prose is intentionally NOT fixed
+# in the install PR — the lane is advisory; corrections land in follow-ups.
+
+[default]
+# Don't flag terms that appear inside identifiers (camelCase / snake_case);
+# only check whole words. Reduces false positives on code symbols.
+extend-ignore-identifiers-re = []
+
+[default.extend-words]
+# --- IEP platform acronyms / repo prefixes (NOT typos) ---
+iep = "iep"
+isedc = "isedc"
+iec = "iec"
+iel = "iel"
+iah = "iah"
+iar = "iar"
+iaj = "iaj"
+
+# --- Supply-chain / signing / schema tooling ---
+sops = "sops"
+sigstore = "sigstore"
+rekor = "rekor"
+zod = "zod"
+crate = "crate"
+
+# --- Common dev abbreviations the checker over-eagerly "corrects" ---
+deps = "deps"
+structs = "structs"
+typ = "typ"           # tagged-union discriminant key seen in schemas
+ser = "ser"           # serde-style serialize abbreviation
+nin = "nin"           # mongo/json "not in" operator
+ot = "ot"             # OpenTelemetry shorthand
+
+# --- Domain metrics / business terms (NOT typos) ---
+fpr = "fpr"           # false-positive rate (trigger/metrics.ts)
+FPR = "FPR"           # false-positive rate (FNR/FPR in AARs)
+som = "som"           # serviceable obtainable market (business case)
+SOM = "SOM"           # serviceable obtainable market (business case)
+unparseable = "unparseable"  # accepted variant spelling, used throughout
+
+[files]
+extend-exclude = [
+  "node_modules/",
+  "dist/",
+  "build/",
+  "coverage/",
+  "*.lock",
+  "pnpm-lock.yaml",
+  ".beads/",
+  ".audit-harness/",
+  ".git/",
+  # Vendored / generated snapshots — not authored prose.
+  "**/_generated/**",
+  "**/__snapshots__/**",
+  "**/*.snap",
+  # Spec/reference fixtures may intentionally contain malformed strings.
+  "**/fixtures/**",
+  # CHANGELOG carries abbreviated git SHAs (dbe8c53, 7ba3005) the checker reads
+  # as misspelled words. Generated from commit history, not authored prose.
+  "CHANGELOG.md",
+  # ASCII-art workflow diagrams word-wrap tokens ("Determin-", "Referenc-")
+  # across box borders — line-break artifacts, not misspellings.
+  "000-docs/references/epic-workflows/**",
+]
