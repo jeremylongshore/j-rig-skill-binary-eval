@@ -41,14 +41,7 @@
  *   2  --output write failed
  */
 import type { Command } from "commander";
-import {
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  existsSync,
-  mkdtempSync,
-  rmSync,
-} from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync, spawnSync } from "node:child_process";
@@ -87,7 +80,7 @@ interface EmitEvidenceOptions {
   sign?: boolean;
   key?: string;
   keyless?: boolean;
-  rekorUrl?: string | boolean;  // boolean true when flag used without a value (Commander [url] form)
+  rekorUrl?: string | boolean; // boolean true when flag used without a value (Commander [url] form)
   predicateBodyOnly?: boolean;
   fullStatement?: boolean;
   cosignBin?: string;
@@ -108,66 +101,63 @@ export function registerEmitEvidenceCommand(program: Command): void {
     .description(
       "Wrap a gate-result envelope into a signed in-toto Statement v1 (https://evals.intentsolutions.io/gate-result/v1)",
     )
-    .option(
-      "--input <path>",
-      "Read gate-result JSON from <path> instead of stdin",
-    )
+    .option("--input <path>", "Read gate-result JSON from <path> instead of stdin")
     .option("--output <path>", "Write Statement to <path> instead of stdout")
     .option(
       "--runner-version <ver>",
       'Override runner identifier (default: "j-rig@<package version>")',
     )
-    .option(
-      "--commit-sha <sha>",
-      "Override commit SHA (default: git rev-parse HEAD)",
-    )
+    .option("--commit-sha <sha>", "Override commit SHA (default: git rev-parse HEAD)")
     // Direct-mode flags (v2)
     .option("--gate-id <id>", "Direct mode: gate id (e.g. 'j-rig:server:MM-1')")
     .option(
       "--gate-decision <d>",
       "Direct mode: pass|fail|advisory|error (or NOT_APPLICABLE for backward-compat; routes to coverage.dimensions_skipped)",
     )
-    .option("--gate-name <name>", "Direct mode: gate name in lowercase kebab-case (e.g. 'coverage-check')")
+    .option(
+      "--gate-name <name>",
+      "Direct mode: gate name in lowercase kebab-case (e.g. 'coverage-check')",
+    )
     .option("--gate-version <ver>", "Direct mode: gate SemVer (e.g. '2.0.0')")
     .option(
       "--gate-reason <reason>",
       "Direct mode: reason string (repeatable; at least one for non-pass decisions)",
-      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      (val: string, acc: string[]) => {
+        acc.push(val);
+        return acc;
+      },
       [] as string[],
     )
     .option(
       "--coverage-evaluated <dim>",
       "Direct mode: dimension that was evaluated (repeatable)",
-      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      (val: string, acc: string[]) => {
+        acc.push(val);
+        return acc;
+      },
       [] as string[],
     )
     .option(
       "--coverage-skipped <dim>",
       "Direct mode: dimension that was skipped / not applicable (repeatable)",
-      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      (val: string, acc: string[]) => {
+        acc.push(val);
+        return acc;
+      },
       [] as string[],
     )
     .option("--policy-ref <ref>", "Direct mode: policy reference sha256:<hex>:<path>")
     .option("--input-hash <h>", "Direct mode: sha256:<64-hex>")
     .option("--policy-hash <h>", "Direct mode: sha256:<64-hex>")
     .option("--failure-mode <m>", "Direct mode: failure_mode (when gate-decision=fail)")
-    .option(
-      "--advisory-severity <s>",
-      "Direct mode: info|warn|error (when gate-decision=advisory)",
-    )
-    .option(
-      "--metadata <json>",
-      "Direct mode: free-form metadata as a JSON object string",
-    )
+    .option("--advisory-severity <s>", "Direct mode: info|warn|error (when gate-decision=advisory)")
+    .option("--metadata <json>", "Direct mode: free-form metadata as a JSON object string")
     // --- Signing (cosign integration; SPEC.md § 7) ---
     .option(
       "--sign",
       "Sign the Statement via cosign (requires --key OR --keyless). Without this flag, emits unsigned Statement.",
     )
-    .option(
-      "--key <ref>",
-      "cosign key reference (file path, KMS URI, etc). Implies --sign.",
-    )
+    .option("--key <ref>", "cosign key reference (file path, KMS URI, etc). Implies --sign.")
     .option(
       "--keyless",
       "cosign keyless signing via Fulcio OIDC (requires terminal). Implies --sign.",
@@ -184,11 +174,7 @@ export function registerEmitEvidenceCommand(program: Command): void {
       "--full-statement",
       "Signing mode: pass the full pre-formed in-toto Statement to cosign's --predicate instead of the predicate body. cosign attest-blob will then NEST it inside its own Statement (double-wrapped); only for consumers that expect the nested form.",
     )
-    .option(
-      "--cosign-bin <path>",
-      "Path to cosign binary (default: cosign on PATH).",
-      "cosign",
-    )
+    .option("--cosign-bin <path>", "Path to cosign binary (default: cosign on PATH).", "cosign")
     .option(
       "--artifact <path>",
       "Path to the artifact whose sha256 must equal predicate.input_hash. Required when --sign is requested so the DSSE envelope's subject digest is cryptographically bound to the gate's input. Without this, the link between attestation and artifact cannot be verified by standard tooling.",
@@ -199,10 +185,7 @@ export function registerEmitEvidenceCommand(program: Command): void {
         const statement = composeStatement(composed);
 
         // OTel best-effort emission (mirrors audit-harness emit-evidence.sh)
-        if (
-          process.env.AUDIT_HARNESS_OTEL === "1" ||
-          process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-        ) {
+        if (process.env.AUDIT_HARNESS_OTEL === "1" || process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
           const evt = {
             name: "agent.rollout.gate.evaluated",
             attributes: {
@@ -266,9 +249,7 @@ function signAndEmit(
   opts: EmitEvidenceOptions,
 ): number {
   if (!opts.key && !opts.keyless) {
-    process.stderr.write(
-      "j-rig emit-evidence: --sign requires --key <ref> OR --keyless\n",
-    );
+    process.stderr.write("j-rig emit-evidence: --sign requires --key <ref> OR --keyless\n");
     return 1;
   }
 
@@ -292,9 +273,7 @@ function signAndEmit(
   }
   const artifactAbs = resolve(opts.artifact);
   if (!existsSync(artifactAbs)) {
-    process.stderr.write(
-      `j-rig emit-evidence: --artifact path does not exist: ${artifactAbs}\n`,
-    );
+    process.stderr.write(`j-rig emit-evidence: --artifact path does not exist: ${artifactAbs}\n`);
     return 1;
   }
   const artifactBytes = readFileSync(artifactAbs);
@@ -372,9 +351,7 @@ function signAndEmit(
   }
 }
 
-async function buildComposeInput(
-  opts: EmitEvidenceOptions,
-): Promise<ComposeStatementInput> {
+async function buildComposeInput(opts: EmitEvidenceOptions): Promise<ComposeStatementInput> {
   const runner = opts.runnerVersion ?? DEFAULT_RUNNER_VERSION;
   const commitSha = opts.commitSha ?? safeGitHead();
 
@@ -441,27 +418,42 @@ async function buildComposeInput(
   if (missing.length) {
     throw new Error(
       `gate-result envelope missing required v2 field(s): ${missing.join(", ")}. ` +
-      `A v1-shaped envelope (lacking gate_name/gate_version/gate_reasons/policy_ref) must ` +
-      `be re-emitted via the gate that produced it with the --gate-name/--gate-version/` +
-      `--gate-reasons/--policy-ref flags set. Pipeline mode will not synthesize these ` +
-      `fields because doing so produces fabricated provenance in the signed statement.`,
+        `A v1-shaped envelope (lacking gate_name/gate_version/gate_reasons/policy_ref) must ` +
+        `be re-emitted via the gate that produced it with the --gate-name/--gate-version/` +
+        `--gate-reasons/--policy-ref flags set. Pipeline mode will not synthesize these ` +
+        `fields because doing so produces fabricated provenance in the signed statement.`,
     );
   }
 
   // Resolve gate_decision: prefer v2 gate_decision, fall back to v1 result mapping (lossless rename).
-  const rawDecision = "gate_decision" in parsed
-    ? String(parsed.gate_decision)
-    : mapV1ResultToV2Decision(String(parsed.result ?? ""));
+  const rawDecision =
+    "gate_decision" in parsed
+      ? String(parsed.gate_decision)
+      : mapV1ResultToV2Decision(String(parsed.result ?? ""));
 
   // v1 compat: NOT_APPLICABLE routes to coverage.dimensions_skipped
   const { gateDecision, extraSkipped, extraReasons } = resolveDecision(rawDecision);
 
-  const coverageEvaluated = Array.isArray(parsed.coverage_evaluated)
-    ? (parsed.coverage_evaluated as string[])
-    : [];
+  // v2 nests coverage at coverage.dimensions_evaluated / coverage.dimensions_skipped
+  // (per MIGRATION.md + the kernel gate-result/v1 shape). Read the nested object first,
+  // falling back to the flat coverage_evaluated / coverage_skipped keys for v1 back-compat.
+  // Prior to this, the flat-key-only read silently emitted [] for every v2 envelope.
+  const coverageObj =
+    parsed.coverage && typeof parsed.coverage === "object"
+      ? (parsed.coverage as Record<string, unknown>)
+      : undefined;
+  const coverageEvaluated = Array.isArray(coverageObj?.dimensions_evaluated)
+    ? (coverageObj!.dimensions_evaluated as string[])
+    : Array.isArray(parsed.coverage_evaluated)
+      ? (parsed.coverage_evaluated as string[])
+      : [];
   const coverageSkipped = [
     ...extraSkipped,
-    ...(Array.isArray(parsed.coverage_skipped) ? (parsed.coverage_skipped as string[]) : []),
+    ...(Array.isArray(coverageObj?.dimensions_skipped)
+      ? (coverageObj!.dimensions_skipped as string[])
+      : Array.isArray(parsed.coverage_skipped)
+        ? (parsed.coverage_skipped as string[])
+        : []),
   ];
   const gateReasons = [
     ...(Array.isArray(parsed.gate_reasons) ? (parsed.gate_reasons as string[]) : []),
@@ -499,14 +491,8 @@ function buildFromDirectFlags(
   const rawDecision = opts.gateDecision!;
   const { gateDecision, extraSkipped, extraReasons } = resolveDecision(rawDecision);
 
-  const coverageSkipped = [
-    ...extraSkipped,
-    ...(opts.coverageSkipped ?? []),
-  ];
-  const gateReasons = [
-    ...(opts.gateReason ?? []),
-    ...extraReasons,
-  ];
+  const coverageSkipped = [...extraSkipped, ...(opts.coverageSkipped ?? [])];
+  const gateReasons = [...(opts.gateReason ?? []), ...extraReasons];
 
   return {
     gateId: opts.gateId!,
@@ -525,9 +511,7 @@ function buildFromDirectFlags(
     commitSha,
     metadata: opts.metadata ? parseMetadata(opts.metadata) : undefined,
     failureMode: opts.failureMode,
-    advisorySeverity: opts.advisorySeverity
-      ? parseSeverity(opts.advisorySeverity)
-      : undefined,
+    advisorySeverity: opts.advisorySeverity ? parseSeverity(opts.advisorySeverity) : undefined,
   };
 }
 
@@ -560,9 +544,7 @@ export function resolveDecision(raw: string): {
     return {
       gateDecision: "pass",
       extraSkipped: [NOT_APPLICABLE_SKIPPED_TOKEN],
-      extraReasons: [
-        "routed from NOT_APPLICABLE per DR-018 §279 — non-verdict, not a pass",
-      ],
+      extraReasons: ["routed from NOT_APPLICABLE per DR-018 §279 — non-verdict, not a pass"],
     };
   }
   return { gateDecision: parseDecision(raw), extraSkipped: [], extraReasons: [] };
@@ -575,11 +557,16 @@ export function resolveDecision(raw: string): {
  */
 export function mapV1ResultToV2Decision(v1: string): string {
   switch (v1.toUpperCase()) {
-    case "PASS": return "pass";
-    case "FAIL": return "fail";
-    case "ADVISORY": return "advisory";
-    case "NOT_APPLICABLE": return NOT_APPLICABLE_SENTINEL;
-    default: return v1.toLowerCase();
+    case "PASS":
+      return "pass";
+    case "FAIL":
+      return "fail";
+    case "ADVISORY":
+      return "advisory";
+    case "NOT_APPLICABLE":
+      return NOT_APPLICABLE_SENTINEL;
+    default:
+      return v1.toLowerCase();
   }
 }
 
@@ -614,7 +601,6 @@ function parseMetadata(s: string): Record<string, unknown> {
     throw new Error(`--metadata is not a valid JSON object: ${(err as Error).message}`);
   }
 }
-
 
 async function readInputJson(inputPath?: string): Promise<string> {
   if (inputPath) {
