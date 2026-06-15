@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { registerEmitEvidenceCommand, resolveDecision, mapV1ResultToV2Decision } from "./emit-evidence.js";
+import {
+  registerEmitEvidenceCommand,
+  resolveDecision,
+  mapV1ResultToV2Decision,
+} from "./emit-evidence.js";
 
 /**
  * These tests exercise the commander-registered handler by spawning the built
@@ -38,17 +42,28 @@ function runCli(
 /** v2 base args for direct mode — all required flags. */
 const baseDirectArgs = [
   "emit-evidence",
-  "--gate-id", "j-rig:server:MM-1",
-  "--gate-decision", "pass",
-  "--gate-name", "mm-1-async-race",
-  "--gate-version", "2.0.0",
-  "--gate-reason", "all criteria met",
-  "--coverage-evaluated", "async-race",
-  "--policy-ref", `sha256:${SHA}:vitest.config.ts`,
-  "--input-hash", `sha256:${SHA}`,
-  "--policy-hash", `sha256:${SHA}`,
-  "--runner-version", "j-rig@2.0.0",
-  "--commit-sha", "abc1234",
+  "--gate-id",
+  "j-rig:server:MM-1",
+  "--gate-decision",
+  "pass",
+  "--gate-name",
+  "mm-1-async-race",
+  "--gate-version",
+  "2.0.0",
+  "--gate-reason",
+  "all criteria met",
+  "--coverage-evaluated",
+  "async-race",
+  "--policy-ref",
+  `sha256:${SHA}:vitest.config.ts`,
+  "--input-hash",
+  `sha256:${SHA}`,
+  "--policy-hash",
+  `sha256:${SHA}`,
+  "--runner-version",
+  "j-rig@2.0.0",
+  "--commit-sha",
+  "abc1234",
 ];
 
 /**
@@ -83,7 +98,6 @@ function makeSigningFixture(tmpDir: string): {
   chmodSync(fakeCosign, 0o755);
   return { artifactPath, realHash, fakeCosign };
 }
-
 
 /** baseDirectArgs with --input-hash swapped to the real artifact hash (signing path verifies it). */
 function signingBase(realHash: string): string[] {
@@ -135,15 +149,24 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
   it("routes NOT_APPLICABLE to coverage.dimensions_skipped (not a gate_decision)", () => {
     const r = runCli([
       "emit-evidence",
-      "--gate-id", "j-rig:server:MM-3",
-      "--gate-decision", "NOT_APPLICABLE",
-      "--gate-name", "mm-3-cooldown",
-      "--gate-version", "2.0.0",
-      "--policy-ref", `sha256:${SHA}:vitest.config.ts`,
-      "--input-hash", `sha256:${SHA}`,
-      "--policy-hash", `sha256:${SHA}`,
-      "--runner-version", "j-rig@2.0.0",
-      "--commit-sha", "abc1234",
+      "--gate-id",
+      "j-rig:server:MM-3",
+      "--gate-decision",
+      "NOT_APPLICABLE",
+      "--gate-name",
+      "mm-3-cooldown",
+      "--gate-version",
+      "2.0.0",
+      "--policy-ref",
+      `sha256:${SHA}:vitest.config.ts`,
+      "--input-hash",
+      `sha256:${SHA}`,
+      "--policy-hash",
+      `sha256:${SHA}`,
+      "--runner-version",
+      "j-rig@2.0.0",
+      "--commit-sha",
+      "abc1234",
     ]);
     expect(r.code).toBe(0);
     const stmt = JSON.parse(r.stdout);
@@ -155,8 +178,10 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
   it("--coverage-skipped adds to dimensions_skipped", () => {
     const r = runCli([
       ...baseDirectArgs,
-      "--coverage-skipped", "functions",
-      "--coverage-skipped", "branches",
+      "--coverage-skipped",
+      "functions",
+      "--coverage-skipped",
+      "branches",
     ]);
     expect(r.code).toBe(0);
     const stmt = JSON.parse(r.stdout);
@@ -180,18 +205,30 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
 
       const r = runCli([
         "emit-evidence",
-        "--gate-id", "j-rig:server:MM-1",
-        "--gate-decision", "pass",
-        "--gate-name", "mm-1-async-race",
-        "--gate-version", "2.0.0",
-        "--policy-ref", `sha256:${SHA}:vitest.config.ts`,
-        "--input-hash", `sha256:${realHash}`,
-        "--policy-hash", `sha256:${SHA}`,
-        "--runner-version", "j-rig@2.0.0",
-        "--commit-sha", "abc1234",
-        "--key", "/nonexistent.key",
-        "--cosign-bin", "/nonexistent/cosign-binary",
-        "--artifact", artifactPath,
+        "--gate-id",
+        "j-rig:server:MM-1",
+        "--gate-decision",
+        "pass",
+        "--gate-name",
+        "mm-1-async-race",
+        "--gate-version",
+        "2.0.0",
+        "--policy-ref",
+        `sha256:${SHA}:vitest.config.ts`,
+        "--input-hash",
+        `sha256:${realHash}`,
+        "--policy-hash",
+        `sha256:${SHA}`,
+        "--runner-version",
+        "j-rig@2.0.0",
+        "--commit-sha",
+        "abc1234",
+        "--key",
+        "/nonexistent.key",
+        "--cosign-bin",
+        "/nonexistent/cosign-binary",
+        "--artifact",
+        artifactPath,
       ]);
       // Exit 2 when cosign binary cannot be spawned.
       expect(r.code).toBe(2);
@@ -212,11 +249,7 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
     try {
       const artifactPath = join(tmpDir, "artifact.bin");
       writeFileSync(artifactPath, "wrong content\n");
-      const r = runCli([
-        ...baseDirectArgs,
-        "--keyless",
-        "--artifact", artifactPath,
-      ]);
+      const r = runCli([...baseDirectArgs, "--keyless", "--artifact", artifactPath]);
       expect(r.code).toBe(1);
       expect(r.stderr).toMatch(/--artifact sha256 mismatch/);
     } finally {
@@ -433,14 +466,21 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
       writeFileSync(inputFile, JSON.stringify(v2Envelope));
       const r = runCli([
         "emit-evidence",
-        "--input", inputFile,
-        "--runner-version", "j-rig@2.0.0",
-        "--commit-sha", "abc1234",
+        "--input",
+        inputFile,
+        "--runner-version",
+        "j-rig@2.0.0",
+        "--commit-sha",
+        "abc1234",
       ]);
       expect(r.code).toBe(0);
       const stmt = JSON.parse(r.stdout);
       expect(stmt.predicate.gate_decision).toBe("pass");
       expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
+      // v2 nests coverage at coverage.dimensions_evaluated — it must flow through to the
+      // signed statement, not be silently dropped to [] (regression guard for the
+      // flat-key-only read that ignored the nested v2 coverage object).
+      expect(stmt.predicate.coverage.dimensions_evaluated).toEqual(["async-race"]);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -455,11 +495,7 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
       const outFile = join(tmpDir, "output.json");
       // Missing gate_decision and all new v2 fields
       writeFileSync(inputFile, JSON.stringify({ gate_id: "j-rig:server:MM-1" }));
-      const r = runCli([
-        "emit-evidence",
-        "--input", inputFile,
-        "--output", outFile,
-      ]);
+      const r = runCli(["emit-evidence", "--input", inputFile, "--output", outFile]);
       // Pre-write validation errors always exit 1, never 2 (2 is for write failures)
       expect(r.code).toBe(1);
     } finally {
@@ -472,15 +508,24 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
   it("NOT_APPLICABLE uses __not_applicable__ reserved token (not a real dimension name)", () => {
     const r = runCli([
       "emit-evidence",
-      "--gate-id", "j-rig:server:MM-3",
-      "--gate-decision", "NOT_APPLICABLE",
-      "--gate-name", "mm-3-cooldown",
-      "--gate-version", "2.0.0",
-      "--policy-ref", `sha256:${SHA}:vitest.config.ts`,
-      "--input-hash", `sha256:${SHA}`,
-      "--policy-hash", `sha256:${SHA}`,
-      "--runner-version", "j-rig@2.0.0",
-      "--commit-sha", "abc1234",
+      "--gate-id",
+      "j-rig:server:MM-3",
+      "--gate-decision",
+      "NOT_APPLICABLE",
+      "--gate-name",
+      "mm-3-cooldown",
+      "--gate-version",
+      "2.0.0",
+      "--policy-ref",
+      `sha256:${SHA}:vitest.config.ts`,
+      "--input-hash",
+      `sha256:${SHA}`,
+      "--policy-hash",
+      `sha256:${SHA}`,
+      "--runner-version",
+      "j-rig@2.0.0",
+      "--commit-sha",
+      "abc1234",
     ]);
     expect(r.code).toBe(0);
     const stmt = JSON.parse(r.stdout);
@@ -496,8 +541,10 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
   it("real dimension name via --coverage-skipped flows through unchanged (sentinel cannot shadow it)", () => {
     const r = runCli([
       ...baseDirectArgs,
-      "--coverage-skipped", "real-dimension-name",
-      "--coverage-skipped", "__not_applicable__",  // reserved token itself
+      "--coverage-skipped",
+      "real-dimension-name",
+      "--coverage-skipped",
+      "__not_applicable__", // reserved token itself
     ]);
     expect(r.code).toBe(0);
     const stmt = JSON.parse(r.stdout);
