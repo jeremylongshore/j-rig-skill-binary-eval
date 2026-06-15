@@ -1,6 +1,6 @@
 {
   "name": "@intentsolutions/rollout-gate",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": false,
   "description": "Thin rollout decision-logic library: consume a gate-result/v1 Evidence Bundle + a rollout policy, decide allow/block (fail closed)",
   "license": "Apache-2.0",

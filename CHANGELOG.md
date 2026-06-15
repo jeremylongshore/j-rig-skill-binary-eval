@@ -5,6 +5,56 @@ All notable changes to `j-rig-binary-eval` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.0 - 2026-06-15
+
+All seven workspace packages bump to `2.1.0` in lockstep with the root version.
+`@intentsolutions/rollout-gate` is the only published package (separate
+`rollout-gate-v*` publish tag); the remaining `@j-rig/*` workspace packages stay
+internal to the monorepo.
+
+### Security
+
+- **CISO Gate G-1 leak-capture hardening** (#119, #118): Gate G-1 now captures
+  log-file (filesystem) writes and OpenTelemetry spans as exfiltration channels,
+  closing a class of leaks the gate previously did not observe. The emit-evidence
+  pipeline mode reads nested v2 coverage dimensions correctly so a passing gate
+  cannot be reported with vacuous coverage.
+
+### Added
+
+- **Provider measurement adapters** (#110, #111): LiteLLM and Vercel AI SDK
+  measurement adapters wired in, plus an OpenAI stub adapter and a
+  dependency-license audit (`license:audit`).
+- **`@intentsolutions/rollout-gate`** (#106): the rollout decision-logic extracted
+  into a publishable, self-contained package (does not import the private
+  `@j-rig/core`), published to npm with sigstore provenance via the separate
+  `rollout-gate-v*` publish workflow.
+- **Tooling** (#113): PR-comment renderer, `AGENTS.md` parse CLI, and the v1→v2
+  evidence-shape migrate codemod.
+
+### Changed
+
+- **Kernel authoring/v1 cutover** (#108): skill-frontmatter validation now reads
+  from the kernel `@intentsolutions/core` `authoring/v1` single-source-of-truth
+  instead of j-rig's local copy.
+
+### CI / Tooling
+
+- Advisory lanes added: `lint.yml` (yamllint + markdownlint, vendored shared IEP
+  configs) (#117), `actionlint` (#115), `typos` spell-check (#114).
+- `lefthook.yml` git-hooks config (#116).
+- ntfy CI-failure alert over the tailnet on a failed tag-release (#112).
+- CISO gate G-1/G-2 failure-mode reference doc (#120).
+- **Release-workflow CISO hardening** (this release): every `actions/checkout` in
+  the release, emit-evidence, and rollout-gate publish jobs is now pinned to the
+  pushed tag ref (`ref: ${{ github.ref }}`) per the ISEDC E09 DR
+  reproducible-from-tag invariant — provenance is attributed to the exact tag
+  bytes, never an implicit default ref.
+
+> **Descoped — rides a future v2.1.x routine release:** OpenTelemetry telemetry
+> export (iaj-E08 / 5s7) is held out of 2.1.0 because it is externally blocked by
+> iel-E12. It ships in a later routine release once that dependency lands.
+
 ## 2.0.0 - 2026-06-12
 
 ### Fixed — 2026-06-11 umbrella review (#104, merged into 2.0.0)
