@@ -36,6 +36,11 @@ jobs:
       - name: Checkout with full history
         uses: actions/checkout@v4
         with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant: pin the
+          # checkout to the pushed tag ref, never the branch default. The
+          # release build's bytes are what downstream consumers attribute to
+          # this tag; an implicit checkout is the #32-class one-way-door risk.
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Install pnpm
@@ -114,6 +119,11 @@ jobs:
       - name: Checkout with full history
         uses: actions/checkout@v4
         with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant: the evidence
+          # emitted+signed below is built from THIS checkout's bytes. Pin it to
+          # the pushed tag — signing the wrong bytes is unrecoverable provenance
+          # (#32-class one-way door).
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Install pnpm

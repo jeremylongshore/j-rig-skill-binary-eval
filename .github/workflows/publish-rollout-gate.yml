@@ -30,6 +30,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant (CISO #1): the
+          # bytes published to npm with --provenance MUST be the pushed tag's
+          # bytes. An implicit checkout attributes provenance to whatever the
+          # default ref resolves to — the #32-class one-way door. Pin to the tag.
+          ref: ${{ github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6

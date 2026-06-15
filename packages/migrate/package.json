@@ -1,6 +1,6 @@
 {
   "name": "@j-rig/migrate",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": false,
   "description": "Codemod that rewrites v0.1.0-draft Evidence Bundle rows into the v2.0 gate-result/v1 shape and emits a unified diff",
   "license": "Apache-2.0",
