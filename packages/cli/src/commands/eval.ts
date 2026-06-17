@@ -122,8 +122,12 @@ function selectProviders(model: string, preferred?: string): SelectedProviders {
   if (want !== "anthropic") {
     const cfg = resolveOpenAICompatConfig(process.env, want);
     if (cfg) {
-      // Per-model id wins; otherwise the config's default model for the vendor.
-      const effectiveModel = model && model.length > 0 ? model : cfg.defaultModel;
+      // The --models target (haiku/sonnet/opus) is an Anthropic-only label and is
+      // NOT a valid vendor model id on the OpenAI-compatible path — sending it to
+      // Groq/DeepSeek 404s. Use the configured vendor model (LLM_MODEL / preset
+      // defaultModel); fall back to the target only if no vendor model is set.
+      const effectiveModel =
+        cfg.defaultModel && cfg.defaultModel.length > 0 ? cfg.defaultModel : model;
       const provider = new RealOpenAICompatProvider({
         apiKey: cfg.apiKey,
         baseUrl: cfg.baseUrl,
