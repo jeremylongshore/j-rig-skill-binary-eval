@@ -1,0 +1,119 @@
+{
+  "sonnet": {
+    "provider": "anthropic",
+    "ground_truth": true,
+    "pkgReport": {
+      "skill_name": "j-rig-eval",
+      "timestamp": "2026-06-17T00:32:21.118Z",
+      "results": [
+        {
+          "id": "pkg:skill-md-exists",
+          "description": "SKILL.md file exists in package",
+          "severity": "pass",
+          "message": "SKILL.md found"
+        },
+        {
+          "id": "pkg:skill-md-parses",
+          "description": "SKILL.md frontmatter parses successfully",
+          "severity": "pass",
+          "message": "SKILL.md parsed successfully"
+        },
+        {
+          "id": "pkg:name-present",
+          "description": "Skill name is present",
+          "severity": "pass",
+          "message": "Skill name: j-rig-eval"
+        },
+        {
+          "id": "pkg:description-present",
+          "description": "Skill description is present",
+          "severity": "pass",
+          "message": "Skill description present"
+        },
+        {
+          "id": "heuristic:description-length",
+          "description": "Description meets minimum length",
+          "severity": "pass",
+          "message": "Description length is adequate"
+        },
+        {
+          "id": "heuristic:description-words",
+          "description": "Description has enough words",
+          "severity": "pass",
+          "message": "Description word count is adequate"
+        },
+        {
+          "id": "heuristic:description-specificity",
+          "description": "Description is specific enough",
+          "severity": "pass",
+          "message": "Description appears specific"
+        },
+        {
+          "id": "heuristic:body-oversized",
+          "description": "Body is not excessively large",
+          "severity": "pass",
+          "message": "Body size is reasonable (45 lines)"
+        },
+        {
+          "id": "heuristic:body-underspecified",
+          "description": "Body has sufficient content",
+          "severity": "pass",
+          "message": "Body has sufficient content"
+        },
+        {
+          "id": "anthropic:name-no-xml",
+          "description": "Name does not contain XML tags",
+          "severity": "pass",
+          "message": "Name is free of XML tags"
+        },
+        {
+          "id": "anthropic:description-no-xml",
+          "description": "Description does not contain XML tags",
+          "severity": "pass",
+          "message": "Description is free of XML tags"
+        },
+        {
+          "id": "anthropic:no-time-sensitive",
+          "description": "No time-sensitive information in body",
+          "severity": "pass",
+          "message": "No time-sensitive information detected"
+        }
+      ],
+      "summary": {
+        "total": 12,
+        "passed": 12,
+        "warnings": 0,
+        "errors": 0
+      }
+    },
+    "scoreCard": {
+      "total_criteria": 3,
+      "passed": 3,
+      "failed": 0,
+      "unsure": 0,
+      "blocker_failures": 0,
+      "sacred_regressions": 0,
+      "pass_rate": 1
+    },
+    "decision": "ship",
+    "report": {
+      "skill_name": "j-rig-eval",
+      "timestamp": "2026-06-17T00:32:43.093Z",
+      "decision": "ship",
+      "score": {
+        "total_criteria": 3,
+        "passed": 3,
+        "failed": 0,
+        "unsure": 0,
+        "blocker_failures": 0,
+        "sacred_regressions": 0,
+        "pass_rate": 1
+      },
+      "regressions": [],
+      "baseline": [],
+      "blockers": [],
+      "warnings": [],
+      "reasoning": "All 3 criteria passed. Ready to ship."
+    }
+  }
+}
