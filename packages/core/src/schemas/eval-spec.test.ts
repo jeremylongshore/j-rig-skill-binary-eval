@@ -92,6 +92,43 @@ describe("EvalSpecSchema", () => {
     expect(result.models).toEqual(["sonnet"]);
   });
 
+  it("accepts concrete OpenAI-compatible provider model ids (DeepSeek/Kimi/OpenRouter)", () => {
+    const result = EvalSpecSchema.safeParse({
+      spec_version: "1.0",
+      skill_name: "test-skill",
+      description: "test",
+      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
+      models: ["deepseek-chat", "kimi-k2-0711-preview", "deepseek/deepseek-chat"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.models).toContain("deepseek-chat");
+      // The Claude aliases still pass through unchanged.
+      const claude = EvalSpecSchema.parse({
+        spec_version: "1.0",
+        skill_name: "test-skill",
+        description: "test",
+        criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+        test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
+        models: ["sonnet"],
+      });
+      expect(claude.models).toEqual(["sonnet"]);
+    }
+  });
+
+  it("rejects an empty-string model id", () => {
+    const result = EvalSpecSchema.safeParse({
+      spec_version: "1.0",
+      skill_name: "test-skill",
+      description: "test",
+      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
+      models: [""],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("defaults criterion blocker to false", () => {
     const result = EvalSpecSchema.parse({
       spec_version: "1.0",
