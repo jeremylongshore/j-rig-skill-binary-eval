@@ -2,21 +2,30 @@
 # dogfood.sh — iaj-E10 real behavioral dogfood.
 #
 # Runs the j-rig seven-layer eval against j-rig's OWN skill (skill/SKILL.md)
-# with a REAL provider (Anthropic), then emits the run's rollout decision as a
+# with a REAL provider, then emits the run's rollout decision as a
 # signed-capable in-toto Evidence Bundle (gate-result/v1) and verifies it
 # round-trips. This is the dogfood the prior pass faked with stub providers:
-# here the trigger / execution / judge layers all hit the real Anthropic API and
-# the output IS ground truth.
+# here the trigger / execution / judge layers all hit a real model API and the
+# output IS ground truth.
+#
+# The default provider is DeepSeek (the Anthropic external-API credit is
+# exhausted; DeepSeek credits are live). DeepSeek, Kimi/Moonshot, and OpenRouter
+# are all OpenAI-Chat-Completions-compatible, so any of them works via the same
+# provider — just point --provider at it.
 #
 # ONE-COMMAND RUN
-#   ANTHROPIC_API_KEY=sk-ant-... bash scripts/dogfood.sh
-#   # or, decrypting the lab SOPS key to memory (never disk):
-#   bash scripts/dogfood.sh --sops
+#   bash scripts/dogfood.sh --sops --smoke
+#   # decrypts the matching key (default DEEPSEEK_API_KEY) from the lab
+#   # .env.sops to a memory var (never disk) and runs a tiny real eval.
 #
 # FLAGS
-#   --sops          Decrypt ANTHROPIC_API_KEY from the lab .env.sops to a memory
+#   --provider NAME Provider to use: deepseek (default) | kimi | moonshot |
+#                   openrouter | anthropic. Selects which key --sops decrypts and
+#                   which endpoint the eval hits.
+#   --sops          Decrypt the provider's key from the lab .env.sops to a memory
 #                   var (never written to disk) before running.
-#   --models LIST   Comma-separated model list (default: sonnet).
+#   --models LIST   Comma-separated model list. Default is provider-specific
+#                   (deepseek-chat / sonnet / …); override to pin a snapshot.
 #   --smoke         Tiny run: a single core test case, no adversarial layer, for
 #                   a cheap end-to-end ground-truth check (1-2 model calls).
 #   --sign          Sign the Evidence Bundle via cosign (keyless). Off by
@@ -35,7 +44,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-MODELS="sonnet"
+PROVIDER="deepseek"
+MODELS=""
 USE_SOPS=0
 SMOKE=0
 SIGN=0
@@ -43,15 +53,28 @@ OUT_DIR="evidence/dogfood"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --provider) PROVIDER="$2"; shift 2 ;;
     --sops)   USE_SOPS=1; shift ;;
     --models) MODELS="$2"; shift 2 ;;
     --smoke)  SMOKE=1; shift ;;
     --sign)   SIGN=1; shift ;;
     --out)    OUT_DIR="$2"; shift 2 ;;
-    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,48p' "$0"; exit 0 ;;
     *) echo "dogfood: unknown flag $1" >&2; exit 1 ;;
   esac
 done
+
+# Normalize the provider + resolve which key env var it needs and a sensible
+# default model. moonshot is an alias for kimi (same vendor).
+PROVIDER="$(echo "$PROVIDER" | tr '[:upper:]' '[:lower:]')"
+case "$PROVIDER" in
+  deepseek)            KEY_ENV="DEEPSEEK_API_KEY";   DEFAULT_MODEL="deepseek-chat" ;;
+  kimi|moonshot)       KEY_ENV="MOONSHOT_API_KEY";   DEFAULT_MODEL="kimi-k2-0711-preview" ;;
+  openrouter)          KEY_ENV="OPENROUTER_API_KEY"; DEFAULT_MODEL="deepseek/deepseek-chat" ;;
+  anthropic)           KEY_ENV="ANTHROPIC_API_KEY";  DEFAULT_MODEL="sonnet" ;;
+  *) echo "dogfood: unknown --provider '$PROVIDER' (deepseek|kimi|moonshot|openrouter|anthropic)" >&2; exit 1 ;;
+esac
+[[ -z "$MODELS" ]] && MODELS="$DEFAULT_MODEL"
 
 CLI="packages/cli/dist/index.js"
 SKILL_DIR="skill"
@@ -63,7 +86,10 @@ if [[ ! -f "$CLI" ]]; then
   exit 2
 fi
 
-# --- Resolve the real Anthropic key (memory only, never disk) ----------------
+# --- Resolve the provider's real key (memory only, never disk) ---------------
+# We decrypt/read ONLY the key the chosen provider needs. The eval CLI selects
+# the matching OpenAI-compatible endpoint from that key's presence (DeepSeek /
+# Kimi / OpenRouter), or the Anthropic path for ANTHROPIC_API_KEY.
 if [[ "$USE_SOPS" == "1" ]]; then
   LAB_SOPS="${REPO_ROOT}/../intent-eval-lab/.env.sops"
   if [[ ! -f "$LAB_SOPS" ]]; then
@@ -76,23 +102,28 @@ if [[ "$USE_SOPS" == "1" ]]; then
   fi
   # Decrypt ONLY the one key we need, to a shell var. The decrypted plaintext
   # never touches disk (no temp file); sops writes to stdout, captured in-proc.
-  ANTHROPIC_API_KEY="$(sops -d --input-type dotenv --output-type dotenv "$LAB_SOPS" \
-    | sed -nE 's/^ANTHROPIC_API_KEY=(.*)$/\1/p' | tr -d '"'"'"'')"
-  export ANTHROPIC_API_KEY
+  DECRYPTED_KEY="$(sops -d --input-type dotenv --output-type dotenv "$LAB_SOPS" \
+    | sed -nE "s/^${KEY_ENV}=(.*)\$/\1/p" | tr -d '"'"'"'')"
+  if [[ -z "$DECRYPTED_KEY" ]]; then
+    echo "dogfood: --sops decrypted no $KEY_ENV from $LAB_SOPS (is it set for provider '$PROVIDER'?)" >&2
+    exit 1
+  fi
+  export "${KEY_ENV}=${DECRYPTED_KEY}"
 fi
 
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-  echo "dogfood: REFUSED — no ANTHROPIC_API_KEY available." >&2
+# Confirm the chosen provider's key is present (from --sops or the ambient env).
+if [[ -z "${!KEY_ENV:-}" ]]; then
+  echo "dogfood: REFUSED — no $KEY_ENV available for provider '$PROVIDER'." >&2
   echo "dogfood: this is the REAL behavioral dogfood; it will not fake ground truth with stubs." >&2
-  echo "dogfood: set ANTHROPIC_API_KEY, or run with --sops to decrypt the lab key to memory." >&2
+  echo "dogfood: set $KEY_ENV, or run with --sops to decrypt the lab key to memory." >&2
   exit 1
 fi
 
 # --- Build the smoke spec on the fly (single core case, no adversarial) ------
 ACTIVE_SPEC="$SPEC"
 if [[ "$SMOKE" == "1" ]]; then
-  python3 - "$SPEC" "$SMOKE_SPEC" <<'PY'
-import sys
+  MODELS="$MODELS" python3 - "$SPEC" "$SMOKE_SPEC" <<'PY'
+import os, sys
 try:
     import yaml
 except ImportError:
@@ -109,7 +140,8 @@ kept_ids = set()
 for tc in spec["test_cases"]:
     kept_ids.update(tc.get("criteria_ids", []))
 spec["criteria"] = [c for c in spec.get("criteria", []) if c["id"] in kept_ids]
-spec["models"] = ["sonnet"]
+# Reflect the runtime model list (the CLI reads --models, this is advisory).
+spec["models"] = [m.strip() for m in os.environ.get("MODELS", "").split(",") if m.strip()]
 with open(dst, "w") as fh:
     yaml.safe_dump(spec, fh, sort_keys=False)
 print(f"dogfood: wrote smoke spec {dst} ({len(spec['test_cases'])} case, "
@@ -122,18 +154,20 @@ mkdir -p "$OUT_DIR"
 RUN_JSON="$OUT_DIR/run.json"
 BUNDLE="$OUT_DIR/evidence-bundle.json"
 
-echo "dogfood: running REAL eval — skill=$SKILL_DIR spec=$ACTIVE_SPEC models=$MODELS" >&2
+echo "dogfood: running REAL eval — provider=$PROVIDER skill=$SKILL_DIR spec=$ACTIVE_SPEC models=$MODELS" >&2
 
 # --- Run the real eval -------------------------------------------------------
-# ANTHROPIC_API_KEY is set, so eval.ts selects the real provider automatically
-# (no J_RIG_ALLOW_STUB needed). Capture --json to stdout; J_RIG_OTEL=1 so the
-# run also emits the OTel signals (when this branch is rebased onto iaj-E08).
+# The provider's key env var is set, so eval.ts selects the matching real
+# provider automatically (no J_RIG_ALLOW_STUB needed). --provider pins the exact
+# vendor. Capture --json to stdout; J_RIG_OTEL=1 so the run also emits the OTel
+# signals.
 TMPDB="$(mktemp -u --suffix=.db)"
 trap 'rm -f "$TMPDB"' EXIT
 
 set +e
 J_RIG_OTEL=1 node "$CLI" eval "$SKILL_DIR" --spec "$ACTIVE_SPEC" \
-  --models "$MODELS" --db "$TMPDB" --json >"$RUN_JSON" 2>"$OUT_DIR/eval.stderr.log"
+  --provider "$PROVIDER" --models "$MODELS" --db "$TMPDB" --json \
+  >"$RUN_JSON" 2>"$OUT_DIR/eval.stderr.log"
 EVAL_EXIT=$?
 set -e
 

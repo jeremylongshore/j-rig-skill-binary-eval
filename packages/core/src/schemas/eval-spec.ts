@@ -4,9 +4,28 @@ import { TestCaseSchema } from "./test-case.js";
 
 /**
  * Models that can be tested independently.
+ *
+ * `haiku` / `sonnet` / `opus` are short aliases the Anthropic adapter resolves to
+ * concrete Claude API ids. Any other non-empty identifier is accepted verbatim
+ * so the same eval spec can target an OpenAI-compatible provider — DeepSeek
+ * (`deepseek-chat`, `deepseek-reasoner`), Kimi/Moonshot (`kimi-k2-*`), or
+ * OpenRouter (`<org>/<model>`). The chosen provider is selected at runtime from
+ * the env key / `--provider` flag; this field only records WHICH model id the
+ * adapter passes through. A fully-qualified, dated Claude id (`claude-…`) also
+ * passes through here and is resolved by the Anthropic adapter.
  */
-export const ModelTarget = z.enum(["haiku", "sonnet", "opus"]);
+const MODEL_ALIASES = ["haiku", "sonnet", "opus"] as const;
+export const ModelTarget = z
+  .string()
+  .min(1)
+  .describe(
+    "Model id: a Claude alias (haiku|sonnet|opus) or any concrete provider model id " +
+      "(e.g. deepseek-chat, kimi-k2-0711-preview, deepseek/deepseek-chat, claude-sonnet-4-5).",
+  );
 export type ModelTarget = z.infer<typeof ModelTarget>;
+
+/** The short Claude aliases the Anthropic adapter resolves to concrete ids. */
+export const MODEL_ALIAS_VALUES: readonly string[] = MODEL_ALIASES;
 
 /**
  * Sibling skill context — used when evaluating pack-sensitive criteria.
@@ -38,10 +57,7 @@ export const EvalSpecSchema = z.object({
   description: z.string().min(1).describe("What this eval spec covers"),
   criteria: z.array(CriterionSchema).min(1).describe("Binary criteria to evaluate"),
   test_cases: z.array(TestCaseSchema).min(1).describe("Test cases to run"),
-  models: z
-    .array(ModelTarget)
-    .default(["sonnet"])
-    .describe("Models to test independently"),
+  models: z.array(ModelTarget).default(["sonnet"]).describe("Models to test independently"),
   siblings: z
     .array(SiblingSkillSchema)
     .optional()

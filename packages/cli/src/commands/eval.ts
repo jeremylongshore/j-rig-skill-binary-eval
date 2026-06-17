@@ -55,6 +55,13 @@ import {
   AnthropicExecutionProvider,
   AnthropicJudgeProvider,
 } from "../providers/anthropic-real.js";
+import {
+  RealOpenAICompatProvider,
+  OpenAICompatTriggerProvider,
+  OpenAICompatExecutionProvider,
+  OpenAICompatJudgeProvider,
+  resolveOpenAICompatConfig,
+} from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider } from "@j-rig/core";
 
 interface EvalOptions {
@@ -64,30 +71,75 @@ interface EvalOptions {
   json?: boolean;
   trigger?: boolean;
   functional?: boolean;
+  provider?: string;
 }
 
-/** The three eval-pipeline providers a single run needs, plus whether real. */
+/** The three eval-pipeline providers a single run needs, plus run metadata. */
 interface SelectedProviders {
   trigger: TriggerProvider;
   execution: ExecutionProvider;
   judge: JudgeProvider;
-  /** true = real Anthropic API; false = stub (NOT ground truth). */
+  /** true = real model API (ground truth); false = stub (NOT ground truth). */
   real: boolean;
+  /** Short provider name recorded in evidence (`anthropic`/`deepseek`/`stub`/…). */
+  providerName: string;
 }
 
 /**
  * Select real vs stub providers for a model.
  *
- * Real path: when `ANTHROPIC_API_KEY` is set, build a real Anthropic
- * `Provider` and bridge it into the three eval-pipeline interfaces. This is the
- * iaj-E10 behavioral dogfood path — output IS ground truth.
+ * Provider precedence (output IS ground truth on any real path):
+ *   1. An OpenAI-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, or a
+ *      generic `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` triple. A `--provider`
+ *      flag forces a specific preset. This is the default real path because the
+ *      Anthropic external-API credit is exhausted; DeepSeek credits are live.
+ *   2. The real Anthropic Messages API when `ANTHROPIC_API_KEY` is set.
+ *   3. Stub fallback — only if the operator opted in via `J_RIG_ALLOW_STUB=1`.
+ *      Without ANY real key AND without the opt-in, `assertStubAllowed()` throws
+ *      REFUSED (synthetic ship verdicts are too costly to emit silently).
  *
- * Stub path: when no key is set, fall back to stubs — but only if the operator
- * explicitly opted in via `J_RIG_ALLOW_STUB=1`. Without the key AND without the
- * opt-in, `assertStubAllowed()` throws REFUSED (synthetic ship verdicts are too
- * costly to emit silently).
+ * `preferred` comes from the `--provider` flag: when it names a preset
+ * (`deepseek`/`kimi`/`moonshot`/`openrouter`), only that preset is considered for
+ * the OpenAI-compatible path; `anthropic` skips straight to the Anthropic path;
+ * `stub` forces the stub path (still gated by the opt-in).
  */
-function selectProviders(model: string): SelectedProviders {
+function selectProviders(model: string, preferred?: string): SelectedProviders {
+  const want = preferred?.trim().toLowerCase();
+
+  // Explicit stub request — let the stub constructors enforce the opt-in gate.
+  if (want === "stub") {
+    return {
+      trigger: new StubTriggerProvider(model),
+      execution: new StubExecutionProvider(model),
+      judge: new StubJudgeProvider(model),
+      real: false,
+      providerName: "stub",
+    };
+  }
+
+  // 1. OpenAI-compatible path (DeepSeek / Kimi / OpenRouter / generic LLM_*).
+  // Skipped only when the operator explicitly asked for `anthropic`.
+  if (want !== "anthropic") {
+    const cfg = resolveOpenAICompatConfig(process.env, want);
+    if (cfg) {
+      // Per-model id wins; otherwise the config's default model for the vendor.
+      const effectiveModel = model && model.length > 0 ? model : cfg.defaultModel;
+      const provider = new RealOpenAICompatProvider({
+        apiKey: cfg.apiKey,
+        baseUrl: cfg.baseUrl,
+        name: cfg.name,
+      });
+      return {
+        trigger: new OpenAICompatTriggerProvider(effectiveModel, provider),
+        execution: new OpenAICompatExecutionProvider(effectiveModel, provider),
+        judge: new OpenAICompatJudgeProvider(effectiveModel, provider),
+        real: true,
+        providerName: cfg.name,
+      };
+    }
+  }
+
+  // 2. Real Anthropic path.
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (apiKey && apiKey.length >= 8) {
     const provider = new RealAnthropicProvider({ apiKey });
@@ -96,15 +148,33 @@ function selectProviders(model: string): SelectedProviders {
       execution: new AnthropicExecutionProvider(model, provider),
       judge: new AnthropicJudgeProvider(model, provider),
       real: true,
+      providerName: "anthropic",
     };
   }
-  // No real key — stub providers (each constructor re-asserts the opt-in gate).
+
+  // 3. No real key — stub providers (each constructor re-asserts the opt-in gate).
   return {
     trigger: new StubTriggerProvider(model),
     execution: new StubExecutionProvider(model),
     judge: new StubJudgeProvider(model),
     real: false,
+    providerName: "stub",
   };
+}
+
+/**
+ * Does the environment (and the optional `--provider` preference) expose ANY
+ * real provider key? Used to decide whether to short-circuit with the stub
+ * opt-in assertion before expensive I/O.
+ */
+function hasAnyRealKey(preferred?: string): boolean {
+  const want = preferred?.trim().toLowerCase();
+  if (want === "stub") return false;
+  if (want !== "anthropic" && resolveOpenAICompatConfig(process.env, want)) return true;
+  if (want === "anthropic" || want === undefined || want === "") {
+    return (process.env.ANTHROPIC_API_KEY?.length ?? 0) >= 8;
+  }
+  return false;
 }
 
 /**
@@ -134,6 +204,11 @@ export function registerEvalCommand(program: Command): void {
     .option("--json", "Output as JSON")
     .option("--no-trigger", "Skip trigger tests")
     .option("--no-functional", "Skip functional tests")
+    .option(
+      "--provider <name>",
+      "Force a provider: deepseek | kimi | moonshot | openrouter | anthropic | stub " +
+        "(default: auto-detect from env keys, preferring an OpenAI-compatible endpoint)",
+    )
     .action(async (skillDir: string, opts: EvalOptions) => {
       const startTime = Date.now();
 
@@ -147,7 +222,7 @@ export function registerEvalCommand(program: Command): void {
         // point so the REFUSED error surfaces BEFORE expensive I/O when stub
         // mode is the only path — but ONLY when there is no real key, so a real
         // dogfood run is never gated behind J_RIG_ALLOW_STUB.
-        const hasRealKey = (process.env.ANTHROPIC_API_KEY?.length ?? 0) >= 8;
+        const hasRealKey = hasAnyRealKey(opts.provider);
         if (!hasRealKey) assertStubAllowed();
 
         // ── Phase 1: Load ────────────────────────────────────────────────
@@ -206,10 +281,11 @@ export function registerEvalCommand(program: Command): void {
           const runId = createRun(database, svId, "full", model);
           transitionRun(database, runId, "running");
 
-          // Select real (Anthropic API) vs stub providers ONCE per model so the
-          // trigger / execution / judge layers all run against the same backend
-          // and the same real `Provider` instance (one key, one transport).
-          const providers = selectProviders(model);
+          // Select real vs stub providers ONCE per model so the trigger /
+          // execution / judge layers all run against the same backend and the
+          // same real `Provider` instance (one key, one transport). The
+          // optional --provider flag forces a specific vendor.
+          const providers = selectProviders(model, opts.provider);
 
           // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
           // (067 § 1.1). The DB integer runId stays the storage key; the
@@ -226,7 +302,11 @@ export function registerEvalCommand(program: Command): void {
           if (!opts.json) {
             console.log(header(`--- Model: ${model} ---`));
             console.log(
-              `  Provider: ${providers.real ? "anthropic (REAL — ground truth)" : "STUB (not ground truth)"}`,
+              `  Provider: ${
+                providers.real
+                  ? `${providers.providerName} (REAL — ground truth)`
+                  : `${providers.providerName.toUpperCase()} (not ground truth)`
+              }`,
             );
           }
 
@@ -353,7 +433,8 @@ export function registerEvalCommand(program: Command): void {
             );
 
             allResults[model] = {
-              provider: providers.real ? "anthropic" : "stub",
+              provider: providers.providerName,
+              model,
               ground_truth: providers.real,
               pkgReport,
               scoreCard,

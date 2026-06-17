@@ -148,11 +148,39 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`), TypeScript baseline (tsup builds), quality guardrails (ESLint, Prettier, Vitest), and CI/CD workflows.
 
+### Choosing a provider
+
+`j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, Together — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).
+
+**Switch providers with at most three env vars.** Set a per-provider key for a built-in preset, or the generic `LLM_*` triple to point at any compatible gateway:
+
+| Provider | Key env var | Base URL (default) | Default model |
+|---|---|---|---|
+| **DeepSeek** | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-chat` (or `deepseek-reasoner`) |
+| **Kimi / Moonshot** | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` | `kimi-k2-0711-preview` |
+| **OpenRouter** | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-chat` or `moonshotai/kimi-k2` |
+| **Anthropic** | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1/messages` | `sonnet` / `haiku` / `opus` |
+| **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
+
+```bash
+# DeepSeek (default OpenAI-compatible preset)
+DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models deepseek-chat
+
+# Kimi / Moonshot
+MOONSHOT_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --provider kimi --models kimi-k2-0711-preview
+
+# Any OpenAI-compatible gateway via the generic triple
+LLM_API_KEY=sk-... LLM_BASE_URL=https://my-gateway/v1 LLM_MODEL=some-model \
+  node packages/cli/dist/index.js eval ./my-skill
+```
+
+**Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
+
+**Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
+
 ### ⚠️ Stub providers — output is NOT ground truth
 
-**The real Anthropic SDK adapter is not yet wired** (tracked as `iaj-stub-provider` / PB-7 in the IEP Convergence Debt Plan). Every `j-rig eval` invocation currently runs against stub providers that emit synthetic outputs. The CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation.
-
-Do not consume j-rig output as evidence of skill quality until the real provider lands. CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.
+When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.
 
 Full discipline: [STUB-PROVIDERS.md](./STUB-PROVIDERS.md).
 
