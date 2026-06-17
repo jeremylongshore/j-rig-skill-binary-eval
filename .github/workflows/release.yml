@@ -238,3 +238,40 @@ jobs:
             -H "Tags: prod-deploys,rotating_light" \
             -H "Authorization: Bearer ${NTFY_AUTH_TOKEN}" \
             --data "Release CI failed on ref ${{ github.ref_name }} (sha ${{ github.sha }}). Run: ${run_url}"
+
+  # ── Notify the platform umbrella to regenerate its aggregate changelog ──
+  #
+  # The umbrella repo intent-solutions-io/intent-eval-platform keeps an aggregate
+  # CHANGELOG.md regenerated from every platform repo's GitHub Releases. It already
+  # regenerates daily + on workflow_dispatch + on a repository_dispatch of type
+  # "release-published". This job pings the umbrella the moment a release here is
+  # published so the aggregate updates instantly instead of waiting up to a day.
+  #
+  # WHY a job inside release.yml (not a standalone `on: release: published`):
+  # GitHub suppresses workflow events triggered by a release that was created with
+  # the default GITHUB_TOKEN (as the `release` job does above), so an
+  # `on: release: published` workflow would never fire. Running the notify as a
+  # job in this same workflow, after the release exists, is the reliable path.
+  notify-umbrella-changelog:
+    name: Notify umbrella to regenerate the platform changelog
+    needs: [release, emit-evidence]
+    runs-on: ubuntu-latest
+    continue-on-error: true # best-effort; the umbrella's daily schedule is the backstop
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch release-published to the platform umbrella
+        env:
+          DISPATCH_TOKEN: ${{ secrets.UMBRELLA_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${DISPATCH_TOKEN}" ]; then
+            echo "UMBRELLA_DISPATCH_TOKEN not configured — skipping umbrella notify (its daily schedule still picks up this release)."
+            exit 0
+          fi
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/intent-solutions-io/intent-eval-platform/dispatches \
+            -d "{\"event_type\":\"release-published\",\"client_payload\":{\"repo\":\"${GITHUB_REPOSITORY}\",\"ref\":\"${GITHUB_REF_NAME}\"}}"
+          echo "Dispatched release-published to intent-solutions-io/intent-eval-platform."
