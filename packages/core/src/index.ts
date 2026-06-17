@@ -12,3 +12,4 @@ export * from "./drift/index.js";
 export * from "./evidence/index.js";
 export * from "./intentional-mapping/index.js";
 export * from "./providers/index.js";
+export * from "./otel/index.js";

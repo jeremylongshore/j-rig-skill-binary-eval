@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import chalk from "chalk";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import {
   checkPackage,
   buildRoster,
@@ -11,6 +12,18 @@ import {
   computeScoreCard,
   decideRollout,
   buildLaunchReport,
+  uuidv7,
+  emitRuntimeRunStarted,
+  emitRuntimeRunFinished,
+  emitRuntimeCriterionEvaluated,
+  emitJudgeInvoked,
+  emitJudgeVerdict,
+  emitGateDecisionEmitted,
+  RuntimeTerminalState,
+  CriterionOutcome,
+  JudgeVerdictSource,
+  GateDecision,
+  type EvalCorrelation,
 } from "@j-rig/core";
 import type { JudgmentResult, ObservedOutcome } from "@j-rig/core";
 import {
@@ -98,9 +111,16 @@ export function registerEvalCommand(program: Command): void {
         // Kernel cutover [9k5h.15]: the standard tier is open-world on optional
         // fields, so `version` is `unknown` — narrow before use.
         const skillVersion =
-          typeof skill.frontmatter.version === "string"
-            ? skill.frontmatter.version
-            : "0.0.0";
+          typeof skill.frontmatter.version === "string" ? skill.frontmatter.version : "0.0.0";
+
+        // OTel correlation inputs (iaj-E08, 067 §§ 1.1, 4.2). The skill
+        // snapshot SHA is the content-addressed hash of the raw SKILL.md; the
+        // spec content hash hashes the canonical JSON of the loaded eval spec.
+        // Both are sha256:-prefixed per the platform digest convention.
+        const skillSnapshotSha =
+          "sha256:" + createHash("sha256").update(skillContent).digest("hex");
+        const specContentHash =
+          "sha256:" + createHash("sha256").update(JSON.stringify(spec)).digest("hex");
 
         if (!opts.json) {
           console.log(header(`j-rig eval: ${skillName}`));
@@ -132,14 +152,22 @@ export function registerEvalCommand(program: Command): void {
         const allResults: Record<string, unknown> = {};
 
         for (const model of models) {
-          const svId = getOrCreateSkillVersion(
-            database,
-            skillName,
-            skillVersion,
-            skillContent,
-          );
+          const modelStart = Date.now();
+          const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
           const runId = createRun(database, svId, "full", model);
           transitionRun(database, runId, "running");
+
+          // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
+          // (067 § 1.1). The DB integer runId stays the storage key; the
+          // UUIDv7 is the cross-emitter idempotency key / lineage anchor.
+          const correlation: EvalCorrelation = { evalRunId: uuidv7() };
+          emitRuntimeRunStarted(correlation, {
+            specContentHash,
+            skillSnapshotSha,
+          });
+          // Did any criterion or gate decision fail? Drives the terminal-state
+          // enum on runtime.run.finished.
+          let runHadFailure = false;
 
           if (!opts.json) console.log(header(`--- Model: ${model} ---`));
 
@@ -147,11 +175,7 @@ export function registerEvalCommand(program: Command): void {
           if (opts.trigger !== false) {
             const triggerProvider = new StubTriggerProvider(model);
             const roster = buildRoster(skill.frontmatter, spec.siblings);
-            const triggerResults = await runTriggerTests(
-              spec.test_cases,
-              roster,
-              triggerProvider,
-            );
+            const triggerResults = await runTriggerTests(spec.test_cases, roster, triggerProvider);
             const metrics = computeMetrics(triggerResults);
 
             if (!opts.json) {
@@ -182,12 +206,43 @@ export function registerEvalCommand(program: Command): void {
             const allJudgments: JudgmentResult[] = [];
 
             for (const outcome of outcomes) {
-              const judgments = await judgeCriteria(
-                spec.criteria,
-                outcome,
-                judgeProvider,
-                { model },
-              );
+              const judgments = await judgeCriteria(spec.criteria, outcome, judgeProvider, {
+                model,
+              });
+
+              // OTel per-criterion events (067 §§ 1.1, 1.2). For judge-method
+              // criteria we emit judge.invoked + judge.verdict; for every
+              // criterion we emit runtime.criterion.evaluated with the binary
+              // outcome mapped to the closed {pass,fail,skip} enum.
+              for (const j of judgments) {
+                if (j.method === "judge") {
+                  emitJudgeInvoked(correlation, {
+                    judgeId: `j-rig:judge:${j.criterion_id}`,
+                    modelId: j.judge_model ?? model,
+                    modelVersion: skillVersion,
+                  });
+                  // A judge with no seed cannot reach RF-2 (066 § 1); j-rig
+                  // judges run un-seeded today, so verdict_source is
+                  // llm_no_seed and the seed attribute is null (omitted).
+                  emitJudgeVerdict(correlation, {
+                    verdict: j.verdict,
+                    verdictSource: JudgeVerdictSource.LLM_NO_SEED,
+                    seed: null,
+                  });
+                }
+                const criterionOutcome =
+                  j.verdict === "yes"
+                    ? CriterionOutcome.PASS
+                    : j.verdict === "unsure"
+                      ? CriterionOutcome.SKIP
+                      : CriterionOutcome.FAIL;
+                if (criterionOutcome === CriterionOutcome.FAIL) runHadFailure = true;
+                emitRuntimeCriterionEvaluated(correlation, {
+                  matcherClass: j.method,
+                  outcome: criterionOutcome,
+                });
+              }
+
               allJudgments.push(...judgments);
             }
 
@@ -203,9 +258,7 @@ export function registerEvalCommand(program: Command): void {
                     : j.verdict === "unsure"
                       ? icon("warning")
                       : icon("error");
-                console.log(
-                  `    ${verdictIcon} ${j.criterion_id}: ${j.reasoning.slice(0, 80)}`,
-                );
+                console.log(`    ${verdictIcon} ${j.criterion_id}: ${j.reasoning.slice(0, 80)}`);
               }
             }
 
@@ -234,12 +287,32 @@ export function registerEvalCommand(program: Command): void {
             const report = buildLaunchReport(
               skillName,
               scoreCard,
-              [],   // regressions: none in a standalone run
-              [],   // baseline: none without a baseline comparison run
+              [], // regressions: none in a standalone run
+              [], // baseline: none without a baseline comparison run
               false, // isObsolete: not computed here
             );
 
             allResults[model] = { pkgReport, scoreCard, decision, report };
+
+            // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
+            // RolloutDecision (ship|warn|block|obsolete_review) onto the closed
+            // gate-result/v1 verdict enum {pass,fail,advisory,error}: a clean
+            // ship is `pass`, a block is `fail`, warn/obsolete_review are
+            // `advisory`. Spelling is identical to the audit-harness iah-E07
+            // emitter so a ship-gate dashboard alerts on one event name across
+            // both emitters.
+            const gateDecisionValue =
+              report.decision === "ship"
+                ? GateDecision.PASS
+                : report.decision === "block"
+                  ? GateDecision.FAIL
+                  : GateDecision.ADVISORY;
+            if (gateDecisionValue === GateDecision.FAIL) runHadFailure = true;
+            emitGateDecisionEmitted(correlation, {
+              gateName: "j-rig-rollout-gate",
+              decision: gateDecisionValue,
+              policyRef: specContentHash,
+            });
 
             if (!opts.json) {
               console.log(`  Decision: ${formatDecision(report.decision)}`);
@@ -260,6 +333,18 @@ export function registerEvalCommand(program: Command): void {
           } else {
             transitionRun(database, runId, "completed");
           }
+
+          // OTel runtime.run.finished (067 § 1.1). Terminal state per the
+          // EvalRun state machine: a run that produced a failing criterion or a
+          // FAIL gate decision is archived_failed; an all-pass run is judged.
+          // (archived_success is reserved for the runtime's post-judgment
+          // archival lifecycle, which the CLI path does not drive.)
+          emitRuntimeRunFinished(correlation, {
+            terminalState: runHadFailure
+              ? RuntimeTerminalState.ARCHIVED_FAILED
+              : RuntimeTerminalState.JUDGED,
+            durationMs: Date.now() - modelStart,
+          });
         }
 
         // ── Phase 4: Final output ─────────────────────────────────────────

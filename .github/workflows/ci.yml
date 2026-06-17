@@ -99,3 +99,32 @@ jobs:
           flags: typescript
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  otel-smoke:
+    name: OTel emission smoke (iaj-E08)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # End-to-end smoke: a full eval (stub providers, J_RIG_OTEL=1) must emit
+      # every event name the 067 runtime-event taxonomy binds j-rig to emit,
+      # each carrying eval.run_id (067 § 4.2). Guards the cross-emitter pin
+      # (Gregg finding #2) so a name regression reds CI rather than drifting
+      # silently from the audit-harness iah-E07 emitter.
+      - name: OTel emission smoke
+        run: bash scripts/otel-smoke.sh
