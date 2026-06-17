@@ -1,4 +1,4 @@
-# @j-rig/refiner
+# @j-rig/refiner-core
 
 Foundation (Phase A, wave 1) of the **Skill Refiner** — the eval-guided
 improvement loop that proposes safe, minimal `SKILL.md` edits and accepts only
@@ -59,11 +59,11 @@ Rejections are reason-tagged for the audit buffer (shown in the Evidence Report)
 - The **`skill-refiner-pass/v1` predicate URI** — needs a separate Class-1 ADR per
   the SAK charter; not minted here.
 - The **Claude Code plugin + 3-layer hooks** (sinker/line/hook).
-- **Publishing** (`@j-rig/refiner@0.1.0` release ceremony).
+- **Publishing** (`@j-rig/refiner-core@0.1.0` release ceremony).
 
 ## Build & test
 
 ```bash
-pnpm --filter @j-rig/refiner run build
-pnpm --filter @j-rig/refiner run test
+pnpm --filter @j-rig/refiner-core run build
+pnpm --filter @j-rig/refiner-core run test
 ```

@@ -30,6 +30,7 @@ canonical schema authority (DR-018 Option α).
 | `advisory_severity?` | `advisory_severity?` | Optional (required when gate_decision=advisory). |
 
 New optional fields available in v2 (from kernel):
+
 - `cost_record_ref` (UUIDv7) — reference to a CostRecord entity.
 - `replay_fidelity_level` (RF-0..RF-4) — replay fidelity classification.
 - `extensions` (Record<string, unknown>) — non-normative experimental fields on the Statement
@@ -46,11 +47,13 @@ structural triple used for subject naming and pipeline-hop qualification.
 that cannot be evaluated is represented via `coverage.dimensions_skipped`.
 
 **v1 pattern (deprecated):**
+
 ```json
 { "result": "NOT_APPLICABLE", ... }
 ```
 
 **v2 pattern:**
+
 ```json
 {
   "gate_decision": "pass",
@@ -170,6 +173,7 @@ The v2 `"array"` container format is a **plain JSON array** (kernel
 container.
 
 **v2 emit:**
+
 ```json
 [
   { "_type": "...", "subject": [...], "predicateType": "...", "predicate": {...} },

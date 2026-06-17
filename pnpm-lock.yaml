@@ -127,7 +127,7 @@ importers:
         specifier: ^25.9.3
         version: 25.9.3
 
-  packages/refiner:
+  packages/refiner-core:
     dependencies:
       zod:
         specifier: ^4.4.3

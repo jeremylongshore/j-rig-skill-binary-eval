@@ -1,5 +1,5 @@
 {
-  "name": "@j-rig/refiner",
+  "name": "@j-rig/refiner-core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
