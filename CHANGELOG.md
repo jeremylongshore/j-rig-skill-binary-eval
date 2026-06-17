@@ -39,11 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   DR-018 (CISO carve-out pre-merge gate satisfied). See
   `000-docs/022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md`.
 
-### Pending
-
-- npm publish path for the private `@j-rig/*` workspace packages (currently no
-  `pnpm publish` step in `release.yml`; revisit when downstream consumers need
-  npm-shipped `@j-rig/*` packages — separate workstream).
+> **Pending follow-ups:** npm publish path for the private `@j-rig/*` workspace
+> packages (currently no `pnpm publish` step in `release.yml`; revisit when
+> downstream consumers need npm-shipped `@j-rig/*` packages — separate
+> workstream).
 
 ## [2.1.0] - 2026-06-15
 
