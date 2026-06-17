@@ -49,21 +49,21 @@ describe("conformance: both reference strategies satisfy the RefinerStrategy con
   const cases = [
     {
       name: "NaiveInContextStrategy",
-      strat: new NaiveInContextStrategy(),
+      strategy: new NaiveInContextStrategy(),
       id: NAIVE_IN_CONTEXT_STRATEGY_ID,
     },
     {
       name: "SkillOptStyleStrategy",
-      strat: new SkillOptStyleStrategy(),
+      strategy: new SkillOptStyleStrategy(),
       id: SKILL_OPT_STYLE_STRATEGY_ID,
     },
   ];
 
-  for (const { name, strat, id } of cases) {
+  for (const { name, strategy, id } of cases) {
     describe(name, () => {
       it("has the expected stable id and a description", () => {
-        expect(strat.id).toBe(id);
-        expect(strat.description.length).toBeGreaterThan(0);
+        expect(strategy.id).toBe(id);
+        expect(strategy.description.length).toBeGreaterThan(0);
       });
 
       it("returns a proposal whose parent === doc hash and strategy id === its own id (CISO traceability)", async () => {
@@ -72,9 +72,9 @@ describe("conformance: both reference strategies satisfy the RefinerStrategy con
           rollouts: [rollout("demo-syn-001", 0.4, "weak output")],
           model: stubModel(VALID_COMPLETION),
         };
-        const proposal = await strat.propose(ctx);
+        const proposal = await strategy.propose(ctx);
         expect(proposal.parent).toBe(DOC.hash);
-        expect(proposal.refinerStrategyId).toBe(strat.id);
+        expect(proposal.refinerStrategyId).toBe(strategy.id);
         expect(proposal.refinerModel).toBe("stub-model");
         expect(proposal.rationale).toBe("tighten phrasing");
         expect(proposal.ops).toHaveLength(1);
@@ -86,7 +86,7 @@ describe("conformance: both reference strategies satisfy the RefinerStrategy con
           rollouts: [],
           model: stubModel("the model said no"),
         };
-        await expect(strat.propose(ctx)).rejects.toThrow();
+        await expect(strategy.propose(ctx)).rejects.toThrow();
       });
     });
   }
@@ -95,8 +95,8 @@ describe("conformance: both reference strategies satisfy the RefinerStrategy con
 describe("NaiveInContextStrategy", () => {
   it("puts the whole skill doc in the prompt", async () => {
     const model = stubModel(VALID_COMPLETION);
-    const strat = new NaiveInContextStrategy();
-    await strat.propose({ doc: DOC, rollouts: [], model });
+    const strategy = new NaiveInContextStrategy();
+    await strategy.propose({ doc: DOC, rollouts: [], model });
     expect(model.lastPrompt).toContain(DOC.text);
   });
 });
@@ -104,13 +104,13 @@ describe("NaiveInContextStrategy", () => {
 describe("SkillOptStyleStrategy", () => {
   it("feeds the WEAKEST rollouts into the prompt as gradient signal", async () => {
     const model = stubModel(VALID_COMPLETION);
-    const strat = new SkillOptStyleStrategy();
+    const strategy = new SkillOptStyleStrategy();
     const rollouts = [
       rollout("hi", 0.9, "STRONG-OUTPUT"),
       rollout("lo", 0.1, "WEAK-OUTPUT"),
       rollout("mid", 0.5, "MID-OUTPUT"),
     ];
-    await strat.propose({ doc: DOC, rollouts, model });
+    await strategy.propose({ doc: DOC, rollouts, model });
     expect(model.lastPrompt).toContain("WEAK-OUTPUT");
     // the strongest rollout transcript should not be included (only worst-K)
     expect(model.lastPrompt).toContain("MID-OUTPUT");
@@ -118,8 +118,8 @@ describe("SkillOptStyleStrategy", () => {
 
   it("tolerates an empty rollout set", async () => {
     const model = stubModel(VALID_COMPLETION);
-    const strat = new SkillOptStyleStrategy();
-    const proposal = await strat.propose({ doc: DOC, rollouts: [], model });
+    const strategy = new SkillOptStyleStrategy();
+    const proposal = await strategy.propose({ doc: DOC, rollouts: [], model });
     expect(proposal.ops).toHaveLength(1);
     expect(model.lastPrompt).toContain("(no failing rollouts supplied)");
   });
