@@ -49,6 +49,13 @@ import {
   StubJudgeProvider,
   assertStubAllowed,
 } from "../providers/anthropic.js";
+import {
+  RealAnthropicProvider,
+  AnthropicTriggerProvider,
+  AnthropicExecutionProvider,
+  AnthropicJudgeProvider,
+} from "../providers/anthropic-real.js";
+import type { TriggerProvider, ExecutionProvider, JudgeProvider } from "@j-rig/core";
 
 interface EvalOptions {
   spec?: string;
@@ -57,6 +64,47 @@ interface EvalOptions {
   json?: boolean;
   trigger?: boolean;
   functional?: boolean;
+}
+
+/** The three eval-pipeline providers a single run needs, plus whether real. */
+interface SelectedProviders {
+  trigger: TriggerProvider;
+  execution: ExecutionProvider;
+  judge: JudgeProvider;
+  /** true = real Anthropic API; false = stub (NOT ground truth). */
+  real: boolean;
+}
+
+/**
+ * Select real vs stub providers for a model.
+ *
+ * Real path: when `ANTHROPIC_API_KEY` is set, build a real Anthropic
+ * `Provider` and bridge it into the three eval-pipeline interfaces. This is the
+ * iaj-E10 behavioral dogfood path — output IS ground truth.
+ *
+ * Stub path: when no key is set, fall back to stubs — but only if the operator
+ * explicitly opted in via `J_RIG_ALLOW_STUB=1`. Without the key AND without the
+ * opt-in, `assertStubAllowed()` throws REFUSED (synthetic ship verdicts are too
+ * costly to emit silently).
+ */
+function selectProviders(model: string): SelectedProviders {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey && apiKey.length >= 8) {
+    const provider = new RealAnthropicProvider({ apiKey });
+    return {
+      trigger: new AnthropicTriggerProvider(model, provider),
+      execution: new AnthropicExecutionProvider(model, provider),
+      judge: new AnthropicJudgeProvider(model, provider),
+      real: true,
+    };
+  }
+  // No real key — stub providers (each constructor re-asserts the opt-in gate).
+  return {
+    trigger: new StubTriggerProvider(model),
+    execution: new StubExecutionProvider(model),
+    judge: new StubJudgeProvider(model),
+    real: false,
+  };
 }
 
 /**
@@ -90,16 +138,17 @@ export function registerEvalCommand(program: Command): void {
       const startTime = Date.now();
 
       try {
-        // Stub-mode opt-in is enforced inside each stub provider constructor
-        // per IEP Convergence Debt Plan Priority 2 (defense in depth: the
-        // gate is structurally inviolable, not merely enforced here). A
-        // belt-and-suspenders call is retained at the command-handler entry
-        // point so the REFUSED error surfaces BEFORE we do any expensive
-        // I/O (loadSkillMd, openDb, loadEvalSpec) when stub mode is the only
-        // available path. Removing this call would still be safe — the
-        // constructors below would throw first — but the failure message
-        // would land mid-pipeline instead of pre-pipeline.
-        assertStubAllowed();
+        // Provider selection (iaj-E10): when ANTHROPIC_API_KEY is set we run
+        // the REAL Anthropic provider and the output is ground truth. Without
+        // a key, stub mode is the only available path — and stub-mode opt-in is
+        // enforced inside each stub provider constructor (IEP Convergence Debt
+        // Plan Priority 2; the gate is structurally inviolable). A
+        // belt-and-suspenders assertStubAllowed() is retained at the entry
+        // point so the REFUSED error surfaces BEFORE expensive I/O when stub
+        // mode is the only path — but ONLY when there is no real key, so a real
+        // dogfood run is never gated behind J_RIG_ALLOW_STUB.
+        const hasRealKey = (process.env.ANTHROPIC_API_KEY?.length ?? 0) >= 8;
+        if (!hasRealKey) assertStubAllowed();
 
         // ── Phase 1: Load ────────────────────────────────────────────────
         const absDir = resolve(skillDir);
@@ -157,6 +206,11 @@ export function registerEvalCommand(program: Command): void {
           const runId = createRun(database, svId, "full", model);
           transitionRun(database, runId, "running");
 
+          // Select real (Anthropic API) vs stub providers ONCE per model so the
+          // trigger / execution / judge layers all run against the same backend
+          // and the same real `Provider` instance (one key, one transport).
+          const providers = selectProviders(model);
+
           // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
           // (067 § 1.1). The DB integer runId stays the storage key; the
           // UUIDv7 is the cross-emitter idempotency key / lineage anchor.
@@ -169,13 +223,21 @@ export function registerEvalCommand(program: Command): void {
           // enum on runtime.run.finished.
           let runHadFailure = false;
 
-          if (!opts.json) console.log(header(`--- Model: ${model} ---`));
+          if (!opts.json) {
+            console.log(header(`--- Model: ${model} ---`));
+            console.log(
+              `  Provider: ${providers.real ? "anthropic (REAL — ground truth)" : "STUB (not ground truth)"}`,
+            );
+          }
 
           // ── Trigger tests ──────────────────────────────────────────────
           if (opts.trigger !== false) {
-            const triggerProvider = new StubTriggerProvider(model);
             const roster = buildRoster(skill.frontmatter, spec.siblings);
-            const triggerResults = await runTriggerTests(spec.test_cases, roster, triggerProvider);
+            const triggerResults = await runTriggerTests(
+              spec.test_cases,
+              roster,
+              providers.trigger,
+            );
             const metrics = computeMetrics(triggerResults);
 
             if (!opts.json) {
@@ -187,11 +249,10 @@ export function registerEvalCommand(program: Command): void {
 
           // ── Functional tests + judgment ────────────────────────────────
           if (opts.functional !== false) {
-            const execProvider = new StubExecutionProvider(model);
             const outcomes: ObservedOutcome[] = await runFunctionalTests(
               spec.test_cases,
               skill,
-              execProvider,
+              providers.execution,
               { model },
             );
 
@@ -202,11 +263,10 @@ export function registerEvalCommand(program: Command): void {
             }
 
             // Judge each outcome against all criteria and flatten results.
-            const judgeProvider = new StubJudgeProvider(model);
             const allJudgments: JudgmentResult[] = [];
 
             for (const outcome of outcomes) {
-              const judgments = await judgeCriteria(spec.criteria, outcome, judgeProvider, {
+              const judgments = await judgeCriteria(spec.criteria, outcome, providers.judge, {
                 model,
               });
 
@@ -292,7 +352,14 @@ export function registerEvalCommand(program: Command): void {
               false, // isObsolete: not computed here
             );
 
-            allResults[model] = { pkgReport, scoreCard, decision, report };
+            allResults[model] = {
+              provider: providers.real ? "anthropic" : "stub",
+              ground_truth: providers.real,
+              pkgReport,
+              scoreCard,
+              decision,
+              report,
+            };
 
             // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
             // RolloutDecision (ship|warn|block|obsolete_review) onto the closed

@@ -1,0 +1,27 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "j-rig:local:j-rig-eval-dogfood",
+      "digest": { "sha256": "e2aeed83db3d6d2b5526b5958d9db194da79148401c3486bded57f64641a47c7" }
+    }
+  ],
+  "predicateType": "https://evals.intentsolutions.io/gate-result/v1",
+  "predicate": {
+    "gate_id": "j-rig:local:j-rig-eval-dogfood",
+    "gate_name": "j-rig-rollout-gate",
+    "gate_version": "2.1.0",
+    "gate_decision": "pass",
+    "gate_reasons": ["j-rig rollout decision: ship (all criteria satisfied)"],
+    "coverage": {
+      "dimensions_evaluated": ["trigger", "functional", "judgment"],
+      "dimensions_skipped": []
+    },
+    "policy_ref": "sha256:ad5929619210902ee8497a1fd47fc7f70c399ae79a14d1b4c4e869427b1aa35c:skill/eval.smoke.yaml",
+    "policy_hash": "sha256:ad5929619210902ee8497a1fd47fc7f70c399ae79a14d1b4c4e869427b1aa35c",
+    "input_hash": "sha256:e2aeed83db3d6d2b5526b5958d9db194da79148401c3486bded57f64641a47c7",
+    "evaluated_at": "2026-06-17T00:32:44.339Z",
+    "runner": "j-rig@0.0.0-dev",
+    "commit_sha": "97f5762685ffc9a8ca6d01641d19c145165a6ded"
+  }
+}

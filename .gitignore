@@ -54,4 +54,11 @@ desktop.ini
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
+
+# ===== Dogfood (iaj-E10) =====
+# The generated smoke spec + transient run logs are ephemeral; the committed
+# dogfood evidence (evidence/dogfood*/evidence-bundle.json + run.json) is the
+# durable record. Raw stderr logs may carry diagnostic noise — keep them local.
+skill/eval.smoke.yaml
+evidence/**/eval.stderr.log
 .beads-credential-key
