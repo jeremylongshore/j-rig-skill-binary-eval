@@ -156,15 +156,15 @@ pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig
 
 | Provider | Key env var | Base URL (default) | Default model |
 |---|---|---|---|
-| **DeepSeek** | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-chat` (or `deepseek-reasoner`) |
-| **Kimi / Moonshot** | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` | `kimi-k2-0711-preview` |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-v4-flash` (V4 Lite; or `deepseek-reasoner`) |
+| **Kimi / Moonshot** | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` | `kimi-k2.6` |
 | **OpenRouter** | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-chat` or `moonshotai/kimi-k2` |
 | **Anthropic** | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1/messages` | `sonnet` / `haiku` / `opus` |
 | **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
 
 ```bash
 # DeepSeek (default OpenAI-compatible preset)
-DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models deepseek-chat
+DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models deepseek-v4-flash
 
 # Kimi / Moonshot
 MOONSHOT_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --provider kimi --models kimi-k2-0711-preview

@@ -25,7 +25,7 @@
 #   --sops          Decrypt the provider's key from the lab .env.sops to a memory
 #                   var (never written to disk) before running.
 #   --models LIST   Comma-separated model list. Default is provider-specific
-#                   (deepseek-chat / sonnet / …); override to pin a snapshot.
+#                   (deepseek-v4-flash / sonnet / …); override to pin a snapshot.
 #   --smoke         Tiny run: a single core test case, no adversarial layer, for
 #                   a cheap end-to-end ground-truth check (1-2 model calls).
 #   --sign          Sign the Evidence Bundle via cosign (keyless). Off by
@@ -68,8 +68,8 @@ done
 # default model. moonshot is an alias for kimi (same vendor).
 PROVIDER="$(echo "$PROVIDER" | tr '[:upper:]' '[:lower:]')"
 case "$PROVIDER" in
-  deepseek)            KEY_ENV="DEEPSEEK_API_KEY";   DEFAULT_MODEL="deepseek-chat" ;;
-  kimi|moonshot)       KEY_ENV="MOONSHOT_API_KEY";   DEFAULT_MODEL="kimi-k2-0711-preview" ;;
+  deepseek)            KEY_ENV="DEEPSEEK_API_KEY";   DEFAULT_MODEL="deepseek-v4-flash" ;;
+  kimi|moonshot)       KEY_ENV="MOONSHOT_API_KEY";   DEFAULT_MODEL="kimi-k2.6" ;;
   openrouter)          KEY_ENV="OPENROUTER_API_KEY"; DEFAULT_MODEL="deepseek/deepseek-chat" ;;
   anthropic)           KEY_ENV="ANTHROPIC_API_KEY";  DEFAULT_MODEL="sonnet" ;;
   *) echo "dogfood: unknown --provider '$PROVIDER' (deepseek|kimi|moonshot|openrouter|anthropic)" >&2; exit 1 ;;

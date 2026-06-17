@@ -84,9 +84,11 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   deepseek: {
     id: "deepseek",
     baseUrl: "https://api.deepseek.com",
-    // deepseek-chat (V3) is the cheap general model; deepseek-reasoner (R1) is
-    // the reasoning model — override via LLM_MODEL/--model to switch.
-    defaultModel: "deepseek-chat",
+    // deepseek-v4-flash (V4 Lite) is the current fast coding/general model
+    // (1M context, 13B-active MoE); deepseek-reasoner is the reasoning model.
+    // The legacy "deepseek-chat" alias deprecates 2026-07-24 — it just maps to
+    // v4-flash non-thinking mode. Override via LLM_MODEL/--model to switch.
+    defaultModel: "deepseek-v4-flash",
     keyEnv: "DEEPSEEK_API_KEY",
   },
   kimi: {
@@ -94,9 +96,9 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     // Moonshot's international endpoint. platform.kimi.ai is the console;
     // api.moonshot.ai/v1 is the OpenAI-compatible API surface.
     baseUrl: "https://api.moonshot.ai/v1",
-    // Kimi K2 family. Model ids churn on the vendor side — override via
-    // LLM_MODEL/--model (e.g. a dated kimi-k2 snapshot) when needed.
-    defaultModel: "kimi-k2-0711-preview",
+    // Kimi K2.6 (latest, April 2026 — 1M ctx, coding/agentic). Model ids churn
+    // on the vendor side — override via LLM_MODEL/--model when needed.
+    defaultModel: "kimi-k2.6",
     keyEnv: "MOONSHOT_API_KEY",
   },
   openrouter: {
