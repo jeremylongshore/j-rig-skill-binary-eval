@@ -15,7 +15,7 @@ curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/i
 
 Drops `.audit-harness/` (scripts) and `scripts/audit-harness` (wrapper).
 
-## Why two layers of "harness" in one repo?
+## Why two layers of "harness" in one repo
 
 This repo IS the j-rig seven-layer binary evaluation harness for Claude Skills (`SKILL.md` artifacts). The `@intentsolutions/audit-harness` install adds a complementary, lower-level 7-layer **testing taxonomy** gate against this repo's own code (TypeScript/Node). The two systems are independent:
 
