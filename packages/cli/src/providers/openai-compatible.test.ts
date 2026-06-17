@@ -383,4 +383,330 @@ describe("OpenAICompatJudgeProvider", () => {
     const out = await judge.judge("c", "p", "o");
     expect(out.confidence).toBe(1);
   });
+
+  it("falls back to text slice when the judge output is not JSON", async () => {
+    const { transport } = fakeTransport(textResponse("the answer is clearly yes, it satisfies"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const judge = new OpenAICompatJudgeProvider("m", provider);
+    const out = await judge.judge("c", "p", "o");
+    // No JSON object → verdict defaults to unsure, confidence 0.5, reasoning = raw.
+    expect(out.verdict).toBe("unsure");
+    expect(out.confidence).toBe(0.5);
+    expect(out.reasoning).toContain("the answer is clearly yes");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Branch-coverage completion: secondary Provider methods + normalization paths.
+// ---------------------------------------------------------------------------
+
+describe("RealOpenAICompatProvider — streaming, batch, normalization", () => {
+  it("completeStream yields a text_delta then a finish chunk", async () => {
+    const { transport } = fakeTransport(textResponse("streamed text"));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const chunks = [];
+    for await (const c of provider.completeStream({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      chunks.push(c);
+    }
+    expect(chunks[0]).toMatchObject({ type: "text_delta", delta: "streamed text" });
+    expect(chunks.at(-1)).toMatchObject({ type: "finish" });
+  });
+
+  it("completeStream emits only a finish chunk when the text is empty", async () => {
+    const { transport } = fakeTransport(textResponse(""));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const chunks = [];
+    for await (const c of provider.completeStream({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      chunks.push(c);
+    }
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({ type: "finish" });
+  });
+
+  it("batch returns CompletionResults and in-band ProviderErrors (partial success)", async () => {
+    // A transport that 200s the first call and 429s the second.
+    let n = 0;
+    const transport: Transport = async () => {
+      n += 1;
+      return n === 1 ? textResponse("ok") : { status: 429, json: { error: { message: "rl" } } };
+    };
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const results = await provider.batch([
+      { model: "m", messages: [{ role: "user", content: "a" }] },
+      { model: "m", messages: [{ role: "user", content: "b" }] },
+    ]);
+    expect(results).toHaveLength(2);
+    expect((results[0] as { text: string }).text).toBe("ok");
+    expect(isProviderError(results[1])).toBe(true);
+  });
+
+  it("maps content_filter to refusal and function_call to tool_use", async () => {
+    const provider = (fr: string) => {
+      const { transport } = fakeTransport(textResponse("x", fr));
+      return new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    };
+    expect(
+      (
+        await provider("content_filter").complete({
+          model: "m",
+          messages: [{ role: "user", content: "x" }],
+        })
+      ).finishReason,
+    ).toBe("refusal");
+    expect(
+      (
+        await provider("function_call").complete({
+          model: "m",
+          messages: [{ role: "user", content: "x" }],
+        })
+      ).finishReason,
+    ).toBe("tool_use");
+  });
+
+  it("surfaces cached input tokens from prompt_tokens_details", async () => {
+    const resp: TransportResponse = {
+      status: 200,
+      json: {
+        choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+        usage: {
+          prompt_tokens: 8,
+          completion_tokens: 2,
+          prompt_tokens_details: { cached_tokens: 4 },
+        },
+      },
+    };
+    const { transport } = fakeTransport(resp);
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const result = await provider.complete({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+    });
+    expect(result.usage.cachedInputTokens).toBe(4);
+  });
+
+  it("threads a tool-result (role:tool) message into the wire shape", async () => {
+    const { transport, lastRequest } = fakeTransport(textResponse("ok"));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await provider.complete({
+      model: "m",
+      messages: [{ role: "tool", content: "result", toolCallId: "call_9", toolName: "search" }],
+    });
+    const msgs = (lastRequest()!.body as Record<string, unknown>).messages as Array<
+      Record<string, unknown>
+    >;
+    expect(msgs[0]).toMatchObject({ role: "tool", tool_call_id: "call_9", name: "search" });
+  });
+
+  it("returns structuredOutput when responseSchema is provided and the text is valid JSON", async () => {
+    const { transport, lastRequest } = fakeTransport(textResponse('{"k":1}'));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const result = await provider.complete({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+      responseSchema: { type: "object" },
+    });
+    expect(result.structuredOutput).toEqual({ k: 1 });
+    const body = lastRequest()!.body as Record<string, unknown>;
+    expect((body.response_format as Record<string, unknown>).type).toBe("json_schema");
+  });
+
+  it("throws schema_violation when responseSchema is set but the text is not JSON", async () => {
+    const { transport } = fakeTransport(textResponse("not json"));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await expect(
+      provider.complete({
+        model: "m",
+        messages: [{ role: "user", content: "x" }],
+        responseSchema: { type: "object" },
+      }),
+    ).rejects.toMatchObject({ category: "schema_violation" });
+  });
+
+  it("forwards stop sequences and throws model_not_found on 404", async () => {
+    const { transport, lastRequest } = fakeTransport(textResponse("ok"));
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await provider.complete({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+      stop: ["STOP"],
+    });
+    expect((lastRequest()!.body as Record<string, unknown>).stop).toEqual(["STOP"]);
+
+    const miss = fakeTransport({ status: 404, json: { error: { message: "no model" } } });
+    const p2 = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport: miss.transport,
+    });
+    await expect(
+      p2.complete({ model: "m", messages: [{ role: "user", content: "x" }] }),
+    ).rejects.toMatchObject({ category: "model_not_found" });
+  });
+
+  it("maps a transport-thrown abort to network_timeout", async () => {
+    const transport: Transport = async () => {
+      throw Object.assign(new Error("aborted"), { name: "AbortError" });
+    };
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await expect(
+      provider.complete({ model: "m", messages: [{ role: "user", content: "x" }] }),
+    ).rejects.toMatchObject({ category: "network_timeout" });
+  });
+
+  it("throws when the response carries no choices", async () => {
+    const { transport } = fakeTransport({ status: 200, json: { choices: [] } });
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await expect(
+      provider.complete({ model: "m", messages: [{ role: "user", content: "x" }] }),
+    ).rejects.toMatchObject({ category: "unknown" });
+  });
+});
+
+describe("RealOpenAICompatProvider.callTool — variants", () => {
+  function toolResponse(args: unknown): TransportResponse {
+    return {
+      status: 200,
+      json: {
+        choices: [
+          {
+            message: {
+              content: "",
+              tool_calls: [
+                { id: "c1", type: "function", function: { name: "fn", arguments: args } },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      },
+    };
+  }
+  const tool = { name: "fn", description: "d", inputSchema: { type: "object" } };
+
+  it("parses object-shaped tool arguments", async () => {
+    const { transport } = fakeTransport(toolResponse({ a: 1 }));
+    const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const r = await p.callTool({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+      tools: [tool],
+    });
+    expect(r.toolArguments).toEqual({ a: 1 });
+  });
+
+  it("returns {} for unparseable string tool arguments", async () => {
+    const { transport } = fakeTransport(toolResponse("not-json"));
+    const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const r = await p.callTool({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+      tools: [tool],
+    });
+    expect(r.toolArguments).toEqual({});
+  });
+
+  it("returns a no-tool result when the model called no tool", async () => {
+    const { transport } = fakeTransport(textResponse("just text", "stop"));
+    const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    const r = await p.callTool({
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+      tools: [tool],
+    });
+    expect(r.toolName).toBeNull();
+    expect(r.toolArguments).toBeNull();
+    expect(r.text).toBe("just text");
+  });
+
+  it("throws auth before the network call when the key is too short", async () => {
+    let called = false;
+    const transport: Transport = async () => {
+      called = true;
+      return textResponse("x");
+    };
+    const p = new RealOpenAICompatProvider({ apiKey: "short", baseUrl: BASE, transport });
+    await expect(
+      p.callTool({ model: "m", messages: [{ role: "user", content: "x" }], tools: [tool] }),
+    ).rejects.toMatchObject({ category: "authentication" });
+    expect(called).toBe(false);
+  });
+});
+
+describe("Eval bridges — fallback branches", () => {
+  it("trigger falls back to a text slice when the output is not JSON", async () => {
+    const { transport } = fakeTransport(textResponse("I would pick the first skill, probably"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const trig = new OpenAICompatTriggerProvider("m", provider);
+    const out = await trig.selectSkill("p", [{ name: "x", description: "y" }]);
+    expect(out.selected).toBeNull();
+    expect(out.reasoning).toContain("first skill");
+  });
+
+  it("execution honors a timeout option and clears the timer on success", async () => {
+    const { transport } = fakeTransport(textResponse("done"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const exec = new OpenAICompatExecutionProvider("default-model", provider);
+    const out = await exec.execute(
+      "prompt",
+      { skill_body: "body" },
+      { timeout_ms: 5000, model: "override-model" },
+    );
+    expect(out.text).toBe("done");
+    expect(out.meta.timed_out).toBe(false);
+  });
+});
+
+describe("resolveOpenAICompatConfig — override + alias branches", () => {
+  it("lets LLM_BASE_URL override a preset's base URL while keeping the preset key", () => {
+    const cfg = resolveOpenAICompatConfig({
+      DEEPSEEK_API_KEY: KEY,
+      LLM_BASE_URL: "https://proxy.internal/v1",
+    });
+    expect(cfg!.name).toBe("deepseek");
+    expect(cfg!.baseUrl).toBe("https://proxy.internal/v1");
+  });
+
+  it("falls back to LLM_API_KEY for a preset when the preset key is absent", () => {
+    // No DEEPSEEK_API_KEY, but LLM_API_KEY is present and --provider=deepseek.
+    const cfg = resolveOpenAICompatConfig({ LLM_API_KEY: KEY }, "deepseek");
+    expect(cfg!.name).toBe("deepseek");
+    expect(cfg!.apiKey).toBe(KEY);
+  });
+
+  it("returns null for an unknown explicit --provider", () => {
+    expect(resolveOpenAICompatConfig({ DEEPSEEK_API_KEY: KEY }, "no-such-vendor")).toBeNull();
+  });
+
+  it("skips the generic triple without LLM_BASE_URL but lets a preset use LLM_API_KEY", () => {
+    // LLM_API_KEY present but no LLM_BASE_URL → the generic-triple path is
+    // skipped (it requires a base URL). The preset loop then runs and deepseek
+    // matches via its documented LLM_API_KEY fallback.
+    const cfg = resolveOpenAICompatConfig({ LLM_API_KEY: KEY });
+    expect(cfg).not.toBeNull();
+    expect(cfg!.name).toBe("deepseek");
+    expect(cfg!.apiKey).toBe(KEY);
+  });
+
+  it("returns null when neither a preset key, LLM_API_KEY, nor a full LLM triple is set", () => {
+    expect(resolveOpenAICompatConfig({ LLM_BASE_URL: "https://x/v1", LLM_MODEL: "m" })).toBeNull();
+  });
 });
