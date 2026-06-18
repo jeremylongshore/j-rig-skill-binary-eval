@@ -26,6 +26,7 @@
     "@j-rig/core": "workspace:*",
     "@j-rig/db": "workspace:*",
     "@j-rig/migrate": "workspace:*",
+    "@j-rig/refiner": "workspace:*",
     "commander": "^15.0.0",
     "chalk": "^5.4.0"
   }
