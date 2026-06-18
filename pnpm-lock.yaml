@@ -56,6 +56,9 @@ importers:
       '@j-rig/migrate':
         specifier: workspace:*
         version: link:../migrate
+      '@j-rig/refiner':
+        specifier: workspace:*
+        version: link:../refiner
       chalk:
         specifier: ^5.4.0
         version: 5.6.2
@@ -123,6 +126,19 @@ importers:
       '@intentsolutions/rollout-gate':
         specifier: workspace:*
         version: link:../rollout-gate
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+
+  packages/refiner:
+    dependencies:
+      '@j-rig/refiner-core':
+        specifier: workspace:*
+        version: link:../refiner-core
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+    devDependencies:
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3

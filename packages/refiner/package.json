@@ -1,11 +1,8 @@
 {
-  "name": "@j-rig/cli",
-  "version": "2.1.0",
+  "name": "@j-rig/refiner",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "j-rig": "./dist/index.js"
-  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -23,11 +20,10 @@
     "dist"
   ],
   "dependencies": {
-    "@j-rig/core": "workspace:*",
-    "@j-rig/db": "workspace:*",
-    "@j-rig/migrate": "workspace:*",
-    "@j-rig/refiner": "workspace:*",
-    "commander": "^15.0.0",
-    "chalk": "^5.4.0"
+    "@j-rig/refiner-core": "workspace:*",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3"
   }
 }
