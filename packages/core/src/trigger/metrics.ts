@@ -4,16 +4,33 @@ import type { TriggerResult, TriggerMetrics, ConfusionPair } from "./types.js";
  * Compute trigger precision/recall metrics from test results.
  */
 export function computeMetrics(results: TriggerResult[]): TriggerMetrics {
-  let tp = 0, tn = 0, fp = 0, fn = 0, confusions = 0, errors = 0;
+  let tp = 0,
+    tn = 0,
+    fp = 0,
+    fn = 0,
+    confusions = 0,
+    errors = 0;
 
   for (const r of results) {
     switch (r.outcome) {
-      case "correct_trigger": tp++; break;
-      case "correct_no_trigger": tn++; break;
-      case "false_positive": fp++; break;
-      case "false_negative": fn++; break;
-      case "sibling_confusion": confusions++; break;
-      case "error": errors++; break;
+      case "correct_trigger":
+        tp++;
+        break;
+      case "correct_no_trigger":
+        tn++;
+        break;
+      case "false_positive":
+        fp++;
+        break;
+      case "false_negative":
+        fn++;
+        break;
+      case "sibling_confusion":
+        confusions++;
+        break;
+      case "error":
+        errors++;
+        break;
     }
   }
 
@@ -43,10 +60,7 @@ export function computeMetrics(results: TriggerResult[]): TriggerMetrics {
  * A confusion pair exists when the target skill expected to trigger
  * but a sibling was selected instead (or vice versa).
  */
-export function detectConfusion(
-  results: TriggerResult[],
-  targetName: string,
-): ConfusionPair[] {
+export function detectConfusion(results: TriggerResult[], targetName: string): ConfusionPair[] {
   const confusionMap = new Map<string, string[]>();
 
   for (const r of results) {

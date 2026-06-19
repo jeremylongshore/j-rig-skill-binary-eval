@@ -102,7 +102,9 @@ export interface ComposeStatementInput {
  */
 export function composeStatement(input: ComposeStatementInput): EvidenceStatement {
   if (!input.inputHash.startsWith("sha256:")) {
-    throw new Error(`composeStatement: inputHash must be sha256:-prefixed (got: ${input.inputHash})`);
+    throw new Error(
+      `composeStatement: inputHash must be sha256:-prefixed (got: ${input.inputHash})`,
+    );
   }
   const digestHex = input.inputHash.slice("sha256:".length);
   // Emit ISO 8601 unmodified — lossless sub-second precision and already

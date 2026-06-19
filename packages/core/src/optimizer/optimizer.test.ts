@@ -6,7 +6,13 @@ import type { Criterion } from "../schemas/criterion.js";
 import type { JudgmentResult } from "../judgment/types.js";
 import type { ChangeProposal, Experiment } from "./types.js";
 
-function criterion(partial: { id: string; description: string; method: "deterministic" | "judge"; blocker?: boolean; regression_critical?: boolean }): Criterion {
+function criterion(partial: {
+  id: string;
+  description: string;
+  method: "deterministic" | "judge";
+  blocker?: boolean;
+  regression_critical?: boolean;
+}): Criterion {
   return CriterionSchema.parse(partial);
 }
 
@@ -23,7 +29,12 @@ describe("failure clustering", () => {
   ];
 
   it("clusters failures by method", () => {
-    const results = [result("c1", "no"), result("c2", "no"), result("c3", "no"), result("c4", "yes")];
+    const results = [
+      result("c1", "no"),
+      result("c2", "no"),
+      result("c3", "no"),
+      result("c4", "yes"),
+    ];
     const clusters = clusterFailures(results, criteria);
 
     expect(clusters.length).toBeGreaterThanOrEqual(1);
@@ -122,8 +133,11 @@ describe("early stopping", () => {
   it("stops at max experiments", () => {
     const results = [result("c1", "no")];
     const history = Array.from({ length: 10 }, () => ({
-      id: "e", proposal: {} as ChangeProposal, status: "rejected" as const,
-      improvement: null, created_at: "",
+      id: "e",
+      proposal: {} as ChangeProposal,
+      status: "rejected" as const,
+      improvement: null,
+      created_at: "",
     }));
     const { stop } = shouldStop(results, history);
     expect(stop).toBe(true);
@@ -132,9 +146,27 @@ describe("early stopping", () => {
   it("stops on optimization resistance", () => {
     const results = [result("c1", "no")];
     const history: Experiment[] = [
-      { id: "1", proposal: {} as ChangeProposal, status: "rejected", improvement: null, created_at: "" },
-      { id: "2", proposal: {} as ChangeProposal, status: "rejected", improvement: null, created_at: "" },
-      { id: "3", proposal: {} as ChangeProposal, status: "rejected", improvement: null, created_at: "" },
+      {
+        id: "1",
+        proposal: {} as ChangeProposal,
+        status: "rejected",
+        improvement: null,
+        created_at: "",
+      },
+      {
+        id: "2",
+        proposal: {} as ChangeProposal,
+        status: "rejected",
+        improvement: null,
+        created_at: "",
+      },
+      {
+        id: "3",
+        proposal: {} as ChangeProposal,
+        status: "rejected",
+        improvement: null,
+        created_at: "",
+      },
     ];
     const { stop, reason } = shouldStop(results, history);
     expect(stop).toBe(true);

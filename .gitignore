@@ -24,6 +24,7 @@ reports/
 
 # Linting
 .eslintcache
+.lycheecache
 
 # Debug logs
 npm-debug.log*

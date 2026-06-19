@@ -1,9 +1,28 @@
-name: Lint
+name: Lint (YAML + Actions)
+
+# Deterministic L1 lint for the CI-config surface: yamllint + actionlint.
+# ESLint/Prettier run inside ci.yml (`pnpm run check` + the prettier format gate);
+# markdownlint runs in doc-quality.yml (its single home — de-duplicated from here).
+# These two jobs are REQUIRED, not advisory: a green required check is signal, a
+# red advisory check is noise. yamllint runs --strict so warnings fail the gate.
+#
+# Configs are vendored so the policy travels with the repo:
+#   - YAML:    .yamllint.yaml (extends .audit-harness/configs/yamllint.yaml)
+#   - Actions: actionlint (built-in rule set)
 
 on:
   pull_request:
+    paths:
+      - "**/*.yml"
+      - "**/*.yaml"
+      - ".yamllint.yaml"
+      - ".audit-harness/configs/yamllint.yaml"
+      - ".github/workflows/lint.yml"
   push:
     branches: [main]
+    paths:
+      - "**/*.yml"
+      - "**/*.yaml"
 
 permissions:
   contents: read
@@ -12,41 +31,40 @@ concurrency:
   group: lint-${{ github.ref }}
   cancel-in-progress: true
 
-# Tidy-first posture: advisory on first install. continue-on-error keeps both
-# lanes non-blocking so a yamllint / markdownlint hit never reds a required
-# check (Lint / Test / Typecheck stay green-gating). Both jobs read the shared
-# IEP lint configs vendored at .audit-harness/configs/ (from
-# @intentsolutions/audit-harness) via the repo-root .yamllint.yaml /
-# .markdownlint-cli2.jsonc `extends`, so the rule set lives in one place.
-# Tighten to fail_on_error in a follow-up PR once the corpus is clean. Mirrors
-# typos.yml / actionlint.yml / doc-quality.yml.
 jobs:
   yamllint:
-    name: yamllint (YAML lint, advisory)
+    name: yamllint
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - name: Lint YAML with yamllint (shared IEP config)
-        uses: ibiqlik/action-yamllint@v3
-        with:
-          config_file: .yamllint.yaml
-          strict: false
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  markdownlint:
-    name: markdownlint-cli2 (Markdown lint, advisory)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install yamllint
+        run: pip install --no-cache-dir "yamllint==1.35.1"
+
+      - name: Run yamllint (--strict — warnings fail the gate)
+        run: |
+          yamllint --strict \
+            --config-file .yamllint.yaml \
+            .github/ codecov.yml
+
+  actionlint:
+    name: actionlint
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint workflow YAML with rhysd/actionlint
+        uses: reviewdog/action-actionlint@v1
         with:
-          node-version: "22"
-          cache: "pnpm"
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Lint Markdown with markdownlint-cli2 (shared IEP config)
-        run: pnpm exec markdownlint-cli2
+          reporter: github-pr-check
+          level: error
+          fail_level: error

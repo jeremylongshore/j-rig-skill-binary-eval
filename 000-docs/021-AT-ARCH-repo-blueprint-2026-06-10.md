@@ -20,8 +20,6 @@ filing_standard: Document Filing Standard v4.3
 
 **Beads:** `bd_000-projects-mte`
 
-# Repo Blueprint — j-rig-skill-binary-eval
-
 ## § 1 — Repo identity
 
 | Field              | Value                                                                                                                                      |

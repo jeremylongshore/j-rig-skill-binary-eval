@@ -83,9 +83,7 @@ function requireParam(
 ): unknown {
   const value = params?.[key];
   if (value === undefined || value === null) {
-    throw new Error(
-      `check "${checkName}" requires params.${key}; refusing to evaluate without it`,
-    );
+    throw new Error(`check "${checkName}" requires params.${key}; refusing to evaluate without it`);
   }
   return value;
 }

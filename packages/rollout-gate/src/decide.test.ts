@@ -191,10 +191,10 @@ describe("decide — unknown gates", () => {
   });
 
   it("blocks unknown gates when allow_unknown_gates=false", () => {
-    const result = decide(
-      [makeStatement(), makeStatement({ gateId: "j-rig:ci:extra-gate" })],
-      { ...BASE_POLICY, allow_unknown_gates: false },
-    );
+    const result = decide([makeStatement(), makeStatement({ gateId: "j-rig:ci:extra-gate" })], {
+      ...BASE_POLICY,
+      allow_unknown_gates: false,
+    });
     expect(result.decision).toBe("block");
     expect(
       result.reasons.some((r) => r.includes("unknown gate") && r.includes("j-rig:ci:extra-gate")),

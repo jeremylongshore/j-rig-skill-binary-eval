@@ -89,7 +89,11 @@ describe("LiteLlmProvider.complete — EC-1 single completion", () => {
       status: 200,
       json: {
         choices: [{ message: { content: "x" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 10, completion_tokens: 2, prompt_tokens_details: { cached_tokens: 4 } },
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 2,
+          prompt_tokens_details: { cached_tokens: 4 },
+        },
       },
     }));
     const p = new LiteLlmProvider({ apiKey: KEY, transport });
@@ -250,9 +254,7 @@ describe("LiteLlmProvider.callTool — EC-3 tool calling", () => {
           {
             message: {
               content: "",
-              tool_calls: [
-                { id: "tc-9", function: { name: "lookup", arguments: '{"q":"x"}' } },
-              ],
+              tool_calls: [{ id: "tc-9", function: { name: "lookup", arguments: '{"q":"x"}' } }],
             },
             finish_reason: "tool_calls",
           },
@@ -299,7 +301,10 @@ describe("LiteLlmProvider.callTool — EC-3 tool calling", () => {
   });
 
   it("propagates a non-2xx status from callTool", async () => {
-    const { transport } = fakeTransport(() => ({ status: 429, json: { error: { message: "slow down" } } }));
+    const { transport } = fakeTransport(() => ({
+      status: 429,
+      json: { error: { message: "slow down" } },
+    }));
     const p = new LiteLlmProvider({ apiKey: KEY, transport });
     await expect(
       p.callTool({
@@ -316,7 +321,10 @@ describe("LiteLlmProvider.callTool — EC-3 tool calling", () => {
       json: {
         choices: [
           {
-            message: { content: "", tool_calls: [{ id: "tc-1", function: { name: "x", arguments: "{bad" } }] },
+            message: {
+              content: "",
+              tool_calls: [{ id: "tc-1", function: { name: "x", arguments: "{bad" } }],
+            },
             finish_reason: "tool_calls",
           },
         ],
@@ -415,13 +423,16 @@ describe("LiteLlmProvider — normalization edge cases (branch coverage)", () =>
     expect(calls[0]!.url).toBe("https://proxy.local/v1/chat/completions");
   });
 
-  it("coerces non-object string tool args (e.g. \"5\") to an empty object", async () => {
+  it('coerces non-object string tool args (e.g. "5") to an empty object', async () => {
     const { transport } = fakeTransport(() => ({
       status: 200,
       json: {
         choices: [
           {
-            message: { content: "", tool_calls: [{ id: "tc-1", function: { name: "x", arguments: "5" } }] },
+            message: {
+              content: "",
+              tool_calls: [{ id: "tc-1", function: { name: "x", arguments: "5" } }],
+            },
             finish_reason: "tool_calls",
           },
         ],
@@ -443,7 +454,10 @@ describe("LiteLlmProvider — normalization edge cases (branch coverage)", () =>
       json: {
         choices: [
           {
-            message: { content: "", tool_calls: [{ id: "tc-1", function: { name: "x", arguments: { a: 1 } } }] },
+            message: {
+              content: "",
+              tool_calls: [{ id: "tc-1", function: { name: "x", arguments: { a: 1 } } }],
+            },
             finish_reason: "tool_calls",
           },
         ],

@@ -1,6 +1,12 @@
 import type { Criterion } from "../schemas/criterion.js";
 import type { JudgmentResult } from "../judgment/types.js";
-import type { ScoreCard, RolloutDecision, LaunchReport, Regression, BaselineComparison } from "./types.js";
+import type {
+  ScoreCard,
+  RolloutDecision,
+  LaunchReport,
+  Regression,
+  BaselineComparison,
+} from "./types.js";
 
 /**
  * Compute a score card from judgment results.
@@ -12,7 +18,10 @@ export function computeScoreCard(
 ): ScoreCard {
   const criteriaMap = new Map(criteria.map((c) => [c.id, c]));
 
-  let passed = 0, failed = 0, unsure = 0, blockerFailures = 0;
+  let passed = 0,
+    failed = 0,
+    unsure = 0,
+    blockerFailures = 0;
 
   for (const r of results) {
     if (r.verdict === "yes") passed++;
@@ -48,10 +57,7 @@ export function computeScoreCard(
  * - Any non-blocker failures or unsure → WARN
  * - All pass → SHIP
  */
-export function decideRollout(
-  score: ScoreCard,
-  isObsolete: boolean = false,
-): RolloutDecision {
+export function decideRollout(score: ScoreCard, isObsolete: boolean = false): RolloutDecision {
   if (score.blocker_failures > 0) return "block";
   if (score.sacred_regressions > 0) return "block";
   if (isObsolete) return "obsolete_review";
@@ -90,13 +96,14 @@ export function buildLaunchReport(
     warnings.push(`${score.failed} non-blocker criteria failed`);
   }
 
-  const reasoning = decision === "ship"
-    ? `All ${score.total_criteria} criteria passed. Ready to ship.`
-    : decision === "block"
-      ? `Release blocked: ${blockers.join("; ")}`
-      : decision === "obsolete_review"
-        ? "Skill flagged for obsolete review — baseline model matches skill performance."
-        : `${score.passed}/${score.total_criteria} criteria passed with warnings.`;
+  const reasoning =
+    decision === "ship"
+      ? `All ${score.total_criteria} criteria passed. Ready to ship.`
+      : decision === "block"
+        ? `Release blocked: ${blockers.join("; ")}`
+        : decision === "obsolete_review"
+          ? "Skill flagged for obsolete review — baseline model matches skill performance."
+          : `${score.passed}/${score.total_criteria} criteria passed with warnings.`;
 
   return {
     skill_name: skillName,

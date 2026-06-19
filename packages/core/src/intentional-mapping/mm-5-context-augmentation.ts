@@ -28,8 +28,7 @@ const AUGMENT_MARKERS = ["augment", "inject-context", "input-augmentation"];
 export const checkMM5ContextAugmentation: MMChecker = (events: TraceEvent[]): MMResult => {
   const decisions = events.filter(
     (e) =>
-      e.name === "claude_code.tool_decision" &&
-      Array.isArray(e.attributes["requires_context"]),
+      e.name === "claude_code.tool_decision" && Array.isArray(e.attributes["requires_context"]),
   );
 
   if (decisions.length === 0) {

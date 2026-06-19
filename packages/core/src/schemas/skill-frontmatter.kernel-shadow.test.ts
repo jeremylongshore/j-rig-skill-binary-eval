@@ -73,12 +73,24 @@ function kernelInvalidVariants(): Array<[string, Record<string, unknown>]> {
   }
   variants.push(
     ["non-kebab-case name", { ...validFrontmatter(), name: "BAD_NAME_123!" }],
-    ["name over the 64-char ceiling", { ...validFrontmatter(), name: "a".repeat(KERNEL_NAME_MAX + 1) }],
-    ["description over the 1536-char cap", { ...validFrontmatter(), description: "d".repeat(KERNEL_DESCRIPTION_MAX + 1) }],
+    [
+      "name over the 64-char ceiling",
+      { ...validFrontmatter(), name: "a".repeat(KERNEL_NAME_MAX + 1) },
+    ],
+    [
+      "description over the 1536-char cap",
+      { ...validFrontmatter(), description: "d".repeat(KERNEL_DESCRIPTION_MAX + 1) },
+    ],
     ["XML angle brackets in name", { ...validFrontmatter(), name: "bad<name>" }],
-    ["XML tags in description", { ...validFrontmatter(), description: "Does <thing> for the user." }],
+    [
+      "XML tags in description",
+      { ...validFrontmatter(), description: "Does <thing> for the user." },
+    ],
     ["reserved-word name", { ...validFrontmatter(), name: "skill" }],
-    ["deprecated compatible-with field", { ...validFrontmatter(), "compatible-with": "Claude Code" }],
+    [
+      "deprecated compatible-with field",
+      { ...validFrontmatter(), "compatible-with": "Claude Code" },
+    ],
     ["non-semver version", { ...validFrontmatter(), version: "1.0" }],
     ["non-array tags", { ...validFrontmatter(), tags: "git" }],
   );

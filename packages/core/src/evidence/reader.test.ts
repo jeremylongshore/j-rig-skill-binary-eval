@@ -144,10 +144,10 @@ describe("readBundle", () => {
       predicateType: "https://evals.intentsolutions.io/gate-result/v1",
       predicate: {
         gate_id: "j-rig:server:MM-1",
-        result: "PASS",              // v1 field — not valid in v2 schema
+        result: "PASS", // v1 field — not valid in v2 schema
         policy_hash: `sha256:${SHA}`,
         input_hash: `sha256:${SHA}`,
-        timestamp: "2026-01-01T00:00:00Z",  // v1 field — not valid in v2 schema
+        timestamp: "2026-01-01T00:00:00Z", // v1 field — not valid in v2 schema
         runner: "j-rig@1.0.0",
         commit_sha: "abc1234",
       },

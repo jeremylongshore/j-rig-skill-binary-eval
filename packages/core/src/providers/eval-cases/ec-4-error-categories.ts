@@ -21,12 +21,7 @@
  * same triggers ran on both.
  */
 import type { Provider } from "../types.js";
-import type {
-  ECResult,
-  ECPerModelOutcome,
-  ECRunner,
-  ECRunnerOptions,
-} from "./types.js";
+import type { ECResult, ECPerModelOutcome, ECRunner, ECRunnerOptions } from "./types.js";
 import { DEFAULT_MODELS } from "./types.js";
 import { isProviderError, type ProviderErrorCategory } from "../errors.js";
 
@@ -57,25 +52,27 @@ export interface EC4Options extends ECRunnerOptions {
 
 const BAD_KEY = "sk-test-EC4-DELIBERATELY-INVALID";
 
-export const runEC4: ECRunner & ((p: Provider, o?: EC4Options) => Promise<ECResult>) =
-  async (provider: Provider, options?: EC4Options): Promise<ECResult> => {
-    const models = options?.models ?? DEFAULT_MODELS;
-    const triggers = options?.triggers ?? {};
-    const t0 = Date.now();
-    const perModel: ECPerModelOutcome[] = [];
+export const runEC4: ECRunner & ((p: Provider, o?: EC4Options) => Promise<ECResult>) = async (
+  provider: Provider,
+  options?: EC4Options,
+): Promise<ECResult> => {
+  const models = options?.models ?? DEFAULT_MODELS;
+  const triggers = options?.triggers ?? {};
+  const t0 = Date.now();
+  const perModel: ECPerModelOutcome[] = [];
 
-    for (const [vendor, model] of Object.entries(models)) {
-      perModel.push(await runOne(provider, model, vendor, triggers, options?.providerWithKey));
-    }
+  for (const [vendor, model] of Object.entries(models)) {
+    perModel.push(await runOne(provider, model, vendor, triggers, options?.providerWithKey));
+  }
 
-    return {
-      ec: "EC-4",
-      provider: provider.name,
-      perModel,
-      harnessOk: true,
-      durationMs: Date.now() - t0,
-    };
+  return {
+    ec: "EC-4",
+    provider: provider.name,
+    perModel,
+    harnessOk: true,
+    durationMs: Date.now() - t0,
   };
+};
 
 async function runOne(
   provider: Provider,
@@ -84,7 +81,10 @@ async function runOne(
   triggers: EC4Triggers,
   providerWithKey: ((apiKey: string) => Provider) | undefined,
 ): Promise<ECPerModelOutcome> {
-  const observed: Record<ProviderErrorCategory, "expected" | "missing" | "wrong-category" | "skipped"> = {
+  const observed: Record<
+    ProviderErrorCategory,
+    "expected" | "missing" | "wrong-category" | "skipped"
+  > = {
     authentication: "skipped",
     rate_limit: "skipped",
     model_not_found: "skipped",

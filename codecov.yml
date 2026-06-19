@@ -18,7 +18,7 @@ codecov:
 coverage:
   precision: 2
   round: down
-  range: '30...100'
+  range: "30...100"
 
   status:
     project:
@@ -35,7 +35,7 @@ coverage:
         only_pulls: true
 
 comment:
-  layout: 'condensed_header, diff, flags, components, files'
+  layout: "condensed_header, diff, flags, components, files"
   behavior: default
   require_changes: true
   require_base: false
@@ -43,24 +43,24 @@ comment:
 
 ignore:
   # Documentation — never measured
-  - '**/*.md'
-  - '**/*.mdx'
-  - '000-docs/**'
-  - 'docs/**'
+  - "**/*.md"
+  - "**/*.mdx"
+  - "000-docs/**"
+  - "docs/**"
 
   # Test files — measurers, not measured
-  - 'packages/**/src/**/*.test.ts'
-  - 'packages/**/src/**/*.spec.ts'
-  - 'tests/**/*.test.ts'
-  - '**/__fixtures__/**'
+  - "packages/**/src/**/*.test.ts"
+  - "packages/**/src/**/*.spec.ts"
+  - "tests/**/*.test.ts"
+  - "**/__fixtures__/**"
 
   # Build outputs + generated artifacts
-  - 'packages/**/dist/**'
-  - 'packages/**/build/**'
-  - 'coverage/**'
-  - '**/*.generated.*'
-  - '**/generated/**'
-  - 'node_modules/**'
+  - "packages/**/dist/**"
+  - "packages/**/build/**"
+  - "coverage/**"
+  - "**/*.generated.*"
+  - "**/generated/**"
+  - "node_modules/**"
 
 flag_management:
   default_rules:
@@ -71,24 +71,24 @@ component_management:
     - component_id: cli
       name: cli
       paths:
-        - 'packages/cli/**'
+        - "packages/cli/**"
 
     - component_id: core
       name: core
       paths:
-        - 'packages/core/**'
+        - "packages/core/**"
 
     - component_id: db
       name: db
       paths:
-        - 'packages/db/**'
+        - "packages/db/**"
 
     - component_id: dashboard
       name: dashboard
       paths:
-        - 'packages/dashboard/**'
+        - "packages/dashboard/**"
 
     - component_id: rollout-gate
       name: rollout-gate
       paths:
-        - 'packages/rollout-gate/**'
+        - "packages/rollout-gate/**"

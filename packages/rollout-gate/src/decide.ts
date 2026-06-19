@@ -15,11 +15,7 @@
  * the kernel `@intentsolutions/core` gate-result/v1 statement schema plus
  * j-rig's secondary cross-field invariants). No schema is re-declared here.
  */
-import {
-  EvidenceStatementSchema,
-  type EvidenceStatement,
-  type GateResult,
-} from "@j-rig/core";
+import { EvidenceStatementSchema, type EvidenceStatement, type GateResult } from "@j-rig/core";
 import { RolloutPolicySchema, type RolloutPolicy, type RolloutPolicyInput } from "./policy.js";
 
 // ── Bundle parsing (in-memory wire forms) ───────────────────────────────────

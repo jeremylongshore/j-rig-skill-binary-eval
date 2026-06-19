@@ -19,10 +19,7 @@ describe("spec-sources", () => {
 
     it("declares Anthropic required fields as exactly name + description", () => {
       const authority = loadSpecAuthority();
-      expect([...authority.anthropicRequiredFields].sort()).toEqual([
-        "description",
-        "name",
-      ]);
+      expect([...authority.anthropicRequiredFields].sort()).toEqual(["description", "name"]);
     });
 
     it("includes documented optional fields per Anthropic snapshot", () => {

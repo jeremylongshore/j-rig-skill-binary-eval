@@ -21,9 +21,7 @@ export async function judgeCriteria(
     if (criterion.method === "deterministic") {
       results.push(judgeDeterministic(criterion, outcome));
     } else {
-      results.push(
-        await judgeWithLLM(criterion, outcome, judgeProvider, options?.model),
-      );
+      results.push(await judgeWithLLM(criterion, outcome, judgeProvider, options?.model));
     }
   }
 
@@ -33,10 +31,7 @@ export async function judgeCriteria(
 /**
  * Judge a deterministic criterion using the check registry.
  */
-function judgeDeterministic(
-  criterion: Criterion,
-  outcome: ObservedOutcome,
-): JudgmentResult {
+function judgeDeterministic(criterion: Criterion, outcome: ObservedOutcome): JudgmentResult {
   if (!criterion.deterministic_check) {
     return {
       criterion_id: criterion.id,

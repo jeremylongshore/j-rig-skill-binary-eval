@@ -2,13 +2,13 @@
  * The outcome of a single trigger test case.
  */
 export type TriggerOutcome =
-  | "correct_trigger"      // Target skill correctly activated
-  | "correct_no_trigger"   // Target skill correctly stayed silent
-  | "false_positive"       // Target skill activated when it shouldn't have
-  | "false_negative"       // Target skill failed to activate when it should have
-  | "sibling_confusion"    // A sibling skill was selected instead of the target
-  | "none_selected"        // No skill was selected (may be correct or incorrect)
-  | "error";               // System/API error during evaluation
+  | "correct_trigger" // Target skill correctly activated
+  | "correct_no_trigger" // Target skill correctly stayed silent
+  | "false_positive" // Target skill activated when it shouldn't have
+  | "false_negative" // Target skill failed to activate when it should have
+  | "sibling_confusion" // A sibling skill was selected instead of the target
+  | "none_selected" // No skill was selected (may be correct or incorrect)
+  | "error"; // System/API error during evaluation
 
 /**
  * Result of evaluating a single trigger test case.

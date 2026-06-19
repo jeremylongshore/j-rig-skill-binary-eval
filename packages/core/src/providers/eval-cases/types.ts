@@ -60,7 +60,4 @@ export interface ECRunnerOptions {
   timeoutMs?: number;
 }
 
-export type ECRunner = (
-  provider: Provider,
-  options?: ECRunnerOptions,
-) => Promise<ECResult>;
+export type ECRunner = (provider: Provider, options?: ECRunnerOptions) => Promise<ECResult>;

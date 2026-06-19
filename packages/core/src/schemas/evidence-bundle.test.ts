@@ -215,7 +215,9 @@ describe("EvidenceStatementSchema cross-field invariants (SPEC § R8-R9)", () =>
     const check = EvidenceStatementSchema.safeParse(invalid);
     expect(check.success).toBe(false);
     if (!check.success) {
-      expect(check.error.issues.some((i) => i.message.includes("must equal predicate.gate_id"))).toBe(true);
+      expect(
+        check.error.issues.some((i) => i.message.includes("must equal predicate.gate_id")),
+      ).toBe(true);
     }
   });
 
@@ -268,9 +270,9 @@ describe("EvidenceBundleSchema (v2 plain array / kernel EvidenceBundlePayload)",
     expect(EvidenceBundleSchema.safeParse([VALID_STATEMENT, badRow]).success).toBe(false);
   });
   it("rejects a non-array (old v1 container object)", () => {
-    expect(
-      EvidenceBundleSchema.safeParse({ bundle_format: "json-array", rows: [] }).success,
-    ).toBe(false);
+    expect(EvidenceBundleSchema.safeParse({ bundle_format: "json-array", rows: [] }).success).toBe(
+      false,
+    );
   });
 });
 

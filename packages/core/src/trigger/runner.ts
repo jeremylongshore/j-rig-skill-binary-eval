@@ -25,11 +25,7 @@ export async function runTriggerTests(
         roster.all.map((e) => ({ name: e.name, description: e.description })),
       );
 
-      const outcome = classifyOutcome(
-        selected,
-        tc.trigger_expectation!,
-        roster.target.name,
-      );
+      const outcome = classifyOutcome(selected, tc.trigger_expectation!, roster.target.name);
 
       results.push({
         test_case_id: tc.id,

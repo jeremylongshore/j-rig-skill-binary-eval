@@ -23,8 +23,8 @@
  *   node --experimental-strip-types scripts/assemble-manifest.ts [--dir build/evidence] [--out build/evidence/report-manifest.json]
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { basename, join } from "node:path";
 
 interface SkeletonRow {
   readonly bundleFile: string;
@@ -49,35 +49,35 @@ interface ManifestRow {
 }
 interface ReportManifest {
   readonly repo: string;
-  readonly signing: Skeleton['signing'];
+  readonly signing: Skeleton["signing"];
   readonly rows: readonly ManifestRow[];
 }
 
 /** Mirror of the dashboard's `isReportManifestShape` (kept in sync by review). */
 function isReportManifestShape(value: unknown): value is ReportManifest {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  if (typeof v['repo'] !== 'string') return false;
-  const signing = v['signing'];
-  if (typeof signing !== 'object' || signing === null) return false;
+  if (typeof v["repo"] !== "string") return false;
+  const signing = v["signing"];
+  if (typeof signing !== "object" || signing === null) return false;
   const s = signing as Record<string, unknown>;
-  if (typeof s['issuer'] !== 'string') return false;
-  if (typeof s['subject'] !== 'string') return false;
-  if (typeof s['workflowRef'] !== 'string') return false;
-  if (!Array.isArray(v['rows'])) return false;
-  return v['rows'].every((r) => {
-    if (typeof r !== 'object' || r === null) return false;
+  if (typeof s["issuer"] !== "string") return false;
+  if (typeof s["subject"] !== "string") return false;
+  if (typeof s["workflowRef"] !== "string") return false;
+  if (!Array.isArray(v["rows"])) return false;
+  return v["rows"].every((r) => {
+    if (typeof r !== "object" || r === null) return false;
     const row = r as Record<string, unknown>;
-    return 'bundle' in row && 'sigstoreBundle' in row && typeof row['sourceSha'] === 'string';
+    return "bundle" in row && "sigstoreBundle" in row && typeof row["sourceSha"] === "string";
   });
 }
 
 function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, 'utf8'));
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 export function assemble(dir: string): ReportManifest {
-  const skeletonPath = join(dir, 'manifest-skeleton.json');
+  const skeletonPath = join(dir, "manifest-skeleton.json");
   if (!existsSync(skeletonPath)) {
     throw new Error(`missing ${skeletonPath} — run scripts/emit-evidence.ts first`);
   }
@@ -85,7 +85,7 @@ export function assemble(dir: string): ReportManifest {
 
   const rows: ManifestRow[] = skeleton.rows.map((row) => {
     const bundlePath = join(dir, row.bundleFile);
-    const sigPath = join(dir, `${basename(row.bundleFile, '.json')}.sigstore.json`);
+    const sigPath = join(dir, `${basename(row.bundleFile, ".json")}.sigstore.json`);
     if (!existsSync(bundlePath)) throw new Error(`missing bundle file ${bundlePath}`);
     if (!existsSync(sigPath)) {
       throw new Error(
@@ -103,40 +103,40 @@ export function assemble(dir: string): ReportManifest {
   const manifest: ReportManifest = { repo: skeleton.repo, signing: skeleton.signing, rows };
   if (!isReportManifestShape(manifest)) {
     throw new Error(
-      'assembled manifest failed the report-manifest shape check (would be rejected at ingest)',
+      "assembled manifest failed the report-manifest shape check (would be rejected at ingest)",
     );
   }
   return manifest;
 }
 
 function parseArgs(argv: readonly string[]): { dir: string; out: string } {
-  let dir = 'build/evidence';
-  let out = '';
+  let dir = "build/evidence";
+  let out = "";
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--dir') {
+    if (argv[i] === "--dir") {
       dir = argv[i + 1] ?? dir;
       i++;
-    } else if (argv[i] === '--out') {
+    } else if (argv[i] === "--out") {
       out = argv[i + 1] ?? out;
       i++;
     }
   }
-  if (out === '') out = join(dir, 'report-manifest.json');
+  if (out === "") out = join(dir, "report-manifest.json");
   return { dir, out };
 }
 
-const invokedDirectly = process.argv[1]?.endsWith('assemble-manifest.ts') === true;
+const invokedDirectly = process.argv[1]?.endsWith("assemble-manifest.ts") === true;
 if (invokedDirectly) {
   try {
     const { dir, out } = parseArgs(process.argv.slice(2));
     const manifest = assemble(dir);
-    writeFileSync(out, JSON.stringify(manifest), 'utf8');
+    writeFileSync(out, JSON.stringify(manifest), "utf8");
 
     console.log(`✓ assemble-manifest: ${manifest.rows.length} signed row(s) -> ${out}`);
     process.exit(0);
   } catch (err: unknown) {
     console.error(
-      'assemble-manifest FAILED (fail-closed):',
+      "assemble-manifest FAILED (fail-closed):",
       err instanceof Error ? err.message : String(err),
     );
     process.exit(1);

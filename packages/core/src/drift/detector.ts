@@ -43,10 +43,7 @@ export function detectDrift(
 /**
  * Check if a skill needs reevaluation based on its last run age.
  */
-export function needsReevaluation(
-  lastRunTimestamp: string,
-  maxAgeDays: number = 30,
-): boolean {
+export function needsReevaluation(lastRunTimestamp: string, maxAgeDays: number = 30): boolean {
   const lastRun = new Date(lastRunTimestamp);
   const now = new Date();
   const ageMs = now.getTime() - lastRun.getTime();

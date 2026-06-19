@@ -16,11 +16,7 @@ export async function runCalibration(
   const mismatches: CalibrationResult["mismatches"] = [];
 
   for (const golden of goldenCases) {
-    const { verdict } = await provider.judge(
-      golden.explanation,
-      golden.prompt,
-      golden.output,
-    );
+    const { verdict } = await provider.judge(golden.explanation, golden.prompt, golden.output);
 
     if (verdict === "unsure") {
       unsure++;

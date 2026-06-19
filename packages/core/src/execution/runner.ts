@@ -1,11 +1,7 @@
 import type { TestCase } from "../schemas/test-case.js";
 import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
-import type {
-  ExecutionContext,
-  ExecutionProvider,
-  ObservedOutcome,
-} from "./types.js";
+import type { ExecutionContext, ExecutionProvider, ObservedOutcome } from "./types.js";
 
 /**
  * Run functional execution tests for a skill against test cases.
@@ -102,9 +98,7 @@ export function checkOutputExpectations(
 
   if (testCase.expected_artifacts) {
     for (const expectedFile of testCase.expected_artifacts) {
-      const found = outcome.output.artifacts.some(
-        (a) => a.filename === expectedFile,
-      );
+      const found = outcome.output.artifacts.some((a) => a.filename === expectedFile);
       if (!found) {
         failures.push(`Expected artifact not produced: "${expectedFile}"`);
       }

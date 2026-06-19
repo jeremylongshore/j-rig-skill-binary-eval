@@ -90,7 +90,11 @@ export async function runCisoGateG2(args: G2Args): Promise<G2Result> {
 
   const recorded: Array<{ pid: number | null; command: string; env: NodeJS.ProcessEnv }> = [];
 
-  function record(command: string, options: { env?: NodeJS.ProcessEnv } | undefined, pid: number | null) {
+  function record(
+    command: string,
+    options: { env?: NodeJS.ProcessEnv } | undefined,
+    pid: number | null,
+  ) {
     const env = options?.env ?? process.env;
     recorded.push({ pid, command, env: { ...env } });
   }
@@ -118,9 +122,10 @@ export async function runCisoGateG2(args: G2Args): Promise<G2Result> {
     const options = (callArgs.find((a) => a && typeof a === "object" && !Array.isArray(a)) ??
       undefined) as { env?: NodeJS.ProcessEnv } | undefined;
     record(command, options, null);
-    return (orig.spawnSync as unknown as (...a: SpawnArgs) => unknown).apply(this, callArgs) as ReturnType<
-      typeof child_process.spawnSync
-    >;
+    return (orig.spawnSync as unknown as (...a: SpawnArgs) => unknown).apply(
+      this,
+      callArgs,
+    ) as ReturnType<typeof child_process.spawnSync>;
   } as typeof child_process.spawnSync;
 
   (child_process as unknown as Record<string, unknown>).exec = function patchedExec(
@@ -146,10 +151,7 @@ export async function runCisoGateG2(args: G2Args): Promise<G2Result> {
     const options = (callArgs.find((a) => a && typeof a === "object" && !Array.isArray(a)) ??
       undefined) as { env?: NodeJS.ProcessEnv } | undefined;
     record(command, options, null);
-    return (orig.execSync as unknown as (...a: SpawnArgs) => Buffer | string).apply(
-      this,
-      callArgs,
-    );
+    return (orig.execSync as unknown as (...a: SpawnArgs) => Buffer | string).apply(this, callArgs);
   } as typeof child_process.execSync;
 
   (child_process as unknown as Record<string, unknown>).fork = function patchedFork(
@@ -244,9 +246,7 @@ export async function runCisoGateG2(args: G2Args): Promise<G2Result> {
     }
   }
 
-  const spawnedPids = recorded
-    .map((r) => r.pid)
-    .filter((p): p is number => typeof p === "number");
+  const spawnedPids = recorded.map((r) => r.pid).filter((p): p is number => typeof p === "number");
 
   if (perChildLeaks.length > 0) {
     return {

@@ -75,9 +75,7 @@ export class LeakyProvider implements Provider {
     };
   }
 
-  async callTool(
-    req: CompletionRequest & { tools: ToolDefinition[] },
-  ): Promise<ToolCallResult> {
+  async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
     if (this.#leakStdout) {
       process.stderr.write(`[leaky-provider DEBUG] callTool key=${this.#apiKey}\n`);
     }

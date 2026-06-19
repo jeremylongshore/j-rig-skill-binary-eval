@@ -224,7 +224,8 @@ function checkBodySize(body: string): CheckResult[] {
       description: "Body is not excessively large",
       severity: "warning",
       message: `Body is ${lineCount} lines (max recommended: ${MAX_BODY_LINES})`,
-      details: "Very large skill bodies may indicate scope creep or embedded data that should be externalized",
+      details:
+        "Very large skill bodies may indicate scope creep or embedded data that should be externalized",
     });
   } else {
     results.push({
@@ -367,8 +368,7 @@ function checkTimeSensitiveInfo(body: string): CheckResult[] {
         severity: "warning",
         message:
           "Body may contain time-sensitive information (dates, versions) that could go stale",
-        details:
-          'Consider using an "old patterns" section or the compatibility field instead',
+        details: 'Consider using an "old patterns" section or the compatibility field instead',
       },
     ];
   }
@@ -383,10 +383,7 @@ function checkTimeSensitiveInfo(body: string): CheckResult[] {
   ];
 }
 
-function buildReport(
-  skillName: string | null,
-  results: CheckResult[],
-): PackageReport {
+function buildReport(skillName: string | null, results: CheckResult[]): PackageReport {
   return {
     skill_name: skillName,
     timestamp: new Date().toISOString(),

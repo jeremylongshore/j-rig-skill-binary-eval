@@ -5,15 +5,20 @@ import type { JudgeProvider, GoldenCase } from "./types.js";
 import { CriterionSchema } from "../schemas/criterion.js";
 import type { Criterion } from "../schemas/criterion.js";
 
-function criterion(partial: { id: string; description: string; method: "deterministic" | "judge"; deterministic_check?: string; deterministic_check_params?: Record<string, unknown>; judge_prompt?: string }): Criterion {
+function criterion(partial: {
+  id: string;
+  description: string;
+  method: "deterministic" | "judge";
+  deterministic_check?: string;
+  deterministic_check_params?: Record<string, unknown>;
+  judge_prompt?: string;
+}): Criterion {
   return CriterionSchema.parse(partial);
 }
 import type { ObservedOutcome } from "../execution/types.js";
 import { registerCheck } from "../checks/deterministic-registry.js";
 
-function mockJudge(
-  verdicts: Record<string, "yes" | "no" | "unsure">,
-): JudgeProvider {
+function mockJudge(verdicts: Record<string, "yes" | "no" | "unsure">): JudgeProvider {
   return {
     async judge(description) {
       const verdict = verdicts[description] ?? "unsure";
@@ -37,7 +42,12 @@ describe("judgeCriteria", () => {
     registerCheck("test_contains_hello", (input) => input.includes("hello"));
 
     const criteria: Criterion[] = [
-      criterion({ id: "c1", description: "Output contains hello", method: "deterministic", deterministic_check: "test_contains_hello" }),
+      criterion({
+        id: "c1",
+        description: "Output contains hello",
+        method: "deterministic",
+        deterministic_check: "test_contains_hello",
+      }),
     ];
 
     const provider = mockJudge({});
@@ -51,7 +61,12 @@ describe("judgeCriteria", () => {
 
   it("fails deterministic check when not met", async () => {
     const criteria: Criterion[] = [
-      criterion({ id: "c2", description: "Output contains missing", method: "deterministic", deterministic_check: "test_contains_hello" }),
+      criterion({
+        id: "c2",
+        description: "Output contains missing",
+        method: "deterministic",
+        deterministic_check: "test_contains_hello",
+      }),
     ];
 
     const results = await judgeCriteria(criteria, makeOutcome("no match"), mockJudge({}));
@@ -86,7 +101,11 @@ describe("judgeCriteria", () => {
       }),
     ];
 
-    const results = await judgeCriteria(criteria, makeOutcome("found the needle here"), mockJudge({}));
+    const results = await judgeCriteria(
+      criteria,
+      makeOutcome("found the needle here"),
+      mockJudge({}),
+    );
     expect(results[0].verdict).toBe("yes");
   });
 
@@ -129,12 +148,12 @@ describe("judgeCriteria", () => {
   });
 
   it("handles judge errors as unsure", async () => {
-    const criteria: Criterion[] = [
-      criterion({ id: "c5", description: "Fails", method: "judge" }),
-    ];
+    const criteria: Criterion[] = [criterion({ id: "c5", description: "Fails", method: "judge" })];
 
     const provider: JudgeProvider = {
-      async judge() { throw new Error("API down"); },
+      async judge() {
+        throw new Error("API down");
+      },
     };
 
     const results = await judgeCriteria(criteria, makeOutcome("text"), provider);
@@ -145,7 +164,12 @@ describe("judgeCriteria", () => {
 
   it("routes deterministic before judge in mixed criteria", async () => {
     const criteria: Criterion[] = [
-      criterion({ id: "det", description: "Deterministic", method: "deterministic", deterministic_check: "not_empty" }),
+      criterion({
+        id: "det",
+        description: "Deterministic",
+        method: "deterministic",
+        deterministic_check: "not_empty",
+      }),
       criterion({ id: "jdg", description: "Judge check", method: "judge" }),
     ];
 
@@ -162,9 +186,27 @@ describe("judgeCriteria", () => {
 describe("calibration", () => {
   it("measures accuracy against golden cases", async () => {
     const goldenCases: GoldenCase[] = [
-      { criterion_id: "g1", prompt: "p1", output: "o1", expected_verdict: "yes", explanation: "Should pass" },
-      { criterion_id: "g2", prompt: "p2", output: "o2", expected_verdict: "no", explanation: "Should fail" },
-      { criterion_id: "g3", prompt: "p3", output: "o3", expected_verdict: "yes", explanation: "Should pass too" },
+      {
+        criterion_id: "g1",
+        prompt: "p1",
+        output: "o1",
+        expected_verdict: "yes",
+        explanation: "Should pass",
+      },
+      {
+        criterion_id: "g2",
+        prompt: "p2",
+        output: "o2",
+        expected_verdict: "no",
+        explanation: "Should fail",
+      },
+      {
+        criterion_id: "g3",
+        prompt: "p3",
+        output: "o3",
+        expected_verdict: "yes",
+        explanation: "Should pass too",
+      },
     ];
 
     const provider = mockJudge({
@@ -184,10 +226,16 @@ describe("calibration", () => {
 
   it("handles perfect calibration", async () => {
     const goldenCases: GoldenCase[] = [
-      { criterion_id: "g1", prompt: "p", output: "o", expected_verdict: "yes", explanation: "Pass" },
+      {
+        criterion_id: "g1",
+        prompt: "p",
+        output: "o",
+        expected_verdict: "yes",
+        explanation: "Pass",
+      },
     ];
 
-    const provider = mockJudge({ "Pass": "yes" });
+    const provider = mockJudge({ Pass: "yes" });
     const result = await runCalibration(goldenCases, provider);
     expect(result.accuracy).toBe(1);
     expect(result.mismatches).toHaveLength(0);
@@ -195,10 +243,16 @@ describe("calibration", () => {
 
   it("counts unsure as mismatch", async () => {
     const goldenCases: GoldenCase[] = [
-      { criterion_id: "g1", prompt: "p", output: "o", expected_verdict: "yes", explanation: "Uncertain" },
+      {
+        criterion_id: "g1",
+        prompt: "p",
+        output: "o",
+        expected_verdict: "yes",
+        explanation: "Uncertain",
+      },
     ];
 
-    const provider = mockJudge({});  // returns unsure by default
+    const provider = mockJudge({}); // returns unsure by default
     const result = await runCalibration(goldenCases, provider);
     expect(result.unsure).toBe(1);
     expect(result.correct).toBe(0);

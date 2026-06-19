@@ -16,7 +16,8 @@ import type { ECPerModelOutcome, ECRunner } from "./types.js";
 import { DEFAULT_MODELS } from "./types.js";
 import { isProviderError } from "../errors.js";
 
-const PROMPT = "List 3 things to remember when reviewing a pull request. Each item on its own line.";
+const PROMPT =
+  "List 3 things to remember when reviewing a pull request. Each item on its own line.";
 
 export const runEC2: ECRunner = async (provider, options) => {
   const models = options?.models ?? DEFAULT_MODELS;

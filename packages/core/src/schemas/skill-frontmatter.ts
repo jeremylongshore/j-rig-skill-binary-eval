@@ -129,9 +129,7 @@ export function thirdPersonDescriptionIssues(artifact: AuthoringArtifact): FoldI
 }
 
 /** Layer the eval-domain checks on a kernel schema (evidence-bundle.ts pattern). */
-function withEvalDomainChecks(
-  schema: z.ZodType<AuthoringArtifact>,
-): z.ZodType<AuthoringArtifact> {
+function withEvalDomainChecks(schema: z.ZodType<AuthoringArtifact>): z.ZodType<AuthoringArtifact> {
   return schema.superRefine((artifact, ctx) => {
     // j-rig EVAL-DOMAIN secondary check — additive on top of the kernel.
     for (const issue of thirdPersonDescriptionIssues(artifact)) {

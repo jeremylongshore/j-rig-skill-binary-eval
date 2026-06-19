@@ -9,6 +9,9 @@ exclude = [
   "^https://twitter\\.com",
   "^https://x\\.com",
   "^https://linkedin\\.com",
+  # SKILL.md template placeholders: {{REF_n}} link targets are Handlebars
+  # tokens an author fills in, not real files. URL-encoded as %7B%7B...%7D%7D.
+  "%7B%7B",
 ]
 
 exclude_path = [
@@ -16,7 +19,3 @@ exclude_path = [
   "node_modules",
   "packages/*/dist",
 ]
-
-[cache]
-enabled = true
-max_cache_age = "7d"

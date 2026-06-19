@@ -65,28 +65,28 @@
  * correctness proof.
  */
 
-import { execFileSync } from 'node:child_process';
-import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   GateResultV1Schema,
   GATE_RESULT_V1_URI,
-} from '@intentsolutions/core/validators/v1/gate-result-v1';
-import { EvidenceBundleSchema } from '@intentsolutions/core/validators/v1/evidence-bundle';
+} from "@intentsolutions/core/validators/v1/gate-result-v1";
+import { EvidenceBundleSchema } from "@intentsolutions/core/validators/v1/evidence-bundle";
 
-const GITHUB_REPO = 'jeremylongshore/j-rig-skill-binary-eval';
-const REPO_KEY = 'iaj';
+const GITHUB_REPO = "jeremylongshore/j-rig-skill-binary-eval";
+const REPO_KEY = "iaj";
 
 /** A gate outcome, the input to the gate-result builder. */
 interface GateOutcome {
   readonly gateName: string;
   readonly gateVersion: string;
-  readonly decision: 'pass' | 'fail' | 'advisory' | 'error';
+  readonly decision: "pass" | "fail" | "advisory" | "error";
   readonly reasons: readonly string[];
   readonly dimensionsEvaluated: readonly string[];
   readonly dimensionsSkipped: readonly string[];
-  readonly advisorySeverity?: 'info' | 'warn' | 'error';
+  readonly advisorySeverity?: "info" | "warn" | "error";
   readonly failureMode?: string;
 }
 
@@ -107,7 +107,7 @@ interface EmitContext {
 
 function sortDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortDeep);
-  if (value !== null && typeof value === 'object') {
+  if (value !== null && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([k, v]) => [k, sortDeep(v)] as const);
@@ -122,7 +122,7 @@ export function stableStringify(value: unknown): string {
 }
 
 function sha256Hex(s: string): string {
-  return createHash('sha256').update(Buffer.from(s, 'utf8')).digest('hex');
+  return createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
 }
 
 /** Generate a kernel-valid UUIDv7 from a 16-byte source + ms timestamp. */
@@ -137,7 +137,7 @@ export function uuidv7(nowMs: number, rand: Uint8Array): string {
   b[5] = Number(ts & 0xffn);
   b[6] = (b[6]! & 0x0f) | 0x70; // version 7
   b[8] = (b[8]! & 0x3f) | 0x80; // variant 10
-  const h = b.toString('hex');
+  const h = b.toString("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 }
 
@@ -193,9 +193,9 @@ export function buildEvidenceBundle(
 ): Record<string, unknown> {
   const grCanonical = stableStringify(gateResult);
   const grHashHex = sha256Hex(grCanonical);
-  const inputHash = String(gateResult['input_hash']);
-  const subjectDigest = inputHash.startsWith('sha256:')
-    ? inputHash.slice('sha256:'.length)
+  const inputHash = String(gateResult["input_hash"]);
+  const subjectDigest = inputHash.startsWith("sha256:")
+    ? inputHash.slice("sha256:".length)
     : inputHash;
   const bundle: Record<string, unknown> = {
     id: uuidv7(ctx.nowMs, ctx.rand16()),
@@ -203,11 +203,11 @@ export function buildEvidenceBundle(
     created_at: ctx.nowIso,
     predicate_uri_set: [GATE_RESULT_V1_URI],
     row_count: 1,
-    subject_set: [{ name: String(gateResult['gate_id']), digest: { sha256: subjectDigest } }],
+    subject_set: [{ name: String(gateResult["gate_id"]), digest: { sha256: subjectDigest } }],
     storage_key: `sha256:${grHashHex}`,
-    signing_mode: 'rekor_production',
+    signing_mode: "rekor_production",
     rekor_log_indices: [], // real index lives in the sigstore Bundle (see header)
-    verification_status: 'unverified', // the dashboard re-verifies; we don't self-attest
+    verification_status: "unverified", // the dashboard re-verifies; we don't self-attest
     verification_last_checked_at: ctx.nowIso,
   };
   EvidenceBundleSchema.parse(bundle);
@@ -244,10 +244,10 @@ export interface ManifestSkeleton {
 }
 
 /** Compute the OIDC signing claims this CI run will assert (tag-derived). */
-export function signingClaims(ref: string): ManifestSkeleton['signing'] {
+export function signingClaims(ref: string): ManifestSkeleton["signing"] {
   // ref e.g. refs/tags/v1.2.0  → subject repo:...:ref:refs/tags/v1.2.0
   return {
-    issuer: 'https://token.actions.githubusercontent.com',
+    issuer: "https://token.actions.githubusercontent.com",
     subject: `repo:${GITHUB_REPO}:ref:${ref}`,
     workflowRef: `${GITHUB_REPO}/.github/workflows/release.yml@${ref}`,
   };
@@ -258,8 +258,8 @@ export function writeEmit(rows: readonly EmitRow[], ref: string, outDir: string)
   mkdirSync(outDir, { recursive: true });
   const skeletonRows = rows.map((row, i) => {
     const bundleFile = `bundle-${i}.json`;
-    writeFileSync(join(outDir, bundleFile), row.canonicalBundle, 'utf8');
-    writeFileSync(join(outDir, `gate-result-${i}.json`), stableStringify(row.gateResult), 'utf8');
+    writeFileSync(join(outDir, bundleFile), row.canonicalBundle, "utf8");
+    writeFileSync(join(outDir, `gate-result-${i}.json`), stableStringify(row.gateResult), "utf8");
     return { bundleFile, gateResults: [row.gateResult], sourceSha: row.sourceSha };
   });
   const skeleton: ManifestSkeleton = {
@@ -267,7 +267,7 @@ export function writeEmit(rows: readonly EmitRow[], ref: string, outDir: string)
     signing: signingClaims(ref),
     rows: skeletonRows,
   };
-  writeFileSync(join(outDir, 'manifest-skeleton.json'), JSON.stringify(skeleton, null, 2), 'utf8');
+  writeFileSync(join(outDir, "manifest-skeleton.json"), JSON.stringify(skeleton, null, 2), "utf8");
   return skeleton;
 }
 
@@ -276,17 +276,17 @@ export function writeEmit(rows: readonly EmitRow[], ref: string, outDir: string)
 function run(cmd: string, args: readonly string[]): { ok: boolean; out: string } {
   try {
     const out = execFileSync(cmd, args as string[], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
     });
     return { ok: true, out };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; message?: string };
-    return { ok: false, out: `${e.stdout ?? ''}${e.stderr ?? ''}${e.message ?? ''}` };
+    return { ok: false, out: `${e.stdout ?? ""}${e.stderr ?? ""}${e.message ?? ""}` };
   }
 }
 
-const COVERAGE_DIMENSIONS = ['lines', 'branches', 'functions', 'statements'] as const;
+const COVERAGE_DIMENSIONS = ["lines", "branches", "functions", "statements"] as const;
 
 /**
  * Run coverage (vitest json-summary) → one outcome.
@@ -296,28 +296,28 @@ const COVERAGE_DIMENSIONS = ['lines', 'branches', 'functions', 'statements'] as 
  * carrying the measured percentages — honest, no unfounded pass/fail.
  */
 function coverageOutcome(outDir: string): GateOutcome {
-  const summaryPath = join(outDir, 'coverage-summary.json');
-  const r = run('pnpm', [
-    'exec',
-    'vitest',
-    'run',
-    '--coverage',
-    '--coverage.reporter=json-summary',
+  const summaryPath = join(outDir, "coverage-summary.json");
+  const r = run("pnpm", [
+    "exec",
+    "vitest",
+    "run",
+    "--coverage",
+    "--coverage.reporter=json-summary",
     `--coverage.reportsDirectory=${outDir}`,
   ]);
   if (!existsSync(summaryPath)) {
     return {
-      gateName: 'coverage',
-      gateVersion: '1.0.0',
-      decision: 'error',
+      gateName: "coverage",
+      gateVersion: "1.0.0",
+      decision: "error",
       reasons: [
-        `coverage summary not produced: ${firstLines(r.out, 4) || 'vitest coverage run failed'}`,
+        `coverage summary not produced: ${firstLines(r.out, 4) || "vitest coverage run failed"}`,
       ],
       dimensionsEvaluated: [],
       dimensionsSkipped: [...COVERAGE_DIMENSIONS],
     };
   }
-  const summary = JSON.parse(readFileSync(summaryPath, 'utf8')) as {
+  const summary = JSON.parse(readFileSync(summaryPath, "utf8")) as {
     total: Record<string, { pct: number }>;
   };
   const pct = (d: string): number => summary.total[d]?.pct ?? 0;
@@ -325,13 +325,13 @@ function coverageOutcome(outDir: string): GateOutcome {
   if (floor === null) {
     // No declared floor → advisory with the measured numbers (no pass/fail claim).
     return {
-      gateName: 'coverage',
-      gateVersion: '1.0.0',
-      decision: 'advisory',
-      advisorySeverity: 'info',
+      gateName: "coverage",
+      gateVersion: "1.0.0",
+      decision: "advisory",
+      advisorySeverity: "info",
       reasons: [
         ...COVERAGE_DIMENSIONS.map((d) => `${d} ${pct(d)}%`),
-        'no coverage floor declared in vitest.config.ts (measured coverage reported as advisory)',
+        "no coverage floor declared in vitest.config.ts (measured coverage reported as advisory)",
       ],
       dimensionsEvaluated: [...COVERAGE_DIMENSIONS],
       dimensionsSkipped: [],
@@ -339,13 +339,13 @@ function coverageOutcome(outDir: string): GateOutcome {
   }
   const below = COVERAGE_DIMENSIONS.filter((d) => pct(d) < floor);
   return {
-    gateName: 'coverage',
-    gateVersion: '1.0.0',
-    decision: below.length === 0 ? 'pass' : 'fail',
+    gateName: "coverage",
+    gateVersion: "1.0.0",
+    decision: below.length === 0 ? "pass" : "fail",
     reasons: below.map((d) => `${d} ${pct(d)}% < floor ${floor}%`),
     dimensionsEvaluated: [...COVERAGE_DIMENSIONS],
     dimensionsSkipped: [],
-    ...(below.length === 0 ? {} : { failureMode: 'coverage-below-floor' }),
+    ...(below.length === 0 ? {} : { failureMode: "coverage-below-floor" }),
   };
 }
 
@@ -365,7 +365,7 @@ export function parseCoverageFloor(cfgText: string): number | null {
 /** Read the lines threshold from vitest.config.ts. Returns null when undeclared. */
 function coverageFloor(): number | null {
   try {
-    return parseCoverageFloor(readFileSync(join(process.cwd(), 'vitest.config.ts'), 'utf8'));
+    return parseCoverageFloor(readFileSync(join(process.cwd(), "vitest.config.ts"), "utf8"));
   } catch {
     return null;
   }
@@ -373,30 +373,30 @@ function coverageFloor(): number | null {
 
 function firstLines(s: string, n: number): string {
   return s
-    .split('\n')
+    .split("\n")
     .filter((l) => l.trim().length > 0)
     .slice(0, n)
-    .join(' ')
+    .join(" ")
     .slice(0, 500);
 }
 
 function gitSha(): string {
-  const r = run('git', ['rev-parse', 'HEAD']);
-  return r.ok ? r.out.trim() : '0'.repeat(40);
+  const r = run("git", ["rev-parse", "HEAD"]);
+  return r.ok ? r.out.trim() : "0".repeat(40);
 }
 
 function harnessPolicyHash(): string {
   try {
-    const h = readFileSync(join(process.cwd(), '.harness-hash'), 'utf8').trim();
+    const h = readFileSync(join(process.cwd(), ".harness-hash"), "utf8").trim();
     if (/^[a-f0-9]{64}$/.test(h)) return `sha256:${h}`;
   } catch {
     /* fall through */
   }
   // Fall back to a hash of the coverage policy doc if the manifest is absent.
   try {
-    return `sha256:${sha256Hex(readFileSync(join(process.cwd(), 'vitest.config.ts'), 'utf8'))}`;
+    return `sha256:${sha256Hex(readFileSync(join(process.cwd(), "vitest.config.ts"), "utf8"))}`;
   } catch {
-    return `sha256:${sha256Hex('no-policy')}`;
+    return `sha256:${sha256Hex("no-policy")}`;
   }
 }
 
@@ -406,32 +406,36 @@ function selfCheck(): void {
   const ctx = synthCtx();
   const outcomes: GateOutcome[] = [
     {
-      gateName: 'coverage',
-      gateVersion: '1.0.0',
-      decision: 'advisory',
-      advisorySeverity: 'info',
-      reasons: ['lines 84.21%', 'branches 76.96%', 'no coverage floor declared in vitest.config.ts'],
+      gateName: "coverage",
+      gateVersion: "1.0.0",
+      decision: "advisory",
+      advisorySeverity: "info",
+      reasons: [
+        "lines 84.21%",
+        "branches 76.96%",
+        "no coverage floor declared in vitest.config.ts",
+      ],
       dimensionsEvaluated: [...COVERAGE_DIMENSIONS],
       dimensionsSkipped: [],
     },
     {
-      gateName: 'coverage',
-      gateVersion: '1.0.0',
-      decision: 'fail',
-      reasons: ['branches 70% < floor 80%'],
+      gateName: "coverage",
+      gateVersion: "1.0.0",
+      decision: "fail",
+      reasons: ["branches 70% < floor 80%"],
       dimensionsEvaluated: [...COVERAGE_DIMENSIONS],
       dimensionsSkipped: [],
-      failureMode: 'coverage-below-floor',
+      failureMode: "coverage-below-floor",
     },
   ];
   const rows = buildRows(outcomes, ctx); // throws if any artifact is kernel-invalid
   // Canonical bytes must be re-canonicalisation-stable (dashboard idempotence).
   for (const row of rows) {
     if (stableStringify(JSON.parse(row.canonicalBundle)) !== row.canonicalBundle) {
-      throw new Error('canonical bundle is not stable under re-canonicalisation');
+      throw new Error("canonical bundle is not stable under re-canonicalisation");
     }
   }
-  if (rows.length !== 2) throw new Error('expected 2 rows');
+  if (rows.length !== 2) throw new Error("expected 2 rows");
 
   console.log(`✓ self-check: ${rows.length} kernel-valid, canonical-stable rows built`);
 }
@@ -439,12 +443,12 @@ function selfCheck(): void {
 function synthCtx(): EmitContext {
   let n = 0;
   return {
-    nowIso: '2026-06-08T00:00:00.000Z',
+    nowIso: "2026-06-08T00:00:00.000Z",
     nowMs: 1780617600000,
-    commitSha: 'a'.repeat(40),
-    sourceSha: 'a'.repeat(40),
-    policyHash: `sha256:${'b'.repeat(64)}`,
-    runnerVersion: '1.1.0',
+    commitSha: "a".repeat(40),
+    sourceSha: "a".repeat(40),
+    policyHash: `sha256:${"b".repeat(64)}`,
+    runnerVersion: "1.1.0",
     // Deterministic, non-random 16-byte source so self-check output is stable.
     rand16: () => {
       n += 1;
@@ -455,12 +459,12 @@ function synthCtx(): EmitContext {
 
 function packageVersion(): string {
   try {
-    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
       version?: string;
     };
-    return pkg.version ?? '0.0.0';
+    return pkg.version ?? "0.0.0";
   } catch {
-    return '0.0.0';
+    return "0.0.0";
   }
 }
 
@@ -478,17 +482,17 @@ function ciCtx(): EmitContext {
 }
 
 function parseArgs(argv: readonly string[]): { out: string; selfCheck: boolean; ref: string } {
-  let out = 'build/evidence';
-  let ref = process.env['GITHUB_REF'] ?? 'refs/tags/v0.0.0';
+  let out = "build/evidence";
+  let ref = process.env["GITHUB_REF"] ?? "refs/tags/v0.0.0";
   let sc = false;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--out') {
+    if (argv[i] === "--out") {
       out = argv[i + 1] ?? out;
       i++;
-    } else if (argv[i] === '--ref') {
+    } else if (argv[i] === "--ref") {
       ref = argv[i + 1] ?? ref;
       i++;
-    } else if (argv[i] === '--self-check') {
+    } else if (argv[i] === "--self-check") {
       sc = true;
     }
   }
@@ -509,20 +513,20 @@ function main(argv: readonly string[]): number {
 
   console.log(
     `✓ emit-evidence: ${rows.length} kernel-valid gate-result/v1 row(s) written to ${args.out}\n` +
-      `  decisions: ${outcomes.map((o) => `${o.gateName}=${o.decision}`).join(', ')}\n` +
+      `  decisions: ${outcomes.map((o) => `${o.gateName}=${o.decision}`).join(", ")}\n` +
       `  next (CI): cosign sign-blob each bundle-<i>.json -> assemble-manifest.ts -> report-manifest.json`,
   );
   return 0;
 }
 
 // Only run when invoked directly (not when imported by a sibling assembler/test).
-const invokedDirectly = process.argv[1]?.endsWith('emit-evidence.ts') === true;
+const invokedDirectly = process.argv[1]?.endsWith("emit-evidence.ts") === true;
 if (invokedDirectly) {
   try {
     process.exit(main(process.argv.slice(2)));
   } catch (err: unknown) {
     console.error(
-      'emit-evidence FAILED (fail-closed):',
+      "emit-evidence FAILED (fail-closed):",
       err instanceof Error ? err.message : String(err),
     );
     process.exit(1);

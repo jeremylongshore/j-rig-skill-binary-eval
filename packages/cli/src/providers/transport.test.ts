@@ -59,7 +59,10 @@ describe("createFetchTransport", () => {
   });
 
   it("threads the abort signal through to fetch", async () => {
-    const fetchMock = vi.fn(async () => ({ status: 200, json: async () => ({}) })) as unknown as typeof fetch;
+    const fetchMock = vi.fn(async () => ({
+      status: 200,
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchMock);
 
     const ac = new AbortController();

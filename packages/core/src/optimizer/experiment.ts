@@ -41,9 +41,7 @@ export function evaluateExperiment(
   }
 
   // No regressions on other criteria
-  const beforeMap = new Map(
-    experiment.before_results.map((r) => [r.criterion_id, r]),
-  );
+  const beforeMap = new Map(experiment.before_results.map((r) => [r.criterion_id, r]));
 
   for (const after of afterResults) {
     if (after.criterion_id === targetId) continue;

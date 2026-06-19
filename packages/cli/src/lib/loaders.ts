@@ -28,9 +28,7 @@ export function loadEvalSpec(specPath?: string, skillDir?: string): EvalSpec {
     filePath = resolve(specPath);
   } else if (skillDir) {
     const candidates = ["eval-spec.yaml", "eval-spec.yml"];
-    const found = candidates
-      .map((c) => join(resolve(skillDir), c))
-      .find(existsSync);
+    const found = candidates.map((c) => join(resolve(skillDir), c)).find(existsSync);
     if (!found) {
       throw new Error(
         `No eval spec found. Tried: ${candidates.join(", ")} in ${skillDir}. Use --spec to provide a path.`,

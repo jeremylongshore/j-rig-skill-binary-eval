@@ -12,15 +12,14 @@ concurrency:
   group: typos-${{ github.ref }}
   cancel-in-progress: true
 
-# Tidy-first posture: advisory on first install. continue-on-error keeps the
-# lane non-blocking so a spelling hit never reds a required check. Tighten in a
-# follow-up PR once the existing corpus is clean. Mirrors doc-quality.yml.
+# REQUIRED gate: a spelling hit reds the PR. Legitimate domain vocabulary is
+# allow-listed in .typos.toml (extend-words / extend-exclude), NOT silenced
+# wholesale. A green required check is signal; a red advisory check is noise.
 jobs:
   typos:
-    name: typos (spell-check, advisory)
+    name: typos
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Spell-check with crate-ci/typos

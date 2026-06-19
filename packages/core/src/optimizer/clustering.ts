@@ -56,10 +56,7 @@ export function clusterFailures(
  *
  * Priority: blocker failures > regression-critical failures > highest-count cluster
  */
-export function selectWeakest(
-  results: JudgmentResult[],
-  criteria: Criterion[],
-): string | null {
+export function selectWeakest(results: JudgmentResult[], criteria: Criterion[]): string | null {
   const criteriaMap = new Map(criteria.map((c) => [c.id, c]));
   const failures = results.filter((r) => r.verdict === "no");
 

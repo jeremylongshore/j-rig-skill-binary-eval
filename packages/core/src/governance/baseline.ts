@@ -12,16 +12,13 @@ export function compareBaseline(
   withoutSkillResults: JudgmentResult[],
 ): BaselineComparison[] {
   const comparisons: BaselineComparison[] = [];
-  const baselineMap = new Map(
-    withoutSkillResults.map((r) => [r.criterion_id, r]),
-  );
+  const baselineMap = new Map(withoutSkillResults.map((r) => [r.criterion_id, r]));
 
   for (const skillResult of withSkillResults) {
     const baseResult = baselineMap.get(skillResult.criterion_id);
     if (!baseResult) continue;
 
-    const skillAddsValue =
-      skillResult.verdict === "yes" && baseResult.verdict !== "yes";
+    const skillAddsValue = skillResult.verdict === "yes" && baseResult.verdict !== "yes";
 
     comparisons.push({
       criterion_id: skillResult.criterion_id,
@@ -46,5 +43,5 @@ export function isObsoleteCandidate(
 ): boolean {
   if (comparisons.length === 0) return false;
   const addsValue = comparisons.filter((c) => c.skill_adds_value).length;
-  return addsValue / comparisons.length < (1 - threshold);
+  return addsValue / comparisons.length < 1 - threshold;
 }

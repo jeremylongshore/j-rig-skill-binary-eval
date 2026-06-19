@@ -144,8 +144,7 @@ export const EvidenceStatementSchema = KernelEvidenceStatementSchemaInternal.sup
       ctx.addIssue({
         code: "custom",
         path: ["subject", 0, "name"],
-        message:
-          "j-rig secondary check I1: subject[0].name must equal predicate.gate_id",
+        message: "j-rig secondary check I1: subject[0].name must equal predicate.gate_id",
       });
     }
 

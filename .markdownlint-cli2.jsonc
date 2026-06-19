@@ -7,12 +7,17 @@
 // the extended base. See .audit-harness/configs/README.md for the extend snippet.
 {
   "config": {
-    "extends": ".audit-harness/configs/markdownlint.yaml"
+    "extends": ".audit-harness/configs/markdownlint.yaml",
+    // MD060 (table-column-style) — OFF. markdownlint v0.40.0 added this rule with
+    // an inferred "consistent" style. It is structurally incompatible with
+    // Prettier's Markdown table output: Prettier writes the delimiter row with no
+    // inner pipe spacing (|---|) while padding content-row pipes (| x |), and
+    // MD060 then flags the delimiter row as "missing space" for the spaced style
+    // it infers from the content rows. Since Prettier is the canonical formatter
+    // here, enforcing MD060 would mean fighting the formatter on every table. This
+    // override wins over the shared IEP base; the rest of the rule set keeps teeth.
+    "MD060": false,
   },
   "globs": ["**/*.md"],
-  "ignores": [
-    "**/node_modules/**",
-    "packages/*/dist/**",
-    ".audit-harness/**"
-  ]
+  "ignores": ["**/node_modules/**", "packages/*/dist/**", ".audit-harness/**"],
 }
