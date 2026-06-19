@@ -12,12 +12,7 @@ name: Lint (YAML + Actions)
 
 on:
   pull_request:
-    paths:
-      - "**/*.yml"
-      - "**/*.yaml"
-      - ".yamllint.yaml"
-      - ".audit-harness/configs/yamllint.yaml"
-      - ".github/workflows/lint.yml"
+    branches: [main]
   push:
     branches: [main]
     paths:
