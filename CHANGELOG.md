@@ -192,7 +192,7 @@ instructions.
   providers (used in tests and demos) now require explicit opt-in, enforced
   inside the stub provider constructors via `assertStubAllowed()` (commit
   `24695ac`, refactor per Gemini PR #75 review). Default posture: stub usage
-  refuses with a clear error unless `EVAL_STUB_ALLOW=1` is set; banner discipline
+  refuses with a clear error unless `J_RIG_ALLOW_STUB=1` is set; banner discipline
   confirms the consumer is intentionally running with stubs. Closes
   `bd_000-projects-lcgu` (P0, partial — opt-in gate + banner; real Anthropic
   adapter / PB-7 implementation remains open under the same bead).
