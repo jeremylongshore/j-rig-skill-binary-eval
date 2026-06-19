@@ -52,7 +52,9 @@ export function formatReport(report: PackageReport): string {
   const lines: string[] = [];
   const name = report.skill_name ?? "(unknown)";
   lines.push(`Package Report: ${name}`);
-  lines.push(`  ${report.summary.passed} passed, ${report.summary.warnings} warnings, ${report.summary.errors} errors`);
+  lines.push(
+    `  ${report.summary.passed} passed, ${report.summary.warnings} warnings, ${report.summary.errors} errors`,
+  );
   lines.push("");
 
   for (const r of report.results) {

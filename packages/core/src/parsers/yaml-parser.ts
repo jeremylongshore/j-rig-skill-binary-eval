@@ -4,9 +4,7 @@ import type { z } from "zod";
 /**
  * Result of parsing and validating YAML against a Zod schema.
  */
-export type ParseResult<T> =
-  | { success: true; data: T }
-  | { success: false; errors: ParseError[] };
+export type ParseResult<T> = { success: true; data: T } | { success: false; errors: ParseError[] };
 
 export interface ParseError {
   path: string;
@@ -19,10 +17,7 @@ export interface ParseError {
  * Returns structured errors with field paths for useful diagnostics.
  * Does not silently coerce broken values — fails explicitly.
  */
-export function parseAndValidateYaml<T>(
-  yamlString: string,
-  schema: z.ZodType<T>,
-): ParseResult<T> {
+export function parseAndValidateYaml<T>(yamlString: string, schema: z.ZodType<T>): ParseResult<T> {
   let raw: unknown;
 
   try {
@@ -91,7 +86,5 @@ export function parseYamlRaw(yamlString: string): ParseResult<unknown> {
  * Format parse errors into a human-readable diagnostic string.
  */
 export function formatParseErrors(errors: ParseError[]): string {
-  return errors
-    .map((e) => (e.path ? `  ${e.path}: ${e.message}` : `  ${e.message}`))
-    .join("\n");
+  return errors.map((e) => (e.path ? `  ${e.path}: ${e.message}` : `  ${e.message}`)).join("\n");
 }

@@ -17,7 +17,11 @@
     {
       "name": "claude_code.tool_result",
       "timestamp": "2026-05-12T10:00:01.000Z",
-      "attributes": { "tool": "submit_payload", "server": "example_server", "server_response_status": "accepted" }
+      "attributes": {
+        "tool": "submit_payload",
+        "server": "example_server",
+        "server_response_status": "accepted"
+      }
     }
   ]
 }

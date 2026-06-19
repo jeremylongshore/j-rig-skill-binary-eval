@@ -7,7 +7,12 @@
     {
       "name": "claude_code.tool_result",
       "timestamp": "2026-05-12T06:00:00.000Z",
-      "attributes": { "tool": "list_items", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+      "attributes": {
+        "tool": "list_items",
+        "server": "example_server",
+        "tool.kind": "read",
+        "response_shape": "list"
+      }
     },
     {
       "name": "claude_code.hook_execution_complete",
@@ -17,7 +22,12 @@
     {
       "name": "claude_code.tool_result",
       "timestamp": "2026-05-12T06:00:00.500Z",
-      "attributes": { "tool": "get_item", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+      "attributes": {
+        "tool": "get_item",
+        "server": "example_server",
+        "tool.kind": "read",
+        "response_shape": "list"
+      }
     }
   ]
 }

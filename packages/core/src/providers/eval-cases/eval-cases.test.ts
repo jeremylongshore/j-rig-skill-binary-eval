@@ -87,7 +87,8 @@ describe("EC-3 tool calling", () => {
     class SmartToolProvider extends CleanProvider {
       async callTool(req: Parameters<Provider["callTool"]>[0]) {
         const text = req.messages.map((m) => m.content).join(" ");
-        const shouldCall = text.toLowerCase().includes("schedule") || text.toLowerCase().includes("meeting");
+        const shouldCall =
+          text.toLowerCase().includes("schedule") || text.toLowerCase().includes("meeting");
         if (shouldCall && req.tools[0]) {
           return {
             toolName: req.tools[0].name,

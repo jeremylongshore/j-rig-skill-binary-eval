@@ -59,12 +59,7 @@ export function formatDecision(decision: RolloutDecision): string {
  */
 export function formatScore(passed: number, total: number): string {
   const pct = total > 0 ? ((passed / total) * 100).toFixed(0) : "0";
-  const color =
-    passed === total
-      ? chalk.green
-      : passed / total >= 0.5
-        ? chalk.yellow
-        : chalk.red;
+  const color = passed === total ? chalk.green : passed / total >= 0.5 ? chalk.yellow : chalk.red;
   return color(`${passed}/${total} (${pct}%)`);
 }
 

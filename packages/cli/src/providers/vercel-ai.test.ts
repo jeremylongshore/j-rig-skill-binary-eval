@@ -39,14 +39,17 @@ describe("VercelAiProvider.complete — EC-1 + vendor routing", () => {
     ["anthropic/claude-sonnet-4", /api\.anthropic\.com/, "claude-sonnet-4"],
     ["openai/gpt-4o", /api\.openai\.com/, "gpt-4o"],
     ["google/gemini-2.5-pro", /generativelanguage\.googleapis\.com/, "gemini-2.5-pro"],
-  ] as const)("routes %s to the right vendor endpoint with the bare model id", async (model, urlRe, bareId) => {
-    const { transport, calls } = fakeTransport(() => okGenerate("ok"));
-    const p = new VercelAiProvider({ apiKey: KEY, transport });
-    const result = await p.complete({ model, messages: [{ role: "user", content: "q" }] });
-    expect(result.model).toBe(model);
-    expect(calls[0]!.url).toMatch(urlRe);
-    expect((calls[0]!.body as Record<string, unknown>).model).toBe(bareId);
-  });
+  ] as const)(
+    "routes %s to the right vendor endpoint with the bare model id",
+    async (model, urlRe, bareId) => {
+      const { transport, calls } = fakeTransport(() => okGenerate("ok"));
+      const p = new VercelAiProvider({ apiKey: KEY, transport });
+      const result = await p.complete({ model, messages: [{ role: "user", content: "q" }] });
+      expect(result.model).toBe(model);
+      expect(calls[0]!.url).toMatch(urlRe);
+      expect((calls[0]!.body as Record<string, unknown>).model).toBe(bareId);
+    },
+  );
 
   it("throws model_not_found for an unknown vendor prefix", async () => {
     const { transport, calls } = fakeTransport(() => okGenerate("ok"));
@@ -166,7 +169,9 @@ describe("VercelAiProvider.complete — EC-1 + vendor routing", () => {
         { role: "tool", content: "7", toolName: "calc", toolCallId: "tc-2" },
       ],
     });
-    const wire = (calls[0]!.body as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+    const wire = (calls[0]!.body as Record<string, unknown>).messages as Array<
+      Record<string, unknown>
+    >;
     expect(wire[1]).toMatchObject({ role: "tool", toolCallId: "tc-2", toolName: "calc" });
   });
 });
@@ -321,7 +326,10 @@ describe("VercelAiProvider.callTool — EC-3 tool calling", () => {
   });
 
   it("propagates a non-2xx status from callTool", async () => {
-    const { transport } = fakeTransport(() => ({ status: 401, json: { error: { message: "bad key" } } }));
+    const { transport } = fakeTransport(() => ({
+      status: 401,
+      json: { error: { message: "bad key" } },
+    }));
     const p = new VercelAiProvider({ apiKey: KEY, transport });
     await expect(
       p.callTool({
@@ -386,7 +394,7 @@ describe("VercelAiProvider — normalization edge cases (branch coverage)", () =
     expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
 
-  it("coerces a non-object string tool arg (e.g. \"5\") to an empty object", async () => {
+  it('coerces a non-object string tool arg (e.g. "5") to an empty object', async () => {
     const { transport } = fakeTransport(() => ({
       status: 200,
       json: {

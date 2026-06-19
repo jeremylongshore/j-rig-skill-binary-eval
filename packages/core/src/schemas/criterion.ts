@@ -31,10 +31,7 @@ export const CriterionSchema = z.object({
     .boolean()
     .default(false)
     .describe("If true, evaluate in context of sibling skills"),
-  judge_prompt: z
-    .string()
-    .optional()
-    .describe("Prompt template for judge-based criteria"),
+  judge_prompt: z.string().optional().describe("Prompt template for judge-based criteria"),
   deterministic_check: z
     .string()
     .optional()

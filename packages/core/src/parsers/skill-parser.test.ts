@@ -47,9 +47,7 @@ describe("parseSkillMd", () => {
     const result = parseSkillMd(content);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(
-        result.errors.some((e) => e.message.includes("third person")),
-      ).toBe(true);
+      expect(result.errors.some((e) => e.message.includes("third person"))).toBe(true);
     }
   });
 

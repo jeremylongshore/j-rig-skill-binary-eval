@@ -29,10 +29,7 @@ export const TestCaseSchema = z.object({
   trigger_expectation: TriggerExpectation.optional().describe(
     "Whether the skill should or should not trigger",
   ),
-  expected_artifacts: z
-    .array(z.string())
-    .optional()
-    .describe("Expected output files or artifacts"),
+  expected_artifacts: z.array(z.string()).optional().describe("Expected output files or artifacts"),
   expected_output_contains: z
     .array(z.string())
     .optional()

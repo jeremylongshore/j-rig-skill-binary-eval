@@ -17,9 +17,7 @@ export interface ParsedSkill<T = SkillFrontmatter> {
  * Uses gray-matter for frontmatter extraction — no regex hacks.
  * Validates frontmatter against the standard-tier schema.
  */
-export function parseSkillMd(
-  content: string,
-): ParseResult<ParsedSkill<SkillFrontmatter>> {
+export function parseSkillMd(content: string): ParseResult<ParsedSkill<SkillFrontmatter>> {
   let parsed: matter.GrayMatterFile<string>;
 
   try {
@@ -42,8 +40,7 @@ export function parseSkillMd(
       errors: [
         {
           path: "",
-          message:
-            "SKILL.md has no frontmatter. Expected YAML frontmatter between --- delimiters.",
+          message: "SKILL.md has no frontmatter. Expected YAML frontmatter between --- delimiters.",
         },
       ],
     };
@@ -97,8 +94,7 @@ export function parseSkillMdEnterprise(
       errors: [
         {
           path: "",
-          message:
-            "SKILL.md has no frontmatter. Expected YAML frontmatter between --- delimiters.",
+          message: "SKILL.md has no frontmatter. Expected YAML frontmatter between --- delimiters.",
         },
       ],
     };

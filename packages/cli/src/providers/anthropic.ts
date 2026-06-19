@@ -1,5 +1,10 @@
 import type { TriggerProvider } from "@j-rig/core";
-import type { ExecutionProvider, ExecutionContext, ExecutionOutput, ExecutionMeta } from "@j-rig/core";
+import type {
+  ExecutionProvider,
+  ExecutionContext,
+  ExecutionOutput,
+  ExecutionMeta,
+} from "@j-rig/core";
 import type { JudgeProvider, JudgmentVerdict } from "@j-rig/core";
 
 /**

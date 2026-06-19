@@ -6,7 +6,10 @@ import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
 
 function mockProvider(
-  responses: Record<string, { text: string; artifacts?: Array<{ filename: string; content: string }> }>,
+  responses: Record<
+    string,
+    { text: string; artifacts?: Array<{ filename: string; content: string }> }
+  >,
 ): ExecutionProvider {
   return {
     async execute(prompt) {
@@ -76,11 +79,7 @@ describe("runFunctionalTests", () => {
       },
     });
 
-    const outcomes = await runFunctionalTests(
-      [testCases[0], testCases[1]],
-      skill,
-      provider,
-    );
+    const outcomes = await runFunctionalTests([testCases[0], testCases[1]], skill, provider);
 
     expect(outcomes).toHaveLength(2);
     expect(outcomes[0].status).toBe("completed");
@@ -135,7 +134,12 @@ describe("checkOutputExpectations", () => {
     prompt: "test",
     output: {
       text,
-      artifacts: artifacts.map((f) => ({ filename: f, content: "", type: "text" as const, size_bytes: 0 })),
+      artifacts: artifacts.map((f) => ({
+        filename: f,
+        content: "",
+        type: "text" as const,
+        size_bytes: 0,
+      })),
       tool_calls: 0,
     },
     meta: {
@@ -149,7 +153,10 @@ describe("checkOutputExpectations", () => {
 
   it("passes when output contains expected strings", () => {
     const tc: TestCase = {
-      id: "t1", description: "test", tier: "core", prompt: "test",
+      id: "t1",
+      description: "test",
+      tier: "core",
+      prompt: "test",
       expected_output_contains: ["hello", "world"],
     };
     const result = checkOutputExpectations(makeOutcome("hello world"), tc);
@@ -159,7 +166,10 @@ describe("checkOutputExpectations", () => {
 
   it("fails when output missing expected string", () => {
     const tc: TestCase = {
-      id: "t1", description: "test", tier: "core", prompt: "test",
+      id: "t1",
+      description: "test",
+      tier: "core",
+      prompt: "test",
       expected_output_contains: ["missing"],
     };
     const result = checkOutputExpectations(makeOutcome("hello world"), tc);
@@ -169,7 +179,10 @@ describe("checkOutputExpectations", () => {
 
   it("passes when expected artifacts are present", () => {
     const tc: TestCase = {
-      id: "t1", description: "test", tier: "core", prompt: "test",
+      id: "t1",
+      description: "test",
+      tier: "core",
+      prompt: "test",
       expected_artifacts: ["report.json"],
     };
     const result = checkOutputExpectations(makeOutcome("", ["report.json"]), tc);
@@ -178,7 +191,10 @@ describe("checkOutputExpectations", () => {
 
   it("fails when expected artifact is missing", () => {
     const tc: TestCase = {
-      id: "t1", description: "test", tier: "core", prompt: "test",
+      id: "t1",
+      description: "test",
+      tier: "core",
+      prompt: "test",
       expected_artifacts: ["report.json"],
     };
     const result = checkOutputExpectations(makeOutcome("", []), tc);

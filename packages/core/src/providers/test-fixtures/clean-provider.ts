@@ -63,9 +63,7 @@ export class CleanProvider implements Provider {
     };
   }
 
-  async callTool(
-    req: CompletionRequest & { tools: ToolDefinition[] },
-  ): Promise<ToolCallResult> {
+  async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
     const t = req.tools[0];
     return {
       toolName: t?.name ?? null,

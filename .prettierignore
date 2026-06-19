@@ -6,3 +6,6 @@ pnpm-lock.yaml
 CHANGELOG.md
 000-docs
 *.md
+# Deliberately-malformed test fixtures: the harness asserts these FAIL to
+# parse, so Prettier cannot (and must not) format them.
+packages/*/fixtures/invalid/**

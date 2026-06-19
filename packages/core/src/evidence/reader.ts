@@ -21,10 +21,7 @@
  */
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { resolve, extname, join } from "node:path";
-import {
-  EvidenceStatementSchema,
-  type EvidenceStatement,
-} from "../schemas/evidence-bundle.js";
+import { EvidenceStatementSchema, type EvidenceStatement } from "../schemas/evidence-bundle.js";
 
 export interface ReadBundleResult {
   /** Successfully validated Statements. */

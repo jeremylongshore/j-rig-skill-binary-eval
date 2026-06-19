@@ -115,9 +115,7 @@ describe("CleanProvider conformance", () => {
     const r = await p.callTool({
       model: "synthetic/test",
       messages: [{ role: "user", content: "use the tool" }],
-      tools: [
-        { name: "do_thing", description: "does it", inputSchema: { type: "object" } },
-      ],
+      tools: [{ name: "do_thing", description: "does it", inputSchema: { type: "object" } }],
     });
     expect(r.toolName).toBe("do_thing");
     expect(r.finishReason).toBe("tool_use");

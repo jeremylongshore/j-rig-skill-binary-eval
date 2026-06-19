@@ -16,14 +16,11 @@ describe.each(NEW_CATEGORIES)("%s — fixture-driven", (category) => {
     .filter((f) => f.endsWith(".json"))
     .map((f) => JSON.parse(readFileSync(resolve(dir, f), "utf-8")) as MMFixture);
 
-  it.each(fixtures.map((f) => [f.name, f] as const))(
-    "%s",
-    (_name, fixture) => {
-      const result = runChecker(fixture.category, fixture.events);
-      expect(result.category).toBe(fixture.category);
-      expect(result.result).toBe(fixture.expected);
-    },
-  );
+  it.each(fixtures.map((f) => [f.name, f] as const))("%s", (_name, fixture) => {
+    const result = runChecker(fixture.category, fixture.events);
+    expect(result.category).toBe(fixture.category);
+    expect(result.result).toBe(fixture.expected);
+  });
 });
 
 describe("runAllRegisteredCheckers — full registry coverage", () => {

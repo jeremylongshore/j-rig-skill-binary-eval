@@ -5,6 +5,7 @@ on:
     paths:
       - "**/*.md"
       - ".markdownlint-cli2.jsonc"
+      - ".audit-harness/configs/markdownlint.yaml"
       - ".vale.ini"
       - ".vale/**"
       - "lychee.toml"
@@ -22,13 +23,14 @@ concurrency:
   group: doc-quality-${{ github.ref }}
   cancel-in-progress: true
 
-# Tidy-first posture: advisory on first install. Tighten in a follow-up PR
-# once the existing corpus is cleaned up.
+# markdownlint + lychee are REQUIRED (a green required check is signal); they own
+# Markdown style and link integrity respectively, and run nowhere else (de-duped
+# from lint.yml). Vale (prose style) STAYS advisory — prose voice should not block
+# code.
 jobs:
   markdownlint:
-    name: markdownlint-cli2 (advisory)
+    name: markdownlint-cli2
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v6
@@ -53,12 +55,11 @@ jobs:
           reporter: github-pr-check
 
   link-check:
-    name: lychee (link integrity, offline, advisory)
+    name: lychee
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: lycheeverse/lychee-action@v2
         with:
           args: --offline --config lychee.toml "**/*.md"
-          fail: false
+          fail: true

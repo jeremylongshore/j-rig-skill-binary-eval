@@ -42,9 +42,7 @@ const SAMPLE_TOOL: ToolDefinition = {
 const SAMPLE_TOOL_ARGS_ZOD = z
   .object({
     title: z.string(),
-    start_time: z
-      .string()
-      .datetime({ message: "start_time must be RFC 3339 date-time" }),
+    start_time: z.string().datetime({ message: "start_time must be RFC 3339 date-time" }),
     duration_minutes: z.number().int().min(1).max(480),
   })
   .strict();
@@ -52,8 +50,7 @@ const SAMPLE_TOOL_ARGS_ZOD = z
 const SHOULD_CALL_PROMPT =
   "Please schedule a meeting titled 'Project review' starting tomorrow at 2pm for 60 minutes.";
 
-const SHOULD_NOT_CALL_PROMPT =
-  "What is the capital of France? Answer in one word, no tool calls.";
+const SHOULD_NOT_CALL_PROMPT = "What is the capital of France? Answer in one word, no tool calls.";
 
 export const runEC3: ECRunner = async (provider, options) => {
   const models = options?.models ?? DEFAULT_MODELS;

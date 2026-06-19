@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  computeProviderScoreCard,
-  draftDecisionRecordFragment,
-  locToScore,
-} from "./score-card.js";
+import { computeProviderScoreCard, draftDecisionRecordFragment, locToScore } from "./score-card.js";
 import type { ECSuiteResult, ECResult } from "../eval-cases/index.js";
 
 function ec(
@@ -86,7 +82,13 @@ describe("computeProviderScoreCard — request-side coverage (R5.3)", () => {
 
   it("scores 2 when 2 of 3 pass per EC", () => {
     const s = computeProviderScoreCard({
-      suite: suite([ec("EC-1", twoPass), ec("EC-2", twoPass), ec("EC-3", twoPass), ec("EC-4", twoPass), ec("EC-5", twoPass)]),
+      suite: suite([
+        ec("EC-1", twoPass),
+        ec("EC-2", twoPass),
+        ec("EC-3", twoPass),
+        ec("EC-4", twoPass),
+        ec("EC-5", twoPass),
+      ]),
       typeSafetyScore: 3,
       adapterLoc: 100,
     });
@@ -95,7 +97,13 @@ describe("computeProviderScoreCard — request-side coverage (R5.3)", () => {
 
   it("scores mixed across ECs", () => {
     const s = computeProviderScoreCard({
-      suite: suite([ec("EC-1", allPass), ec("EC-2", twoPass), ec("EC-3", onePass), ec("EC-4", allFail), ec("EC-5", allPass)]),
+      suite: suite([
+        ec("EC-1", allPass),
+        ec("EC-2", twoPass),
+        ec("EC-3", onePass),
+        ec("EC-4", allFail),
+        ec("EC-5", allPass),
+      ]),
       typeSafetyScore: 3,
       adapterLoc: 100,
     });
@@ -107,9 +115,7 @@ describe("computeProviderScoreCard — request-side coverage (R5.3)", () => {
 describe("computeProviderScoreCard — runtime error categories (R5.4)", () => {
   it("scores 0 when EC-4 missing", () => {
     const s = computeProviderScoreCard({
-      suite: suite([
-        ec("EC-1", [{ model: "anthropic", pass: true }]),
-      ]),
+      suite: suite([ec("EC-1", [{ model: "anthropic", pass: true }])]),
       typeSafetyScore: 0,
       adapterLoc: 100,
     });
@@ -122,7 +128,11 @@ describe("computeProviderScoreCard — runtime error categories (R5.4)", () => {
     const s = computeProviderScoreCard({
       suite: suite([
         ec("EC-4", [
-          { model: "anthropic", pass: true, notes: notesAllExpected.replace("anthropic", "anthropic") },
+          {
+            model: "anthropic",
+            pass: true,
+            notes: notesAllExpected.replace("anthropic", "anthropic"),
+          },
           { model: "openai", pass: true, notes: notesAllExpected.replace("anthropic", "openai") },
           { model: "google", pass: true, notes: notesAllExpected.replace("anthropic", "google") },
         ]),
@@ -137,9 +147,7 @@ describe("computeProviderScoreCard — runtime error categories (R5.4)", () => {
     const notes =
       "vendor=anthropic: authentication:wrong-category, rate_limit:expected, model_not_found:missing, content_policy_refusal:skipped, network_timeout:skipped";
     const s = computeProviderScoreCard({
-      suite: suite([
-        ec("EC-4", [{ model: "anthropic", pass: false, notes }]),
-      ]),
+      suite: suite([ec("EC-4", [{ model: "anthropic", pass: false, notes }])]),
       typeSafetyScore: 0,
       adapterLoc: 100,
     });

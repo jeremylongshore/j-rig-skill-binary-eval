@@ -52,9 +52,7 @@ describe("composeStatement", () => {
     // with fractional seconds, so no conversion is needed or correct.
     const stmt = composeStatement(baseInput);
     // Matches YYYY-MM-DDTHH:MM:SS.mmmZ — three-digit ms + Z suffix preserved
-    expect(stmt.predicate.evaluated_at).toMatch(
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/,
-    );
+    expect(stmt.predicate.evaluated_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/);
   });
 
   it("preserves explicit evaluatedAt", () => {
@@ -109,9 +107,9 @@ describe("composeStatement", () => {
   });
 
   it("requires advisory_severity when gateDecision=advisory", () => {
-    expect(() =>
-      composeStatement({ ...baseInput, gateDecision: "advisory" }),
-    ).toThrow(/advisory_severity/);
+    expect(() => composeStatement({ ...baseInput, gateDecision: "advisory" })).toThrow(
+      /advisory_severity/,
+    );
   });
 
   it("accepts advisory with severity", () => {
@@ -124,15 +122,11 @@ describe("composeStatement", () => {
   });
 
   it("throws on inputHash without sha256: prefix", () => {
-    expect(() =>
-      composeStatement({ ...baseInput, inputHash: SHA }),
-    ).toThrow(/sha256:-prefixed/);
+    expect(() => composeStatement({ ...baseInput, inputHash: SHA })).toThrow(/sha256:-prefixed/);
   });
 
   it("throws on invalid gateId regex", () => {
-    expect(() =>
-      composeStatement({ ...baseInput, gateId: "INVALID-Gate-Id" }),
-    ).toThrow();
+    expect(() => composeStatement({ ...baseInput, gateId: "INVALID-Gate-Id" })).toThrow();
   });
 
   it("accepts error gate_decision", () => {
@@ -208,7 +202,9 @@ describe("writeBundle", () => {
 
   it("writes one-file-per-row form (json directory)", () => {
     writeBundle(rows, { format: "json", outputPath: tmpDir, perRowBasename: "stmt" });
-    const files = readdirSync(tmpDir).filter((f) => f.endsWith(".json")).sort();
+    const files = readdirSync(tmpDir)
+      .filter((f) => f.endsWith(".json"))
+      .sort();
     expect(files).toEqual(["stmt-0000.json", "stmt-0001.json", "stmt-0002.json"]);
   });
 });

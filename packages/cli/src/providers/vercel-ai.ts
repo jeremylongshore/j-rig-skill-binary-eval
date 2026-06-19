@@ -34,11 +34,7 @@ import type {
   ToolCallResult,
   ToolDefinition,
 } from "@j-rig/core";
-import {
-  createFetchTransport,
-  type Transport,
-  type TransportResponse,
-} from "./transport.js";
+import { createFetchTransport, type Transport, type TransportResponse } from "./transport.js";
 
 const ADAPTER_NAME = "vercel-ai-sdk";
 const ADAPTER_VERSION = "0.1.0-prototype";
@@ -273,9 +269,7 @@ export class VercelAiProvider implements Provider {
     yield { type: "finish", finishReason: completion.finishReason, usage: completion.usage };
   }
 
-  async callTool(
-    req: CompletionRequest & { tools: ToolDefinition[] },
-  ): Promise<ToolCallResult> {
+  async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
     if (this.#apiKey.length < 8) {
       throw new ProviderError({
         category: "authentication",

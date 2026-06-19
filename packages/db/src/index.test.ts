@@ -155,7 +155,13 @@ describe("evidence persistence", () => {
   it("stores and retrieves criterion results", () => {
     storeCriterionResults(database, runId, [
       { criterion_id: "pkg:skill-md-exists", passed: true, severity: "pass", message: "Found" },
-      { criterion_id: "pkg:name-present", passed: false, severity: "error", message: "Missing", details: "No name field" },
+      {
+        criterion_id: "pkg:name-present",
+        passed: false,
+        severity: "error",
+        message: "Missing",
+        details: "No name field",
+      },
     ]);
 
     const results = getRunResults(database, runId);

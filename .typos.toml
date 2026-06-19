@@ -36,6 +36,7 @@ nin = "nin"           # mongo/json "not in" operator
 ot = "ot"             # OpenTelemetry shorthand
 
 # --- Domain metrics / business terms (NOT typos) ---
+CMO = "CMO"           # Chief Marketing Officer — ISEDC council seat (CTO/GC/CMO/CFO/CSO/CISO)
 fpr = "fpr"           # false-positive rate (trigger/metrics.ts)
 FPR = "FPR"           # false-positive rate (FNR/FPR in AARs)
 som = "som"           # serviceable obtainable market (business case)

@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tests/tsconfig.json && pnpm -r run typecheck",
     "clean": "pnpm -r run clean",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test",
     "test:coverage": "vitest run --coverage",
     "lint:md": "markdownlint-cli2",
     "emit:evidence": "node --experimental-strip-types scripts/emit-evidence.ts",

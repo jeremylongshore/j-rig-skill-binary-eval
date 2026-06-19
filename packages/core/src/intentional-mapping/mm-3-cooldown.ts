@@ -24,8 +24,7 @@ export const checkMM3Cooldown: MMChecker = (events: TraceEvent[]): MMResult => {
   const decisions = events
     .filter(
       (e) =>
-        e.name === "claude_code.tool_decision" &&
-        typeof e.attributes["cooldown_ms"] === "number",
+        e.name === "claude_code.tool_decision" && typeof e.attributes["cooldown_ms"] === "number",
     )
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
 
@@ -96,11 +95,7 @@ export const checkMM3Cooldown: MMChecker = (events: TraceEvent[]): MMResult => {
   };
 };
 
-function blockingHookBetween(
-  events: TraceEvent[],
-  before: TraceEvent,
-  after: TraceEvent,
-): boolean {
+function blockingHookBetween(events: TraceEvent[], before: TraceEvent, after: TraceEvent): boolean {
   const lo = Date.parse(before.timestamp);
   const hi = Date.parse(after.timestamp);
   if (Number.isNaN(lo) || Number.isNaN(hi)) return false;

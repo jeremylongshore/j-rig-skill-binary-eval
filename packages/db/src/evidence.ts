@@ -60,19 +60,13 @@ export function createRun(
  * Transition a run to a new status.
  * Throws if the transition is invalid.
  */
-export function transitionRun(
-  { db }: JRigDatabase,
-  runId: number,
-  newStatus: RunStatus,
-): void {
+export function transitionRun({ db }: JRigDatabase, runId: number, newStatus: RunStatus): void {
   const run = db.select().from(runs).where(eq(runs.id, runId)).get();
   if (!run) throw new Error(`Run ${runId} not found`);
 
   const currentStatus = run.status as RunStatus;
   if (!isValidTransition(currentStatus, newStatus)) {
-    throw new Error(
-      `Invalid transition: ${currentStatus} → ${newStatus}`,
-    );
+    throw new Error(`Invalid transition: ${currentStatus} → ${newStatus}`);
   }
 
   const updates: Record<string, unknown> = { status: newStatus };
@@ -84,8 +78,7 @@ export function transitionRun(
   if (["completed", "failed", "timed_out", "canceled"].includes(newStatus)) {
     updates["completed_at"] = new Date().toISOString();
     if (run.started_at) {
-      updates["duration_ms"] =
-        new Date().getTime() - new Date(run.started_at).getTime();
+      updates["duration_ms"] = new Date().getTime() - new Date(run.started_at).getTime();
     }
   }
 
@@ -167,11 +160,7 @@ export function getRun({ db }: JRigDatabase, runId: number) {
   const run = db.select().from(runs).where(eq(runs.id, runId)).get();
   if (!run) return null;
 
-  const summary = db
-    .select()
-    .from(runSummaries)
-    .where(eq(runSummaries.run_id, runId))
-    .get();
+  const summary = db.select().from(runSummaries).where(eq(runSummaries.run_id, runId)).get();
 
   return { ...run, summary: summary ?? null };
 }
@@ -210,20 +199,12 @@ export function getRecentRuns(
  * Get criterion results for a run.
  */
 export function getRunResults({ db }: JRigDatabase, runId: number) {
-  return db
-    .select()
-    .from(criterionResults)
-    .where(eq(criterionResults.run_id, runId))
-    .all();
+  return db.select().from(criterionResults).where(eq(criterionResults.run_id, runId)).all();
 }
 
 /**
  * Get artifacts for a run.
  */
 export function getRunArtifacts({ db }: JRigDatabase, runId: number) {
-  return db
-    .select()
-    .from(artifacts)
-    .where(eq(artifacts.run_id, runId))
-    .all();
+  return db.select().from(artifacts).where(eq(artifacts.run_id, runId)).all();
 }

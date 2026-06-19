@@ -52,8 +52,6 @@ export function buildRoster(
  * Format a roster into a text representation for prompt injection.
  */
 export function formatRoster(roster: SkillRoster): string {
-  const lines = roster.all.map(
-    (entry) => `- **${entry.name}**: ${entry.description}`,
-  );
+  const lines = roster.all.map((entry) => `- **${entry.name}**: ${entry.description}`);
   return `Available skills:\n${lines.join("\n")}`;
 }

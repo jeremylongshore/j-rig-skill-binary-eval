@@ -7,7 +7,12 @@
     {
       "name": "claude_code.tool_result",
       "timestamp": "2026-05-12T06:20:00.000Z",
-      "attributes": { "tool": "list_items", "server": "example_server", "tool.kind": "read", "response_shape": "list" }
+      "attributes": {
+        "tool": "list_items",
+        "server": "example_server",
+        "tool.kind": "read",
+        "response_shape": "list"
+      }
     }
   ]
 }

@@ -181,7 +181,5 @@ export interface Provider {
    * Per-request errors are returned in-band as ProviderError elements rather
    * than throwing for the whole batch — partial success is the common case.
    */
-  batch(
-    reqs: CompletionRequest[],
-  ): Promise<Array<CompletionResult | ProviderError>>;
+  batch(reqs: CompletionRequest[]): Promise<Array<CompletionResult | ProviderError>>;
 }

@@ -22,8 +22,7 @@ const REFORMAT_MARKERS = ["reformat", "strict-mode", "rfc-normalize", "w3c-norma
 
 export const checkMM6StrictModeProtocol: MMChecker = (events: TraceEvent[]): MMResult => {
   const strictDecisions = events.filter(
-    (e) =>
-      e.name === "claude_code.tool_decision" && e.attributes["strict_mode"] === true,
+    (e) => e.name === "claude_code.tool_decision" && e.attributes["strict_mode"] === true,
   );
 
   if (strictDecisions.length === 0) {

@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { parseCoverageFloor } from './emit-evidence.ts';
+import { describe, it, expect } from "vitest";
+import { parseCoverageFloor } from "./emit-evidence.ts";
 
-describe('parseCoverageFloor [f-jrig-security-2]', () => {
-  it('reads the lines floor declared inside a coverage.thresholds block', () => {
+describe("parseCoverageFloor [f-jrig-security-2]", () => {
+  it("reads the lines floor declared inside a coverage.thresholds block", () => {
     const cfg = `
 export default defineConfig({
   test: {
@@ -19,7 +19,7 @@ export default defineConfig({
     expect(parseCoverageFloor(cfg)).toBe(80);
   });
 
-  it('does NOT fabricate a floor from a lines: token in a comment', () => {
+  it("does NOT fabricate a floor from a lines: token in a comment", () => {
     const cfg = `
 export default defineConfig({
   test: {
@@ -34,7 +34,7 @@ export default defineConfig({
     expect(parseCoverageFloor(cfg)).toBeNull();
   });
 
-  it('does NOT fabricate a floor from a non-thresholds lines: option', () => {
+  it("does NOT fabricate a floor from a non-thresholds lines: option", () => {
     const cfg = `
 export default defineConfig({
   test: {
@@ -48,7 +48,7 @@ export default defineConfig({
     expect(parseCoverageFloor(cfg)).toBeNull();
   });
 
-  it('returns null when the config declares no floor (current repo state)', () => {
+  it("returns null when the config declares no floor (current repo state)", () => {
     const cfg = `
 export default defineConfig({
   test: {

@@ -222,10 +222,10 @@ Steps 2 + 3 can run in parallel. Steps 4 + 5 gate Step 6.
 
 ## 13. Cross-references
 
-- ISEDC v1 record: [`intent-eval-platform/intent-eval-lab/000-docs/004-AT-DECR-isedc-council-record-2026-05-10.md`](../../intent-eval-lab/000-docs/004-AT-DECR-isedc-council-record-2026-05-10.md)
-- Phase B scope refinement plan: [`intent-eval-platform/intent-eval-lab/000-docs/003-PP-PLAN-phase-b-scope-refinement.md`](../../intent-eval-lab/000-docs/003-PP-PLAN-phase-b-scope-refinement.md) (PB-7)
+- ISEDC v1 record: `intent-eval-platform/intent-eval-lab/000-docs/004-AT-DECR-isedc-council-record-2026-05-10.md` § Q5
+- Phase B scope refinement plan: `intent-eval-platform/intent-eval-lab/000-docs/003-PP-PLAN-phase-b-scope-refinement.md` (PB-7)
 - Build journey master plan: `~/.claude/plans/se-the-council-bubbly-frog.md` (Milestone 4)
-- Evidence Bundle SPEC v0.1.0-draft (which the chosen adapter ultimately emits against): [`intent-eval-platform/intent-eval-lab/specs/evidence-bundle/v0.1.0-draft/SPEC.md`](../../intent-eval-lab/specs/evidence-bundle/v0.1.0-draft/SPEC.md)
+- Evidence Bundle SPEC v0.1.0-draft (which the chosen adapter ultimately emits against): `intent-eval-platform/intent-eval-lab/specs/evidence-bundle/v0.1.0-draft/SPEC.md`
 - /exec-decision-council skill (which adjudicates the lock): `~/.claude/skills/exec-decision-council/`
 
 ## 14. License

@@ -85,7 +85,7 @@ inspect `coverage.dimensions_skipped` before treating any `pass` row as a positi
 
 The predicate URI is immutable per ISEDC CISO binding (DR-004 + DR-010 §10):
 
-```
+```text
 https://evals.intentsolutions.io/gate-result/v1
 ```
 
@@ -94,7 +94,7 @@ the j-rig package version. The URI does not change when j-rig bumps to v2.0.0.
 
 ### In-toto statement type — UNCHANGED
 
-```
+```text
 https://in-toto.io/Statement/v1
 ```
 
@@ -205,7 +205,7 @@ Any consumer parsing the predicate body must update its parsing:
 
 Per DR-018, j-rig's `EvidenceStatementSchema` is now:
 
-```
+```text
 KernelEvidenceStatementSchema    ← structural authority (cross-field invariants I1 + I2)
   .superRefine(jRigSecondaryCheck)  ← belt-and-suspenders (same invariants, one-cycle retention)
 ```

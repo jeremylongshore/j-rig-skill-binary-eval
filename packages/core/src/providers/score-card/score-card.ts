@@ -244,7 +244,9 @@ export function draftDecisionRecordFragment(cards: ProviderScoreCard[]): string 
     lines.push(`| \`${c.provider}\` | ${g1} | ${g2} |`);
   }
   lines.push("");
-  lines.push("**DISQUALIFICATION ANTI-PATTERN (PB-7 § 12): any G-1 or G-2 failure DISQUALIFIES the candidate. Do NOT proceed to rubric scoring for a candidate that failed a CISO gate.**");
+  lines.push(
+    "**DISQUALIFICATION ANTI-PATTERN (PB-7 § 12): any G-1 or G-2 failure DISQUALIFIES the candidate. Do NOT proceed to rubric scoring for a candidate that failed a CISO gate.**",
+  );
   lines.push("");
   lines.push("### Rubric scores (PB-7 § 5)");
   lines.push("");
@@ -265,7 +267,9 @@ export function draftDecisionRecordFragment(cards: ProviderScoreCard[]): string 
       const s = c.perEcSummary.find((p) => p.ec === ec);
       return s ? `${s.passCount}/${s.total}` : "n/a";
     };
-    lines.push(`| \`${c.provider}\` | ${cell("EC-1")} | ${cell("EC-2")} | ${cell("EC-3")} | ${cell("EC-4")} | ${cell("EC-5")} |`);
+    lines.push(
+      `| \`${c.provider}\` | ${cell("EC-1")} | ${cell("EC-2")} | ${cell("EC-3")} | ${cell("EC-4")} | ${cell("EC-5")} |`,
+    );
   }
   lines.push("");
   lines.push("### What this fragment does NOT include (council fills in)");

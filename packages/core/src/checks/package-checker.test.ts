@@ -16,21 +16,29 @@ describe("checkPackage", () => {
     const report = checkPackage(fixture("valid-skill"));
     expect(report.summary.errors).toBe(0);
     expect(report.skill_name).toBe("commit-message-writer");
-    expect(report.results.some((r) => r.id === "pkg:skill-md-exists" && r.severity === "pass")).toBe(true);
-    expect(report.results.some((r) => r.id === "pkg:skill-md-parses" && r.severity === "pass")).toBe(true);
+    expect(
+      report.results.some((r) => r.id === "pkg:skill-md-exists" && r.severity === "pass"),
+    ).toBe(true);
+    expect(
+      report.results.some((r) => r.id === "pkg:skill-md-parses" && r.severity === "pass"),
+    ).toBe(true);
   });
 
   it("fails on missing SKILL.md", () => {
     const report = checkPackage(fixture("missing-skill"));
     expect(report.summary.errors).toBeGreaterThan(0);
     expect(report.skill_name).toBeNull();
-    expect(report.results.some((r) => r.id === "pkg:skill-md-exists" && r.severity === "error")).toBe(true);
+    expect(
+      report.results.some((r) => r.id === "pkg:skill-md-exists" && r.severity === "error"),
+    ).toBe(true);
   });
 
   it("fails on broken frontmatter", () => {
     const report = checkPackage(fixture("broken-frontmatter"));
     expect(report.summary.errors).toBeGreaterThan(0);
-    expect(report.results.some((r) => r.id === "pkg:skill-md-parses" && r.severity === "error")).toBe(true);
+    expect(
+      report.results.some((r) => r.id === "pkg:skill-md-parses" && r.severity === "error"),
+    ).toBe(true);
   });
 
   it("detects broken file references", () => {
@@ -47,24 +55,36 @@ describe("checkPackage", () => {
 
   it("warns on thin package body", () => {
     const report = checkPackage(fixture("thin-package"));
-    expect(report.results.some((r) => r.id === "heuristic:body-underspecified" && r.severity === "warning")).toBe(true);
+    expect(
+      report.results.some(
+        (r) => r.id === "heuristic:body-underspecified" && r.severity === "warning",
+      ),
+    ).toBe(true);
   });
 
   it("warns on short description", () => {
     const report = checkPackage(fixture("thin-package"));
-    expect(report.results.some((r) => r.id === "heuristic:description-length" && r.severity === "warning")).toBe(true);
+    expect(
+      report.results.some(
+        (r) => r.id === "heuristic:description-length" && r.severity === "warning",
+      ),
+    ).toBe(true);
   });
 
   it("warns on bloated package body", () => {
     const report = checkPackage(fixture("bloated-package"));
-    expect(report.results.some((r) => r.id === "heuristic:body-oversized" && r.severity === "warning")).toBe(true);
+    expect(
+      report.results.some((r) => r.id === "heuristic:body-oversized" && r.severity === "warning"),
+    ).toBe(true);
   });
 
   it("returns structured report with timestamp and summary", () => {
     const report = checkPackage(fixture("valid-skill"));
     expect(report.timestamp).toBeTruthy();
     expect(report.summary.total).toBe(report.results.length);
-    expect(report.summary.passed + report.summary.warnings + report.summary.errors).toBe(report.summary.total);
+    expect(report.summary.passed + report.summary.warnings + report.summary.errors).toBe(
+      report.summary.total,
+    );
   });
 });
 

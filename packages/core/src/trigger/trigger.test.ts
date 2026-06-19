@@ -7,9 +7,7 @@ import type { TestCase } from "../schemas/test-case.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
 
 // Mock provider that returns predetermined selections
-function mockProvider(
-  selections: Record<string, string | null>,
-): TriggerProvider {
+function mockProvider(selections: Record<string, string | null>): TriggerProvider {
   return {
     async selectSkill(prompt) {
       const selected = selections[prompt] ?? null;
@@ -55,9 +53,27 @@ describe("roster builder", () => {
 
 describe("trigger runner", () => {
   const testCases: TestCase[] = [
-    { id: "tc1", description: "Should trigger", tier: "core", prompt: "Write a commit message", trigger_expectation: "should_trigger" },
-    { id: "tc2", description: "Should not trigger", tier: "core", prompt: "What is the weather?", trigger_expectation: "should_not_trigger" },
-    { id: "tc3", description: "Sibling confusion", tier: "core", prompt: "Generate changelog", trigger_expectation: "should_trigger" },
+    {
+      id: "tc1",
+      description: "Should trigger",
+      tier: "core",
+      prompt: "Write a commit message",
+      trigger_expectation: "should_trigger",
+    },
+    {
+      id: "tc2",
+      description: "Should not trigger",
+      tier: "core",
+      prompt: "What is the weather?",
+      trigger_expectation: "should_not_trigger",
+    },
+    {
+      id: "tc3",
+      description: "Sibling confusion",
+      tier: "core",
+      prompt: "Generate changelog",
+      trigger_expectation: "should_trigger",
+    },
     { id: "tc4", description: "No trigger expectation", tier: "core", prompt: "Hello" },
   ];
 
@@ -105,7 +121,9 @@ describe("trigger runner", () => {
 
   it("handles provider errors gracefully", async () => {
     const provider: TriggerProvider = {
-      async selectSkill() { throw new Error("API down"); },
+      async selectSkill() {
+        throw new Error("API down");
+      },
     };
     const roster = buildRoster(targetFrontmatter);
     const results = await runTriggerTests([testCases[0]], roster, provider);
@@ -117,11 +135,46 @@ describe("trigger runner", () => {
 describe("trigger metrics", () => {
   it("computes metrics from results", () => {
     const results: TriggerResult[] = [
-      { test_case_id: "1", prompt: "a", expected: "should_trigger", outcome: "correct_trigger", selected_skill: "s", reasoning: "" },
-      { test_case_id: "2", prompt: "b", expected: "should_trigger", outcome: "correct_trigger", selected_skill: "s", reasoning: "" },
-      { test_case_id: "3", prompt: "c", expected: "should_not_trigger", outcome: "correct_no_trigger", selected_skill: null, reasoning: "" },
-      { test_case_id: "4", prompt: "d", expected: "should_trigger", outcome: "false_negative", selected_skill: null, reasoning: "" },
-      { test_case_id: "5", prompt: "e", expected: "should_not_trigger", outcome: "false_positive", selected_skill: "s", reasoning: "" },
+      {
+        test_case_id: "1",
+        prompt: "a",
+        expected: "should_trigger",
+        outcome: "correct_trigger",
+        selected_skill: "s",
+        reasoning: "",
+      },
+      {
+        test_case_id: "2",
+        prompt: "b",
+        expected: "should_trigger",
+        outcome: "correct_trigger",
+        selected_skill: "s",
+        reasoning: "",
+      },
+      {
+        test_case_id: "3",
+        prompt: "c",
+        expected: "should_not_trigger",
+        outcome: "correct_no_trigger",
+        selected_skill: null,
+        reasoning: "",
+      },
+      {
+        test_case_id: "4",
+        prompt: "d",
+        expected: "should_trigger",
+        outcome: "false_negative",
+        selected_skill: null,
+        reasoning: "",
+      },
+      {
+        test_case_id: "5",
+        prompt: "e",
+        expected: "should_not_trigger",
+        outcome: "false_positive",
+        selected_skill: "s",
+        reasoning: "",
+      },
     ];
 
     const metrics = computeMetrics(results);
@@ -136,8 +189,22 @@ describe("trigger metrics", () => {
 
   it("handles perfect scores", () => {
     const results: TriggerResult[] = [
-      { test_case_id: "1", prompt: "a", expected: "should_trigger", outcome: "correct_trigger", selected_skill: "s", reasoning: "" },
-      { test_case_id: "2", prompt: "b", expected: "should_not_trigger", outcome: "correct_no_trigger", selected_skill: null, reasoning: "" },
+      {
+        test_case_id: "1",
+        prompt: "a",
+        expected: "should_trigger",
+        outcome: "correct_trigger",
+        selected_skill: "s",
+        reasoning: "",
+      },
+      {
+        test_case_id: "2",
+        prompt: "b",
+        expected: "should_not_trigger",
+        outcome: "correct_no_trigger",
+        selected_skill: null,
+        reasoning: "",
+      },
     ];
 
     const metrics = computeMetrics(results);
@@ -158,10 +225,38 @@ describe("trigger metrics", () => {
 describe("confusion detection", () => {
   it("detects confusion pairs", () => {
     const results: TriggerResult[] = [
-      { test_case_id: "1", prompt: "a", expected: "should_trigger", outcome: "sibling_confusion", selected_skill: "changelog-gen", reasoning: "" },
-      { test_case_id: "2", prompt: "b", expected: "should_trigger", outcome: "sibling_confusion", selected_skill: "changelog-gen", reasoning: "" },
-      { test_case_id: "3", prompt: "c", expected: "should_trigger", outcome: "sibling_confusion", selected_skill: "pr-reviewer", reasoning: "" },
-      { test_case_id: "4", prompt: "d", expected: "should_trigger", outcome: "correct_trigger", selected_skill: "commit-writer", reasoning: "" },
+      {
+        test_case_id: "1",
+        prompt: "a",
+        expected: "should_trigger",
+        outcome: "sibling_confusion",
+        selected_skill: "changelog-gen",
+        reasoning: "",
+      },
+      {
+        test_case_id: "2",
+        prompt: "b",
+        expected: "should_trigger",
+        outcome: "sibling_confusion",
+        selected_skill: "changelog-gen",
+        reasoning: "",
+      },
+      {
+        test_case_id: "3",
+        prompt: "c",
+        expected: "should_trigger",
+        outcome: "sibling_confusion",
+        selected_skill: "pr-reviewer",
+        reasoning: "",
+      },
+      {
+        test_case_id: "4",
+        prompt: "d",
+        expected: "should_trigger",
+        outcome: "correct_trigger",
+        selected_skill: "commit-writer",
+        reasoning: "",
+      },
     ];
 
     const pairs = detectConfusion(results, "commit-writer");
@@ -174,7 +269,14 @@ describe("confusion detection", () => {
 
   it("returns empty when no confusion", () => {
     const results: TriggerResult[] = [
-      { test_case_id: "1", prompt: "a", expected: "should_trigger", outcome: "correct_trigger", selected_skill: "s", reasoning: "" },
+      {
+        test_case_id: "1",
+        prompt: "a",
+        expected: "should_trigger",
+        outcome: "correct_trigger",
+        selected_skill: "s",
+        reasoning: "",
+      },
     ];
     expect(detectConfusion(results, "s")).toHaveLength(0);
   });
