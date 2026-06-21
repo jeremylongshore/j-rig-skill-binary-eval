@@ -1,10 +1,10 @@
-# Skill Refiner npm Release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0 (DRAFT)
+# Skill Refiner npm Release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0
 
-**Filing**: 027-AA-AACR-refiner-v0.1.0-release-DRAFT.md
+**Filing**: 027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md
 **Date**: 2026-06-21
 **Author**: Jeremy Longshore (release prep; executed by Claude)
-**Status**: **DRAFT** — release machinery is wired but **NOT published**. No `refiner-v*` tag has been pushed. Finalize this doc after the first real publish (fill the post-publish placeholders in § 7).
-**Bead**: `bd_000-projects-3zol.8` (Refiner library release prep — PREP ONLY)
+**Status**: **PUBLISHED** — both packages are live on npm at v0.1.0 with SLSA provenance v1 attestations (keyless sigstore via GitHub Actions OIDC). The `refiner-v0.1.0` tag triggered the publish workflow (run 27916699310, all green). Post-publish facts are filled in § 7.
+**Bead**: `bd_000-projects-3zol.8` (Refiner library release prep → published)
 **Plan**: `intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md` (v5, ratified via DR-028)
 **Scope decision**: Published as `@intentsolutions/*` per CEO directive 2026-06-21 (overrides DR-028 T4 published-name detail — see § 3).
 
@@ -117,9 +117,9 @@ the rewrite landed via a post-publish guard that fails loudly if any literal
 
 ## 5. Consumer integration — adding `@intentsolutions/refiner` to a skill's CI
 
-Once published, a skill repo gates SKILL.md changes on a Refiner pass like this
-(illustrative — the predicate-URI signed-evidence leg is gated and lands in a
-later wave):
+Now that both packages are public, a skill repo gates SKILL.md changes on a
+Refiner pass like this (illustrative — the predicate-URI signed-evidence leg is
+gated and lands in a later wave):
 
 ```bash
 pnpm add -D @intentsolutions/refiner @intentsolutions/refiner-core
@@ -143,7 +143,7 @@ import { accept, applyEdit, bootstrap } from "@intentsolutions/refiner-core";
 import { RefinerStore, score, propose } from "@intentsolutions/refiner";
 ```
 
-## 6. Release machinery (what prep landed)
+## 6. Release machinery (what shipped)
 
 - **`packages/refiner-core/package.json` + `packages/refiner/package.json`** —
   un-privated (`private: true` removed), added
@@ -162,19 +162,68 @@ import { RefinerStore, score, propose } from "@intentsolutions/refiner";
   `NPM_TOKEN`, and asserts the published refiner tarball rewrote its
   `workspace:` dep.
 
-## 7. Post-publish — TO FILL on the real release
+## 7. Post-publish — release facts (2026-06-21)
 
-> **DRAFT placeholders.** This release is **GATED on the `@j-rig` npm org
-> existing under the publishing account** (the `NPM_TOKEN` secret must be scoped
-> to publish `@j-rig/*`). Until that org is provisioned and the first
-> `refiner-v0.1.0` tag is pushed, the items below are unknown.
+Both packages published successfully under `@intentsolutions/*` from the
+`refiner-v0.1.0` tag. The `@intentsolutions` org was already provisioned under
+the publishing account (`intentsolutionsio`), so the `@j-rig`-org provisioning
+that the draft anticipated was not required — the CEO scope directive in § 3 made
+it moot.
 
-- npm: `https://www.npmjs.com/package/@intentsolutions/refiner-core` — _TBD on publish_
-- npm: `https://www.npmjs.com/package/@intentsolutions/refiner` — _TBD on publish_
-- Sigstore provenance (refiner-core) Rekor logIndex: _TBD_
-- Sigstore provenance (refiner) Rekor logIndex: _TBD_
-- `npm audit signatures` verification result: _TBD_
-- Workflow run URL: _TBD_
+### Published packages
 
-When this is filled, rename this file from `...-DRAFT.md` to drop the `-DRAFT`
-suffix and update its INDEX row.
+| Package | Version | npm page |
+| --- | --- | --- |
+| `@intentsolutions/refiner-core` | `0.1.0` | <https://www.npmjs.com/package/@intentsolutions/refiner-core> |
+| `@intentsolutions/refiner` | `0.1.0` | <https://www.npmjs.com/package/@intentsolutions/refiner> |
+
+### Tarballs
+
+- refiner-core: <https://registry.npmjs.org/@intentsolutions/refiner-core/-/refiner-core-0.1.0.tgz>
+- refiner: <https://registry.npmjs.org/@intentsolutions/refiner/-/refiner-0.1.0.tgz>
+
+### Provenance — SLSA provenance v1 via npm/GitHub sigstore
+
+Both packages were published with `pnpm publish --provenance`, producing
+**SLSA provenance v1 attestations** generated keyless via sigstore using the
+GitHub Actions OIDC identity. The attestation bundles are served by npm:
+
+- refiner-core: <https://registry.npmjs.org/-/npm/v1/attestations/@intentsolutions%2frefiner-core@0.1.0>
+- refiner: <https://registry.npmjs.org/-/npm/v1/attestations/@intentsolutions%2frefiner@0.1.0>
+
+Each endpoint returns two attestations: the npm publish attestation
+(`https://github.com/npm/attestation/tree/main/specs/publish/v0.1`) and the SLSA
+provenance v1 attestation (`https://slsa.dev/provenance/v1`).
+
+> **No standalone Rekor logIndex.** Unlike our cosign keyless flow (e.g.
+> intent-rollout-gate v0.2.0, which cites a discrete Rekor `logIndex`), the
+> npm-provenance path does not surface a standalone Rekor transparency-log index
+> through the registry attestation API. Verification is via the npm attestation
+> endpoints above plus `npm audit signatures`; do not expect a cosign-style
+> `logIndex` here.
+
+### Verification
+
+```bash
+# Registry-side: confirm both packages resolve and the attestations exist
+npm view @intentsolutions/refiner-core@0.1.0 version
+npm view @intentsolutions/refiner@0.1.0 version
+curl -s https://registry.npmjs.org/-/npm/v1/attestations/@intentsolutions%2frefiner-core@0.1.0
+curl -s https://registry.npmjs.org/-/npm/v1/attestations/@intentsolutions%2frefiner@0.1.0
+
+# Consumer-side: after installing, verify registry signatures + provenance
+npm audit signatures
+```
+
+### Publish mechanism
+
+Tag `refiner-v0.1.0` pushed to `main` triggered
+`.github/workflows/publish-refiner.yml`, which pinned the checkout to the tag,
+drift-guarded the tag against both `package.json` versions, ran the full gate,
+then published **refiner-core first, then refiner** — each with
+`pnpm publish --provenance` under the `@intentsolutions` scope using the existing
+`NPM_TOKEN`. The post-publish "workspace: dep rewritten" guard passed (no literal
+`workspace:` reached the published tarball).
+
+- Workflow run: <https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/runs/27916699310>
+  (GitHub Actions run id `27916699310`, all steps green)
