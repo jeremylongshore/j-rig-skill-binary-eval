@@ -31,6 +31,16 @@ export const NOT_APPLICABLE_TOKEN = "__not_applicable__";
 export const NOT_APPLICABLE_REASON =
   "routed from NOT_APPLICABLE per DR-018 §279 — non-verdict, not a pass";
 
+/**
+ * Default reason injected when migrating a fail/advisory/error v1 row that
+ * carried no gate_reasons. Required by the kernel gate-result/v1 invariant
+ * (Blueprint B § 7.4 line 829): gate_reasons MUST be non-empty for non-pass
+ * decisions. The v1 format predated this constraint; migration supplies this
+ * provenance reason so the row satisfies the current schema.
+ */
+export const MIGRATED_NON_PASS_REASON =
+  "migrated from v1 result field — original row predated gate_reasons requirement";
+
 const V1_DECISION_MAP: Record<string, "pass" | "fail" | "advisory" | "error"> = {
   PASS: "pass",
   FAIL: "fail",
@@ -202,6 +212,12 @@ function migratePredicate(v1: JsonObject): MigratePredicateResult {
       };
     }
     gateDecision = mapped;
+    // Blueprint B § 7.4 line 829 (enforced by @intentsolutions/core ≥0.6.0):
+    // gate_reasons MUST be non-empty when gate_decision is fail/advisory/error.
+    // v1 rows predated this constraint; inject a provenance reason when none exist.
+    if (gateDecision !== "pass" && gateReasons.length === 0) {
+      gateReasons.push(MIGRATED_NON_PASS_REASON);
+    }
   }
 
   const gateId = typeof v1.gate_id === "string" ? v1.gate_id : "";
