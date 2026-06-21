@@ -1,0 +1,122 @@
+name: Publish refiner
+
+# Publishes the Skill Refiner pair to npm with sigstore provenance on a tag push
+# `refiner-v*.*.*` (e.g. refiner-v0.1.0):
+#   - @j-rig/refiner-core  (the pure foundation — published FIRST)
+#   - @j-rig/refiner       (the orchestrator+CLI — depends on refiner-core)
+#
+# The published scope is RATIFIED as `@j-rig/*` (DR-028 T4 — KEEP-NAMED-PRODUCT;
+# do NOT rename to @intentsolutions). Separate tag namespace from the repo-level
+# `v*.*.*` releases and from `rollout-gate-v*.*.*` so each published surface cuts
+# independently.
+#
+# Flow: bump BOTH packages/refiner-core/package.json#version and
+# packages/refiner/package.json#version (lockstep) via PR, merge, then tag from
+# main HEAD. The job re-runs the full check chain, verifies the tag matches both
+# package versions, builds, publishes refiner-core then refiner with --provenance,
+# and asserts the published refiner tarball's workspace dep was rewritten (no
+# literal `workspace:` survived).
+#
+# GATED: this only runs when a `refiner-v*` tag is pushed. The actual first
+# publish is additionally gated externally on the `@j-rig` npm org existing under
+# the publishing account (the NPM_TOKEN secret must own/scope-publish `@j-rig`).
+
+on:
+  push:
+    tags:
+      - "refiner-v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write # sigstore provenance (npm OIDC)
+
+concurrency:
+  group: publish-refiner-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @j-rig/refiner-core + @j-rig/refiner to npm (provenance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant: the bytes
+          # published with --provenance MUST be the pushed tag's bytes. An
+          # implicit checkout attributes provenance to whatever the default ref
+          # resolves to — a one-way door. Pin to the tag.
+          ref: ${{ github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches BOTH package versions (lockstep)
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/refiner-v}"
+          core_version=$(node -p "require('./packages/refiner-core/package.json').version")
+          refiner_version=$(node -p "require('./packages/refiner/package.json').version")
+          if [ "$tag_version" != "$core_version" ]; then
+            echo "::error::Tag refiner-v$tag_version does not match @j-rig/refiner-core version $core_version" >&2
+            exit 1
+          fi
+          if [ "$tag_version" != "$refiner_version" ]; then
+            echo "::error::Tag refiner-v$tag_version does not match @j-rig/refiner version $refiner_version" >&2
+            exit 1
+          fi
+          echo "Tag, refiner-core, and refiner versions all: $tag_version"
+
+      # Build FIRST: the workspace typecheck/test chain resolves @j-rig/refiner-core
+      # and @intentsolutions/core types from built dist/ — a fresh clone has none
+      # until pnpm run build runs.
+      - name: Build
+        run: pnpm run build
+
+      - name: Full check chain
+        run: pnpm run check
+
+      # Publish refiner-core FIRST: @j-rig/refiner declares a runtime dependency on
+      # it (workspace:* → rewritten to the exact version at publish), so the
+      # foundation must exist on the registry before the orchestrator is published.
+      - name: Publish @j-rig/refiner-core with provenance
+        working-directory: packages/refiner-core
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --provenance --no-git-checks
+
+      - name: Publish @j-rig/refiner with provenance
+        working-directory: packages/refiner
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --provenance --no-git-checks
+
+      # Post-publish guard: the @j-rig/refiner → @j-rig/refiner-core dependency is
+      # declared as `workspace:*`. pnpm MUST rewrite that to a concrete version
+      # (0.1.0) in the published tarball — a literal `workspace:` reaching the
+      # registry is an unconsumable, broken publish. Re-pack the same package the
+      # publish step produced and assert the rewrite happened. Fail loudly if not.
+      - name: Assert refiner tarball rewrote the workspace dep
+        working-directory: packages/refiner
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tarball="/tmp/j-rig-refiner-${version}.tgz"
+          pnpm pack --pack-destination /tmp >/dev/null
+          extracted=$(tar -xzOf "$tarball" package/package.json)
+          if printf '%s' "$extracted" | grep -q 'workspace:'; then
+            echo "::error::Published @j-rig/refiner tarball still contains a literal 'workspace:' dependency — pnpm did not rewrite the workspace protocol. This tarball is broken on the registry." >&2
+            printf '%s\n' "$extracted" | grep 'workspace:' >&2 || true
+            exit 1
+          fi
+          echo "✓ workspace dep rewritten in the published refiner tarball (no 'workspace:' literal)"

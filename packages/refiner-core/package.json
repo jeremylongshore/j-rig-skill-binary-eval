@@ -1,7 +1,24 @@
 {
   "name": "@j-rig/refiner-core",
   "version": "0.1.0",
-  "private": true,
+  "description": "Skill Refiner pure core: bounded-edit apply transform, deterministic synthetic eval-set bootstrap, the Pareto-dominant acceptance gate (DR-028 P0-RATIFY-1), and the swappable RefinerStrategy interface (AC-13).",
+  "keywords": [
+    "skill-refiner",
+    "j-rig",
+    "intent-eval",
+    "eval",
+    "skill",
+    "claude"
+  ],
+  "homepage": "https://github.com/jeremylongshore/j-rig-skill-binary-eval/tree/main/packages/refiner-core",
+  "bugs": "https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeremylongshore/j-rig-skill-binary-eval.git",
+    "directory": "packages/refiner-core"
+  },
+  "license": "Apache-2.0",
+  "author": "Jeremy Longshore <jeremy@intentsolutions.io>",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +27,11 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
     "build": "tsup",

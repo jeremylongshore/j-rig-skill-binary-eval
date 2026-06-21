@@ -2,7 +2,7 @@
 
 > Release-quality evaluation harness and rollout gate for Claude Skills
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-06-21
 
 ## By Category
 
@@ -31,6 +31,17 @@
 | #   | File                                           | Description |
 | --- | ---------------------------------------------- | ----------- |
 | 006 | [006-OD-STAT-status.md](006-OD-STAT-status.md) | Status      |
+
+### AA — Audits & After-Action Reports
+
+| #   | File                                                                                                                   | Description                                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 019 | [019-AA-AUDT-appaudit-devops-playbook.md](019-AA-AUDT-appaudit-devops-playbook.md)                                     | Operator-grade DevOps playbook (appaudit)                                  |
+| 020 | [020-AA-AACR-release-hardening-iep-P2-2026-05-21.md](020-AA-AACR-release-hardening-iep-P2-2026-05-21.md)               | IEP Priority 2 release-hardening AAR                                       |
+| 022 | [022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md](022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md) | Staging-stays-staging production-Rekor promotion forensics                 |
+| 024 | [024-AA-AACR-real-provider-dogfood-2026-06-17.md](024-AA-AACR-real-provider-dogfood-2026-06-17.md)                     | Real-provider dogfood AAR                                                  |
+| 025 | [025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md](025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md) | Configurable OpenAI-compatible provider AAR                               |
+| 027 | [027-AA-AACR-refiner-v0.1.0-release-DRAFT.md](027-AA-AACR-refiner-v0.1.0-release-DRAFT.md)                             | `@j-rig/refiner-core` + `@j-rig/refiner` v0.1.0 release prep (DRAFT, gated) |
 
 ## Chronological Listing
 
@@ -86,7 +97,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 18 + 10 epics + templates & references library (~32 files)
-- **Categories used:** 4 (PP, AT, OD, TQ)
-- **Next sequence number:** 019
+- **Total documents:** 27 + 10 epics + templates & references library (~40 files)
+- **Categories used:** 5 (PP, AT, OD, TQ, AA)
+- **Next sequence number:** 028
 - **Note:** the per-category tables above list a subset; the per-doc files in this directory are the canonical source. Rebuild via `/doc-filing` index when next refreshed.
