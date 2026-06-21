@@ -69,8 +69,8 @@ export class SkillOptStyleStrategy implements RefinerStrategy {
   async propose(ctx: ProposeContext): Promise<EditProposal> {
     const worst = selectWorstRollouts(ctx.rollouts);
     const prompt = buildPrompt(ctx.doc.text, worst);
-    const completion = await ctx.model.complete(prompt);
-    const { rationale, ops } = parseProposalResponse(completion);
+    const result = await ctx.model.complete(prompt);
+    const { rationale, ops } = parseProposalResponse(result.text);
     return {
       parent: ctx.doc.hash,
       ops,

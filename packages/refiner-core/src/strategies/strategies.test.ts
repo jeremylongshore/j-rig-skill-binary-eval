@@ -5,7 +5,13 @@ import {
   SKILL_OPT_STYLE_STRATEGY_ID,
   selectWorstRollouts,
 } from "./skill-opt-style.js";
-import type { RefinerStrategy, RefinerModel, ProposeContext, ScoredRollout } from "./types.js";
+import type {
+  RefinerStrategy,
+  RefinerModel,
+  CompletionResult,
+  ProposeContext,
+  ScoredRollout,
+} from "./types.js";
 import { makeSkillDoc, applyEdit } from "../apply.js";
 import { accept } from "../accept.js";
 import { BEHAVIORAL_DIMENSION } from "../types.js";
@@ -14,14 +20,18 @@ import type { ScoreRecord } from "../types.js";
 const DOC = makeSkillDoc("demo", "# Demo\n\nUse this skill to do the thing.\n");
 const EVAL = "e".repeat(64);
 
-/** A model stub that records the prompt it saw and returns a canned completion. */
+/**
+ * A model stub that records the prompt it saw and returns a canned completion.
+ * Usage is zero-stubbed (tests that do not exercise the cost meter don't need
+ * real token counts).
+ */
 function stubModel(completion: string): RefinerModel & { lastPrompt: string } {
   const m = {
     id: "stub-model",
     lastPrompt: "",
-    async complete(prompt: string): Promise<string> {
+    async complete(prompt: string): Promise<CompletionResult> {
       m.lastPrompt = prompt;
-      return completion;
+      return { text: completion, usage: { promptTokens: 0, completionTokens: 0 } };
     },
   };
   return m;

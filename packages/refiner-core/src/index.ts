@@ -44,5 +44,19 @@ export { applyEdit, makeSkillDoc, EditApplicationError } from "./apply.js";
 export { bootstrap, type BootstrapOptions } from "./bootstrap.js";
 export { accept, isSignificantImprovement, isSignificantRegression } from "./accept.js";
 
+// Cost meter — per-attempt usage, per-accept rollup, hard-cap quarantine
+export type {
+  ModelUsage,
+  AttemptRecord,
+  AttemptOutcome,
+  BudgetConfig,
+  QuarantineReason,
+  QuarantineRecord,
+  BudgetDecision,
+  AcceptRollup,
+  CostMeter,
+} from "./cost.js";
+export { totalTokens, createCostMeter } from "./cost.js";
+
 // Swappable mechanism (AC-13)
 export * from "./strategies/index.js";
