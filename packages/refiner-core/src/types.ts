@@ -141,7 +141,10 @@ export type EvalSetSource = "synthetic" | "harvested" | "golden" | "hybrid";
  *
  * `evalSetVersion` is semver; `lineageParent` is the hash of the prior eval
  * set (null for the root); `refreshDueAt` is an rfc3339 timestamp (90 days
- * default) or null when produced in `--quick` mode (VP DevRel binding).
+ * default) or null when produced in `--quick` mode (VP DevRel binding);
+ * `lineageId` is a UUIDv7 that identifies the eval-set lineage — all
+ * versions of the eval set for the same skill share the same `lineageId`.
+ * This is the value the predicate's `eval_set_ref.lineage_id` references.
  */
 export interface EvalSet {
   readonly hash: EvalSetHash;
@@ -154,6 +157,30 @@ export interface EvalSet {
   readonly lineageParent: EvalSetHash | null;
   /** rfc3339 refresh-due timestamp, or null when bootstrapped in --quick mode. */
   readonly refreshDueAt: string | null;
+  /**
+   * UUIDv7 that identifies the eval-set lineage. All versions of the same
+   * eval set (for the same skill) share this id. Used by the predicate's
+   * `eval_set_ref.lineage_id` field (DR-082 § 5.1). Root sets derive this
+   * deterministically from skillId + source; child sets inherit from parent.
+   */
+  readonly lineageId: string;
+}
+
+/**
+ * A reference to a frozen eval set as consumed by the `skill-refiner-pass/v1`
+ * predicate body's `eval_set_ref` field (DR-082 § 5.1).
+ *
+ * - `hash`       — `sha256:`-prefixed content hash; pins exact content.
+ * - `version`    — which published eval-set version (minLength 1).
+ * - `lineage_id` — UUIDv7 of the eval-set lineage; pins the lineage.
+ */
+export interface EvalSetRef {
+  /** sha256-prefixed content hash of the eval set, e.g. `"sha256:<64 hex>"`. */
+  readonly hash: string;
+  /** Published eval-set version string, e.g. `"1.0.0"`. minLength 1. */
+  readonly version: string;
+  /** UUIDv7 lineage identifier. */
+  readonly lineage_id: string;
 }
 
 /** Reasons an {@link EditProposal} is rejected by {@link accept}. */
