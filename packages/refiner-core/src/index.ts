@@ -76,3 +76,20 @@ export { totalTokens, createCostMeter } from "./cost.js";
 
 // Swappable mechanism (AC-13)
 export * from "./strategies/index.js";
+
+// 4-quadrant schema-validity × judge-verdict decision matrix (bead iev7)
+export type { SchemaValidityResult, SchemaValidator } from "./schema-validator.js";
+export {
+  extractFrontmatter,
+  parseFrontmatterYaml,
+  kernelSkillFrontmatterValidator,
+} from "./schema-validator.js";
+export type {
+  AcceptDecision,
+  RejectDecision,
+  LogToSchemaRevisionCandidatesDecision,
+  SchemaRevisionCandidate,
+  DecideOutcome,
+  DecideInputs,
+} from "./decide.js";
+export { decide } from "./decide.js";

@@ -20,6 +20,7 @@
     "dist"
   ],
   "dependencies": {
+    "@intentsolutions/core": "0.8.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
