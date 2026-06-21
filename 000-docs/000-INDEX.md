@@ -23,6 +23,8 @@
 | 005 | [005-AT-SPEC-technical-spec.md](005-AT-SPEC-technical-spec.md)                                                           | Technical spec                                                                   |
 | 010 | [010-AT-SPEC-eval-spec-and-contract-guide.md](010-AT-SPEC-eval-spec-and-contract-guide.md)                               | Eval spec + contract authoring guide                                             |
 | 018 | [018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md](018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md) | PB-7 provider-adapter measurement protocol (gating doc; ISEDC v1 Q5 CTO binding) |
+| 023 | [023-AT-SPEC-ciso-gate-failure-modes-2026-06-15.md](023-AT-SPEC-ciso-gate-failure-modes-2026-06-15.md)                   | CISO PASS/FAIL gate failure-mode reference                                       |
+| 026 | [026-AT-SPEC-refiner-core-api-2026-06-20.md](026-AT-SPEC-refiner-core-api-2026-06-20.md)                                 | `@j-rig/refiner-core` API spec (value types, pure fns, RefinerStrategy; D4 + D8) |
 
 ### OD — Operations & Deployment
 

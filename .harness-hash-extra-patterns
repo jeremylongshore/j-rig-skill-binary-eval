@@ -8,4 +8,12 @@
 # an unnoticed edit. This mirrors how @intentsolutions/core pins its
 # coverage-policy surface; the mechanism is the supported per-repo append
 # documented in .audit-harness/scripts/harness-hash.sh.
+#
+# The patterns are bare globs (not globstar-recursive), so a nested
+# coverage-policy file must be listed by its explicit path. The scoped
+# @j-rig/refiner-core config carries its own dedicated >=80% floor
+# (test:coverage:refiner-core lane in ci.yml) and is its own coverage-policy
+# surface, so it is pinned explicitly below; a silent downgrade of the
+# refiner-core floor is likewise a HARNESS_TAMPERED event.
 vitest.config.ts
+packages/refiner-core/vitest.config.ts
