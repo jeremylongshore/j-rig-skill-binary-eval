@@ -112,3 +112,24 @@ export type {
   DecideInputs,
 } from "./decide.js";
 export { decide } from "./decide.js";
+
+// Eval-set quality metrics — coverage, leakage, calibration, adversarialPassRate (bead 214c.11)
+export type {
+  AdversarialEvalItem,
+  CoverageBreakdown,
+  CoverageResult,
+  LeakageResult,
+  CalibrationPrediction,
+  CalibrationResult,
+  ItemResult,
+  AdversarialPassRateResult,
+  EvaluateEvalSetOptions,
+  EvalSetQualityReport,
+} from "./eval-set-metrics.js";
+export {
+  coverage,
+  leakage,
+  calibration,
+  adversarialPassRate,
+  evaluateEvalSet,
+} from "./eval-set-metrics.js";
