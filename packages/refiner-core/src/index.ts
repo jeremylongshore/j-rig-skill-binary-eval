@@ -31,10 +31,26 @@ export type {
   EvalItem,
   EvalSetSource,
   EvalSet,
+  EvalSetRef,
   RejectionReason,
   AcceptResult,
 } from "./types.js";
 export { BEHAVIORAL_DIMENSION, DEFAULT_ALPHA } from "./types.js";
+
+// EvalSet schema, validation, ref derivation, and refresh-due detection
+export {
+  UUIDV7_REGEX,
+  SHA256_REGEX,
+  SHA256_PREFIXED_REGEX,
+  EvalItemSchema,
+  EvalSetSourceSchema,
+  EvalSetSchema,
+  EvalSetRefSchema,
+  validateEvalSet,
+  deriveEvalSetRef,
+  isRefreshDue,
+  type IsRefreshDueOptions,
+} from "./eval-set.js";
 
 // Content addressing
 export { sha256, canonicalJson, hashSkillDoc, hashValue } from "./hash.js";
