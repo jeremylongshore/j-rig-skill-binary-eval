@@ -5,8 +5,9 @@ import {
   SKILL_OPT_STYLE_STRATEGY_ID,
   selectWorstRollouts,
 } from "./skill-opt-style.js";
-import type { RefinerModel, ProposeContext, ScoredRollout } from "./types.js";
-import { makeSkillDoc } from "../apply.js";
+import type { RefinerStrategy, RefinerModel, ProposeContext, ScoredRollout } from "./types.js";
+import { makeSkillDoc, applyEdit } from "../apply.js";
+import { accept } from "../accept.js";
 import { BEHAVIORAL_DIMENSION } from "../types.js";
 import type { ScoreRecord } from "../types.js";
 
@@ -145,5 +146,123 @@ describe("selectWorstRollouts", () => {
   it("returns nothing for K <= 0", () => {
     const rollouts = [rollout("a", 0.5, "a")];
     expect(selectWorstRollouts(rollouts, 0)).toHaveLength(0);
+  });
+});
+
+/**
+ * Swappability integration test (AC-7 seam proof).
+ *
+ * This test runs the full core pipeline — strategy.propose() → applyEdit() →
+ * accept() — against BOTH reference implementations via the SAME RefinerStrategy
+ * seam. It proves that the interface is genuinely swappable: the pipeline does
+ * not care which implementation sits behind the interface, only that it satisfies
+ * the typed contract. The only external boundary stubbed is the LLM model call.
+ */
+describe("swappability: core pipeline against both strategies via the RefinerStrategy seam", () => {
+  // A doc with unique anchors so applyEdit succeeds without ambiguity.
+  const BASE_DOC = makeSkillDoc(
+    "swap-demo",
+    "# Swap Demo\n\nThis skill will do the task now.\n\nFurther context here.\n",
+  );
+  const EVAL_SET_HASH = "f".repeat(64);
+
+  // Canned completion with a valid replace op. The target must be a unique
+  // substring of BASE_DOC.text — "do the task now" appears exactly once.
+  const IMPROVING_COMPLETION = JSON.stringify({
+    rationale: "sharpen phrasing for clarity",
+    ops: [{ kind: "replace", target: "do the task now", content: "accomplish the task precisely" }],
+  });
+
+  function makeScoreRecord(docHash: string, behavioralValue: number): ScoreRecord {
+    const dim = { value: behavioralValue, variance: 0, n: 1 };
+    return {
+      skill: docHash,
+      evalSet: EVAL_SET_HASH,
+      behavioral: dim,
+      dimensions: { [BEHAVIORAL_DIMENSION]: dim },
+    };
+  }
+
+  async function runPipeline(
+    strategy: RefinerStrategy,
+    ctx: ProposeContext,
+    baselineScore: ScoreRecord,
+    candidateScore: ScoreRecord,
+  ) {
+    const proposal = await strategy.propose(ctx);
+
+    // CISO traceability invariant: proposal parent and strategy id must match.
+    expect(proposal.parent).toBe(ctx.doc.hash);
+    expect(proposal.refinerStrategyId).toBe(strategy.id);
+
+    // applyEdit is a pure function: verify the pipeline accepts the proposal.
+    const candidateDoc = applyEdit(ctx.doc, proposal);
+    expect(candidateDoc.hash).not.toBe(ctx.doc.hash); // genuinely new version
+
+    // accept() is the gate: the candidateScore has a higher behavioral value
+    // (deterministic dim, variance=0) so the gate should accept it.
+    const result = accept(baselineScore, candidateScore);
+    return { proposal, candidateDoc, result };
+  }
+
+  const strategies: Array<{ name: string; strategy: RefinerStrategy }> = [
+    { name: "NaiveInContextStrategy", strategy: new NaiveInContextStrategy() },
+    { name: "SkillOptStyleStrategy", strategy: new SkillOptStyleStrategy() },
+  ];
+
+  for (const { name, strategy } of strategies) {
+    it(`${name}: propose → applyEdit → accept returns accepted:true on a strict improvement`, async () => {
+      const ctx: ProposeContext = {
+        doc: BASE_DOC,
+        rollouts: [rollout("synth-001", 0.3, "weak output")],
+        model: stubModel(IMPROVING_COMPLETION),
+      };
+
+      const baselineScore = makeScoreRecord(BASE_DOC.hash, 0.5);
+      const candidateScore = makeScoreRecord(BASE_DOC.hash, 0.9); // strictly better
+
+      const { result } = await runPipeline(strategy, ctx, baselineScore, candidateScore);
+      expect(result.accepted).toBe(true);
+    });
+
+    it(`${name}: propose → applyEdit → accept returns accepted:false when candidate does not improve`, async () => {
+      const ctx: ProposeContext = {
+        doc: BASE_DOC,
+        rollouts: [],
+        model: stubModel(IMPROVING_COMPLETION),
+      };
+
+      const baselineScore = makeScoreRecord(BASE_DOC.hash, 0.9);
+      const candidateScore = makeScoreRecord(BASE_DOC.hash, 0.9); // no improvement (equal)
+
+      const { result } = await runPipeline(strategy, ctx, baselineScore, candidateScore);
+      expect(result.accepted).toBe(false);
+      if (!result.accepted) {
+        expect(result.reason).toBe("no-behavioral-improvement");
+      }
+    });
+  }
+
+  it("both strategies produce structurally equivalent proposals when given the same doc + completion (seam equivalence)", async () => {
+    const model = stubModel(IMPROVING_COMPLETION);
+    const ctx: ProposeContext = {
+      doc: BASE_DOC,
+      rollouts: [],
+      model,
+    };
+
+    const proposals = await Promise.all(
+      strategies.map(({ strategy }) => strategy.propose({ ...ctx })),
+    );
+
+    // Both proposals edit the same parent and carry the same ops — the mechanism
+    // difference is in HOW the prompt is assembled, not in the proposal shape.
+    expect(proposals[0].parent).toBe(proposals[1].parent);
+    expect(proposals[0].ops).toEqual(proposals[1].ops);
+    expect(proposals[0].rationale).toBe(proposals[1].rationale);
+
+    // Strategy ids differ — that's the point: the seam is swappable.
+    expect(proposals[0].refinerStrategyId).toBe(NAIVE_IN_CONTEXT_STRATEGY_ID);
+    expect(proposals[1].refinerStrategyId).toBe(SKILL_OPT_STYLE_STRATEGY_ID);
   });
 });
