@@ -41,7 +41,7 @@
 | 022 | [022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md](022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md) | Staging-stays-staging production-Rekor promotion forensics                 |
 | 024 | [024-AA-AACR-real-provider-dogfood-2026-06-17.md](024-AA-AACR-real-provider-dogfood-2026-06-17.md)                     | Real-provider dogfood AAR                                                  |
 | 025 | [025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md](025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md) | Configurable OpenAI-compatible provider AAR                               |
-| 027 | [027-AA-AACR-refiner-v0.1.0-release-DRAFT.md](027-AA-AACR-refiner-v0.1.0-release-DRAFT.md)                             | `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0 release prep (DRAFT, gated) |
+| 027 | [027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md](027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md)                   | `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0 released to npm (published, SLSA provenance v1) |
 
 ## Chronological Listing
 
