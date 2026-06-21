@@ -11,7 +11,7 @@
  *
  * This module provides:
  *   1. `CONSUMED_JUDGE_VERSION` — the judge model identifier that
- *      `@j-rig/refiner-core` was built and validated against. Updated in
+ *      `@intentsolutions/refiner-core` was built and validated against. Updated in
  *      lockstep whenever the judge model is intentionally changed.
  *   2. `BaselineJudgeRef` — a typed record that attaches the pinned judge
  *      version to a baseline, making judge provenance explicit.
@@ -60,7 +60,7 @@
 // ── 1. Consumed judge version ─────────────────────────────────────────────────
 
 /**
- * The LLM judge model identifier that `@j-rig/refiner-core` was built and
+ * The LLM judge model identifier that `@intentsolutions/refiner-core` was built and
  * validated against. **Must be updated in lockstep whenever the judge model
  * is intentionally changed** (both here and in any eval spec or config that
  * references the judge model). The string is the source of truth for

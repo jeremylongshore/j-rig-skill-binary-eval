@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { makeSkillDoc, NaiveInContextStrategy, SkillOptStyleStrategy } from "@j-rig/refiner-core";
+import {
+  makeSkillDoc,
+  NaiveInContextStrategy,
+  SkillOptStyleStrategy,
+} from "@intentsolutions/refiner-core";
 import {
   propose,
   createRefinerModel,

@@ -94,7 +94,7 @@ jobs:
       - name: Test (with coverage floor enforced)
         run: pnpm run test:coverage
 
-      # Per-package coverage gate for @j-rig/refiner-core (bd_000-projects-214c.4).
+      # Per-package coverage gate for @intentsolutions/refiner-core (bd_000-projects-214c.4).
       # Scoped to refiner-core sources only, so a refiner-core regression reds the
       # PR even when masked/diluted in the global floor above. Floor is >= 80% on
       # every dimension per the bead (current measured: 96.64% lines, 90.83%

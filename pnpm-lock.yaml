@@ -47,6 +47,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@intentsolutions/refiner':
+        specifier: workspace:*
+        version: link:../refiner
       '@j-rig/core':
         specifier: workspace:*
         version: link:../core
@@ -56,9 +59,6 @@ importers:
       '@j-rig/migrate':
         specifier: workspace:*
         version: link:../migrate
-      '@j-rig/refiner':
-        specifier: workspace:*
-        version: link:../refiner
       chalk:
         specifier: ^5.4.0
         version: 5.6.2
@@ -132,7 +132,7 @@ importers:
 
   packages/refiner:
     dependencies:
-      '@j-rig/refiner-core':
+      '@intentsolutions/refiner-core':
         specifier: workspace:*
         version: link:../refiner-core
       commander:

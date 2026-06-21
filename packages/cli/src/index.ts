@@ -9,7 +9,7 @@ import { registerDriftCommand } from "./commands/drift.js";
 import { registerEmitEvidenceCommand } from "./commands/emit-evidence.js";
 import { registerParseAgentsCommand } from "./commands/parse-agents.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
-import { registerRefineCommand } from "@j-rig/refiner";
+import { registerRefineCommand } from "@intentsolutions/refiner";
 
 function createProgram(): Command {
   const program = new Command();

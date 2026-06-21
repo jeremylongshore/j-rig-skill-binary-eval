@@ -5,7 +5,7 @@
  *
  * The refiner does not re-implement the 7-layer judgment stack. It shells out to
  * the already-shipped `j-rig eval <skill-dir> --json` command, parses that
- * command's JSON, and maps the result into a `@j-rig/refiner-core` ScoreRecord
+ * command's JSON, and maps the result into a `@intentsolutions/refiner-core` ScoreRecord
  * (the value type the acceptance gate consumes). This is the single integration
  * seam between the Refiner and J-Rig Skill Binary Eval.
  *
@@ -17,7 +17,7 @@
  * without invoking the real evaluator (no live model key, no subprocess).
  */
 
-import type { SkillDoc, EvalSet, ScoreRecord, ScoreDimension } from "@j-rig/refiner-core";
+import type { SkillDoc, EvalSet, ScoreRecord, ScoreDimension } from "@intentsolutions/refiner-core";
 
 /** Per-pass scoring tier. Opus is excluded by construction (AC-5). */
 export type ScoreModelTier = "haiku" | "sonnet";

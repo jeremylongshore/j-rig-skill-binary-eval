@@ -1,4 +1,4 @@
-# Skill Refiner npm Release — `@j-rig/refiner-core` + `@j-rig/refiner` v0.1.0 (DRAFT)
+# Skill Refiner npm Release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0 (DRAFT)
 
 **Filing**: 027-AA-AACR-refiner-v0.1.0-release-DRAFT.md
 **Date**: 2026-06-21
@@ -6,7 +6,7 @@
 **Status**: **DRAFT** — release machinery is wired but **NOT published**. No `refiner-v*` tag has been pushed. Finalize this doc after the first real publish (fill the post-publish placeholders in § 7).
 **Bead**: `bd_000-projects-3zol.8` (Refiner library release prep — PREP ONLY)
 **Plan**: `intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md` (v5, ratified via DR-028)
-**Binding scope decision**: DR-028 T4 — KEEP-NAMED-PRODUCT (`@j-rig/*` scope; do NOT rename to `@intentsolutions`)
+**Scope decision**: Published as `@intentsolutions/*` per CEO directive 2026-06-21 (overrides DR-028 T4 published-name detail — see § 3).
 
 ---
 
@@ -18,8 +18,8 @@ product in the IS three-product agent-rig stack (**J-Rig Skill Binary Eval**
 
 | Package | Role | Tarball contents |
 | --- | --- | --- |
-| `@j-rig/refiner-core@0.1.0` | Pure foundation — value types, bounded-edit apply, deterministic eval-set bootstrap, the Pareto-dominant acceptance gate, the swappable RefinerStrategy interface | `dist/` only |
-| `@j-rig/refiner@0.1.0` | Orchestrator + I/O adapters + CLI — content-addressed store, j-rig `score()` shell-out adapter, tiered Anthropic `propose()` adapter, the `j-rig refine` commands | `dist/` only |
+| `@intentsolutions/refiner-core@0.1.0` | Pure foundation — value types, bounded-edit apply, deterministic eval-set bootstrap, the Pareto-dominant acceptance gate, the swappable RefinerStrategy interface | `dist/` only |
+| `@intentsolutions/refiner@0.1.0` | Orchestrator + I/O adapters + CLI — content-addressed store, j-rig `score()` shell-out adapter, tiered Anthropic `propose()` adapter, the `j-rig refine` commands | `dist/` only |
 
 Both publish with **sigstore provenance** (npm OIDC keyless) via a single tag
 push, `refiner-v0.1.0`.
@@ -32,7 +32,7 @@ Code plugin + 3-layer hooks. See the plan's "Deferred / still-gated" sections.
 
 ## 2. What each package exports
 
-### `@j-rig/refiner-core` (pure, no I/O)
+### `@intentsolutions/refiner-core` (pure, no I/O)
 
 - **Value types** — `SkillDoc`, `EditOp`/`EditProposal`, `ScoreRecord`,
   `EvalSet`/`EvalItem`/`EvalSetRef`, `AcceptResult`, content-address aliases
@@ -55,7 +55,7 @@ Code plugin + 3-layer hooks. See the plan's "Deferred / still-gated" sections.
 - **Eval-set quality metrics** — `coverage`, `leakage`, `calibration`,
   `adversarialPassRate`, `evaluateEvalSet`.
 
-### `@j-rig/refiner` (I/O half — depends on refiner-core)
+### `@intentsolutions/refiner` (I/O half — depends on refiner-core)
 
 - **Persistence** — `RefinerStore` (content-addressed store + append-only event
   log + single mutable best-pointer) + `createNodeFileSystem` + the `FileSystem`
@@ -68,26 +68,37 @@ Code plugin + 3-layer hooks. See the plan's "Deferred / still-gated" sections.
   (`createRefinerModel` / `resolveProposeModelId` / `assertNotOpus`).
 - **CLI** — `registerRefineCommand`, wiring the five `j-rig refine <cmd>` commands.
 
-## 3. The `@j-rig/*` scope decision (DR-028 T4)
+## 3. Scope decision — `@intentsolutions/*` (CEO directive 2026-06-21)
 
-The published scope is **`@j-rig/*`**, ratified as **KEEP-NAMED-PRODUCT** in
-ISEDC Session 7 (DR-028 T4,
-`intent-eval-lab/000-docs/028-AT-DECR-isedc-council-session-7-skill-refiner-plan-ratification-2026-05-27.md`).
-This is a deliberate, council-ratified decision — the Skill Refiner ships under
-the J-Rig product brand, NOT under the `@intentsolutions` org scope used by the
-canonical kernel (`@intentsolutions/core`) and the rollout-gate decision library
-(`@intentsolutions/rollout-gate`). Do **not** "normalize" these names to
-`@intentsolutions/*`; that would contradict a binding DR.
+**Published under `@intentsolutions/*`** per CEO directive issued 2026-06-21,
+overriding the published-name detail of DR-028 T4 (KEEP-NAMED-PRODUCT).
 
-The `@j-rig/refiner → @j-rig/refiner-core` dependency is declared `workspace:*`
-in the monorepo. pnpm rewrites that to the concrete `0.1.0` at publish time
-(verified by `pnpm pack` during prep); the publish workflow asserts the rewrite
-landed via a post-publish guard that fails loudly if any literal `workspace:`
-reaches the tarball.
+**Rationale for the override:** The existing `NPM_TOKEN` secret (account
+`intentsolutionsio`) already owns and scopes-publishes `@intentsolutions/*` — it
+is the same token that published `@intentsolutions/core@0.1.0`,
+`@intentsolutions/rollout-gate@2.0.0`, and `@intentsolutions/audit-harness`.
+Publishing under `@j-rig/*` would have required creating a separate npm
+organization (`@j-rig`) and provisioning a new token, adding operational overhead
+and a new secret with no benefit. Consolidating under the existing
+`@intentsolutions` org is consistent with every other IEP published artifact.
+
+**What DR-028 T4 KEEP-NAMED-PRODUCT means in practice:** The J-Rig **brand** and
+**CLI identity** are unchanged — the binary is still `j-rig`, the command is still
+`j-rig refine`, and the product is still called "J-Rig Skill Binary Eval." Only
+the npm artifact scope changed from the previously-planned `@j-rig/*` to
+`@intentsolutions/*`. DR-028 T4 was ratified to prevent renaming the J-Rig
+product to something opaque; this override preserves that intent while aligning
+the publish account with the rest of the ecosystem.
+
+The `@intentsolutions/refiner → @intentsolutions/refiner-core` dependency is
+declared `workspace:*` in the monorepo. pnpm rewrites that to the concrete `0.1.0`
+at publish time (verified by `pnpm pack` during prep); the publish workflow asserts
+the rewrite landed via a post-publish guard that fails loudly if any literal
+`workspace:` reaches the tarball.
 
 ## 4. Version-pinning + breaking-change policy
 
-- **Lockstep versions.** `@j-rig/refiner-core` and `@j-rig/refiner` share one
+- **Lockstep versions.** `@intentsolutions/refiner-core` and `@intentsolutions/refiner` share one
   version number and are cut together by a single `refiner-v<version>` tag. The
   publish workflow's drift-guard refuses to publish unless the tag matches BOTH
   package.json versions exactly. Bump both in the same release PR.
@@ -95,7 +106,7 @@ reaches the tarball.
   break is called out in the release notes. After v1.0.0, the public export
   surface in § 2 is the SemVer contract — removing/retyping a re-exported symbol
   is a major bump.
-- **Kernel pin.** `@j-rig/refiner-core` consumes `@intentsolutions/core@0.8.0`
+- **Kernel pin.** `@intentsolutions/refiner-core` consumes `@intentsolutions/core@0.8.0`
   (`CONSUMED_KERNEL_VERSION`), declared as both a `peerDependency` (`^0.8.0`) and
   a direct `dependency` (`0.8.0`). A kernel major/minor that changes consumed
   contracts triggers a refiner re-baseline (the `isBaselineSupersededByKernel`
@@ -104,21 +115,21 @@ reaches the tarball.
   fires the vNext-baseline trigger; baselines measured under the old judge are
   marked superseded.
 
-## 5. Consumer integration — adding `@j-rig/refiner` to a skill's CI
+## 5. Consumer integration — adding `@intentsolutions/refiner` to a skill's CI
 
 Once published, a skill repo gates SKILL.md changes on a Refiner pass like this
 (illustrative — the predicate-URI signed-evidence leg is gated and lands in a
 later wave):
 
 ```bash
-pnpm add -D @j-rig/refiner @j-rig/refiner-core
+pnpm add -D @intentsolutions/refiner @intentsolutions/refiner-core
 # refiner-core is pulled transitively; add it explicitly only if you import the
 # pure types directly in your own gate scripts.
 ```
 
 ```yaml
 # .github/workflows/skill-refine-gate.yml (sketch)
-- run: pnpm add -D @j-rig/refiner
+- run: pnpm add -D @intentsolutions/refiner
 - run: pnpm exec j-rig refine check --skill ./SKILL.md
   # The acceptance gate accepts a proposed edit only on strict improvement on a
   # Pareto-dominant behavioral dimension with non-regressing others
@@ -128,8 +139,8 @@ pnpm add -D @j-rig/refiner @j-rig/refiner-core
 Library (non-CLI) consumers import the pure core directly:
 
 ```ts
-import { accept, applyEdit, bootstrap } from "@j-rig/refiner-core";
-import { RefinerStore, score, propose } from "@j-rig/refiner";
+import { accept, applyEdit, bootstrap } from "@intentsolutions/refiner-core";
+import { RefinerStore, score, propose } from "@intentsolutions/refiner";
 ```
 
 ## 6. Release machinery (what prep landed)
@@ -139,14 +150,16 @@ import { RefinerStore, score, propose } from "@j-rig/refiner";
   `publishConfig {access: public, provenance: true, registry}`, and filled the
   standard publish metadata (`description`, `keywords`, `homepage`, `bugs`,
   `repository` with `directory`, `license: Apache-2.0`, `author`) to match the
-  intent-eval-core / rollout-gate idiom. Names + `0.1.0` version unchanged;
-  `workspace:*` dep left intact (pnpm rewrites at publish).
+  intent-eval-core / rollout-gate idiom. Names renamed to `@intentsolutions/refiner-core`
+  / `@intentsolutions/refiner` per CEO directive 2026-06-21; `0.1.0` version
+  unchanged; `workspace:*` dep left intact (pnpm rewrites at publish).
 - **`.github/workflows/publish-refiner.yml`** — tag-triggered on
   `refiner-v*.*.*` (separate namespace from `v*` and `rollout-gate-v*`).
   Pins the checkout to the tag (reproducible-from-tag CISO invariant),
   drift-guards the tag against BOTH package versions, runs the full gate
   (`build` + `check`), publishes **refiner-core first then refiner** with
-  `--provenance`, and asserts the published refiner tarball rewrote its
+  `--provenance` under the `@intentsolutions` scope using the existing
+  `NPM_TOKEN`, and asserts the published refiner tarball rewrote its
   `workspace:` dep.
 
 ## 7. Post-publish — TO FILL on the real release
@@ -156,8 +169,8 @@ import { RefinerStore, score, propose } from "@j-rig/refiner";
 > to publish `@j-rig/*`). Until that org is provisioned and the first
 > `refiner-v0.1.0` tag is pushed, the items below are unknown.
 
-- npm: `https://www.npmjs.com/package/@j-rig/refiner-core` — _TBD on publish_
-- npm: `https://www.npmjs.com/package/@j-rig/refiner` — _TBD on publish_
+- npm: `https://www.npmjs.com/package/@intentsolutions/refiner-core` — _TBD on publish_
+- npm: `https://www.npmjs.com/package/@intentsolutions/refiner` — _TBD on publish_
 - Sigstore provenance (refiner-core) Rekor logIndex: _TBD_
 - Sigstore provenance (refiner) Rekor logIndex: _TBD_
 - `npm audit signatures` verification result: _TBD_

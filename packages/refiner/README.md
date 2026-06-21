@@ -1,11 +1,14 @@
-# @j-rig/refiner
+# @intentsolutions/refiner
 
 Skill Refiner orchestrator + I/O adapters + CLI — **wave 2** of the Skill Refiner
 buildout (Phase A). The pure foundation it builds on is
-[`@j-rig/refiner-core`](../refiner-core) (wave 1).
+[`@intentsolutions/refiner-core`](../refiner-core) (wave 1).
+
+Published as `@intentsolutions/refiner@0.1.0` to npm under the `@intentsolutions` scope
+per CEO directive 2026-06-21. CLI identity remains `j-rig refine` (unchanged).
 
 This is the I/O half of the value-oriented Refiner discipline whose pure half
-lives in `@j-rig/refiner-core`. It supplies the four pieces of plan 027 § 4
+lives in `@intentsolutions/refiner-core`. It supplies the four pieces of plan 027 § 4
 Phase A build-order steps 4–7:
 
 | Step | Piece | Module |
@@ -52,7 +55,6 @@ j-rig refine status <skill-id>       # show the store + event log (offline)
 
 The SkillVersion kernel entity, the `skill-refiner-pass/v1` predicate URI + signed
 evidence emission, the Claude Code plugin + 3-layer hooks, and the synchronized
-npm release ceremony are all gated to later waves. This package is `private` and
-is not published.
+npm release ceremony are all gated to later waves.
 
 License: Apache-2.0.

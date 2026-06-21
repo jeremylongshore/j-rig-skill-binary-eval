@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { makeSkillDoc, bootstrap } from "@j-rig/refiner-core";
-import type { ScoreRecord, EditProposal } from "@j-rig/refiner-core";
+import { makeSkillDoc, bootstrap } from "@intentsolutions/refiner-core";
+import type { ScoreRecord, EditProposal } from "@intentsolutions/refiner-core";
 import { RefinerStore, type FileSystem, type RefinerEvent } from "./store.js";
 
 /** In-memory FileSystem fake — no real disk, deterministic, POSIX paths. */

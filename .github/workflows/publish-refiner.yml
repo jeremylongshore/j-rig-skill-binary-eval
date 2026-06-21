@@ -2,13 +2,17 @@ name: Publish refiner
 
 # Publishes the Skill Refiner pair to npm with sigstore provenance on a tag push
 # `refiner-v*.*.*` (e.g. refiner-v0.1.0):
-#   - @j-rig/refiner-core  (the pure foundation — published FIRST)
-#   - @j-rig/refiner       (the orchestrator+CLI — depends on refiner-core)
+#   - @intentsolutions/refiner-core  (the pure foundation — published FIRST)
+#   - @intentsolutions/refiner       (the orchestrator+CLI — depends on refiner-core)
 #
-# The published scope is RATIFIED as `@j-rig/*` (DR-028 T4 — KEEP-NAMED-PRODUCT;
-# do NOT rename to @intentsolutions). Separate tag namespace from the repo-level
-# `v*.*.*` releases and from `rollout-gate-v*.*.*` so each published surface cuts
-# independently.
+# Published under the @intentsolutions/* scope per CEO directive 2026-06-21. The
+# existing NPM_TOKEN (account intentsolutionsio) already owns @intentsolutions —
+# consistent with @intentsolutions/core, @intentsolutions/rollout-gate, and
+# @intentsolutions/audit-harness. DR-028 T4 KEEP-NAMED-PRODUCT is preserved:
+# the J-Rig BRAND and CLI identity (`j-rig refine`) are unchanged; only the
+# published npm artifact scope changed from @j-rig/* to @intentsolutions/*.
+# Separate tag namespace from the repo-level `v*.*.*` releases and from
+# `rollout-gate-v*.*.*` so each published surface cuts independently.
 #
 # Flow: bump BOTH packages/refiner-core/package.json#version and
 # packages/refiner/package.json#version (lockstep) via PR, merge, then tag from
@@ -17,9 +21,10 @@ name: Publish refiner
 # and asserts the published refiner tarball's workspace dep was rewritten (no
 # literal `workspace:` survived).
 #
-# GATED: this only runs when a `refiner-v*` tag is pushed. The actual first
-# publish is additionally gated externally on the `@j-rig` npm org existing under
-# the publishing account (the NPM_TOKEN secret must own/scope-publish `@j-rig`).
+# GATED: this only runs when a `refiner-v*` tag is pushed. The NPM_TOKEN secret
+# must be scoped to publish @intentsolutions/* (it already is — same token that
+# published @intentsolutions/core@0.1.0, @intentsolutions/rollout-gate@2.0.0, and
+# @intentsolutions/audit-harness).
 
 on:
   push:
@@ -36,7 +41,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish @j-rig/refiner-core + @j-rig/refiner to npm (provenance)
+    name: Publish @intentsolutions/refiner-core + @intentsolutions/refiner to npm (provenance)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -68,16 +73,16 @@ jobs:
           core_version=$(node -p "require('./packages/refiner-core/package.json').version")
           refiner_version=$(node -p "require('./packages/refiner/package.json').version")
           if [ "$tag_version" != "$core_version" ]; then
-            echo "::error::Tag refiner-v$tag_version does not match @j-rig/refiner-core version $core_version" >&2
+            echo "::error::Tag refiner-v$tag_version does not match @intentsolutions/refiner-core version $core_version" >&2
             exit 1
           fi
           if [ "$tag_version" != "$refiner_version" ]; then
-            echo "::error::Tag refiner-v$tag_version does not match @j-rig/refiner version $refiner_version" >&2
+            echo "::error::Tag refiner-v$tag_version does not match @intentsolutions/refiner version $refiner_version" >&2
             exit 1
           fi
           echo "Tag, refiner-core, and refiner versions all: $tag_version"
 
-      # Build FIRST: the workspace typecheck/test chain resolves @j-rig/refiner-core
+      # Build FIRST: the workspace typecheck/test chain resolves @intentsolutions/refiner-core
       # and @intentsolutions/core types from built dist/ — a fresh clone has none
       # until pnpm run build runs.
       - name: Build
@@ -86,24 +91,24 @@ jobs:
       - name: Full check chain
         run: pnpm run check
 
-      # Publish refiner-core FIRST: @j-rig/refiner declares a runtime dependency on
+      # Publish refiner-core FIRST: @intentsolutions/refiner declares a runtime dependency on
       # it (workspace:* → rewritten to the exact version at publish), so the
       # foundation must exist on the registry before the orchestrator is published.
-      - name: Publish @j-rig/refiner-core with provenance
+      - name: Publish @intentsolutions/refiner-core with provenance
         working-directory: packages/refiner-core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm publish --access public --provenance --no-git-checks
 
-      - name: Publish @j-rig/refiner with provenance
+      - name: Publish @intentsolutions/refiner with provenance
         working-directory: packages/refiner
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm publish --access public --provenance --no-git-checks
 
-      # Post-publish guard: the @j-rig/refiner → @j-rig/refiner-core dependency is
-      # declared as `workspace:*`. pnpm MUST rewrite that to a concrete version
-      # (0.1.0) in the published tarball — a literal `workspace:` reaching the
+      # Post-publish guard: the @intentsolutions/refiner → @intentsolutions/refiner-core
+      # dependency is declared as `workspace:*`. pnpm MUST rewrite that to a concrete
+      # version (0.1.0) in the published tarball — a literal `workspace:` reaching the
       # registry is an unconsumable, broken publish. Re-pack the same package the
       # publish step produced and assert the rewrite happened. Fail loudly if not.
       - name: Assert refiner tarball rewrote the workspace dep
@@ -111,11 +116,11 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
-          tarball="/tmp/j-rig-refiner-${version}.tgz"
+          tarball="/tmp/intentsolutions-refiner-${version}.tgz"
           pnpm pack --pack-destination /tmp >/dev/null
           extracted=$(tar -xzOf "$tarball" package/package.json)
           if printf '%s' "$extracted" | grep -q 'workspace:'; then
-            echo "::error::Published @j-rig/refiner tarball still contains a literal 'workspace:' dependency — pnpm did not rewrite the workspace protocol. This tarball is broken on the registry." >&2
+            echo "::error::Published @intentsolutions/refiner tarball still contains a literal 'workspace:' dependency — pnpm did not rewrite the workspace protocol. This tarball is broken on the registry." >&2
             printf '%s\n' "$extracted" | grep 'workspace:' >&2 || true
             exit 1
           fi

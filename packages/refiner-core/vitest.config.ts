@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 /**
- * Per-package coverage gate for @j-rig/refiner-core (bd_000-projects-214c.4 /
+ * Per-package coverage gate for @intentsolutions/refiner-core (bd_000-projects-214c.4 /
  * Plan 027 § 4 Phase A exit criteria).
  *
  * The root vitest.config.ts measures coverage across ALL workspace packages and
