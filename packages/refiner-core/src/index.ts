@@ -77,6 +77,17 @@ export { totalTokens, createCostMeter } from "./cost.js";
 // Swappable mechanism (AC-13)
 export * from "./strategies/index.js";
 
+// Kernel-bump propagation — consumed-kernel-version contract + re-baseline-superseded trigger (bead s58e)
+export {
+  CONSUMED_KERNEL_VERSION,
+  isBaselineSupersededByKernel,
+  makeSupersededBaselineRecord,
+  // internal comparison utilities — exported for testing only
+  parseVersionTuple,
+  compareVersions,
+} from "./kernel-version.js";
+export type { BaselineKernelRef, SupersededBaselineRecord } from "./kernel-version.js";
+
 // 4-quadrant schema-validity × judge-verdict decision matrix (bead iev7)
 export type { SchemaValidityResult, SchemaValidator } from "./schema-validator.js";
 export {

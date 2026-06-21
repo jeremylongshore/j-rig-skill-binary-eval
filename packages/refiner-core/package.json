@@ -19,6 +19,9 @@
   "files": [
     "dist"
   ],
+  "peerDependencies": {
+    "@intentsolutions/core": "^0.8.0"
+  },
   "dependencies": {
     "@intentsolutions/core": "0.8.0",
     "zod": "^4.4.3"
