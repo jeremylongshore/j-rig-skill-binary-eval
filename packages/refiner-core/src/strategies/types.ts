@@ -19,6 +19,7 @@
  */
 
 import type { SkillDoc, ScoreRecord, EditProposal, RefinerStrategyId } from "../types.js";
+import type { ModelUsage } from "../cost.js";
 
 /**
  * A scored rollout: one ScoreRecord plus the verbatim transcript text that
@@ -32,12 +33,34 @@ export interface ScoredRollout {
   readonly transcript: string;
 }
 
-/** A single model completion: prompt in, text out. Injected, so it's stubbable. */
+/**
+ * The result of a single model completion: the generated text plus the token
+ * usage that the model API reports. Usage is required so the cost meter can
+ * record per-attempt token counts without any adapter-side magic.
+ *
+ * Real adapters populate `usage` from the API response body (e.g. the
+ * `usage.input_tokens` / `usage.output_tokens` fields in the Anthropic Messages
+ * API). Test stubs supply explicit values; `{ promptTokens: 0, completionTokens: 0 }`
+ * is a valid stub for tests that do not exercise the cost meter.
+ */
+export interface CompletionResult {
+  /** The generated text (verbatim model output). */
+  readonly text: string;
+  /** Token counts for this completion (required; never undefined). */
+  readonly usage: ModelUsage;
+}
+
+/**
+ * A single model completion: prompt in, {@link CompletionResult} out.
+ * Injected, so it's stubbable. The `usage` field is required on the return
+ * value so the cost meter can record per-attempt token counts without any
+ * adapter-side magic.
+ */
 export interface RefinerModel {
   /** Stable model identifier recorded on the proposal (e.g. "claude-sonnet"). */
   readonly id: string;
-  /** Produce a completion for the given prompt. */
-  complete(prompt: string): Promise<string>;
+  /** Produce a completion for the given prompt, returning text + token usage. */
+  complete(prompt: string): Promise<CompletionResult>;
 }
 
 /** Context handed to a strategy when asked to propose an edit. */

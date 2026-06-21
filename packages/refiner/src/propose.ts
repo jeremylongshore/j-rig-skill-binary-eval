@@ -21,7 +21,12 @@
  * no new dependency and stays CISO-gate-clean (key never logged).
  */
 
-import type { RefinerModel, ProposeContext, RefinerStrategy } from "@j-rig/refiner-core";
+import type {
+  RefinerModel,
+  CompletionResult,
+  ProposeContext,
+  RefinerStrategy,
+} from "@j-rig/refiner-core";
 import type { EditProposal } from "@j-rig/refiner-core";
 
 /** Tiers a propose() pass may run on. `opus` is intentionally absent (AC-5). */
@@ -93,6 +98,14 @@ export interface ProposeModelOptions {
  * (recorded on every EditProposal as `refinerModel`, so a proposal is
  * mechanism-AND-model traceable). Guaranteed non-opus.
  *
+ * The `complete()` method returns a {@link CompletionResult} carrying both the
+ * generated text and the token usage reported by the API. The {@link CompletionClient}
+ * result (a plain string) is wrapped into a `CompletionResult` with a zero-usage
+ * stub here; real usage will be surfaced when the client is upgraded to return
+ * structured usage (wave 2+ / provider-adapter upgrade). The cost meter in
+ * `@j-rig/refiner-core` will accumulate the usage field regardless — a zero stub
+ * means "uncounted" tokens, not "no tokens used".
+ *
  * @param client The completion client (real Anthropic, or a test fake).
  * @param opts   tier (default sonnet) + maxTokens.
  */
@@ -105,8 +118,11 @@ export function createRefinerModel(
   const maxTokens = opts.maxTokens ?? 1024;
   return {
     id: modelId,
-    async complete(prompt: string): Promise<string> {
-      return await client.complete({ model: modelId, prompt, maxTokens });
+    async complete(prompt: string): Promise<CompletionResult> {
+      const text = await client.complete({ model: modelId, prompt, maxTokens });
+      // Zero-usage stub until the CompletionClient interface is upgraded to
+      // return structured usage (wave 2+ adapter upgrade).
+      return { text, usage: { promptTokens: 0, completionTokens: 0 } };
     },
   };
 }

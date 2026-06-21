@@ -1,4 +1,10 @@
-export type { RefinerStrategy, RefinerModel, ProposeContext, ScoredRollout } from "./types.js";
+export type {
+  RefinerStrategy,
+  RefinerModel,
+  CompletionResult,
+  ProposeContext,
+  ScoredRollout,
+} from "./types.js";
 export {
   parseProposalResponse,
   extractJsonObject,
