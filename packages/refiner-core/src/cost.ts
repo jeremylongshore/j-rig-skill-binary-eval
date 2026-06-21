@@ -6,7 +6,7 @@
  *
  * This module is I/O-free by construction: it records usage, applies budget
  * policies, and emits typed decisions — it never calls a model or touches the
- * filesystem. The adapter layer (`@j-rig/refiner`) feeds real token counts
+ * filesystem. The adapter layer (`@intentsolutions/refiner`) feeds real token counts
  * produced by the Anthropic API; tests feed deterministic stubs.
  *
  * ## Key types
@@ -86,7 +86,7 @@ export interface AttemptRecord {
  * is emitted and the pipeline must stop attempting on that item.
  *
  * Recommended placement: pass per-skill config down from the orchestrator
- * (`@j-rig/refiner`). Core ships only the shape; defaults are caller's choice.
+ * (`@intentsolutions/refiner`). Core ships only the shape; defaults are caller's choice.
  */
 export interface BudgetConfig {
   /**

@@ -8,7 +8,7 @@
  *   j-rig refine apply <skill-dir>       — apply a stored proposal → new version
  *   j-rig refine status <skill-id>       — show the refiner store / event log
  *
- * The command group is BUILT here, in the `@j-rig/refiner` package, so the
+ * The command group is BUILT here, in the `@intentsolutions/refiner` package, so the
  * orchestration logic ships with the refiner — the only edit in `@j-rig/cli` is a
  * single line that calls {@link registerRefineCommand} (the surgical wiring the
  * plan permits). Each command is a thin shim: it loads inputs, calls the pure
@@ -30,7 +30,7 @@ import {
   applyEdit,
   type SkillDoc,
   type EditProposal,
-} from "@j-rig/refiner-core";
+} from "@intentsolutions/refiner-core";
 import { RefinerStore } from "./store.js";
 import { score, createSubprocessEvalRunner, type ScoreModelTier } from "./score.js";
 import { propose, AnthropicCompletionClient, type ProposeModelTier } from "./propose.js";
@@ -38,7 +38,7 @@ import {
   NaiveInContextStrategy,
   SkillOptStyleStrategy,
   type RefinerStrategy,
-} from "@j-rig/refiner-core";
+} from "@intentsolutions/refiner-core";
 
 /** Load the SKILL.md in `skillDir` into a content-addressed SkillDoc. */
 function loadSkillDoc(skillDir: string): SkillDoc {

@@ -1,6 +1,6 @@
 /**
- * @j-rig/refiner — Skill Refiner orchestrator + I/O adapters + CLI (Phase A,
- * wave 2). Depends on the pure foundation `@j-rig/refiner-core` (wave 1).
+ * @intentsolutions/refiner — Skill Refiner orchestrator + I/O adapters + CLI (Phase A,
+ * wave 2). Depends on the pure foundation `@intentsolutions/refiner-core` (wave 1).
  *
  * This package supplies the I/O half of the value-oriented Refiner discipline:
  *   - PERSISTENCE (build-order step 4): content-addressed store + append-only

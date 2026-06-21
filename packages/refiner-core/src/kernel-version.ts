@@ -9,7 +9,7 @@
  * predicate downstream.
  *
  * This module provides:
- *   1. `CONSUMED_KERNEL_VERSION` — the kernel version `@j-rig/refiner-core`
+ *   1. `CONSUMED_KERNEL_VERSION` — the kernel version `@intentsolutions/refiner-core`
  *      was built and tested against (updated in lockstep with the dep bump).
  *   2. `BaselineKernelRef` — a typed record that attaches the kernel version
  *      to a baseline (extends the EvalSetRef provenance concept).
@@ -43,7 +43,7 @@
 // ── 1. Consumed kernel version ────────────────────────────────────────────────
 
 /**
- * The `@intentsolutions/core` version that `@j-rig/refiner-core` was built and
+ * The `@intentsolutions/core` version that `@intentsolutions/refiner-core` was built and
  * validated against. **Must be updated in lockstep whenever the kernel dep is
  * bumped** (both in `package.json` and here). The string is the source of truth
  * for `isBaselineSupersededByKernel()` comparisons at runtime.
@@ -166,7 +166,7 @@ export interface SupersededBaselineRecord {
    */
   readonly baselineKernelVersion: string;
   /**
-   * The kernel version currently consumed by `@j-rig/refiner-core`.
+   * The kernel version currently consumed by `@intentsolutions/refiner-core`.
    * This is the "to" side of the bump.
    */
   readonly currentKernelVersion: string;

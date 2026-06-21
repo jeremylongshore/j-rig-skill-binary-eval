@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { makeSkillDoc, bootstrap } from "@j-rig/refiner-core";
+import { makeSkillDoc, bootstrap } from "@intentsolutions/refiner-core";
 import {
   score,
   ScoreAdapterError,

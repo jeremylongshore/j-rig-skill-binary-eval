@@ -1,8 +1,8 @@
-# `@j-rig/refiner-core` API Specification
+# `@intentsolutions/refiner-core` API Specification
 
 **Date:** 2026-06-20
 **Status:** NORMATIVE for the Phase A (wave 1) foundation surface
-**Package:** `@j-rig/refiner-core` (private workspace package, version `0.1.0`, not published)
+**Package:** `@intentsolutions/refiner-core` (published to npm, version `0.1.0`)
 **Source of truth:** `packages/refiner-core/src/` (the JSDoc on each export is authoritative; this doc explains the surface, the diagrams, and the design rationale)
 
 ## Tri-link (AC-12 / DR-028 T3)
@@ -20,7 +20,7 @@ Per DR-028 T3 (`bd` is the canonical writer; GitHub and Plane are projections), 
 
 ## 1. Purpose and scope
 
-`@j-rig/refiner-core` is the **pure core** of the Skill Refiner — the eval-guided
+`@intentsolutions/refiner-core` is the **pure core** of the Skill Refiner — the eval-guided
 improvement loop that proposes safe, minimal `SKILL.md` edits and accepts a candidate
 only on a strict, statistically-significant improvement. It is the second product in
 the Intent Solutions agent-rig stack: **Test** (J-Rig Skill Binary Eval) → **Improve**
@@ -28,7 +28,7 @@ the Intent Solutions agent-rig stack: **Test** (J-Rig Skill Binary Eval) → **I
 
 Everything in this package is **I/O-free by construction**: no file handles, no model
 clients, no network, no `process.exit`. Persistence, scoring, and the live model call
-live in the adapter layer (`@j-rig/refiner`, wave 2+), behind the
+live in the adapter layer (`@intentsolutions/refiner`, wave 2+), behind the
 [`RefinerStrategy`](#62-refinerstrategy) interface. The only non-pure input — wall-clock
 time — is injected explicitly into [`bootstrap`](#52-bootstrap), so even time-dependent
 output is deterministic given its inputs.
@@ -94,7 +94,7 @@ import {
   extractJsonObject,
   OpParseError,
   MAX_OPS_PER_PROPOSAL,
-} from "@j-rig/refiner-core";
+} from "@intentsolutions/refiner-core";
 ```
 
 ---
@@ -147,26 +147,26 @@ the Evidence Bundle emit are downstream (wave 2+ / gated). (Plan 027 § 6.5 D4; 
 
 In this foundation, `score()` and `propose()` ship as **interfaces** — the
 [`RefinerStrategy`](#62-refinerstrategy) contract — with the live model adapter deferred to
-`@j-rig/refiner`. `accept()` and `applyEdit()` are the concrete pure functions; `bootstrap()`
+`@intentsolutions/refiner`. `accept()` and `applyEdit()` are the concrete pure functions; `bootstrap()`
 synthesizes the held-out eval set that the rollouts run against.
 
 ---
 
 ## 3. Library architecture (diagram D8)
 
-`@j-rig/refiner` is a thin orchestrator + CLI binding that depends on `@j-rig/refiner-core`.
-All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@j-rig/refiner`,
+`@intentsolutions/refiner` is a thin orchestrator + CLI binding that depends on `@intentsolutions/refiner-core`.
+All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@intentsolutions/refiner`,
 **never** in core. (Plan 027 § 6.5 D8; folds in `bd_000-projects-214c.7`.)
 
 ```text
    ┌──────────────────────────────────────────────────────────────────────┐
-   │                       @j-rig/refiner  (npm)                          │
+   │                       @intentsolutions/refiner  (npm)                          │
    │   thin orchestrator + CLI binding; depends on refiner-core           │
    └──────────────────────────────┬───────────────────────────────────────┘
                                   │
                                   ▼
    ┌──────────────────────────────────────────────────────────────────────┐
-   │                   @j-rig/refiner-core  (npm)                         │
+   │                   @intentsolutions/refiner-core  (npm)                         │
    │   PURE value-oriented library — zero adapters, zero side effects     │
    │                                                                       │
    │   ┌────────────────┐  ┌────────────────┐  ┌────────────────┐         │
@@ -184,7 +184,7 @@ All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@j-ri
    │   ≥80% coverage gate. Mutation testing optional.                     │
    └──────────────────────────────────────────────────────────────────────┘
 
-   ADAPTERS (live in @j-rig/refiner, NOT core):
+   ADAPTERS (live in @intentsolutions/refiner, NOT core):
      • model adapter (Anthropic SDK / mock)
      • fs adapter   (read SKILL.md, write SkillVersion)
      • binary-eval adapter (shell-out to j-rig CLI)
@@ -199,7 +199,7 @@ All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@j-ri
 **The seam is the [`RefinerStrategy`](#62-refinerstrategy) interface.** The two `(interface)`
 boxes in core (`score()` / `propose()`) are exactly that declare-only contract: core ships the
 typed seam, never an adapter. Everything below the seam line — the model client, the filesystem,
-the binary-eval shell-out, the emit adapter, the cost meter — lives in `@j-rig/refiner` and is
+the binary-eval shell-out, the emit adapter, the cost meter — lives in `@intentsolutions/refiner` and is
 injected through that interface (the live model arrives as a `RefinerModel` collaborator, § 6.1).
 Core stays pure precisely because the only thing crossing the core↔adapter boundary is the
 `RefinerStrategy` contract; nothing I/O-bearing leaks upward.
@@ -571,15 +571,15 @@ foundation:
 - The **`skill-refiner-pass/v1` predicate URI** — needs a separate Class-1 ADR per the SAK
   charter; not minted here.
 - The **Claude Code plugin + 3-layer hooks** (sinker / line / hook).
-- **Publishing** (`@j-rig/refiner-core@0.1.0` release ceremony).
+- **Publishing** (`@intentsolutions/refiner-core@0.1.0` release ceremony).
 
 ---
 
 ## 8. Build and test
 
 ```bash
-pnpm --filter @j-rig/refiner-core run build
-pnpm --filter @j-rig/refiner-core run test
+pnpm --filter @intentsolutions/refiner-core run build
+pnpm --filter @intentsolutions/refiner-core run test
 ```
 
 The package targets ≥ 80% coverage (D8); mutation testing is optional. Every export above has a

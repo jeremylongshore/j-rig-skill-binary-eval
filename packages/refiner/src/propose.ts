@@ -2,7 +2,7 @@
  * propose() adapter — Anthropic-backed RefinerModel + tiered routing (plan 027
  * § 4 Phase A build-order step 6, "most complex; comes last").
  *
- * The PURE propose() mechanism lives in `@j-rig/refiner-core` behind the
+ * The PURE propose() mechanism lives in `@intentsolutions/refiner-core` behind the
  * `RefinerStrategy` interface (AC-13). A strategy needs a `RefinerModel` — a
  * single "prompt in, text out" completion seam — to do its work. This module is
  * the I/O adapter that supplies a REAL `RefinerModel` backed by a model client,
@@ -26,8 +26,8 @@ import type {
   CompletionResult,
   ProposeContext,
   RefinerStrategy,
-} from "@j-rig/refiner-core";
-import type { EditProposal } from "@j-rig/refiner-core";
+} from "@intentsolutions/refiner-core";
+import type { EditProposal } from "@intentsolutions/refiner-core";
 
 /** Tiers a propose() pass may run on. `opus` is intentionally absent (AC-5). */
 export type ProposeModelTier = "haiku" | "sonnet";
@@ -103,7 +103,7 @@ export interface ProposeModelOptions {
  * result (a plain string) is wrapped into a `CompletionResult` with a zero-usage
  * stub here; real usage will be surfaced when the client is upgraded to return
  * structured usage (wave 2+ / provider-adapter upgrade). The cost meter in
- * `@j-rig/refiner-core` will accumulate the usage field regardless — a zero stub
+ * `@intentsolutions/refiner-core` will accumulate the usage field regardless — a zero stub
  * means "uncounted" tokens, not "no tokens used".
  *
  * @param client The completion client (real Anthropic, or a test fake).

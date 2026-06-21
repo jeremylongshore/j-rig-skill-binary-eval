@@ -3,7 +3,7 @@
  * single mutable best-pointer (plan 027 § 4 Phase A build-order step 4).
  *
  * This is the I/O half of the value-oriented discipline whose PURE half lives in
- * `@j-rig/refiner-core`. The core produces immutable value objects (SkillDoc,
+ * `@intentsolutions/refiner-core`. The core produces immutable value objects (SkillDoc,
  * EditProposal, ScoreRecord, EvalSet); this module persists each one under its
  * content address so the same value is written at most once and can never be
  * silently mutated in place (AC-2, Hickey-aligned).
@@ -15,7 +15,7 @@
  *   pointers/<skill>/best  — a single mutable file holding ONE hash (the
  *                            current best SkillVersion for that skill).
  *
- * The store is keyed by `@j-rig/refiner-core`'s `hashValue` (canonical-JSON
+ * The store is keyed by `@intentsolutions/refiner-core`'s `hashValue` (canonical-JSON
  * SHA-256), so two structurally-equal values collapse to one object. The event
  * log is the audit trail — every persisted value and every pointer move appends
  * a typed event, so the whole refiner history is replayable from `log.jsonl`.
@@ -25,8 +25,8 @@
  */
 
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "node:fs";
-import { hashValue } from "@j-rig/refiner-core";
-import type { SkillDoc, EditProposal, ScoreRecord, EvalSet } from "@j-rig/refiner-core";
+import { hashValue } from "@intentsolutions/refiner-core";
+import type { SkillDoc, EditProposal, ScoreRecord, EvalSet } from "@intentsolutions/refiner-core";
 
 /**
  * Minimal filesystem seam the store needs. The default implementation wraps

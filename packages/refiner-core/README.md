@@ -1,4 +1,4 @@
-# @j-rig/refiner-core
+# @intentsolutions/refiner-core
 
 Foundation (Phase A, wave 1) of the **Skill Refiner** — the eval-guided
 improvement loop that proposes safe, minimal `SKILL.md` edits and accepts only
@@ -6,7 +6,7 @@ on strict score improvement. Second product in the Intent Solutions agent-rig
 stack: **Test** (J-Rig Skill Binary Eval) → **Improve** (Skill Refiner) → **Ship**
 (Rollout Gate).
 
-Private workspace package, version `0.1.0`. **Not published.**
+Published as `@intentsolutions/refiner-core@0.1.0` to npm.
 
 Plan: `intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md`
 Ratification: `intent-eval-lab/000-docs/028-AT-DECR-isedc-council-session-7-...-2026-05-27.md`
@@ -59,11 +59,11 @@ Rejections are reason-tagged for the audit buffer (shown in the Evidence Report)
 - The **`skill-refiner-pass/v1` predicate URI** — needs a separate Class-1 ADR per
   the SAK charter; not minted here.
 - The **Claude Code plugin + 3-layer hooks** (sinker/line/hook).
-- **Publishing** (`@j-rig/refiner-core@0.1.0` release ceremony).
+- **Publishing** (`@intentsolutions/refiner-core@0.1.0` release ceremony).
 
 ## Build & test
 
 ```bash
-pnpm --filter @j-rig/refiner-core run build
-pnpm --filter @j-rig/refiner-core run test
+pnpm --filter @intentsolutions/refiner-core run build
+pnpm --filter @intentsolutions/refiner-core run test
 ```

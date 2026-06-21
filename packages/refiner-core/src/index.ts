@@ -1,5 +1,5 @@
 /**
- * @j-rig/refiner-core — Skill Refiner foundation (Phase A, wave 1).
+ * @intentsolutions/refiner-core — Skill Refiner foundation (Phase A, wave 1).
  *
  * The eval-guided improvement loop's pure core: value types, the bounded-edit
  * apply transform, the deterministic synthetic eval-set bootstrap, the
