@@ -88,6 +88,14 @@ export {
 } from "./kernel-version.js";
 export type { BaselineKernelRef, SupersededBaselineRecord } from "./kernel-version.js";
 
+// Judge-version pinning — consumed-judge-version contract + vNext-baseline trigger (bead 99oc)
+export {
+  CONSUMED_JUDGE_VERSION,
+  isBaselineSupersededByJudge,
+  makeVNextBaselineTrigger,
+} from "./judge-version.js";
+export type { BaselineJudgeRef, VNextBaselineTrigger } from "./judge-version.js";
+
 // 4-quadrant schema-validity × judge-verdict decision matrix (bead iev7)
 export type { SchemaValidityResult, SchemaValidator } from "./schema-validator.js";
 export {
