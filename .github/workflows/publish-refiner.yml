@@ -73,11 +73,11 @@ jobs:
           core_version=$(node -p "require('./packages/refiner-core/package.json').version")
           refiner_version=$(node -p "require('./packages/refiner/package.json').version")
           if [ "$tag_version" != "$core_version" ]; then
-            echo "::error::Tag refiner-v$tag_version does not match @intentsolutions/refiner-core version $core_version" >&2
+            echo "::error::Tag refiner-v$tag_version != @intentsolutions/refiner-core $core_version" >&2
             exit 1
           fi
           if [ "$tag_version" != "$refiner_version" ]; then
-            echo "::error::Tag refiner-v$tag_version does not match @intentsolutions/refiner version $refiner_version" >&2
+            echo "::error::Tag refiner-v$tag_version != @intentsolutions/refiner $refiner_version" >&2
             exit 1
           fi
           echo "Tag, refiner-core, and refiner versions all: $tag_version"
@@ -120,7 +120,7 @@ jobs:
           pnpm pack --pack-destination /tmp >/dev/null
           extracted=$(tar -xzOf "$tarball" package/package.json)
           if printf '%s' "$extracted" | grep -q 'workspace:'; then
-            echo "::error::Published @intentsolutions/refiner tarball still contains a literal 'workspace:' dependency — pnpm did not rewrite the workspace protocol. This tarball is broken on the registry." >&2
+            echo "::error::refiner tarball has a literal 'workspace:' dep; pnpm did not rewrite it; broken on npm" >&2
             printf '%s\n' "$extracted" | grep 'workspace:' >&2 || true
             exit 1
           fi
