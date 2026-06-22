@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # ISEDC E09 DR / CISO reproducible-from-tag invariant: the bytes
           # published with --provenance MUST be the pushed tag's bytes. An

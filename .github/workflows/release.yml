@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout with full history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # ISEDC E09 DR / CISO reproducible-from-tag invariant: pin the
           # checkout to the pushed tag ref, never the branch default. The
@@ -118,7 +118,7 @@ jobs:
 
     steps:
       - name: Checkout with full history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # ISEDC E09 DR / CISO reproducible-from-tag invariant: the evidence
           # emitted+signed below is built from THIS checkout's bytes. Pin it to
