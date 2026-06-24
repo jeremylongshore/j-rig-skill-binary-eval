@@ -8,12 +8,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Runtime**: TypeScript, Node.js 20+, pnpm
 - **Repo**: <https://github.com/jeremylongshore/j-rig-binary-eval>
-- **License**: MIT
+- **License**: Apache-2.0 (relicensed from MIT in v1.0.0; `0.x` artifacts remain available under their original MIT terms)
 - **Current version**: stored in `version.txt`
 
 ## Build & Test
 
-pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`). CI runs lint, typecheck, and tests on Node 22.
+pnpm monorepo with nine workspace packages. Published packages (`private: false`) live under the **`@intentsolutions/*`** scope plus two `@j-rig/*` utilities; the four internal eval-engine packages stay **`@j-rig/*`** and `private: true`. CI runs lint, typecheck, and tests on Node 22.
+
+| Package | Scope | Published? | Role |
+| --- | --- | --- | --- |
+| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface |
+| `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core` |
+| `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
+| `@j-rig/migrate` | `@j-rig` | yes | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
+| `@j-rig/pr-comment` | `@j-rig` | yes | Pure idempotent renderer: rollout-gate decision → marker-anchored markdown PR comment block |
+| `@j-rig/core` | `@j-rig` | no (internal) | Core eval-engine types + logic |
+| `@j-rig/cli` | `@j-rig` | no (internal) | Local author / CI CLI |
+| `@j-rig/db` | `@j-rig` | no (internal) | SQLite evidence persistence |
+| `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
+
+Single-package commands still use the workspace name, e.g. `pnpm --filter @j-rig/core run build`.
 
 ```bash
 pnpm install                  # Install all workspace dependencies

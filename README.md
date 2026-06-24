@@ -146,7 +146,7 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 **Phase:** Epic 01 complete (repo foundation). Ready for Epic 02 (Spec Layer).
 
-pnpm monorepo with four workspace packages (`@j-rig/core`, `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`), TypeScript baseline (tsup builds), quality guardrails (ESLint, Prettier, Vitest), and CI/CD workflows.
+pnpm monorepo with nine workspace packages — published `@intentsolutions/{refiner-core,refiner,rollout-gate}` plus `@j-rig/{migrate,pr-comment}`, and the internal-only `@j-rig/{core,cli,db,dashboard}` eval engine — on a TypeScript baseline (tsup builds), with quality guardrails (ESLint, Prettier, Vitest) and CI/CD workflows.
 
 ### Choosing a provider
 
