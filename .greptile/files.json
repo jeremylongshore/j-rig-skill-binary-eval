@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "description": "Repo constitution. The 8 Non-Negotiable Design Principles (binary criteria; separate evaluator; observed-outranks-claimed; sacred regression tests; one change at a time; blockers block release; baseline value; model-aware testing) and the 7-layer evaluation architecture (Spec, Execution, Observation, Judgment, Optimization, Evidence, CLI/CI/API). Read this to ground any judgment about whether a change violates a design invariant.",
+      "scope": ["packages/**"]
+    },
+    {
+      "path": "000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md",
+      "description": "NORMATIVE API spec for @intentsolutions/refiner-core (the published pure-core package; @j-rig/* names are internal workspace aliases only). Defines the I/O-free-by-construction contract, the accept() acceptance gate (DR-028 P0-RATIFY-1 Pareto-dominant-on-behavioral predicate, never collapsed to a scalar), the RefinerStrategy swappable-mechanism seam, MAX_OPS_PER_PROPOSAL=8 bounded-edit limit, and the core-vs-adapter boundary (adapters live in @intentsolutions/refiner, never core). Reference when reviewing refiner-core/ purity or refiner/ adapter changes.",
+      "scope": ["packages/refiner-core/**", "packages/refiner/**"]
+    }
+  ]
+}
