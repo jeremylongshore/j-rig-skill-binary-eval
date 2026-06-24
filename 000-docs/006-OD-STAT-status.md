@@ -2,16 +2,16 @@
 
 > Release-quality evaluation harness and rollout gate for Claude Skills
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-06-24
 
 ## Current State
 
-- [ ] Project scaffolded
-- [ ] Core functionality implemented
-- [ ] Tests written
-- [ ] CI/CD operational
-- [ ] Documentation complete
-- [ ] Initial release (v0.1.0)
+- [x] Project scaffolded
+- [x] Core functionality implemented
+- [x] Tests written
+- [x] CI/CD operational
+- [x] Documentation complete
+- [x] Initial release (v0.1.0) — repo is now at v2.1.0; `@intentsolutions/refiner-core`, `@intentsolutions/refiner`, and `@intentsolutions/rollout-gate` published to npm
 
 ## Blockers
 

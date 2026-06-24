@@ -528,7 +528,7 @@ The product is broken into ten phases. Each phase is treated as one top-level ep
 
 ## 10. Phase 1 -- Repo Foundation and Operating Standard
 
-**Status:** PARTIALLY COMPLETE (governance layer done via /repo-dress; TypeScript/pnpm workspace pending)
+**Status:** COMPLETE (governance layer done via /repo-dress; TypeScript/pnpm workspace shipped — repo is at v2.1.0)
 
 ### 10.1 Intent
 

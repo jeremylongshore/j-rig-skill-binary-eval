@@ -57,7 +57,7 @@ Seven-layer evaluation stack (bottom to top):
 
 Key entities: `eval_specs`, `criteria`, `test_cases`, `runs`, `skill_versions`, `observed_outcomes`, `criterion_results`, `experiments`, `regressions`, `baselines`, `launch_reports`
 
-Planned stack: commander, @clack/prompts, zod, @anthropic-ai/sdk, better-sqlite3, drizzle-orm, p-limit
+Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The Anthropic provider speaks the Messages API wire format directly through an injectable `Transport` seam rather than the `@anthropic-ai/sdk` (no added SDK dependency).
 
 ## Non-Negotiable Design Principles
 
