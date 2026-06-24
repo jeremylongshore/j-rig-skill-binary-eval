@@ -2,13 +2,68 @@
   "files": [
     {
       "path": "CLAUDE.md",
-      "description": "Repo constitution. The 8 Non-Negotiable Design Principles (binary criteria; separate evaluator; observed-outranks-claimed; sacred regression tests; one change at a time; blockers block release; baseline value; model-aware testing) and the 7-layer evaluation architecture (Spec, Execution, Observation, Judgment, Optimization, Evidence, CLI/CI/API). Read this to ground any judgment about whether a change violates a design invariant.",
+      "description": "Repo constitution. The 8 Non-Negotiable Design Principles (binary criteria; separate evaluator; observed-outranks-claimed; sacred regression tests; one change at a time; blockers block release; baseline value; model-aware testing) and the 7-layer evaluation architecture (Spec, Execution, Observation, Judgment, Optimization, Evidence, CLI/CI/API). Read first to ground any judgment about whether a change violates a design invariant.",
       "scope": ["packages/**"]
     },
     {
+      "path": "README.md",
+      "description": "Public overview: what j-rig (the behavioral-eval engine), the Skill Refiner, and the @intentsolutions/rollout-gate decision logic do, the Test -> Improve -> Ship product stack, the package map, and the published-vs-internal naming reality (published packages are @intentsolutions/*; @j-rig/* are internal workspace names only). Reference for intent + public contract of any user-facing surface.",
+      "scope": ["**"]
+    },
+    {
       "path": "000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md",
-      "description": "NORMATIVE API spec for @intentsolutions/refiner-core (the published pure-core package; @j-rig/* names are internal workspace aliases only). Defines the I/O-free-by-construction contract, the accept() acceptance gate (DR-028 P0-RATIFY-1 Pareto-dominant-on-behavioral predicate, never collapsed to a scalar), the RefinerStrategy swappable-mechanism seam, MAX_OPS_PER_PROPOSAL=8 bounded-edit limit, and the core-vs-adapter boundary (adapters live in @intentsolutions/refiner, never core). Reference when reviewing refiner-core/ purity or refiner/ adapter changes.",
+      "description": "NORMATIVE API spec for @intentsolutions/refiner-core (the published pure core; @j-rig/* names are internal workspace aliases only). Defines the I/O-free-by-construction contract, the accept() acceptance gate (DR-028 P0-RATIFY-1 Pareto-dominant-on-behavioral predicate at alpha=0.05, never collapsed to a scalar), the RefinerStrategy swappable-mechanism seam, MAX_OPS_PER_PROPOSAL=8 bounded-edit limit, and the core-vs-adapter boundary (adapters live in @intentsolutions/refiner, never core). The authority when reviewing refiner-core/ purity or refiner/ adapter changes.",
       "scope": ["packages/refiner-core/**", "packages/refiner/**"]
+    },
+    {
+      "path": "000-docs/010-AT-SPEC-eval-spec-and-contract-guide.md",
+      "description": "Authoring guide for the two Spec-layer artifacts: the machine-readable Eval Spec (criteria, test cases, model targets) and the human-negotiated Eval Contract (definition-of-done, what is sacred). Reference when reviewing criterion definitions, eval YAML schemas, or anything that decides what 'success' and 'sacred' mean for a skill.",
+      "scope": ["packages/**", "eval-packs/**", "000-docs/templates/eval-schemas/**"]
+    },
+    {
+      "path": "000-docs/018-AT-SPEC-pb7-adapter-measurement-protocol-2026-05-12.md",
+      "description": "NORMATIVE provider-adapter measurement protocol (ISEDC S1Q5 CTO binding). Specifies what is measured, how, and what counts as a winning verdict for provider adapters BEFORE prototypes are written; the CISO PASS/FAIL credential-leak gates trace here. Reference when reviewing provider adapters, the measurement harness, or gate verdict logic.",
+      "scope": ["packages/core/**"]
+    },
+    {
+      "path": "000-docs/023-AT-SPEC-ciso-gate-failure-modes-2026-06-15.md",
+      "description": "Failure-mode reference for the two CISO PASS/FAIL security gates (G-1, G-2): binary credential-leak checks that return a structured result and never throw, so a FAIL routes to a blocking outcome. Companion to packages/core/src/providers/ciso-gates/. Reference when reviewing the security gates or any code that records their evidence / routes their verdict.",
+      "scope": ["packages/core/**"]
+    },
+    {
+      "path": "000-docs/021-AT-ARCH-repo-blueprint-2026-06-10.md",
+      "description": "NORMATIVE per-repo blueprint for j-rig-skill-binary-eval; applies the platform-wide Blueprint A/B/C templates to this repo. Carries binding authority iaj-E01 and the DR cross-references (S1Q5 provider gates, S4 widened scope, S5 kernel-adoption + @j-rig/* v2.0.0 bump). Reference for how this repo's architecture must sit inside the Intent Eval Platform.",
+      "scope": ["**"]
+    },
+    {
+      "path": "000-docs/022-AA-AACR-staging-stays-staging-forensics-2026-06-11.md",
+      "description": "Forensic AAR on the STAGING-STAYS-STAGING discipline for v0.1.0-draft attestations (Rekor staging vs production signing). Reference when reviewing any signing-mode, attestation-environment, or evidence-emission code path so a draft/staging artifact is never treated as production.",
+      "scope": ["packages/**"]
+    },
+    {
+      "path": "000-docs/027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md",
+      "description": "Release AAR for @intentsolutions/refiner-core + @intentsolutions/refiner@0.1.0 (published under @intentsolutions scope per CEO directive; @j-rig publishing 403s and is brand/CLI-only). Reference for the published-name reality and the wave-1/wave-2 split of the Skill Refiner buildout.",
+      "scope": ["packages/refiner-core/**", "packages/refiner/**"]
+    },
+    {
+      "path": "packages/refiner-core/README.md",
+      "description": "Surface overview for @intentsolutions/refiner-core: the pure value types, content-addressing helpers, applyEdit / bootstrap / accept, the RefinerStrategy seam, and the two reference strategies (NaiveInContext baseline + SkillOptStyle). Restates purity (no I/O, model call injected) and the acceptance-gate rejection-reason table. Reference for refiner-core change review.",
+      "scope": ["packages/refiner-core/**"]
+    },
+    {
+      "path": "packages/refiner/README.md",
+      "description": "Surface overview for @intentsolutions/refiner (wave 2): the I/O + orchestrator half — RefinerStore, score() shelling out to `j-rig eval`, propose() wiring a tiered (haiku|sonnet, NEVER opus) RefinerModel to a refiner-core strategy, and the `j-rig refine` CLI. Documents the injectable-boundary seams that keep adapters out of core. Reference when reviewing where IO / model / fs lives.",
+      "scope": ["packages/refiner/**"]
+    },
+    {
+      "path": "packages/rollout-gate/README.md",
+      "description": "Surface overview for @intentsolutions/rollout-gate: the fail-closed decide(bundle, policy) decision logic that the intent-rollout-gate GitHub Action delegates to. Consumes a kernel gate-result/v1 Evidence Bundle (v1 container or v2 in-toto array), reuses @j-rig/core's EvidenceStatementSchema, and blocks on anything not provably allow. Reference when reviewing gate decision / Evidence Bundle parsing logic.",
+      "scope": ["packages/rollout-gate/**"]
+    },
+    {
+      "path": "tests/smoke.test.ts",
+      "description": "Repo-level smoke test entrypoint (vitest). The test harness is vitest with a coverage floor enforced in CI plus a refiner-core per-package coverage gate; co-located *.test.ts files live beside each export in packages/*/src/. Reference for where to expect tests and how the coverage gates are wired.",
+      "scope": ["tests/**", "packages/**"]
     }
   ]
 }
