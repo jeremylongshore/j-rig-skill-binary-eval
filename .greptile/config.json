@@ -1,5 +1,18 @@
 {
+  "strictness": 3,
+  "commentTypes": ["logic", "syntax"],
+  "triggerOnUpdates": true,
+  "fixWithAI": true,
+  "statusCheck": false,
+  "ignorePatterns": "node_modules/\ndist/\npackages/*/dist/\ncoverage/\npnpm-lock.yaml\n.audit-harness/\n**/*.snap",
+  "confidenceScoreSection": { "included": true },
+  "sequenceDiagramSection": { "included": true },
   "rules": [
+    {
+      "id": "no-gate-weakening",
+      "rule": "Never suggest lowering a CI threshold, deleting/skipping/weakening a test, relaxing an assertion, bypassing type checks, disabling a security/policy/audit check, or reducing coverage/mutation/audit requirements — unless the same PR replaces it with a stronger equivalent.",
+      "severity": "high"
+    },
     {
       "id": "binary-criteria-only",
       "rule": "Evaluation criteria must be BINARY (yes/no). Reject any criterion, score, or judge that returns a gradient, fuzzy float, 0-10 scale, or partial credit on a single criterion. Per-criterion judgments are pass/fail; only aggregate roll-ups may count passes. Flag new criteria definitions, judge prompts, or criterion_result shapes that emit a graded score where a boolean is required.",

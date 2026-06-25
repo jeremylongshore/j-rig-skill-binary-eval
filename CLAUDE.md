@@ -107,6 +107,23 @@ Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The An
 - Doc filing: `000-docs/` with v4 naming convention (`NNN-CC-CODE-description.md`)
 - Releases: automated via `.github/workflows/release.yml` (auto-bumps version from commit messages)
 
+## AI code review (Greptile + Gemini)
+
+Two AI reviewers run on PRs here, **both advisory** — neither is a branch-protection
+required check. The deterministic merge gate is this repo's own CI (`pnpm run check` (lint + typecheck + test)) plus CodeQL.
+
+- **Gemini Code Assist** (`.gemini/config.yaml` + `.gemini/styleguide.md`) is the
+  **active** reviewer. Re-instated 2026-06-24 as the fallback after the Greptile
+  review quota was exhausted. Workhorse for design / logic / correctness /
+  cross-artifact consistency; CodeQL owns security.
+- **Greptile** (`.greptile/config.json` + `rules.md` + `files.json`) is configured to
+  the platform-unified schema (`strictness: 3`, `commentTypes: ["logic","syntax"]`,
+  `statusCheck: false`, a universal `no-gate-weakening` rule, plus this repo's scoped
+  invariant rules). It stays in place and resumes when the Greptile quota resets.
+
+Read either review when present; the required gate is CI. Re-installing/uninstalling
+the GitHub Apps is an admin (UI) action — the in-repo config here does not install them.
+
 ## Task Tracking with Beads (bd)
 
 **Beads provides post-compaction recovery.** Run `/beads` at session start.
