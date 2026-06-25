@@ -153,7 +153,6 @@ internal workspace one — that split is intentional and correct.
 Ground every call in `CLAUDE.md` (the 8 principles) and
 `000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md` (the refiner-core contract).
 
-
 ## Review priorities — what to weight, what to skip
 
 Greptile is **advisory** here. The deterministic merge gate is this repo's own
