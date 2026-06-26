@@ -289,13 +289,24 @@ export interface SliceUtilityReport {
  */
 export function sliceIntoBlocks(doc: SkillDoc): readonly Block[] {
   const body = stripFrontmatter(doc.text);
-  const headingRe = /^(#{1,6})\s+(.*)$/gm;
 
-  // Collect heading positions in the BODY.
+  // Collect heading positions in the BODY via a per-line scan (NOT a combined
+  // `/^(#{1,6})\s+(.*)$/gm` regex — that form trips CodeQL `js/polynomial-redos`
+  // because the `\s+` can backtrack against the trailing `.*` on a whitespace-
+  // heavy line). `parseHeadingLine` matches each line with bounded, anchored
+  // logic and no catastrophic backtracking.
   const heads: { index: number; depth: number; title: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = headingRe.exec(body)) !== null) {
-    heads.push({ index: m.index, depth: m[1].length, title: m[2].trim() });
+  let lineStart = 0;
+  while (lineStart <= body.length) {
+    let lineEnd = body.indexOf("\n", lineStart);
+    if (lineEnd === -1) lineEnd = body.length;
+    const line = body.slice(lineStart, lineEnd);
+    const parsed = parseHeadingLine(line);
+    if (parsed !== null) {
+      heads.push({ index: lineStart, depth: parsed.depth, title: parsed.title });
+    }
+    lineStart = lineEnd + 1;
+    if (lineEnd === body.length) break;
   }
 
   if (heads.length === 0) return [];
@@ -622,6 +633,29 @@ function slugifyHeading(title: string, index: number): string {
   const collapsed = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const slug = trimDashes(collapsed);
   return slug.length > 0 ? slug : `block-${index}`;
+}
+
+/**
+ * Parse a single line as an ATX markdown heading (`#`..`######` then required
+ * whitespace then a title). Returns `{ depth, title }` or `null` for non-heading
+ * lines.
+ *
+ * Uses a linear character scan — NOT a `/^(#{1,6})\s+(.*)$/` regex — to avoid the
+ * `\s+(.*)` polynomial-backtracking pattern CodeQL flags. Each character is
+ * visited at most once: count `#` (1..6), require at least one following space or
+ * tab, the rest (trimmed) is the title.
+ */
+function parseHeadingLine(line: string): { depth: number; title: string } | null {
+  let i = 0;
+  while (i < line.length && line.charCodeAt(i) === 35 /* '#' */) i++;
+  const depth = i;
+  if (depth < 1 || depth > 6) return null;
+  // Require at least one space or tab after the hashes (ATX rule).
+  const c = line.charCodeAt(i);
+  if (c !== 32 /* ' ' */ && c !== 9 /* '\t' */) return null;
+  // Skip the run of leading whitespace before the title text (linear, bounded).
+  while (i < line.length && (line.charCodeAt(i) === 32 || line.charCodeAt(i) === 9)) i++;
+  return { depth, title: line.slice(i).trim() };
 }
 
 /** Strip leading and trailing `-` from a string in linear time (no regex). */
