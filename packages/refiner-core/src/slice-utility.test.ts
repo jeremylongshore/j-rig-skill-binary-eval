@@ -175,6 +175,145 @@ identical body line.
   });
 });
 
+// ── Heading-slicer hardening (Gemini review, PR #159) ───────────────────────
+//
+// Each test below FAILS against the pre-fix slicer:
+//   - code-fence: a `#`-prefixed line inside ``` was matched as a heading.
+//   - duplicate-slug: two headings slugifying identically produced colliding ids,
+//     breaking the unique-anchor contract LOBO ablation depends on.
+//   - single-line frontmatter close: `\s*` swallowed the blank line after `---`,
+//     so the first body heading's anchor lost its leading newline / shifted.
+
+describe("sliceIntoBlocks — heading slicer hardening (Gemini review)", () => {
+  it("does NOT treat a #-prefixed line inside a fenced code block as a heading", () => {
+    // The fenced ```bash block contains `# not a heading` and `## also not one`.
+    // The pre-fix scan matched both as ATX headings → spurious blocks + a wrong
+    // slice that would corrupt the doc on ablation. Only the two REAL `##`
+    // headings (Setup, Teardown) must be sliced.
+    const doc = makeSkillDoc(
+      "fenced",
+      `## Setup
+Run the installer.
+
+\`\`\`bash
+# not a heading — a shell comment
+## also not a heading — still inside the fence
+echo "hello"
+\`\`\`
+
+## Teardown
+Remove the artifacts.
+`,
+    );
+    const blocks = sliceIntoBlocks(doc);
+    expect(blocks.map((b) => b.id)).toEqual(["setup", "teardown"]);
+    // The fenced comment text rides inside the Setup block's anchor, intact —
+    // it was never promoted to its own (spurious) block.
+    const setup = blocks.find((b) => b.id === "setup")!;
+    expect(setup.anchor).toContain("# not a heading — a shell comment");
+    expect(setup.anchor).toContain("## also not a heading — still inside the fence");
+    // No block id derived from the in-fence `#` lines leaked in.
+    expect(blocks.map((b) => b.id)).not.toContain("not-a-heading-a-shell-comment");
+  });
+
+  it("also honors ~~~ tilde fences and indented fences", () => {
+    const doc = makeSkillDoc(
+      "tilde",
+      `## Alpha
+Body A.
+
+~~~
+# inside a tilde fence
+~~~
+
+## Beta
+Body B.
+`,
+    );
+    const blocks = sliceIntoBlocks(doc);
+    expect(blocks.map((b) => b.id)).toEqual(["alpha", "beta"]);
+  });
+
+  it("de-duplicates ids when two headings slugify identically (unique-anchor contract)", () => {
+    // `## Overview!` and `## Overview?` both slugify to `overview`. Without the
+    // fix they share a blockId — a collision that breaks the per-block rank map
+    // (assignUtilityRanks) and the LOBO unique-anchor guarantee.
+    const doc = makeSkillDoc(
+      "dupslug",
+      `## Overview!
+First overview, distinct body one.
+
+## Overview?
+Second overview, distinct body two.
+`,
+    );
+    const blocks = sliceIntoBlocks(doc);
+    expect(blocks.length).toBe(2);
+    const ids = blocks.map((b) => b.id);
+    // Both retained, with unique ids (collision suffixed `-2`).
+    expect(ids).toEqual(["overview", "overview-2"]);
+    expect(new Set(ids).size).toBe(ids.length); // ids are unique
+    // Each anchor still occurs exactly once in the doc (valid DeleteOp target).
+    for (const b of blocks) {
+      expect(doc.text.split(b.anchor).length - 1).toBe(1);
+    }
+  });
+
+  it("keeps frontmatter-following whitespace so the first body heading is sliced correctly", () => {
+    // The closing `---` is followed by a blank line, then the first heading.
+    // The pre-fix `\s*$` over-spanned, swallowing that blank line into the
+    // delimiter match (verified: match length 4 vs 3 — it ate one `\n`). The
+    // `[^\S\r\n]*` fix keeps the close single-line. The first heading must slice
+    // as a clean, single-occurrence anchor that starts exactly at `## First`.
+    const doc = makeSkillDoc(
+      "fm",
+      `---
+name: fm-skill
+description: A skill exercising frontmatter-boundary slicing precisely here.
+allowed-tools: Read
+version: 1.0.0
+author: Intent Solutions
+license: Apache-2.0
+compatibility: Claude Code
+tags: [fm]
+---
+
+## First
+Body of the first block.
+
+## Second
+Body of the second block.
+`,
+    );
+    const blocks = sliceIntoBlocks(doc);
+    expect(blocks.map((b) => b.id)).toEqual(["first", "second"]);
+    const first = blocks.find((b) => b.id === "first")!;
+    // The anchor begins exactly at the heading line — no frontmatter bleed-in,
+    // no missing/extra leading whitespace.
+    expect(first.anchor.startsWith("## First")).toBe(true);
+    expect(first.anchor).not.toContain("name: fm-skill");
+    // And it is a valid, single-occurrence DeleteOp target.
+    expect(doc.text.split(first.anchor).length - 1).toBe(1);
+  });
+
+  it("a heading immediately followed by content slices as one single-line heading + body", () => {
+    // Regression guard for the `\s` over-span class of bug at the heading level:
+    // the heading line must stay single-line; the content on the NEXT line is
+    // body, not part of the heading title.
+    const doc = makeSkillDoc(
+      "tight",
+      `## Tight
+Immediately-following content line.
+More body.
+`,
+    );
+    const blocks = sliceIntoBlocks(doc);
+    expect(blocks.length).toBe(1);
+    expect(blocks[0].id).toBe("tight");
+    expect(blocks[0].anchor.startsWith("## Tight\nImmediately-following content line.")).toBe(true);
+  });
+});
+
 // ── Eval-set quality gate (Rule 3) ──────────────────────────────────────────
 
 describe("gateEvalSet (anti-gaming, Rule 3)", () => {

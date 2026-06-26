@@ -273,6 +273,11 @@ export interface SliceUtilityReport {
  * boundaries (a block = a heading line plus its body, up to the next heading of
  * the same-or-shallower depth, EXCLUDING frontmatter).
  *
+ * `#`-prefixed lines INSIDE fenced code blocks (``` / ~~~) are NOT treated as
+ * headings — a shell/python comment is body text, not a section boundary. Block
+ * ids are de-duplicated (collisions get a `-2`, `-3`, … suffix) so every emitted
+ * id is unique within the doc.
+ *
  * Each emitted block's `anchor` is guaranteed to appear EXACTLY ONCE in the doc
  * text (a valid, unambiguous `DeleteOp` target per apply.ts `requireUnique`).
  * Blocks whose verbatim text is duplicated elsewhere are dropped (they cannot be
@@ -295,15 +300,26 @@ export function sliceIntoBlocks(doc: SkillDoc): readonly Block[] {
   // because the `\s+` can backtrack against the trailing `.*` on a whitespace-
   // heavy line). `parseHeadingLine` matches each line with bounded, anchored
   // logic and no catastrophic backtracking.
+  //
+  // A line inside a fenced code block (between ``` / ~~~ fences) is NEVER a
+  // heading: a `#`-prefixed comment in a bash/python/config example is body
+  // text, not a section boundary. Matching it would slice the doc wrongly and
+  // corrupt the document when that "block" is ablated. `isFenceLine` toggles the
+  // in-fence state; while inside a fence, heading detection is suppressed.
   const heads: { index: number; depth: number; title: string }[] = [];
+  let inCodeFence = false;
   let lineStart = 0;
   while (lineStart <= body.length) {
     let lineEnd = body.indexOf("\n", lineStart);
     if (lineEnd === -1) lineEnd = body.length;
     const line = body.slice(lineStart, lineEnd);
-    const parsed = parseHeadingLine(line);
-    if (parsed !== null) {
-      heads.push({ index: lineStart, depth: parsed.depth, title: parsed.title });
+    if (isFenceLine(line)) {
+      inCodeFence = !inCodeFence;
+    } else if (!inCodeFence) {
+      const parsed = parseHeadingLine(line);
+      if (parsed !== null) {
+        heads.push({ index: lineStart, depth: parsed.depth, title: parsed.title });
+      }
     }
     lineStart = lineEnd + 1;
     if (lineEnd === body.length) break;
@@ -311,7 +327,14 @@ export function sliceIntoBlocks(doc: SkillDoc): readonly Block[] {
 
   if (heads.length === 0) return [];
 
+  // De-duplicate block ids: two headings that slugify identically (e.g.
+  // `## Overview!` and `## Overview?` both → `overview`) MUST NOT share a
+  // `blockId`. A non-unique id collides in `assignUtilityRanks` (the rank map
+  // keys on blockId) and breaks per-block Leave-One-Block-Out attribution — the
+  // anchor uniqueness the Block contract promises is load-bearing. On collision
+  // we suffix `-2`, `-3`, … so every emitted id is unique within the doc.
   const rawBlocks: { id: string; anchor: string; type?: string }[] = [];
+  const seenIds = new Set<string>();
   for (let i = 0; i < heads.length; i++) {
     const start = heads[i].index;
     // A block extends to the next heading of same-or-shallower depth.
@@ -324,7 +347,7 @@ export function sliceIntoBlocks(doc: SkillDoc): readonly Block[] {
     }
     // `.trimEnd()` (not a `/\s+$/` regex) — built-in, linear-time, no ReDoS.
     const anchor = body.slice(start, end).trimEnd();
-    const id = slugifyHeading(heads[i].title, i);
+    const id = uniqueId(slugifyHeading(heads[i].title, i), seenIds);
     rawBlocks.push({ id, anchor, type: classifyHeading(heads[i].title) });
   }
 
@@ -595,7 +618,13 @@ function stripFrontmatter(text: string): string {
   const t = text.startsWith("﻿") ? text.slice(1) : text;
   if (!t.startsWith("---")) return t;
   const rest = t.slice(3);
-  const m = /^(---|\.\.\.)\s*$/m.exec(rest);
+  // Match the CLOSING delimiter on its OWN line. `\s*` would over-span: `\s`
+  // matches line terminators, so greedy `\s*$` could swallow blank lines that
+  // FOLLOW the delimiter, eating the spacing between frontmatter and the first
+  // body block. `[^\S\r\n]*` restricts trailing whitespace to the SAME line
+  // (spaces/tabs only, never `\n`/`\r`), so the match — and the slice point —
+  // stays single-line.
+  const m = /^(---|\.\.\.)[^\S\r\n]*$/m.exec(rest);
   if (!m) return t;
   return rest.slice(m.index + m[0].length);
 }
@@ -665,4 +694,56 @@ function trimDashes(s: string): string {
   while (start < end && s.charCodeAt(start) === 45 /* '-' */) start++;
   while (end > start && s.charCodeAt(end - 1) === 45 /* '-' */) end--;
   return s.slice(start, end);
+}
+
+/**
+ * Is `line` a markdown code-fence delimiter (a run of ≥3 backticks or ≥3 tildes,
+ * optionally indented up to 3 spaces, optionally followed by an info string)?
+ *
+ * Used to toggle in-fence state so `#`-prefixed lines inside fenced code blocks
+ * are not mistaken for headings. Linear character scan — no regex, no ReDoS.
+ *
+ * Per CommonMark, an info string may follow an opening backtick fence but must
+ * NOT itself contain a backtick. We don't enforce that subtlety for closing
+ * fences; for the slicer's purpose, treating any line whose first non-space run
+ * is ≥3 of one fence char as a fence toggle is the safe, conservative choice
+ * (it keeps `#` lines inside code out of the heading set).
+ */
+function isFenceLine(line: string): boolean {
+  let i = 0;
+  // CommonMark allows up to 3 leading spaces of indentation before a fence.
+  let indent = 0;
+  while (i < line.length && line.charCodeAt(i) === 32 /* ' ' */ && indent < 3) {
+    i++;
+    indent++;
+  }
+  const fenceChar = line.charCodeAt(i);
+  if (fenceChar !== 96 /* '`' */ && fenceChar !== 126 /* '~' */) return false;
+  let run = 0;
+  while (i < line.length && line.charCodeAt(i) === fenceChar) {
+    i++;
+    run++;
+  }
+  return run >= 3;
+}
+
+/**
+ * Return `base` if unseen, else the lowest `base-N` (N starting at 2) not yet in
+ * `seen`. Mutates `seen` to record the returned id. Guarantees every block id is
+ * unique within a single sliced doc, so anchors used for LOBO ablation never
+ * collide. Linear in the number of prior collisions for a given base.
+ */
+function uniqueId(base: string, seen: Set<string>): string {
+  if (!seen.has(base)) {
+    seen.add(base);
+    return base;
+  }
+  let n = 2;
+  let candidate = `${base}-${n}`;
+  while (seen.has(candidate)) {
+    n++;
+    candidate = `${base}-${n}`;
+  }
+  seen.add(candidate);
+  return candidate;
 }
