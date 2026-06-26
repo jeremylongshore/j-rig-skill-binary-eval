@@ -1,6 +1,6 @@
 {
   "name": "@intentsolutions/refiner-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Skill Refiner pure core: bounded-edit apply transform, deterministic synthetic eval-set bootstrap, the Pareto-dominant acceptance gate (DR-028 P0-RATIFY-1), and the swappable RefinerStrategy interface (AC-13).",
   "keywords": [
     "skill-refiner",

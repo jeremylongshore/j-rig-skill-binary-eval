@@ -1,6 +1,6 @@
 {
   "name": "@intentsolutions/refiner",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Skill Refiner orchestrator + I/O adapters + CLI: content-addressed store, j-rig score() shell-out adapter, tiered Anthropic propose() adapter, and the `j-rig refine` commands. Wraps the pure @intentsolutions/refiner-core.",
   "keywords": [
     "skill-refiner",
