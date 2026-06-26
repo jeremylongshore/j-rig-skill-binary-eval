@@ -17,7 +17,7 @@ pnpm monorepo with nine workspace packages. **Only the three `@intentsolutions/*
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
-| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface |
+| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution, epic intent-eval-lab#206) |
 | `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core` |
 | `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
 | `@j-rig/migrate` | `@j-rig` | no (not on npm) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |

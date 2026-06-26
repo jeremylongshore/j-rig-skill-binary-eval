@@ -26,6 +26,7 @@ The model call is *injected* into a strategy so the mechanism stays unit-testabl
 | `RefinerStrategy` | interface | AC-13 swappable mechanism behind a typed interface |
 | `NaiveInContextStrategy` | reference impl | Single-pass whole-doc proposal — also the Phase A.0 null-hypothesis baseline |
 | `SkillOptStyleStrategy` | reference impl | Worst-rollout-targeted bounded edits (text-space SGD analog, after SkillOpt) |
+| **`computeSliceUtility`** | **pure (scorer injected)** | **COMPUTED per-block utility** via Leave-One-Block-Out causal attribution (below). `sliceIntoBlocks` + `gateEvalSet` are the supporting seams. |
 
 ## The acceptance gate (DR-028 P0-RATIFY-1)
 
@@ -46,6 +47,59 @@ Rejections are reason-tagged for the audit buffer (shown in the Evidence Report)
 | `pareto-incomparable` | behavioral improved **but** another named dim regressed — the DR-028 tie-break (neither version dominates) |
 | `regressed-named-dimension` | behavioral flat **and** a named dim regressed |
 | `incomparable-records` | the two records were scored against different eval sets |
+
+## Per-block slice utility — COMPUTED, not a constant (epic intent-eval-lab#206)
+
+`computeSliceUtility(...)` attributes a utility to each block of a `SKILL.md`
+via **Leave-One-Block-Out (LOBO)** causal attribution. A block's utility is the
+**measured counterfactual effect of removing it** — the signed change in the
+behavioral eval score when that block is ablated, judged at the **same α=0.05
+bar** `accept()` uses.
+
+This is the deliberate **inverse** of the meta_skill anti-pattern (a const table
+keyed on block type, e.g. `Policy = 0.95` by fiat). Here a block's *type* never
+sets its utility; its utility is the demonstrated effect of its presence:
+
+| Class | Meaning |
+| --- | --- |
+| `load-bearing` | ablation **significantly regressed** behavioral — the block carries weight |
+| `harmful` | ablation **significantly improved** behavioral — a cut candidate |
+| `inert` | no significant move, **adequate** sample power |
+| `inconclusive` | no significant move, **underpowered** — a low-power null is *not* a computed zero |
+| `schema-required` | ablation made the doc schema-invalid (kernel `SkillFrontmatterSchema`) → `utility: null`, **never scored** |
+
+Per block: `sliceIntoBlocks(doc)` → unique `DeleteOp` anchors → `applyEdit` →
+schema-check the ablated variant **first** → score the survivors against the
+**same frozen eval set** (injected `BlockScorer`) → classify the signed delta.
+
+The output is a **per-block vector** (`SliceUtilityReport.blocks`) — there is
+**no skill-level aggregate / "usefulness %" field** by construction (the C3
+no-rolled-score rule; the `NO_SKILL_LEVEL_AGGREGATE` marker documents it).
+
+Two modes: `mode: "full"` (ablate every block, K+1 scorer calls) and
+`mode: "capped"` + `maxAblations` (weakest-first order under a budget — block
+*type* is admissible only as **ablation order**, never as the score). Blocks not
+reached are reported in `skipped`.
+
+**Anti-gaming (Rule 3):** the eval set is gated first. `synthetic`/`golden` sets
+pass by construction; `harvested`/`hybrid` sets need an explicit
+`verifiedEvalSet: true`; any refresh-due set (`isRefreshDue`) is `ungated`. An
+ungated set **refuses** by default (empty `blocks`, all ids in `skipped`) unless
+`allowUngated: true`.
+
+**Stays pure refiner-core (Rule 4):** `BlockUtility` is **not** a kernel entity
+and this module emits **no** signed bundle row. Any kernel routing is a separate,
+gated bead with its own DR. LOBO is a **first-order** approximation (it misses
+two-block interaction effects — true Shapley is `2^K`, a wave-2 opt-in).
+
+```ts
+import { computeSliceUtility, type BlockScorer } from "@intentsolutions/refiner-core";
+
+const report = computeSliceUtility({ doc, evalSet, scorer });
+for (const b of report.blocks) {
+  console.log(b.blockId, b.class, b.utility, `rank=${b.utilityRank}`);
+}
+```
 
 ## Deferred / still-gated (NOT in this foundation)
 
