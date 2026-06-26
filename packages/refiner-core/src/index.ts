@@ -133,3 +133,26 @@ export {
   adversarialPassRate,
   evaluateEvalSet,
 } from "./eval-set-metrics.js";
+
+// COMPUTED per-block slice-utility via Leave-One-Block-Out causal attribution
+// (epic intent-eval-lab#206, bead bd_000-projects-ig4h.3). Pure refiner-core —
+// NOT a kernel entity, emits NO signed bundle row (Rule 4). Per-block VECTOR,
+// no skill-level aggregate (C3, Rule 2).
+export type {
+  Block,
+  BlockScorer,
+  EvalSetQuality,
+  UngatedReason,
+  EvalSetGateResult,
+  BlockUtilityClass,
+  BlockUtility,
+  SliceUtilityReport,
+  SliceMode,
+  ComputeSliceUtilityOptions,
+} from "./slice-utility.js";
+export {
+  NO_SKILL_LEVEL_AGGREGATE,
+  gateEvalSet,
+  sliceIntoBlocks,
+  computeSliceUtility,
+} from "./slice-utility.js";
