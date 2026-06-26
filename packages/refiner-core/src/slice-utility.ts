@@ -311,7 +311,8 @@ export function sliceIntoBlocks(doc: SkillDoc): readonly Block[] {
         break;
       }
     }
-    const anchor = body.slice(start, end).replace(/\s+$/, "");
+    // `.trimEnd()` (not a `/\s+$/` regex) — built-in, linear-time, no ReDoS.
+    const anchor = body.slice(start, end).trimEnd();
     const id = slugifyHeading(heads[i].title, i);
     rawBlocks.push({ id, anchor, type: classifyHeading(heads[i].title) });
   }
@@ -610,11 +611,24 @@ function classifyHeading(title: string): string | undefined {
   return undefined;
 }
 
-/** Slugify a heading title into a stable block id; fall back to the index. */
+/**
+ * Slugify a heading title into a stable block id; fall back to the index.
+ *
+ * The leading/trailing `-` trim is done with `trimDashes` (a linear scan), NOT a
+ * `/^-+|-+$/g` regex — the regex form trips CodeQL `js/polynomial-redos` because
+ * the `-` runs come from the preceding collapse and the input is unbounded text.
+ */
 function slugifyHeading(title: string, index: number): string {
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const collapsed = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const slug = trimDashes(collapsed);
   return slug.length > 0 ? slug : `block-${index}`;
+}
+
+/** Strip leading and trailing `-` from a string in linear time (no regex). */
+function trimDashes(s: string): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s.charCodeAt(start) === 45 /* '-' */) start++;
+  while (end > start && s.charCodeAt(end - 1) === 45 /* '-' */) end--;
+  return s.slice(start, end);
 }
