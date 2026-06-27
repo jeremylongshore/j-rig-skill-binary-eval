@@ -114,8 +114,12 @@ jobs:
           version=$(node -p "require('./package.json').version")
           pnpm pack --pack-destination /tmp >/dev/null
           tarball="/tmp/intentsolutions-jrig-cli-${version}.tgz"
-          deps=$(tar -xzOf "$tarball" package/package.json \
-            | node -e "const p=JSON.parse(require('fs').readFileSync(0));process.stdout.write(Object.keys(p.dependencies||{}).filter(k=>k.startsWith('@j-rig/')).join(','))")
+          cat > /tmp/assert-no-jrig-dep.cjs <<'NODE'
+          const p = JSON.parse(require('fs').readFileSync(0));
+          const jrig = Object.keys(p.dependencies || {}).filter((k) => k.startsWith('@j-rig/'));
+          process.stdout.write(jrig.join(','));
+          NODE
+          deps=$(tar -xzOf "$tarball" package/package.json | node /tmp/assert-no-jrig-dep.cjs)
           if [ -n "$deps" ]; then
             echo "::error::published tarball declares @j-rig/* runtime dependencies: $deps" >&2
             exit 1
