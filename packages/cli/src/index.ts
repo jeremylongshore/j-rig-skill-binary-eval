@@ -9,6 +9,7 @@ import { registerDriftCommand } from "./commands/drift.js";
 import { registerEmitEvidenceCommand } from "./commands/emit-evidence.js";
 import { registerParseAgentsCommand } from "./commands/parse-agents.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
+import { registerSkillSignalCommands } from "./commands/skill-signals.js";
 import { registerRefineCommand } from "@intentsolutions/refiner";
 
 function createProgram(): Command {
@@ -28,6 +29,7 @@ function createProgram(): Command {
   registerEmitEvidenceCommand(program);
   registerParseAgentsCommand(program);
   registerMigrateCommand(program);
+  registerSkillSignalCommands(program);
   registerRefineCommand(program);
 
   return program;

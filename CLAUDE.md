@@ -17,14 +17,14 @@ pnpm monorepo with nine workspace packages. **Only the three `@intentsolutions/*
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
-| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution, epic intent-eval-lab#206) |
+| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution), and the DETERMINISTIC time-decay **adoption signal** (`adoption.ts` — 2×2 baseline-value × decayed-adoption, bandit rejected; epic intent-eval-lab#206 / ISEDC DR-103) |
 | `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core` |
 | `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
 | `@j-rig/migrate` | `@j-rig` | no (not on npm) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
 | `@j-rig/pr-comment` | `@j-rig` | no (not on npm) | Pure idempotent renderer: rollout-gate decision → marker-anchored markdown PR comment block |
 | `@j-rig/core` | `@j-rig` | no (internal) | Core eval-engine types + logic |
 | `@j-rig/cli` | `@j-rig` | no (internal) | Local author / CI CLI |
-| `@j-rig/db` | `@j-rig` | no (internal) | SQLite evidence persistence |
+| `@j-rig/db` | `@j-rig` | no (internal) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
 | `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
 
 Single-package commands still use the workspace name, e.g. `pnpm --filter @j-rig/core run build`.
@@ -57,7 +57,15 @@ Seven-layer evaluation stack (bottom to top):
 
 Key entities: `eval_specs`, `criteria`, `test_cases`, `runs`, `skill_versions`, `observed_outcomes`, `criterion_results`, `experiments`, `regressions`, `baselines`, `launch_reports`
 
-Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The Anthropic provider speaks the Messages API wire format directly through an injectable `Transport` seam rather than the `@anthropic-ai/sdk` (no added SDK dependency).
+Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The Anthropic provider speaks the Messages API wire format directly through an injectable `Transport` seam rather than the `@anthropic-ai/sdk` (no added SDK dependency). The same `Transport` seam backs the OpenAI-Chat-Completions adapter (`providers/openai-compatible.ts`) covering DeepSeek (`deepseek-v4-flash`, env `DEEPSEEK_API_KEY`), Kimi/Moonshot, and OpenRouter — one adapter, no per-vendor SDK.
+
+### Skill-scoring layer (epic intent-eval-lab#206 / ISEDC DR-103)
+
+Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_events` + `human_reviews` entities). Three surfaces:
+
+- **Adoption signal** (`@intentsolutions/refiner-core` `adoption.ts`): `computeAdoptionVerdict()` — a deterministic time-decay adoption rate joined with the baseline-value flag into an advisory 2×2 (`keep` / `watch` / `deprecate_review` / `obsolete_review` / `hold`). AND-combined never averaged (no rolled score — C3); `now`-injected; the Thompson bandit is **rejected** (DR-103 D5); advisory-and-deprecate-only via the additive `LaunchReport.adoptionVerdict?` field (the `RolloutDecision` union is **not** mutated); thresholds ship `provisional: true` until back-tested. `toAdoptionObservations()` re-applies the kernel anti-gaming invariant (`source_verified`) at ingestion.
+- **Intake verbs** (`@j-rig/cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
+- **Determinism fix**: `buildLaunchReport` now takes an injected clock (`opts.now`) so the launch-report artifact is replayable (DR-103 D5 B5.1) — the determinism the bandit-rejection rests on.
 
 ## Non-Negotiable Design Principles
 

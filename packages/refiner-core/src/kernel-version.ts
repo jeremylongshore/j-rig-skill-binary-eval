@@ -48,7 +48,7 @@
  * bumped** (both in `package.json` and here). The string is the source of truth
  * for `isBaselineSupersededByKernel()` comparisons at runtime.
  */
-export const CONSUMED_KERNEL_VERSION = "0.8.0" as const;
+export const CONSUMED_KERNEL_VERSION = "0.9.0" as const;
 
 // ── 2. BaselineKernelRef ──────────────────────────────────────────────────────
 

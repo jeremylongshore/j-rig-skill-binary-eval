@@ -163,7 +163,7 @@ pnpm monorepo with nine workspace packages — published `@intentsolutions/{refi
 | **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
 
 ```bash
-# DeepSeek (default OpenAI-compatible preset)
+# DeepSeek (default OpenAI-compatible preset) — model deepseek-v4-flash
 DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models deepseek-v4-flash
 
 # Kimi / Moonshot
@@ -174,6 +174,25 @@ LLM_API_KEY=sk-... LLM_BASE_URL=https://my-gateway/v1 LLM_MODEL=some-model \
   node packages/cli/dist/index.js eval ./my-skill
 ```
 
+**Running a real DeepSeek eval (Intent Solutions internal).** The `DEEPSEEK_API_KEY` is
+SOPS-encrypted (age) in the lab repo at `intent-eval-lab/.env.sops` — never hardcoded,
+never committed in plaintext. Decrypt it into the process at runtime (only into
+`/dev/shm`, never to disk) and run a real behavioral model-matrix eval:
+
+```bash
+# from intent-eval-lab/ (where the SOPS file lives)
+eval "$(sops -d --input-type dotenv .env.sops \
+  | sed -nE 's/^(DEEPSEEK_API_KEY)=(.*)$/export \1=\2/p')"
+
+# then, from j-rig-binary-eval/:
+node packages/cli/dist/index.js eval ./path/to/skill --provider deepseek --models deepseek-v4-flash --json
+```
+
+The unit tests never touch the network or a real key — the adapter's wire format +
+normalization are exercised through an injected **stub transport** that returns canned
+OpenAI Chat-Completions payloads (`providers/openai-compatible.test.ts`). Only this
+documented runtime path makes a real DeepSeek call.
+
 **Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
 
 **Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
@@ -183,6 +202,63 @@ LLM_API_KEY=sk-... LLM_BASE_URL=https://my-gateway/v1 LLM_MODEL=some-model \
 When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.
 
 Full discipline: [STUB-PROVIDERS.md](./STUB-PROVIDERS.md).
+
+---
+
+## Skill scoring — adoption signal + intake verbs
+
+The skill-scoring gap-fill layer (epic [intent-eval-lab#206](https://github.com/jeremylongshore/intent-eval-lab/issues/206), ratified by ISEDC DR-103) adds a **deterministic, time-decayed adoption signal** and the **intake verbs** that feed it. It answers a question the static rubric and the behavioral eval cannot: _is this skill still earning its keep versus the bare model, in the real world?_ It consumes the kernel `usage_events` + `human_reviews` entities (`@intentsolutions/core@0.9.0`).
+
+### Intake — `j-rig ingest-skill` and `j-rig review`
+
+```bash
+# Record one CASS-gated usage event (anti-gaming — verified sessions only, never raw loads)
+node packages/cli/dist/index.js ingest-skill my-skill \
+  --session-id sess-123 --source ci \
+  --tests-passed --clear-resolution --code-changes
+
+# Record a curated-signal human thumb + open-ended rationale
+node packages/cli/dist/index.js review my-skill --verdict up \
+  --rationale "saved a manual step" --reviewer jeremy@intentsolutions.io
+```
+
+- **CASS anti-gaming gate (≥0.30).** A usage row is scored on session quality
+  (`tests-passed +0.25`, `clear-resolution +0.25`, `code-changes +0.15`,
+  `user-confirmed +0.15`, `backtracking −0.10`, `abandoned −0.20`). A failing row is
+  **persisted but excluded** from every adoption rollup — load-in-a-loop to inflate
+  adoption is _visible_ in the data, never silently counted. There is no force-count flag.
+- **Source split.** `--source ci` (gate-anchored, trusted) vs `--source plugin`
+  (unverified). The adoption signal weights unverified loads at/near zero.
+- **`j-rig review` is a curated signal, not a trust root.** It is explicitly **not** the
+  signed in-toto `human-review/v1` predicate; rows carry `governance_class: "curated-signal"`.
+- Both write **local SQLite** fact tables (`@j-rig/db`); no OTel events are minted (the
+  OTel name set is closed/normative). The `tenant_id` column is reserved in the first
+  `CREATE TABLE`; an absent tenant is a first-class global bucket, never pooled cross-tenant.
+
+### Adoption verdict — the deterministic 2×2 (`@intentsolutions/refiner-core`)
+
+`computeAdoptionVerdict()` joins the existing **baseline-value flag** (does the bare model
+match the skill?) with a **time-decayed adoption rate** into one advisory verdict:
+
+| bare model matches? | users keep it? | verdict |
+|---|---|---|
+| skill adds value | high adoption | `keep` |
+| skill adds value | low adoption | `watch` (discoverability problem) |
+| bare model matches | high adoption | `deprecate_review` (model caught up but used) |
+| bare model matches | low adoption | `obsolete_review` (both axes agree) |
+
+The two axes are **AND-combined, never averaged** — there is no rolled "usefulness %" (C3).
+Each event's weight decays exponentially with age (`weight = 0.5 ** (ageDays / halfLifeDays)`),
+so a skill that rots as base models improve loses signal. The mechanism is a deterministic
+decay-with-thresholds — **the Thompson-sampling bandit is rejected** (DR-103 D5): a bandit is
+non-deterministic by construction, which would break the Evidence-Bundle audit-reproducibility
+contract and could route a fail-closed gate to the inferior skill version. Adoption is
+**advisory-and-deprecate-only**: it never promotes a skill and never overrides the
+deterministic `accept()` / `decideRollout()` gate, which stays the shipping authority. It rides
+the additive opt-in `LaunchReport.adoptionVerdict?` field — the `RolloutDecision` union is
+**not** mutated. Thresholds ship **explicitly provisional** (`thresholdsProvisional: true`) until
+back-tested against a real soak window; `buildLaunchReport` takes an **injected clock** so the
+artifact the signal lands in is replayable.
 
 ---
 

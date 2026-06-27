@@ -71,10 +71,44 @@ const CREATE_TABLES = `
     FOREIGN KEY (run_id) REFERENCES runs(id)
   );
 
+  -- Skill usage events — intake fact table for the j-rig ingest-skill verb
+  -- (ISEDC DR-103 D1/D2/D5). The tenant_id column lands in this FIRST CREATE
+  -- TABLE per DR-103 D2 B2.1 (database.ts is CREATE-IF-NOT-EXISTS only — no ALTER
+  -- path — so a future column add cannot retrofit cleanly; the multi-tenancy slot
+  -- is reserved now). NULL tenant_id = the single-tenant/global bucket, never
+  -- pooled cross-tenant (D2 B2.2). cass_passed = 0 rows are persisted-but-excluded.
+  CREATE TABLE IF NOT EXISTS skill_usage_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    skill_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    cass_score REAL NOT NULL,
+    cass_passed INTEGER NOT NULL,
+    tenant_id TEXT,
+    recorded_at TEXT NOT NULL
+  );
+
+  -- Skill human reviews — intake fact table for the j-rig review verb.
+  -- governance_class is always 'curated-signal' (NOT a signed human-review/v1
+  -- predicate; DR-103 D3 B3.2 / doc 072 R6). tenant_id reserved here per D2 B2.1.
+  CREATE TABLE IF NOT EXISTS skill_human_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    skill_id TEXT NOT NULL,
+    thumbs_up INTEGER NOT NULL,
+    rationale TEXT,
+    reviewer TEXT NOT NULL,
+    governance_class TEXT NOT NULL,
+    tenant_id TEXT,
+    recorded_at TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_runs_skill_version ON runs(skill_version_id);
   CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
   CREATE INDEX IF NOT EXISTS idx_criterion_results_run ON criterion_results(run_id);
   CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id);
+  CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON skill_usage_events(skill_id);
+  CREATE INDEX IF NOT EXISTS idx_skill_usage_skill_passed ON skill_usage_events(skill_id, cass_passed);
+  CREATE INDEX IF NOT EXISTS idx_skill_reviews_skill ON skill_human_reviews(skill_id);
 `;
 
 /**

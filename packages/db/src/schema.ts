@@ -78,3 +78,46 @@ export const artifacts = sqliteTable("artifacts", {
   size_bytes: integer("size_bytes"),
   created_at: text("created_at").notNull().default("(datetime('now'))"),
 });
+
+/**
+ * Skill usage events — local intake fact table for the `j-rig ingest-skill` verb
+ * (epic intent-eval-lab#206, ISEDC DR-103 D1/D2/D5).
+ *
+ * Append-only. Every row carries a CASS session-quality verdict (`cass_score` +
+ * `cass_passed`): a row that FAILS the gate is PERSISTED (`cass_passed = false`)
+ * but EXCLUDED from adoption rollups — the persist-but-exclude discipline that
+ * makes load-to-inflate visible (spec Item 5). `source` is the anti-gaming
+ * provenance split (`ci` gate-anchored vs `plugin` unverified, DR-103 D5 B5.3).
+ * `tenant_id` is OPTIONAL (NULL = the single-tenant/global bucket, never pooled
+ * cross-tenant — DR-103 D2 B2.2) and lands in the FIRST CREATE TABLE per B2.1.
+ */
+export const skillUsageEvents = sqliteTable("skill_usage_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  skill_id: text("skill_id").notNull(),
+  session_id: text("session_id").notNull(),
+  source: text("source").notNull().$type<"ci" | "plugin">(),
+  cass_score: real("cass_score").notNull(),
+  cass_passed: integer("cass_passed", { mode: "boolean" }).notNull(),
+  tenant_id: text("tenant_id"),
+  recorded_at: text("recorded_at").notNull(),
+});
+
+/**
+ * Skill human reviews — local intake fact table for the `j-rig review` verb.
+ *
+ * Append-only CURATED-SIGNAL rows: a developer thumb + open-ended NON-COMPARABLE
+ * free-text rationale (DR-103 C3 B6.3). `governance_class` is always
+ * `"curated-signal"` — explicitly NOT the signed in-toto `human-review/v1`
+ * predicate and never a trust root (DR-103 D3 B3.2 / doc 072 R6). `tenant_id`
+ * OPTIONAL, NULL = global bucket; lands in the FIRST CREATE TABLE per B2.1.
+ */
+export const skillHumanReviews = sqliteTable("skill_human_reviews", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  skill_id: text("skill_id").notNull(),
+  thumbs_up: integer("thumbs_up", { mode: "boolean" }).notNull(),
+  rationale: text("rationale"),
+  reviewer: text("reviewer").notNull(),
+  governance_class: text("governance_class").notNull().$type<"curated-signal">(),
+  tenant_id: text("tenant_id"),
+  recorded_at: text("recorded_at").notNull(),
+});
