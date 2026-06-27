@@ -1,0 +1,129 @@
+name: Publish jrig-cli
+
+# Publishes @intentsolutions/jrig-cli to npm with sigstore provenance on tag
+# push `jrig-cli-v*.*.*` (e.g. jrig-cli-v0.1.0).
+#
+# This is the J-Rig seven-layer binary eval CLI (the `j-rig` command), packaged
+# as a SELF-CONTAINED artifact: the private workspace packages @j-rig/{core,db,
+# migrate} are BUNDLED into dist/ (they are private/unpublished — the @j-rig npm
+# scope 403s), so a consumer can `npm install @intentsolutions/jrig-cli` and get
+# a working CLI. The only real runtime deps are published npm packages
+# (better-sqlite3 native addon, @intentsolutions/refiner, @intentsolutions/core,
+# drizzle-orm, zod, etc.) — NO @j-rig/* dependency reaches the registry.
+#
+# Published under the @intentsolutions/* scope: the NPM_TOKEN secret (account
+# intentsolutionsio) owns @intentsolutions — the same token that published
+# @intentsolutions/core, @intentsolutions/refiner, @intentsolutions/rollout-gate,
+# and @intentsolutions/audit-harness. The J-Rig BRAND and CLI identity (the
+# `j-rig` bin name) are unchanged; only the published npm package scope is
+# @intentsolutions/*.
+#
+# Separate tag namespace from the repo-level `v*.*.*` releases and from
+# `refiner-v*` / `rollout-gate-v*` so each published surface cuts independently.
+#
+# Flow: bump packages/cli/package.json#version via PR, merge, then tag from main
+# HEAD. The job re-runs the full check chain, verifies the tag matches the
+# package version, builds, asserts the bundle is self-contained (no @j-rig/*
+# imports survive in dist/ and no @j-rig/* dependency reaches the published
+# tarball), then publishes with --provenance.
+
+on:
+  push:
+    tags:
+      - "jrig-cli-v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write # sigstore provenance (npm OIDC)
+
+concurrency:
+  group: publish-jrig-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @intentsolutions/jrig-cli to npm (provenance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant: the bytes
+          # published with --provenance MUST be the pushed tag's bytes. An
+          # implicit checkout attributes provenance to whatever the default ref
+          # resolves to — a one-way door. Pin to the tag.
+          ref: ${{ github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/jrig-cli-v}"
+          pkg_version=$(node -p "require('./packages/cli/package.json').version")
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag jrig-cli-v$tag_version != @intentsolutions/jrig-cli $pkg_version" >&2
+            exit 1
+          fi
+          echo "Tag and package version both: $tag_version"
+
+      # Build FIRST: the workspace typecheck/test chain resolves @j-rig/* and
+      # @intentsolutions/* types from built dist/ — a fresh clone has none until
+      # pnpm run build runs.
+      - name: Build
+        run: pnpm run build
+
+      - name: Full check chain
+        run: pnpm run check
+
+      - name: Verify the CLI bundle is self-contained
+        # The published artifact must inline the private @j-rig/* packages.
+        # A surviving `@j-rig/*` import in dist/ would be unresolvable for a
+        # standalone consumer (the @j-rig scope is unpublished).
+        run: |
+          set -euo pipefail
+          if grep -nE '(import .* from|require\()[[:space:]]*["'\'']@j-rig/' packages/cli/dist/index.js; then
+            echo "::error::dist/index.js still imports @j-rig/* — bundling regressed" >&2
+            exit 1
+          fi
+          if grep -q '@j-rig/' packages/cli/dist/index.d.ts; then
+            echo "::error::dist/index.d.ts still references @j-rig/* types — dts resolve regressed" >&2
+            exit 1
+          fi
+          echo "✓ bundle is self-contained (no @j-rig/* import survives in dist/)"
+
+      - name: Assert the published tarball declares no @j-rig/* runtime dependency
+        # devDependencies (which carry @j-rig/* for the build) are never installed
+        # by consumers; the load-bearing invariant is that the consumer-facing
+        # `dependencies` block has ZERO @j-rig/* entries — otherwise `npm install`
+        # would try to fetch an unpublished package and fail.
+        working-directory: packages/cli
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          pnpm pack --pack-destination /tmp >/dev/null
+          tarball="/tmp/intentsolutions-jrig-cli-${version}.tgz"
+          deps=$(tar -xzOf "$tarball" package/package.json \
+            | node -e "const p=JSON.parse(require('fs').readFileSync(0));process.stdout.write(Object.keys(p.dependencies||{}).filter(k=>k.startsWith('@j-rig/')).join(','))")
+          if [ -n "$deps" ]; then
+            echo "::error::published tarball declares @j-rig/* runtime dependencies: $deps" >&2
+            exit 1
+          fi
+          echo "✓ published tarball has zero @j-rig/* runtime dependencies"
+
+      - name: Publish with provenance
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --provenance --no-git-checks

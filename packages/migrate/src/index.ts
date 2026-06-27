@@ -7,7 +7,7 @@
  *   - codemod driver (`runCodemod`) — walks files via an injectable fs and
  *     emits a unified diff; `nodeFs` is the real-disk binding.
  *
- * The `j-rig migrate <dir>` CLI subcommand in `@j-rig/cli` wraps `runCodemod`.
+ * The `j-rig migrate <dir>` CLI subcommand in `@intentsolutions/jrig-cli` wraps `runCodemod`.
  */
 export {
   migrateBundle,

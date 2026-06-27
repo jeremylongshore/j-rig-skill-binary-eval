@@ -13,21 +13,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
-pnpm monorepo with nine workspace packages. **Only the three `@intentsolutions/*` packages are published to npm.** Two `@j-rig/*` utilities are `private: false` (publishable) but are **not on npm** — the `@j-rig` scope is unpublished (publishing there 403s; the npm key owns `@intentsolutions`). The four internal eval-engine packages are `private: true`. CI runs lint, typecheck, and tests on Node 22.
+pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, typecheck, and tests on Node 22.
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
+| `@intentsolutions/jrig-cli` | `@intentsolutions` | yes | The `j-rig` eval CLI — self-contained npm package (bundles `@j-rig/{core,db,migrate}`); external repos install it to run the 7-layer eval in CI. Bin name stays `j-rig`. |
 | `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution), and the DETERMINISTIC time-decay **adoption signal** (`adoption.ts` — 2×2 baseline-value × decayed-adoption, bandit rejected; epic intent-eval-lab#206 / ISEDC DR-103) |
 | `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core` |
 | `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
-| `@j-rig/migrate` | `@j-rig` | no (not on npm) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
+| `@j-rig/migrate` | `@j-rig` | no (bundled into jrig-cli) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
 | `@j-rig/pr-comment` | `@j-rig` | no (not on npm) | Pure idempotent renderer: rollout-gate decision → marker-anchored markdown PR comment block |
-| `@j-rig/core` | `@j-rig` | no (internal) | Core eval-engine types + logic |
-| `@j-rig/cli` | `@j-rig` | no (internal) | Local author / CI CLI |
-| `@j-rig/db` | `@j-rig` | no (internal) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
+| `@j-rig/core` | `@j-rig` | no (bundled into jrig-cli) | Core eval-engine types + logic |
+| `@j-rig/db` | `@j-rig` | no (bundled into jrig-cli) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
 | `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
 
-Single-package commands still use the workspace name, e.g. `pnpm --filter @j-rig/core run build`.
+The CLI workspace package is named `@intentsolutions/jrig-cli`; the published bin is `j-rig`. The remaining internal packages still use their `@j-rig/*` workspace names for single-package commands, e.g. `pnpm --filter @j-rig/core run build`.
+
+### Install the eval CLI in an external repo
+
+```bash
+# Global — gives you the `j-rig` command everywhere
+npm install -g @intentsolutions/jrig-cli
+# Or per-repo (recommended for CI version-pinning)
+pnpm add -D @intentsolutions/jrig-cli   # then: pnpm exec j-rig --help
+```
+
+The published artifact is self-contained (bundles the private eval engine); its only runtime deps are real npm packages (`better-sqlite3` native addon, `@intentsolutions/refiner`, `@intentsolutions/core`, `drizzle-orm`, `zod`, …). DeepSeek (`deepseek-v4-flash`) is reached by setting `DEEPSEEK_API_KEY` in the environment and selecting it: `j-rig eval ./skill --spec ./eval-spec.yaml --provider deepseek`. Cut a release by bumping `packages/cli/package.json#version` via PR, merging, then tagging `jrig-cli-v*.*.*` from main HEAD (workflow `.github/workflows/publish-jrig-cli.yml`).
 
 ```bash
 pnpm install                  # Install all workspace dependencies
@@ -40,7 +51,7 @@ pnpm run check                # Full validation (lint + typecheck + test)
 
 # Single-package operations
 pnpm --filter @j-rig/core run build
-pnpm --filter @j-rig/cli run typecheck
+pnpm --filter @intentsolutions/jrig-cli run build   # builds the bundled CLI
 ```
 
 ## Architecture

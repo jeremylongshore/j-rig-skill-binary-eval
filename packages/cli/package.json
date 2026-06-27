@@ -1,7 +1,28 @@
 {
-  "name": "@j-rig/cli",
-  "version": "2.1.0",
-  "private": true,
+  "name": "@intentsolutions/jrig-cli",
+  "version": "0.1.0",
+  "private": false,
+  "description": "J-Rig seven-layer binary eval CLI for Claude Skills — the `j-rig` command: package integrity, trigger/functional/regression/baseline scoring, optimizer, and rollout-gate evidence. Self-contained (bundles the internal eval engine).",
+  "keywords": [
+    "j-rig",
+    "jrig",
+    "intent-eval",
+    "eval",
+    "skill",
+    "claude",
+    "claude-code",
+    "cli",
+    "skill-eval"
+  ],
+  "homepage": "https://github.com/jeremylongshore/j-rig-skill-binary-eval/tree/main/packages/cli",
+  "bugs": "https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeremylongshore/j-rig-skill-binary-eval.git",
+    "directory": "packages/cli"
+  },
+  "license": "Apache-2.0",
+  "author": "Jeremy Longshore <jeremy@intentsolutions.io>",
   "type": "module",
   "bin": {
     "j-rig": "./dist/index.js"
@@ -14,20 +35,39 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "dependencies": {
+    "@intentsolutions/core": "0.9.0",
+    "@intentsolutions/refiner": "^0.2.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/sdk-trace-base": "^2.8.0",
+    "better-sqlite3": "^12.11.1",
+    "chalk": "^5.4.0",
+    "commander": "^15.0.0",
+    "drizzle-orm": "^0.45.2",
+    "gray-matter": "^4.0.3",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
     "@j-rig/core": "workspace:*",
     "@j-rig/db": "workspace:*",
-    "@j-rig/migrate": "workspace:*",
-    "@intentsolutions/refiner": "workspace:*",
-    "commander": "^15.0.0",
-    "chalk": "^5.4.0"
+    "@j-rig/migrate": "workspace:*"
   }
 }
