@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import { Command } from "commander";
 import { registerCheckCommand } from "./commands/check.js";
 import { registerValidateCommand } from "./commands/validate.js";
@@ -14,25 +13,17 @@ import { registerRefineCommand } from "@intentsolutions/refiner";
 
 // Report THIS package's own version (not @j-rig/core's "0.0.0" internal stub),
 // so an installed `@intentsolutions/jrig-cli` reports its real release version.
-// Read from package.json at runtime via createRequire — robust in an ESM bundle
-// regardless of where the bin is installed.
-function resolveCliVersion(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json") as { version?: string };
-    return pkg.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-}
-
+// __CLI_VERSION__ is replaced at BUILD time by tsup's esbuild `define` with the
+// literal value of packages/cli/package.json#version (see tsup.config.ts) — no
+// per-invocation runtime package.json read. The ?? guard keeps `vitest`/`tsx`
+// runs (where the define isn't applied) honest rather than emitting `undefined`.
 function createProgram(): Command {
   const program = new Command();
 
   program
     .name("j-rig")
     .description("Seven-layer binary evaluation harness for Claude Skills")
-    .version(resolveCliVersion());
+    .version(__CLI_VERSION__ ?? "0.0.0");
 
   registerCheckCommand(program);
   registerValidateCommand(program);

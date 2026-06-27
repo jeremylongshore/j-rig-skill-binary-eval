@@ -1,8 +1,21 @@
+import { createRequire } from "node:module";
 import { defineConfig } from "tsup";
+
+// Read this package's version ONCE at build time and inline it as a compile-time
+// constant (esbuild `define`), so the published bin reports its real release
+// version without a per-invocation runtime package.json read (no createRequire
+// file I/O on every `j-rig` call). See src/index.ts → __CLI_VERSION__.
+const require = createRequire(import.meta.url);
+const { version } = require("./package.json") as { version: string };
 
 export default defineConfig({
   entry: ["src/index.ts"],
   format: ["esm"],
+  // Compile-time version injection (findings #2 + #3): the value is baked into
+  // the bundle at build, replacing the old runtime createRequire(package.json).
+  define: {
+    __CLI_VERSION__: JSON.stringify(version),
+  },
   // Resolve the bundled private packages' types INTO the emitted .d.ts so the
   // published artifact carries no `@j-rig/*` type imports (consumers can't
   // install them). Mirrors @intentsolutions/rollout-gate's dts.resolve.
