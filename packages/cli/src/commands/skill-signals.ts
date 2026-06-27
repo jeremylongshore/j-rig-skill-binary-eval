@@ -102,35 +102,43 @@ export function registerSkillSignalCommands(program: Command): void {
           }
           const cass = collectCass(opts);
           const database = openDb(opts.db);
-          const rec = recordSkillUsage(database, {
-            skillId,
-            sessionId: opts.sessionId,
-            source: source as UsageEventSource,
-            cass,
-            ...(opts.tenant !== undefined ? { tenantId: opts.tenant } : {}),
-            // Timestamp at the I/O edge — the CLI is the wall-clock boundary; the
-            // persistence + rollup layers stay deterministic on injected values.
-            recordedAt: new Date().toISOString(),
-          });
+          // Always release the SQLite handle — success, `--json` early return, or
+          // a throw inside record/print all flow through the `finally`.
+          try {
+            const rec = recordSkillUsage(database, {
+              skillId,
+              sessionId: opts.sessionId,
+              source: source as UsageEventSource,
+              cass,
+              ...(opts.tenant !== undefined ? { tenantId: opts.tenant } : {}),
+              // Timestamp at the I/O edge — the CLI is the wall-clock boundary; the
+              // persistence + rollup layers stay deterministic on injected values.
+              recordedAt: new Date().toISOString(),
+            });
 
-          if (opts.json) {
-            console.log(JSON.stringify(rec, null, 2));
-            return;
-          }
-          console.log(header(`j-rig ingest-skill: ${skillId}`));
-          console.log(
-            `  CASS: ${rec.cassScore.toFixed(2)} (threshold ${CASS_PASS_THRESHOLD}) — ` +
-              (rec.cassPassed
-                ? `${icon("pass")} PASS — counts toward verified adoption`
-                : `${icon("warning")} FAIL — persisted but EXCLUDED from adoption (anti-gaming)`),
-          );
-          console.log(`  source: ${rec.source}${rec.tenantId ? ` | tenant: ${rec.tenantId}` : ""}`);
-          if (!rec.cassPassed) {
+            if (opts.json) {
+              console.log(JSON.stringify(rec, null, 2));
+              return;
+            }
+            console.log(header(`j-rig ingest-skill: ${skillId}`));
             console.log(
-              chalk.dim(
-                "  Note: a low-quality session is recorded but never counted. There is no force-count flag.",
-              ),
+              `  CASS: ${rec.cassScore.toFixed(2)} (threshold ${CASS_PASS_THRESHOLD}) — ` +
+                (rec.cassPassed
+                  ? `${icon("pass")} PASS — counts toward verified adoption`
+                  : `${icon("warning")} FAIL — persisted but EXCLUDED from adoption (anti-gaming)`),
             );
+            console.log(
+              `  source: ${rec.source}${rec.tenantId ? ` | tenant: ${rec.tenantId}` : ""}`,
+            );
+            if (!rec.cassPassed) {
+              console.log(
+                chalk.dim(
+                  "  Note: a low-quality session is recorded but never counted. There is no force-count flag.",
+                ),
+              );
+            }
+          } finally {
+            database.close();
           }
         } catch (err) {
           console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -171,30 +179,36 @@ export function registerSkillSignalCommands(program: Command): void {
             process.exit(1);
           }
           const database = openDb(opts.db);
-          const rec = recordSkillReview(database, {
-            skillId,
-            thumbsUp: v === "up",
-            ...(opts.rationale !== undefined ? { rationale: opts.rationale } : {}),
-            reviewer: opts.reviewer,
-            ...(opts.tenant !== undefined ? { tenantId: opts.tenant } : {}),
-            recordedAt: new Date().toISOString(),
-          });
+          // Always release the SQLite handle — success, `--json` early return, or
+          // a throw inside record/print all flow through the `finally`.
+          try {
+            const rec = recordSkillReview(database, {
+              skillId,
+              thumbsUp: v === "up",
+              ...(opts.rationale !== undefined ? { rationale: opts.rationale } : {}),
+              reviewer: opts.reviewer,
+              ...(opts.tenant !== undefined ? { tenantId: opts.tenant } : {}),
+              recordedAt: new Date().toISOString(),
+            });
 
-          if (opts.json) {
-            console.log(JSON.stringify(rec, null, 2));
-            return;
+            if (opts.json) {
+              console.log(JSON.stringify(rec, null, 2));
+              return;
+            }
+            console.log(header(`j-rig review: ${skillId}`));
+            console.log(
+              `  ${rec.thumbsUp ? icon("pass") : icon("error")} thumb ${rec.thumbsUp ? "up" : "down"} ` +
+                `by ${rec.reviewer} (${rec.governanceClass})`,
+            );
+            if (rec.rationale) console.log(`  rationale: ${rec.rationale}`);
+            console.log(
+              chalk.dim(
+                "  Note: curated-signal — NOT a signed human-review/v1 predicate, never a trust root.",
+              ),
+            );
+          } finally {
+            database.close();
           }
-          console.log(header(`j-rig review: ${skillId}`));
-          console.log(
-            `  ${rec.thumbsUp ? icon("pass") : icon("error")} thumb ${rec.thumbsUp ? "up" : "down"} ` +
-              `by ${rec.reviewer} (${rec.governanceClass})`,
-          );
-          if (rec.rationale) console.log(`  rationale: ${rec.rationale}`);
-          console.log(
-            chalk.dim(
-              "  Note: curated-signal — NOT a signed human-review/v1 predicate, never a trust root.",
-            ),
-          );
         } catch (err) {
           console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
           process.exit(1);

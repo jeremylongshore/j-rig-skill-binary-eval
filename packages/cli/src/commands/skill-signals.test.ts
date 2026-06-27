@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDatabase, countVerifiedUsage, countReviews } from "@j-rig/db";
+import * as jrigDb from "@j-rig/db";
+import * as dbLib from "../lib/db.js";
 import { registerSkillSignalCommands } from "./skill-signals.js";
 
 let logs: string[];
@@ -116,6 +118,55 @@ describe("j-rig ingest-skill", () => {
     exit.mockRestore();
   });
 
+  it("closes the SQLite connection after a successful ingest (no leak)", async () => {
+    const db = scratchDb();
+    const close = vi.fn();
+    const real = createDatabase(db);
+    vi.spyOn(dbLib, "openDb").mockReturnValue({ ...real, close });
+    await program().parseAsync(
+      [
+        "ingest-skill",
+        "k",
+        "--session-id",
+        "s",
+        "--source",
+        "ci",
+        "--tests-passed",
+        "--clear-resolution",
+        "--db",
+        db,
+        "--json",
+      ],
+      { from: "user" },
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+    real.close();
+  });
+
+  it("closes the SQLite connection even when the write throws (no leak on error)", async () => {
+    const db = scratchDb();
+    const close = vi.fn();
+    const real = createDatabase(db);
+    // Open succeeds, then the record write throws — proving the `finally` releases
+    // the handle on the error path, not just on success.
+    vi.spyOn(dbLib, "openDb").mockReturnValue({ ...real, close });
+    vi.spyOn(jrigDb, "recordSkillUsage").mockImplementation(() => {
+      throw new Error("boom");
+    });
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    await expect(
+      program().parseAsync(["ingest-skill", "k", "--session-id", "s", "--db", db], {
+        from: "user",
+      }),
+    ).rejects.toThrow();
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(errs.join("\n")).toContain("boom");
+    exit.mockRestore();
+    real.close();
+  });
+
   it("carries a tenant bucket onto the row", async () => {
     const db = scratchDb();
     await program().parseAsync(
@@ -169,6 +220,19 @@ describe("j-rig review", () => {
     const counts = countReviews(verify, "commit-writer");
     expect(counts.find((c) => c.direction === "up")!.count).toBe(1);
     verify.close();
+  });
+
+  it("closes the SQLite connection after a successful review (no leak)", async () => {
+    const db = scratchDb();
+    const close = vi.fn();
+    const real = createDatabase(db);
+    vi.spyOn(dbLib, "openDb").mockReturnValue({ ...real, close });
+    await program().parseAsync(
+      ["review", "k", "--verdict", "up", "--reviewer", "a", "--db", db, "--json"],
+      { from: "user" },
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+    real.close();
   });
 
   it("rejects an invalid --verdict", async () => {
