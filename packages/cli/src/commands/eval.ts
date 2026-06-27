@@ -434,6 +434,10 @@ export function registerEvalCommand(program: Command): void {
               [], // regressions: none in a standalone run
               [], // baseline: none without a baseline comparison run
               false, // isObsolete: not computed here
+              // DR-103 D5 B5.1: inject `now` so the launch-report artifact is
+              // replayable (the determinism the adoption signal's bandit-rejection
+              // rests on). One timestamp per model run.
+              { now: new Date(modelStart).toISOString() },
             );
 
             allResults[model] = {

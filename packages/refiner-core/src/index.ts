@@ -156,3 +156,26 @@ export {
   sliceIntoBlocks,
   computeSliceUtility,
 } from "./slice-utility.js";
+
+// DETERMINISTIC time-decay adoption signal (epic intent-eval-lab#206, bead
+// bd_000-projects-ig4h.4; ISEDC DR-103 D4 + D5). Consumes kernel UsageEvent +
+// HumanReview; 2×2 baseline-value × decayed-adoption verdict, AND-combined never
+// averaged (C3); advisory-and-deprecate-only; bandit REJECTED. now-injected.
+export type {
+  AdoptionEventSource,
+  AdoptionObservation,
+  AdoptionThresholds,
+  BaselineValueAxis,
+  AdoptionAxis,
+  AdoptionVerdictKind,
+  TenantAdoption,
+  AdoptionVerdict,
+  ComputeAdoptionOptions,
+  ToObservationsOptions,
+} from "./adoption.js";
+export {
+  NO_ROLLED_ADOPTION_SCORE,
+  PROVISIONAL_ADOPTION_THRESHOLDS,
+  computeAdoptionVerdict,
+  toAdoptionObservations,
+} from "./adoption.js";

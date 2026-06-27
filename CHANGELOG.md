@@ -16,6 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Skill-scoring gap-fill — adoption signal + intake verbs** (epic
+  intent-eval-lab#206, beads `ig4h.4` + `ig4h.5`; ISEDC DR-103). Bumped
+  `@intentsolutions/core` `0.8.0` → `0.9.0` (the kernel minor that added the
+  `usage_events` + `human_reviews` entities) across the root, `@j-rig/core`, and
+  `@intentsolutions/refiner-core`; `CONSUMED_KERNEL_VERSION` bumped in lockstep.
+  - `@intentsolutions/refiner-core` `adoption.ts`: `computeAdoptionVerdict()` — a
+    DETERMINISTIC time-decay adoption signal joining the baseline-value flag with a
+    decayed usage rate into an advisory 2×2 (`keep`/`watch`/`deprecate_review`/
+    `obsolete_review`/`hold`). AND-combined never averaged (no rolled score, C3);
+    `now`-injected (pure, no `Date.now()`); per-tenant-first aggregation with
+    under-volume exclusion; `ci`-vs-`plugin` source segregation; thresholds ship
+    explicitly **provisional** until back-tested. The Thompson-sampling **bandit is
+    rejected** for this signed surface (DR-103 D5). `toAdoptionObservations()`
+    re-applies the kernel anti-gaming invariant at ingestion.
+  - `@j-rig/cli`: `j-rig ingest-skill` (CASS session-quality gate ≥0.30,
+    persist-but-exclude, no force-count path) and `j-rig review` (curated-signal
+    thumb + open-ended rationale — explicitly NOT a signed `human-review/v1`
+    predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
+  - `@j-rig/db` `skill-signals.ts`: two append-only intake fact tables
+    (`skill_usage_events`, `skill_human_reviews`) with the `tenant_id` column in the
+    first `CREATE TABLE` (DR-103 D2 B2.1) and C3-safe per-dimension rollups.
+  - `@j-rig/core` `buildLaunchReport` now takes an injected clock (`opts.now`) so
+    the launch-report artifact is replayable (DR-103 D5 B5.1), plus the additive
+    opt-in `LaunchReport.adoptionVerdict?` field (the `RolloutDecision` union is
+    NOT mutated — DR-103 D4).
 - Kernel-migration safe slice (`iaj-E02`, IEP P1): the first non-breaking slice
   of the kernel schema migration (DR-018 § 6.4 Q2 Option α-minus). Lands the
   dependency bump + a belt-and-suspenders equivalence proof only; the full

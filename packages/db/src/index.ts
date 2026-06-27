@@ -4,3 +4,4 @@ export { createDatabase, type JRigDatabase } from "./database.js";
 export * from "./schema.js";
 export * from "./lifecycle.js";
 export * from "./evidence.js";
+export * from "./skill-signals.js";
