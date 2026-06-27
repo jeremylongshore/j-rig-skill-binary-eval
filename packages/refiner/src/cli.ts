@@ -9,7 +9,7 @@
  *   j-rig refine status <skill-id>       — show the refiner store / event log
  *
  * The command group is BUILT here, in the `@intentsolutions/refiner` package, so the
- * orchestration logic ships with the refiner — the only edit in `@j-rig/cli` is a
+ * orchestration logic ships with the refiner — the only edit in `@intentsolutions/jrig-cli` is a
  * single line that calls {@link registerRefineCommand} (the surgical wiring the
  * plan permits). Each command is a thin shim: it loads inputs, calls the pure
  * refiner-core ops + this package's adapters/store, and prints a result. Heavy
@@ -74,7 +74,7 @@ function fail(message: string): never {
 /**
  * Register the `refine` command group on the given Commander program.
  *
- * @param program        The j-rig CLI program (from @j-rig/cli).
+ * @param program        The j-rig CLI program (from @intentsolutions/jrig-cli).
  * @param storeFactory   Injectable RefinerStore factory (default: node-fs store
  *                       rooted at cwd). Tests pass a fake-fs-backed store.
  */
