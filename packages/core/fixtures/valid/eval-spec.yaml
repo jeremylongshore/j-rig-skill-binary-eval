@@ -4,14 +4,18 @@ description: Evaluates the commit-message-writer skill across trigger precision,
 
 criteria:
   - id: triggers-on-commit-request
-    description: Skill triggers when user asks to write a commit message
-    method: deterministic
+    description: Skill engages with a request to write a commit message
+    method: judge
     blocker: true
+    judge_prompt: "Does the response engage with the user's request to write a commit message rather than refusing or going off-topic? Answer yes or no."
 
   - id: produces-conventional-format
     description: "Output follows conventional commit format (type(scope): subject)"
     method: deterministic
     regression_critical: true
+    deterministic_check: regex_match
+    deterministic_check_params:
+      pattern: '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: '
 
   - id: message-matches-diff
     description: Commit message accurately describes the staged changes

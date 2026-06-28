@@ -29,7 +29,14 @@ describe("EvalSpecSchema", () => {
     const result = EvalSpecSchema.safeParse({
       skill_name: "test-skill",
       description: "test",
-      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      criteria: [
+        {
+          id: "c1",
+          description: "test",
+          method: "deterministic",
+          deterministic_check: "not_empty",
+        },
+      ],
       test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
     });
     expect(result.success).toBe(false);
@@ -51,7 +58,14 @@ describe("EvalSpecSchema", () => {
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
-      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      criteria: [
+        {
+          id: "c1",
+          description: "test",
+          method: "deterministic",
+          deterministic_check: "not_empty",
+        },
+      ],
       test_cases: [],
     });
     expect(result.success).toBe(false);
@@ -86,7 +100,14 @@ describe("EvalSpecSchema", () => {
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
-      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      criteria: [
+        {
+          id: "c1",
+          description: "test",
+          method: "deterministic",
+          deterministic_check: "not_empty",
+        },
+      ],
       test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
     });
     expect(result.models).toEqual(["sonnet"]);
@@ -97,7 +118,14 @@ describe("EvalSpecSchema", () => {
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
-      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      criteria: [
+        {
+          id: "c1",
+          description: "test",
+          method: "deterministic",
+          deterministic_check: "not_empty",
+        },
+      ],
       test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
       models: ["deepseek-chat", "kimi-k2-0711-preview", "deepseek/deepseek-chat"],
     });
@@ -109,7 +137,14 @@ describe("EvalSpecSchema", () => {
         spec_version: "1.0",
         skill_name: "test-skill",
         description: "test",
-        criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+        criteria: [
+          {
+            id: "c1",
+            description: "test",
+            method: "deterministic",
+            deterministic_check: "not_empty",
+          },
+        ],
         test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
         models: ["sonnet"],
       });
@@ -122,7 +157,14 @@ describe("EvalSpecSchema", () => {
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
-      criteria: [{ id: "c1", description: "test", method: "deterministic" }],
+      criteria: [
+        {
+          id: "c1",
+          description: "test",
+          method: "deterministic",
+          deterministic_check: "not_empty",
+        },
+      ],
       test_cases: [{ id: "t1", description: "test", tier: "core", prompt: "test" }],
       models: [""],
     });
