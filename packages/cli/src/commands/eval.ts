@@ -9,6 +9,7 @@ import {
   computeMetrics,
   runFunctionalTests,
   judgeCriteria,
+  selectCriteriaForTestCase,
   computeScoreCard,
   decideRollout,
   buildLaunchReport,
@@ -346,11 +347,29 @@ export function registerEvalCommand(program: Command): void {
               );
             }
 
-            // Judge each outcome against all criteria and flatten results.
+            // Judge each outcome against the criteria that test case actually
+            // exercises and flatten results. A test case may scope itself via
+            // `criteria_ids` (schema default: ALL); honoring it stops an
+            // off-topic criterion being judged against an unrelated control
+            // prompt — the false-blocker bug that inflated NO-SHIP rates.
+            const testCaseById = new Map(spec.test_cases.map((tc) => [tc.id, tc]));
             const allJudgments: JudgmentResult[] = [];
 
             for (const outcome of outcomes) {
-              const judgments = await judgeCriteria(spec.criteria, outcome, providers.judge, {
+              const testCase = testCaseById.get(outcome.test_case_id);
+              // Every outcome originates from a spec test case (runFunctionalTests
+              // iterates spec.test_cases), so a miss is an internal invariant
+              // break — fail loud rather than silently fall back to ALL criteria.
+              if (!testCase) {
+                throw new Error(
+                  `Outcome references unknown test case id: "${outcome.test_case_id}"`,
+                );
+              }
+              const applicableCriteria = selectCriteriaForTestCase(
+                spec.criteria,
+                testCase.criteria_ids,
+              );
+              const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
                 model,
               });
 

@@ -124,9 +124,22 @@ describe("judgeCriteria", () => {
     expect(results[0].reasoning).toContain("requires params.value");
   });
 
-  it("fails deterministic criterion with no check defined", async () => {
+  it("fails deterministic criterion with no check defined (engine guard, defense-in-depth)", async () => {
+    // Spec-load now rejects a deterministic criterion with no check (Zod refine
+    // on CriterionSchema), so this shape can no longer arrive via
+    // CriterionSchema.parse. Construct it directly to exercise the engine's
+    // belt-and-suspenders guard for any criterion that somehow reaches judgment
+    // without passing through schema validation.
     const criteria: Criterion[] = [
-      criterion({ id: "c3", description: "No check", method: "deterministic" }),
+      {
+        id: "c3",
+        description: "No check",
+        method: "deterministic",
+        blocker: false,
+        regression_critical: false,
+        baseline_sensitive: false,
+        pack_sensitive: false,
+      },
     ];
 
     const results = await judgeCriteria(criteria, makeOutcome("anything"), mockJudge({}));

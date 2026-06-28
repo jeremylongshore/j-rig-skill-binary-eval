@@ -12,6 +12,7 @@ function criterion(partial: {
   method: "deterministic" | "judge";
   blocker?: boolean;
   regression_critical?: boolean;
+  deterministic_check?: string;
 }): Criterion {
   return CriterionSchema.parse(partial);
 }
@@ -24,7 +25,12 @@ describe("failure clustering", () => {
   const criteria = [
     criterion({ id: "c1", description: "Blocker check", method: "judge", blocker: true }),
     criterion({ id: "c2", description: "Normal judge", method: "judge" }),
-    criterion({ id: "c3", description: "Det check", method: "deterministic" }),
+    criterion({
+      id: "c3",
+      description: "Det check",
+      method: "deterministic",
+      deterministic_check: "not_empty",
+    }),
     criterion({ id: "c4", description: "Another judge", method: "judge" }),
   ];
 
