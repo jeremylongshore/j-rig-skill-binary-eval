@@ -86,6 +86,10 @@ outcome's test case and filters before judging:
 // packages/core/src/judgment/criteria-selection.ts
 export function selectCriteriaForTestCase(criteria, criteriaIds) {
   if (criteriaIds === undefined) return criteria;        // absent → ALL (documented default)
+  const available = new Set(criteria.map((c) => c.id));
+  const unknown = criteriaIds.filter((id) => !available.has(id));
+  if (unknown.length > 0)                                 // misspelled/renamed id = silent gap
+    throw new Error(`Test case references unknown criteria_ids: ${unknown.join(", ")}`);
   const wanted = new Set(criteriaIds);
   return criteria.filter((c) => wanted.has(c.id));        // present (incl. []) → only named
 }
@@ -94,11 +98,21 @@ export function selectCriteriaForTestCase(criteria, criteriaIds) {
 const testCaseById = new Map(spec.test_cases.map((tc) => [tc.id, tc]));
 for (const outcome of outcomes) {
   const testCase = testCaseById.get(outcome.test_case_id);
-  const applicable = selectCriteriaForTestCase(spec.criteria, testCase?.criteria_ids);
+  if (!testCase) throw new Error(`Outcome references unknown test case id: "${outcome.test_case_id}"`);
+  const applicable = selectCriteriaForTestCase(spec.criteria, testCase.criteria_ids);
   const judgments = await judgeCriteria(applicable, outcome, providers.judge, { model });
   …
 }
 ```
+
+**Fail loud, never silently under-evaluate.** A misspelled or renamed
+`criteria_ids` entry would scope a test case to *fewer* criteria than intended — a
+silent test gap of exactly the kind this scoping was added to prevent. So
+`EvalSpecSchema` cross-validates every `criteria_ids` entry against the criteria
+list at **spec-load** (a precise `j-rig validate` error before any model spend),
+and `selectCriteriaForTestCase` keeps the same guard at runtime as
+defense-in-depth; an outcome that references an unknown test case id is an
+internal invariant break and throws rather than falling back to ALL.
 
 **Contract** (backward-compatible with the schema's documented default):
 
@@ -241,9 +255,10 @@ consequences:
 
 | File | Change |
 |---|---|
-| `packages/core/src/judgment/criteria-selection.ts` | **new** — `selectCriteriaForTestCase` helper |
-| `packages/cli/src/commands/eval.ts` | filter `spec.criteria` per outcome's `criteria_ids` |
+| `packages/core/src/judgment/criteria-selection.ts` | **new** — `selectCriteriaForTestCase` helper (throws on unknown id) |
+| `packages/cli/src/commands/eval.ts` | filter `spec.criteria` per outcome's `criteria_ids`; throw on unknown test case id |
 | `packages/core/src/schemas/criterion.ts` | Zod `.refine()` — deterministic criteria must define a check |
+| `packages/core/src/schemas/eval-spec.ts` | `.superRefine()` — every `criteria_ids` entry must reference a real criterion |
 | `packages/core/src/judgment/index.ts` | export the helper |
 | `packages/core/src/judgment/criteria-selection.test.ts` | **new** — 6 tests |
 | `packages/core/src/schemas/criterion.test.ts` | **new** — 3 tests |

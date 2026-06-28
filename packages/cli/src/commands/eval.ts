@@ -357,9 +357,17 @@ export function registerEvalCommand(program: Command): void {
 
             for (const outcome of outcomes) {
               const testCase = testCaseById.get(outcome.test_case_id);
+              // Every outcome originates from a spec test case (runFunctionalTests
+              // iterates spec.test_cases), so a miss is an internal invariant
+              // break — fail loud rather than silently fall back to ALL criteria.
+              if (!testCase) {
+                throw new Error(
+                  `Outcome references unknown test case id: "${outcome.test_case_id}"`,
+                );
+              }
               const applicableCriteria = selectCriteriaForTestCase(
                 spec.criteria,
-                testCase?.criteria_ids,
+                testCase.criteria_ids,
               );
               const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
                 model,

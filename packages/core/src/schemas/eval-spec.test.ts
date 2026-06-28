@@ -181,4 +181,48 @@ describe("EvalSpecSchema", () => {
     });
     expect(result.criteria[0].blocker).toBe(false);
   });
+
+  it("rejects a test case whose criteria_ids reference an unknown criterion", () => {
+    const result = EvalSpecSchema.safeParse({
+      spec_version: "1.0",
+      skill_name: "test-skill",
+      description: "test",
+      criteria: [{ id: "c1", description: "test", method: "judge" }],
+      test_cases: [
+        {
+          id: "t1",
+          description: "test",
+          tier: "core",
+          prompt: "test",
+          criteria_ids: ["c1", "typo-id"],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((i) => i.message.includes('unknown criterion id "typo-id"')),
+      ).toBe(true);
+    }
+  });
+
+  it("accepts an empty criteria_ids list (a control prompt scopes to no criteria)", () => {
+    const result = EvalSpecSchema.safeParse({
+      spec_version: "1.0",
+      skill_name: "test-skill",
+      description: "test",
+      criteria: [{ id: "c1", description: "test", method: "judge" }],
+      test_cases: [
+        {
+          id: "t1",
+          description: "control prompt",
+          tier: "core",
+          prompt: "unrelated",
+          trigger_expectation: "should_not_trigger",
+          criteria_ids: [],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
 });

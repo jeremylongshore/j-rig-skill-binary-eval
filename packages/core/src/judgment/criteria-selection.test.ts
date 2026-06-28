@@ -37,9 +37,12 @@ describe("selectCriteriaForTestCase", () => {
     expect(selected.map((c) => c.id)).toEqual(["a", "c"]);
   });
 
-  it("silently skips unknown ids (intersection, not lookup)", () => {
-    const selected = selectCriteriaForTestCase(ALL, ["a", "does-not-exist"]);
-    expect(selected.map((c) => c.id)).toEqual(["a"]);
+  it("throws on an unknown id rather than silently under-evaluating", () => {
+    // A renamed/misspelled criterion id would otherwise scope a test case to
+    // fewer criteria than intended — a silent test gap. Fail loud.
+    expect(() => selectCriteriaForTestCase(ALL, ["a", "does-not-exist"])).toThrow(
+      "Test case references unknown criteria_ids: does-not-exist",
+    );
   });
 
   it("never mutates the input criteria array", () => {

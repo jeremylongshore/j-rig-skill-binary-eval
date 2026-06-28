@@ -19,15 +19,23 @@ import type { Criterion } from "../schemas/criterion.js";
  * only by the trigger layer (`trigger_expectation: should_not_trigger`) can
  * carry `criteria_ids: []` so NO functional criterion is judged against it.
  *
- * Unknown ids in `criteriaIds` (no matching criterion) are silently skipped —
- * the filter is intersection, not lookup; authoring correctness of the id list
- * is a spec concern, not a runtime one.
+ * An id in `criteriaIds` with no matching criterion THROWS — a renamed or
+ * misspelled id is a silent test gap (the very class of bug this scoping was
+ * added to prevent), so we fail loud rather than under-evaluate. `EvalSpecSchema`
+ * also cross-validates `criteria_ids` at spec-load, so a validated spec never
+ * reaches here with an unknown id; this guard is the runtime defense-in-depth
+ * for any criterion list that bypasses schema validation.
  */
 export function selectCriteriaForTestCase(
   criteria: Criterion[],
   criteriaIds: string[] | undefined,
 ): Criterion[] {
   if (criteriaIds === undefined) return criteria;
+  const available = new Set(criteria.map((c) => c.id));
+  const unknown = criteriaIds.filter((id) => !available.has(id));
+  if (unknown.length > 0) {
+    throw new Error(`Test case references unknown criteria_ids: ${unknown.join(", ")}`);
+  }
   const wanted = new Set(criteriaIds);
   return criteria.filter((c) => wanted.has(c.id));
 }
