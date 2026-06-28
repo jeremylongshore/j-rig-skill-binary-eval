@@ -35,7 +35,7 @@ recorded-data fixture (§ 5).
 
 `registerEvalCommand` (`packages/cli/src/commands/eval.ts`) drives, per model:
 
-```
+```text
 Phase 2  checkPackage(absDir)                              → package integrity
 Phase 3  runTriggerTests(spec.test_cases, roster, …)       → trigger precision/recall
          runFunctionalTests(spec.test_cases, skill, …)     → ObservedOutcome[] (1 per executed case)
@@ -57,6 +57,7 @@ Phase 3  runTriggerTests(spec.test_cases, roster, …)       → trigger precisi
 ## 2. Bug #1 — `criteria_ids` never honored (the core defect)
 
 ### Symptom
+
 `eval.ts` passed **all** `spec.criteria` to `judgeCriteria()` for **every**
 `outcome`:
 
@@ -77,6 +78,7 @@ failure → `decideRollout` → BLOCK. With 6 functional outcomes × ~7 criteria
 scorecard carried ~42 judgments, most of them off-topic false negatives.
 
 ### Fix
+
 A pure, tested helper performs the documented scoping; `eval.ts` looks up each
 outcome's test case and filters before judging:
 
@@ -99,6 +101,7 @@ for (const outcome of outcomes) {
 ```
 
 **Contract** (backward-compatible with the schema's documented default):
+
 - `criteria_ids` **absent** (`undefined`) → ALL criteria apply.
 - `criteria_ids` **present, incl. empty `[]`** → only the named criteria apply.
 
@@ -110,6 +113,7 @@ non-trigger is already tested by the orthogonal trigger layer
 ## 3. Bug #2 — deterministic-no-check faked a runtime `"no"`
 
 ### Symptom
+
 `packages/core/src/judgment/engine.ts:34-42`:
 
 ```ts
@@ -129,6 +133,7 @@ authoring slip, surfacing as a mid-run scorecard pollutant rather than a clear
 authoring error.
 
 ### Fix
+
 Catch it at **spec-load** via a Zod refine on `CriterionSchema`
 (`packages/core/src/schemas/criterion.ts`):
 
@@ -141,7 +146,7 @@ Catch it at **spec-load** via a Zod refine on `CriterionSchema`
 
 Now `j-rig validate` rejects it up front:
 
-```
+```text
 $ j-rig validate bad-spec.yaml
 ✗ Invalid eval spec:
   criteria.0.deterministic_check: deterministic criteria must define deterministic_check
