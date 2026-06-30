@@ -58,6 +58,18 @@ import { createFetchTransport, type Transport, type TransportResponse } from "./
 
 const ADAPTER_VERSION = "1.0.0";
 
+/**
+ * max_tokens budget for the small structured-verdict calls (trigger routing,
+ * judging). The OUTPUT is tiny (a one-line JSON verdict), but on a REASONING
+ * model the hidden chain-of-thought is billed against max_tokens BEFORE the
+ * verdict is emitted. At the old 256 ceiling the reasoning exhausted the budget
+ * and returned empty text, which `parseJsonObject(null)` turned into a false
+ * "unsure" verdict — the dominant cause of "criteria could not be judged".
+ * 2048 leaves ample room for reasoning + the verdict on both reasoning and
+ * non-reasoning models. (Verified against deepseek-v4-flash, 2026-06-29.)
+ */
+const REASONING_VERDICT_MAX_TOKENS = 2048;
+
 // ---------------------------------------------------------------------------
 // Provider presets + env-driven config resolution
 // ---------------------------------------------------------------------------
@@ -549,7 +561,7 @@ export class OpenAICompatTriggerProvider implements TriggerProvider {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      maxTokens: 256,
+      maxTokens: REASONING_VERDICT_MAX_TOKENS,
       temperature: 0,
     });
 
@@ -666,7 +678,7 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      maxTokens: 256,
+      maxTokens: REASONING_VERDICT_MAX_TOKENS,
       temperature: 0,
     });
 
