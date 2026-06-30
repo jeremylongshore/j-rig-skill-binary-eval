@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import chalk from "chalk";
 import { resolve, join } from "node:path";
-import { existsSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { stringify } from "yaml";
 import { EvalSpecSchema } from "@j-rig/core";
 import { loadSkillMd } from "../lib/loaders.js";
@@ -71,15 +71,22 @@ export function registerScaffoldSpecCommand(program: Command): void {
         }
 
         const outPath = opts.out ? resolve(opts.out) : join(absDir, "eval-spec.yaml");
-        if (existsSync(outPath) && !opts.force) {
-          console.error(
-            chalk.yellow(
-              `Refusing to overwrite existing spec at ${outPath} (use --force, or --stdout to preview).`,
-            ),
-          );
-          process.exit(1);
+        // Atomic exclusive write when not --force: the "wx" flag fails with
+        // EEXIST if the file already exists, so there is no check-then-write
+        // (TOCTOU) window between testing for the file and writing it.
+        try {
+          writeFileSync(outPath, yamlBody, opts.force ? undefined : { flag: "wx" });
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+            console.error(
+              chalk.yellow(
+                `Refusing to overwrite existing spec at ${outPath} (use --force, or --stdout to preview).`,
+              ),
+            );
+            process.exit(1);
+          }
+          throw e;
         }
-        writeFileSync(outPath, yamlBody);
         console.log(chalk.green(`Wrote baseline eval spec: ${outPath}`));
         console.log(
           chalk.dim(
@@ -221,9 +228,14 @@ function truncate(s: string, n: number): string {
 
 /** Lowercase kebab-case a string to satisfy the skill_name regex. */
 function toKebab(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return (
+    s
+      .trim()
+      .toLowerCase()
+      // Collapse every run of non-alphanumerics to a single dash first, so the
+      // trim below only ever sees a single leading/trailing dash — using `-`
+      // (not `-+`) keeps the trim linear-time (no polynomial-ReDoS backtracking).
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+  );
 }
