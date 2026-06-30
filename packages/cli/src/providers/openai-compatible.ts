@@ -593,7 +593,15 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
           { role: "system", content: context.skill_body },
           { role: "user", content: prompt },
         ],
-        maxTokens: 1024,
+        // Functional execution must leave room for a full skill output AND, on
+        // reasoning models (e.g. deepseek-v4-flash), the hidden reasoning tokens
+        // that count against max_tokens but never appear in `content`. At the old
+        // 1024 ceiling a complex skill task exhausted the budget on reasoning and
+        // returned EMPTY `content` with finish_reason=length — silently feeding
+        // the judges nothing to grade (a false BLOCK). Empirically, a complex
+        // databricks-cost-leak-hunter task used ~667 reasoning + ~5.8k content
+        // tokens; 8192 clears both with margin. (Verified 2026-06-29.)
+        maxTokens: 8192,
         ...(controller ? { signal: controller.signal } : {}),
       });
       const completed = new Date();
@@ -603,6 +611,18 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
         duration_ms: completed.getTime() - started.getTime(),
         timed_out: false,
       };
+      // Surface a reasoning-model budget exhaustion rather than passing empty
+      // output downstream as if the skill produced nothing: an empty completion
+      // that stopped on `length` means the token budget was consumed (by hidden
+      // reasoning and/or a long answer) before any content was emitted — a
+      // truncation, not a real empty skill output.
+      if (result.text.trim() === "" && result.finishReason === "length") {
+        throw new Error(
+          `functional execution returned empty output truncated at max_tokens ` +
+            `(finish_reason=length) for model '${model}': the token budget was exhausted ` +
+            `before any content was emitted (common on reasoning models). Raise maxTokens.`,
+        );
+      }
       return { text: result.text, artifacts: [], tool_calls: 0, meta };
     } finally {
       if (timer) clearTimeout(timer);

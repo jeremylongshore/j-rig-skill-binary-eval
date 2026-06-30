@@ -342,6 +342,38 @@ describe("OpenAICompatExecutionProvider", () => {
     >;
     expect(msgs[0]!.content).toContain("Commit Writer");
   });
+
+  it("throws on empty content truncated at max_tokens (finish_reason=length) instead of feeding the judge nothing", async () => {
+    // Reasoning models (e.g. deepseek-v4-flash) can burn the whole token budget
+    // on hidden reasoning and return EMPTY content with finish_reason=length.
+    // The execution provider must surface that as an error, not silently pass an
+    // empty output downstream as if the skill produced nothing (false BLOCK).
+    const { transport } = fakeTransport(textResponse("", "length"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const exec = new OpenAICompatExecutionProvider("deepseek-v4-flash", provider);
+    await expect(
+      exec.execute("find the cost leaks", { skill_body: "# Cost Hunter" }, {}),
+    ).rejects.toThrow(/finish_reason=length|max_tokens/);
+  });
+
+  it("does NOT throw on a legitimately empty stop (control case producing no output)", async () => {
+    // An empty completion that stopped normally is a valid skill output (e.g. a
+    // should-not-trigger control case) — only length-truncation is an error.
+    const { transport } = fakeTransport(textResponse("", "stop"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const exec = new OpenAICompatExecutionProvider("m", provider);
+    const out = await exec.execute("noop", { skill_body: "body" }, {});
+    expect(out.text).toBe("");
+    expect(out.meta.timed_out).toBe(false);
+  });
 });
 
 describe("OpenAICompatJudgeProvider", () => {
