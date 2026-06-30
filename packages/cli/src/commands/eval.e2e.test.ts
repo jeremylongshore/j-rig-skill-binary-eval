@@ -1,0 +1,113 @@
+import { describe, it, expect } from "vitest";
+import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { EvidenceStatementSchema, PREDICATE_URI } from "@j-rig/core";
+
+/**
+ * End-to-end self-eval: the tool that evaluates skills, tested evaluating a
+ * skill (071 P1 #6). This spawns the BUILT CLI (`dist/index.js`) against
+ * j-rig's own `skill/SKILL.md` + `skill/eval.yaml` and asserts that:
+ *   1. the eval runs to a real verdict (exit 0, not a crash);
+ *   2. `--emit-bundle` writes a real Evidence Bundle;
+ *   3. every emitted row is a KERNEL-VALID `gate-result/v1` in-toto Statement
+ *      (validated against the canonical `@j-rig/core` schema, not a hand-rolled
+ *      shape check) — closing the seam the platform was missing: an eval that
+ *      produced a verdict but never emitted a consumable bundle.
+ *
+ * Runs under the STUB provider (deterministic, no network, no API key) so the
+ * verdict is reproducible in CI; the row honestly carries `ground_truth: false`.
+ * Real-provider (DeepSeek) ground-truth grading is exercised separately in the
+ * dogfood path, not in this committed unit gate.
+ *
+ * Depends on a built `dist/` (same contract as emit-evidence.test.ts); CI runs
+ * `build` before `test`.
+ */
+const HERE = dirname(fileURLToPath(import.meta.url));
+const CLI_PATH = join(HERE, "../../dist/index.js");
+const SKILL_DIR = join(HERE, "../../../../skill");
+const SPEC_PATH = join(SKILL_DIR, "eval.yaml");
+
+const PLACEHOLDER_HASH = /^sha256:(0{64}|1{64}|a{64})$/;
+
+/** Minimal read-side view of an emitted row for assertions (no `any`). */
+interface GateRow {
+  _type: string;
+  predicateType: string;
+  subject: Array<{ name: string; digest: { sha256: string } }>;
+  predicate: {
+    gate_id: string;
+    gate_decision: string;
+    input_hash: string;
+    policy_hash: string;
+    metadata?: { rollout_decision?: string; ground_truth?: boolean };
+  };
+}
+
+describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () => {
+  it("emits a kernel-valid gate-result/v1 Evidence Bundle for a real eval decision", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-e2e-"));
+    const dbPath = join(work, "e2e.db");
+    const bundlePath = join(work, "bundle.json");
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          dbPath,
+          "--emit-bundle",
+          bundlePath,
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+
+      // 1. The eval produced a verdict rather than crashing.
+      expect(r.status, `eval exited non-zero:\n${r.stderr}`).toBe(0);
+
+      // 2. A bundle file was written.
+      expect(existsSync(bundlePath), "no Evidence Bundle was emitted").toBe(true);
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(Array.isArray(bundle)).toBe(true);
+      expect(bundle.length).toBeGreaterThanOrEqual(1);
+
+      // 3. Every row is a kernel-valid gate-result/v1 in-toto Statement.
+      for (const row of bundle) {
+        const parsed = EvidenceStatementSchema.safeParse(row);
+        expect(
+          parsed.success,
+          `row failed kernel validation: ${JSON.stringify(parsed.error?.issues)}`,
+        ).toBe(true);
+
+        expect(row.predicateType).toBe(PREDICATE_URI);
+        // Subject-name === gate_id invariant (composeStatement derives it).
+        expect(row.subject[0].name).toBe(row.predicate.gate_id);
+        expect(["pass", "fail", "advisory", "error"]).toContain(row.predicate.gate_decision);
+
+        // Real, content-addressed hashes — not the 0000…/1111…/aaaa… placeholders
+        // a static fixture would carry.
+        expect(row.predicate.input_hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(row.predicate.policy_hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(row.predicate.input_hash).not.toMatch(PLACEHOLDER_HASH);
+
+        // A real rollout verdict rode along in metadata; stub provenance is honest.
+        expect(["ship", "warn", "block", "obsolete_review"]).toContain(
+          row.predicate.metadata?.rollout_decision,
+        );
+        expect(row.predicate.metadata?.ground_truth).toBe(false);
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+});

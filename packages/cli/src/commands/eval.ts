@@ -1,7 +1,9 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import {
   checkPackage,
   buildRoster,
@@ -20,19 +22,22 @@ import {
   emitJudgeInvoked,
   emitJudgeVerdict,
   emitGateDecisionEmitted,
+  composeStatement,
+  writeBundle,
   RuntimeTerminalState,
   CriterionOutcome,
   JudgeVerdictSource,
   GateDecision,
   type EvalCorrelation,
 } from "@j-rig/core";
-import type { JudgmentResult, ObservedOutcome } from "@j-rig/core";
+import type { JudgmentResult, ObservedOutcome, EvidenceStatement } from "@j-rig/core";
 import {
   getOrCreateSkillVersion,
   createRun,
   transitionRun,
   storeCriterionResults,
   storeRunSummary,
+  recordArtifact,
 } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { loadEvalSpec, loadSkillMd } from "../lib/loaders.js";
@@ -73,6 +78,7 @@ interface EvalOptions {
   trigger?: boolean;
   functional?: boolean;
   provider?: string;
+  emitBundle?: string;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -198,6 +204,48 @@ function hasAnyRealKey(preferred?: string): boolean {
  *   0 — evaluation complete (decision may be warn/obsolete_review)
  *   1 — package integrity hard failure, or unexpected runtime error
  */
+
+/**
+ * Resolve a kernel-valid `commit_sha` (7..40 lowercase hex) for the
+ * gate-result/v1 predicate, honestly reporting where it came from.
+ *
+ * Precedence: explicit override → the skill directory's git HEAD (the commit
+ * the gate actually evaluated against) → a content-derived 40-hex slice of the
+ * skill snapshot sha (for skills that are not git-tracked, e.g. authored in
+ * `~/.claude/skills/`). The fallback is NOT a real commit; the source string is
+ * recorded in the predicate `metadata.commit_sha_source` so a reader is never
+ * misled into treating it as one.
+ */
+function resolveCommitSha(
+  skillDir: string,
+  snapshotPrefixed: string,
+): { sha: string; source: string } {
+  const HEX = /^[a-f0-9]{7,40}$/;
+  const env = process.env.JRIG_COMMIT_SHA?.trim();
+  if (env && HEX.test(env)) return { sha: env, source: "env:JRIG_COMMIT_SHA" };
+  try {
+    const head = execFileSync("git", ["-C", skillDir, "rev-parse", "HEAD"], {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    if (/^[a-f0-9]{40}$/.test(head)) return { sha: head, source: "git:skill-dir-HEAD" };
+  } catch {
+    /* skill not git-tracked — fall through to the content-derived slice */
+  }
+  // snapshotPrefixed is "sha256:" + 64 lowercase hex; take the first 40 hex.
+  return {
+    sha: snapshotPrefixed.slice("sha256:".length, "sha256:".length + 40),
+    source: "skill-content-sha (skill not git-tracked)",
+  };
+}
+
+/** Sanitize a model name into a valid gate-id trailing segment ([A-Za-z0-9.-]). */
+function gateIdSegment(model: string): string {
+  const cleaned = model.replace(/[^A-Za-z0-9.-]/g, "-").replace(/^[^A-Za-z0-9]+/, "");
+  return cleaned.length > 0 ? cleaned : "model";
+}
+
 export function registerEvalCommand(program: Command): void {
   program
     .command("eval")
@@ -213,6 +261,12 @@ export function registerEvalCommand(program: Command): void {
       "--provider <name>",
       "Force a provider: deepseek | kimi | moonshot | openrouter | anthropic | stub " +
         "(default: auto-detect from env keys, preferring an OpenAI-compatible endpoint)",
+    )
+    .option(
+      "--emit-bundle <path>",
+      "Write a gate-result/v1 Evidence Bundle (JSON array of in-toto Statements, one per " +
+        "model decision) to <path>. The bundle is kernel-validated on write (fail-closed) and " +
+        "linked to each run as an artifact. Consumable directly by intent-rollout-gate.",
     )
     .action(async (skillDir: string, opts: EvalOptions) => {
       const startTime = Date.now();
@@ -279,6 +333,14 @@ export function registerEvalCommand(program: Command): void {
 
         // ── Phase 3: Per-model evaluation ────────────────────────────────
         const allResults: Record<string, unknown> = {};
+
+        // Evidence Bundle accumulation (opt-in via --emit-bundle): one
+        // gate-result/v1 in-toto Statement per model decision, paired with the
+        // run id it belongs to. Written + linked as artifacts after the loop.
+        const bundleRows: EvidenceStatement[] = [];
+        const bundleRunIds: number[] = [];
+        const jrigVersion = __CLI_VERSION__ ?? "0.0.0";
+        const commit = resolveCommitSha(absDir, skillSnapshotSha);
 
         for (const model of models) {
           const modelStart = Date.now();
@@ -489,6 +551,64 @@ export function registerEvalCommand(program: Command): void {
               policyRef: specContentHash,
             });
 
+            // ── Evidence Bundle row (opt-in via --emit-bundle) ─────────
+            // Compose a real, kernel-validated gate-result/v1 in-toto Statement
+            // from this model's rollout decision. composeStatement fail-closes
+            // (throws) on any invalid field, so a successfully written bundle is
+            // proof-by-construction that every row is kernel-valid and directly
+            // consumable by intent-rollout-gate. Reuses the same
+            // ship|block|else → pass|fail|advisory mapping as the OTel emit.
+            if (opts.emitBundle) {
+              const gateDecision =
+                report.decision === "ship"
+                  ? "pass"
+                  : report.decision === "block"
+                    ? "fail"
+                    : "advisory";
+              const gateReasons = [...report.blockers, ...report.warnings];
+              if (gateReasons.length === 0) {
+                gateReasons.push(report.reasoning || "all criteria met");
+              }
+              const triggerRan = opts.trigger !== false;
+              const statement = composeStatement({
+                gateId: `j-rig:local:${skillName}.${gateIdSegment(model)}`,
+                gateDecision,
+                gateName: "rollout",
+                gateVersion: jrigVersion,
+                gateReasons,
+                coverage: {
+                  dimensionsEvaluated: [
+                    ...(triggerRan ? ["trigger"] : []),
+                    "functional",
+                    "behavioral",
+                  ],
+                  dimensionsSkipped: [...(triggerRan ? [] : ["trigger"]), "regression", "baseline"],
+                },
+                policyRef: `${specContentHash}:eval-spec.yaml`,
+                policyHash: specContentHash,
+                inputHash: skillSnapshotSha,
+                evaluatedAt: new Date(modelStart).toISOString(),
+                runner: `j-rig@${jrigVersion}`,
+                commitSha: commit.sha,
+                metadata: {
+                  model,
+                  provider: providers.providerName,
+                  ground_truth: providers.real,
+                  rollout_decision: report.decision,
+                  pass_rate: scoreCard.pass_rate,
+                  passed: scoreCard.passed,
+                  total_criteria: scoreCard.total_criteria,
+                  commit_sha_source: commit.source,
+                },
+                ...(gateDecision === "fail"
+                  ? { failureMode: report.blockers[0] ?? "blocker-criterion-failed" }
+                  : {}),
+                ...(gateDecision === "advisory" ? { advisorySeverity: "warn" as const } : {}),
+              });
+              bundleRows.push(statement);
+              bundleRunIds.push(runId);
+            }
+
             if (!opts.json) {
               console.log(`  Decision: ${formatDecision(report.decision)}`);
               if (report.blockers.length > 0) {
@@ -520,6 +640,38 @@ export function registerEvalCommand(program: Command): void {
               : RuntimeTerminalState.JUDGED,
             durationMs: Date.now() - modelStart,
           });
+        }
+
+        // ── Evidence Bundle write + artifact linkage (opt-in) ─────────────
+        // Write all per-model gate-result/v1 rows as a single JSON array bundle
+        // (the in-toto Statement array shape intent-rollout-gate consumes), then
+        // link the file to each contributing run as an artifact so the bundle is
+        // retrievable from the store for downstream emit.
+        if (opts.emitBundle && bundleRows.length > 0) {
+          const [bundlePath] = writeBundle(bundleRows, {
+            format: "array",
+            outputPath: opts.emitBundle,
+          });
+          const sizeBytes = statSync(bundlePath).size;
+          for (const rid of bundleRunIds) {
+            recordArtifact(
+              database,
+              rid,
+              "evidence-bundle",
+              basename(bundlePath),
+              bundlePath,
+              sizeBytes,
+            );
+          }
+          if (!opts.json) {
+            console.log(
+              chalk.dim(
+                `Evidence Bundle: ${bundlePath} (${bundleRows.length} gate-result/v1 row${
+                  bundleRows.length === 1 ? "" : "s"
+                })`,
+              ),
+            );
+          }
         }
 
         // ── Phase 4: Final output ─────────────────────────────────────────
