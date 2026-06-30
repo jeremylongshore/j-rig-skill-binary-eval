@@ -1,6 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { EvalSpecSchema } from "@j-rig/core";
-import { buildBaselineSpec, deriveTriggerPrompts } from "./scaffold-spec.js";
+import { buildBaselineSpec, deriveTriggerPrompts, toKebab } from "./scaffold-spec.js";
+
+const SKILL_NAME_RE = /^[a-z][a-z0-9-]*[a-z0-9]$/;
+
+describe("scaffold-spec — toKebab (kernel skill_name compliance)", () => {
+  it("kebabs normal names", () => {
+    expect(toKebab("Doc Filing v4.4")).toBe("doc-filing-v4-4");
+  });
+  it("prefixes a letter when the name starts with a digit", () => {
+    const k = toKebab("2fa-helper");
+    expect(k).toMatch(SKILL_NAME_RE);
+    expect(k).toBe("s-2fa-helper");
+  });
+  it("pads a single-character name to satisfy the min-length regex", () => {
+    expect(toKebab("X")).toMatch(SKILL_NAME_RE);
+  });
+  it("returns '' when nothing usable remains (caller falls back)", () => {
+    expect(toKebab("!!!")).toBe("");
+  });
+});
 
 describe("scaffold-spec — deriveTriggerPrompts", () => {
   it("extracts natural-language quoted trigger phrases from a description", () => {
@@ -41,6 +60,7 @@ describe("scaffold-spec — buildBaselineSpec", () => {
     const ids = spec.criteria.map((c) => (c as { id: string }).id);
     expect(ids).toEqual(["output-not-empty", "engages-with-stated-intent", "no-prompt-leakage"]);
     expect(spec.tags).toContain("generated");
+    expect(spec.models).toEqual(["sonnet"]);
   });
 
   it("scopes control (should_not_trigger) cases to NO functional criteria (avoids false blockers)", () => {

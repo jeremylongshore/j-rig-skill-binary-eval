@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import { resolve, join } from "node:path";
+import { resolve, join, basename } from "node:path";
 import { writeFileSync } from "node:fs";
 import { stringify } from "yaml";
 import { EvalSpecSchema } from "@j-rig/core";
@@ -41,7 +41,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
         const { parsed: skill } = loadSkillMd(absDir);
 
         const rawName = typeof skill.frontmatter.name === "string" ? skill.frontmatter.name : "";
-        const skillName = toKebab(rawName) || toKebab(absDir.split("/").pop() ?? "skill");
+        const skillName = toKebab(rawName) || toKebab(basename(absDir)) || "skill";
         const description =
           typeof skill.frontmatter.description === "string" &&
           skill.frontmatter.description.trim().length > 0
@@ -118,6 +118,7 @@ export function buildBaselineSpec(
   description: string;
   criteria: unknown[];
   test_cases: unknown[];
+  models: string[];
   tags: string[];
 } {
   const triggerPrompts = deriveTriggerPrompts(description);
@@ -195,6 +196,9 @@ export function buildBaselineSpec(
     description: `Baseline generated eval for ${skillName}: trigger engagement + output presence + prompt-leakage safety.`,
     criteria,
     test_cases: [...triggerCases, ...controlCases, adversarialCase],
+    // Explicit (not relying on the schema default) so the generated YAML a user
+    // edits shows the model target outright. Overridden at eval time by --provider.
+    models: ["sonnet"],
     tags: ["generated", "baseline"],
   };
 }
@@ -226,16 +230,26 @@ function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + "…";
 }
 
-/** Lowercase kebab-case a string to satisfy the skill_name regex. */
-function toKebab(s: string): string {
-  return (
-    s
-      .trim()
-      .toLowerCase()
-      // Collapse every run of non-alphanumerics to a single dash first, so the
-      // trim below only ever sees a single leading/trailing dash — using `-`
-      // (not `-+`) keeps the trim linear-time (no polynomial-ReDoS backtracking).
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-  );
+/**
+ * Lowercase kebab-case a string to satisfy the kernel `skill_name` regex
+ * `^[a-z][a-z0-9-]*[a-z0-9]$` (must start with a lowercase letter, end
+ * alphanumeric, be ≥2 chars). Returns "" when nothing usable remains, so the
+ * caller can fall back.
+ */
+export function toKebab(s: string): string {
+  let k = s
+    .trim()
+    .toLowerCase()
+    // Collapse every run of non-alphanumerics to a single dash first, so the
+    // trim below only ever sees a single leading/trailing dash — using `-`
+    // (not `-+`) keeps the trim linear-time (no polynomial-ReDoS backtracking).
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  if (k === "") return "";
+  // skill_name must START with a lowercase letter — prefix one if it doesn't
+  // (e.g. a name beginning with a digit like "2fa-helper").
+  if (!/^[a-z]/.test(k)) k = `s-${k}`;
+  // …and be ≥2 chars ending alphanumeric (a single letter would be rejected).
+  if (k.length < 2) k = `${k}-skill`;
+  return k;
 }
