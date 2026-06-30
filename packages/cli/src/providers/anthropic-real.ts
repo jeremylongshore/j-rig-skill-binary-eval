@@ -51,6 +51,7 @@ import type {
   ToolDefinition,
 } from "@j-rig/core";
 import { createFetchTransport, type Transport, type TransportResponse } from "./transport.js";
+import { extractVerdict } from "./verdict.js";
 
 const ADAPTER_NAME = "anthropic";
 const ADAPTER_VERSION = "1.0.0";
@@ -508,14 +509,18 @@ export class AnthropicJudgeProvider implements JudgeProvider {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      maxTokens: 256,
+      // 2048 (was 256): a verdict + one-sentence reasoning can exceed 256
+      // tokens and truncate the JSON object, losing the verdict. Matches the
+      // openai-compatible judge budget (#173).
+      maxTokens: 2048,
       temperature: 0,
     });
 
     const parsed = parseJsonObject(result.text);
-    const rawVerdict = typeof parsed?.verdict === "string" ? parsed.verdict.toLowerCase() : "";
-    const verdict: JudgmentVerdict =
-      rawVerdict === "yes" ? "yes" : rawVerdict === "no" ? "no" : "unsure";
+    // Recover the verdict from the structured parse when available, else from a
+    // regex over the raw text, so a truncated or fence-wrapped object no longer
+    // silently drops a decisive "yes"/"no" to "unsure". See ./verdict.ts.
+    const verdict: JudgmentVerdict = extractVerdict(result.text, parsed?.verdict);
     const confidence =
       typeof parsed?.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5;
     const reasoning =
