@@ -124,7 +124,7 @@ Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_
 - Commit messages: `<type>(<scope>): <subject>` (conventional commits)
 - Branch naming: `feature/`, `fix/`, `docs/`
 - Doc filing: `000-docs/` with v4 naming convention (`NNN-CC-CODE-description.md`)
-- Releases: automated via `.github/workflows/release.yml` (auto-bumps version from commit messages)
+- Releases: tag-triggered, no auto-bump. For a repo-level GitHub Release, an engineer opens a PR bumping the **root** `package.json#version` + CHANGELOG, merges to main, then tags from main HEAD; `.github/workflows/release.yml` builds the Release on a `v*.*.*` tag and **verifies the tag matches the root `package.json#version`** (the previous auto-bump-on-push-to-main logic was removed). The published **CLI** follows a separate flow: bump `packages/cli/package.json#version`, then tag `jrig-cli-v*.*.*` (`publish-jrig-cli.yml`; see "Cut a release" above).
 
 ## AI code review (Greptile + Gemini)
 
