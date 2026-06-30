@@ -70,6 +70,18 @@ const ADAPTER_VERSION = "1.0.0";
  */
 const REASONING_VERDICT_MAX_TOKENS = 2048;
 
+/**
+ * max_tokens for functional skill execution. Must leave room for a full skill
+ * output AND (on reasoning models) the hidden reasoning tokens billed against
+ * the budget. Default 8192; overridable via `JRIG_MAX_OUTPUT_TOKENS` so an
+ * endpoint/model with a lower output ceiling (e.g. 4096) doesn't 400 — a
+ * portability escape hatch flagged in review (#173).
+ */
+const EXECUTION_MAX_TOKENS: number = (() => {
+  const n = Number(process.env.JRIG_MAX_OUTPUT_TOKENS);
+  return Number.isInteger(n) && n > 0 ? n : 8192;
+})();
+
 // ---------------------------------------------------------------------------
 // Provider presets + env-driven config resolution
 // ---------------------------------------------------------------------------
@@ -612,8 +624,9 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
         // returned EMPTY `content` with finish_reason=length — silently feeding
         // the judges nothing to grade (a false BLOCK). Empirically, a complex
         // databricks-cost-leak-hunter task used ~667 reasoning + ~5.8k content
-        // tokens; 8192 clears both with margin. (Verified 2026-06-29.)
-        maxTokens: 8192,
+        // tokens; 8192 clears both with margin. (Verified 2026-06-29.) Override
+        // via JRIG_MAX_OUTPUT_TOKENS for endpoints with a lower output ceiling.
+        maxTokens: EXECUTION_MAX_TOKENS,
         ...(controller ? { signal: controller.signal } : {}),
       });
       const completed = new Date();
