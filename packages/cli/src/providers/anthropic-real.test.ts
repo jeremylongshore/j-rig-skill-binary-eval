@@ -265,6 +265,20 @@ describe("AnthropicJudgeProvider", () => {
     expect(out.confidence).toBeCloseTo(0.9);
   });
 
+  it("recovers the verdict from a JSON object truncated past the token ceiling", async () => {
+    // Verbose reasoning can blow the token budget, leaving the JSON object
+    // unterminated; parseJsonObject() returns null but the verdict token is
+    // still recoverable via the regex fallback. Before the fix this dropped to
+    // "unsure" and inflated NO-SHIP rates.
+    const truncated =
+      '{"verdict": "no", "confidence": 0.95, "reasoning": "The output writes to the account without the required';
+    const { transport } = fakeTransport(textResponse(truncated, "max_tokens"));
+    const provider: Provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const judge = new AnthropicJudgeProvider("sonnet", provider);
+    const out = await judge.judge("requires confirmation before a write", "p", "o");
+    expect(out.verdict).toBe("no");
+  });
+
   it("maps an unrecognized verdict to 'unsure'", async () => {
     const { transport } = fakeTransport(textResponse('{"verdict": "maybe", "confidence": 0.5}'));
     const provider: Provider = new RealAnthropicProvider({ apiKey: KEY, transport });

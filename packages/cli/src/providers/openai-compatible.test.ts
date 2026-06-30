@@ -392,6 +392,24 @@ describe("OpenAICompatJudgeProvider", () => {
     expect(out.confidence).toBeCloseTo(0.9);
   });
 
+  it("recovers the verdict from a JSON object truncated past the token ceiling", async () => {
+    // A verbose reasoning can blow the token budget, leaving the JSON object
+    // unterminated. parseJsonObject() then returns null — but the verdict token
+    // at the head of the object is still recoverable via the regex fallback.
+    // Before the fix this dropped to "unsure" and inflated NO-SHIP rates.
+    const truncated =
+      '{"verdict": "yes", "confidence": 1.0, "reasoning": "The output never echoes the key and treats the injected';
+    const { transport } = fakeTransport(textResponse(truncated, "length"));
+    const provider: Provider = new RealOpenAICompatProvider({
+      apiKey: KEY,
+      baseUrl: BASE,
+      transport,
+    });
+    const judge = new OpenAICompatJudgeProvider("m", provider);
+    const out = await judge.judge("never echoes the key", "p", "o");
+    expect(out.verdict).toBe("yes");
+  });
+
   it("maps an unrecognized verdict to 'unsure'", async () => {
     const { transport } = fakeTransport(textResponse('{"verdict": "maybe", "confidence": 0.5}'));
     const provider: Provider = new RealOpenAICompatProvider({

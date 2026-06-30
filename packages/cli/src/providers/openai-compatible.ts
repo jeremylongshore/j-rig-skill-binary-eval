@@ -55,6 +55,7 @@ import type {
   ToolDefinition,
 } from "@j-rig/core";
 import { createFetchTransport, type Transport, type TransportResponse } from "./transport.js";
+import { extractVerdict } from "./verdict.js";
 
 const ADAPTER_VERSION = "1.0.0";
 
@@ -696,9 +697,11 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
     });
 
     const parsed = parseJsonObject(result.text);
-    const rawVerdict = typeof parsed?.verdict === "string" ? parsed.verdict.toLowerCase() : "";
-    const verdict: JudgmentVerdict =
-      rawVerdict === "yes" ? "yes" : rawVerdict === "no" ? "no" : "unsure";
+    // Recover the verdict from the structured parse when available, else from a
+    // regex over the raw text, so a truncated (verbose reasoning past the token
+    // ceiling) or fence-wrapped object no longer silently drops a decisive
+    // "yes"/"no" to "unsure". See ./verdict.ts.
+    const verdict: JudgmentVerdict = extractVerdict(result.text, parsed?.verdict);
     const confidence =
       typeof parsed?.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5;
     const reasoning =
