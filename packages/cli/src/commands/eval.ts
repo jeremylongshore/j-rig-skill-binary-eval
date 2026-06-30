@@ -240,10 +240,18 @@ function resolveCommitSha(
   };
 }
 
-/** Sanitize a model name into a valid gate-id trailing segment ([A-Za-z0-9.-]). */
-function gateIdSegment(model: string): string {
-  const cleaned = model.replace(/[^A-Za-z0-9.-]/g, "-").replace(/^[^A-Za-z0-9]+/, "");
-  return cleaned.length > 0 ? cleaned : "model";
+/**
+ * Sanitize an arbitrary string (skill name, model name) into a valid gate-id
+ * trailing segment: chars limited to `[A-Za-z0-9.-]` and a leading
+ * `[A-Za-z0-9]`, per the kernel SubjectName regex
+ * `…:(client|server|ci|sandbox|local):[a-zA-Z0-9][a-zA-Z0-9.-]*`. Both the skill
+ * name and the model are passed through this so a SKILL.md with a non-kebab
+ * `name` (underscores, leading digit hyphen, etc.) can't produce a gate_id that
+ * fails composeStatement's fail-closed validation.
+ */
+function sanitizeSegment(raw: string, fallback: string): string {
+  const cleaned = raw.replace(/[^A-Za-z0-9.-]/g, "-").replace(/^[^A-Za-z0-9]+/, "");
+  return cleaned.length > 0 ? cleaned : fallback;
 }
 
 export function registerEvalCommand(program: Command): void {
@@ -571,7 +579,7 @@ export function registerEvalCommand(program: Command): void {
               }
               const triggerRan = opts.trigger !== false;
               const statement = composeStatement({
-                gateId: `j-rig:local:${skillName}.${gateIdSegment(model)}`,
+                gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
                 gateDecision,
                 gateName: "rollout",
                 gateVersion: jrigVersion,
