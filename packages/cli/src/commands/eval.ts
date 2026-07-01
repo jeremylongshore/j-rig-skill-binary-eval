@@ -434,19 +434,24 @@ export function registerEvalCommand(program: Command): void {
             // batch-grade phase (h08j.4): it names the cases a completion-only
             // eval can't fully grade, instead of silently judging a degenerate
             // empty response as if it were a real skill run.
+            // `text` is typed as string, but an external provider could return
+            // null/undefined; coalesce so the boundary check never throws.
+            const boundaryText = (o: ObservedOutcome) => o.output.text ?? "";
             const boundaryCases = outcomes.filter(
               (o) =>
                 o.status !== "completed" ||
                 o.meta.timed_out ||
-                o.output.text.trim() === "" ||
+                boundaryText(o).trim() === "" ||
                 Boolean(o.output.error),
             );
+            // Per-case detail goes to STDERR (the diagnostic channel) so it
+            // never corrupts machine-readable stdout under --json.
             if (opts.traceBoundary) {
               for (const o of outcomes) {
-                console.log(
+                console.error(
                   `  [boundary] ${o.test_case_id} model=${model} status=${o.status} ` +
-                    `timed_out=${o.meta.timed_out} text_len=${o.output.text.length} ` +
-                    `tool_calls=${o.output.tool_calls} empty_output=${o.output.text.trim() === ""}` +
+                    `timed_out=${o.meta.timed_out} text_len=${boundaryText(o).length} ` +
+                    `tool_calls=${o.output.tool_calls} empty_output=${boundaryText(o).trim() === ""}` +
                     (o.output.error ? ` error=${JSON.stringify(o.output.error)}` : ""),
                 );
               }
