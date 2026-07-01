@@ -79,6 +79,7 @@ interface EvalOptions {
   functional?: boolean;
   provider?: string;
   emitBundle?: string;
+  traceBoundary?: boolean;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -276,6 +277,13 @@ export function registerEvalCommand(program: Command): void {
         "model decision) to <path>. The bundle is kernel-validated on write (fail-closed) and " +
         "linked to each run as an artifact. Consumable directly by intent-rollout-gate.",
     )
+    .option(
+      "--trace-boundary",
+      "Log per-test-case execution boundary (text length, tool_calls, status, timed_out, " +
+        "empty-output) for the functional pass. Characterizes tool/script-dependent skills a " +
+        "single-turn completion eval cannot fully grade. A boundary summary always prints when " +
+        "any case hits it; this flag adds the full per-case detail.",
+    )
     .action(async (skillDir: string, opts: EvalOptions) => {
       const startTime = Date.now();
 
@@ -414,6 +422,48 @@ export function registerEvalCommand(program: Command): void {
             if (!opts.json) {
               console.log(
                 `  Functional: ${outcomes.length}/${spec.test_cases.length} test case(s) executed`,
+              );
+            }
+
+            // ── Empty-output boundary instrumentation (bd_000-projects-0xttn) ──
+            // A single-turn completion eval captures `output.text` but cannot
+            // actually run a skill's tools/scripts, so tool/script-dependent
+            // skills surface here as empty/short text with zero tool calls, a
+            // `timed_out` meta, a captured `output.error`, or a non-`completed`
+            // status. Characterizing that boundary is a precondition for the
+            // batch-grade phase (h08j.4): it names the cases a completion-only
+            // eval can't fully grade, instead of silently judging a degenerate
+            // empty response as if it were a real skill run.
+            // `text` is typed as string, but an external provider could return
+            // null/undefined; coalesce so the boundary check never throws.
+            const boundaryText = (o: ObservedOutcome) => o.output.text ?? "";
+            const boundaryCases = outcomes.filter(
+              (o) =>
+                o.status !== "completed" ||
+                o.meta.timed_out ||
+                boundaryText(o).trim() === "" ||
+                Boolean(o.output.error),
+            );
+            // Per-case detail goes to STDERR (the diagnostic channel) so it
+            // never corrupts machine-readable stdout under --json.
+            if (opts.traceBoundary) {
+              for (const o of outcomes) {
+                console.error(
+                  `  [boundary] ${o.test_case_id} model=${model} status=${o.status} ` +
+                    `timed_out=${o.meta.timed_out} text_len=${boundaryText(o).length} ` +
+                    `tool_calls=${o.output.tool_calls} empty_output=${boundaryText(o).trim() === ""}` +
+                    (o.output.error ? ` error=${JSON.stringify(o.output.error)}` : ""),
+                );
+              }
+            }
+            if (boundaryCases.length > 0 && !opts.json) {
+              console.log(
+                `  Boundary: ${boundaryCases.length}/${outcomes.length} test case(s) hit an ` +
+                  `empty-output / tool-dependent boundary a completion-only eval can't fully grade ` +
+                  `[${boundaryCases.map((o) => o.test_case_id).join(", ")}]` +
+                  (opts.traceBoundary
+                    ? ""
+                    : " — re-run with --trace-boundary for per-case detail."),
               );
             }
 
