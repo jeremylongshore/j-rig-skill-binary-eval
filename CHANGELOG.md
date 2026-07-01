@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Eval provider + judge hardening, and the eval→Evidence-Bundle bridge**
+  (merged to main 2026-06-30). The published `@intentsolutions/jrig-cli`
+  **0.1.2** release carries all four changes below — including the two
+  provider fixes — as it was last cut at `0.1.1`, before any of these landed;
+  a consumer pinning the CLI stops hitting the false NO-SHIP those bugs
+  inflated.
+  - `feat(eval)`: `j-rig eval --emit-bundle` now emits a real `gate-result/v1`
+    Evidence Bundle from an eval run (#172).
+  - `fix(providers)`: functional-exec `max_tokens` raised and length-truncation
+    is now surfaced instead of silently returning a short/empty completion —
+    the reasoning-model truncation that mis-scored control-prompt-heavy skills
+    (#173).
+  - `feat(cli)`: `j-rig scaffold-spec` generates a baseline eval-spec from a
+    `SKILL.md` (#174).
+  - `fix(providers)`: judge verdict is recovered from truncated / fenced JSON
+    replies — structured `{verdict: yes|no}` responses are no longer
+    mis-bucketed as `unsure`, which had inflated NO-SHIP (#175).
 - **Skill-scoring gap-fill — adoption signal + intake verbs** (epic
   intent-eval-lab#206, beads `ig4h.4` + `ig4h.5`; ISEDC DR-103). Bumped
   `@intentsolutions/core` `0.8.0` → `0.9.0` (the kernel minor that added the
