@@ -18,9 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Eval provider + judge hardening, and the eval→Evidence-Bundle bridge**
   (merged to main 2026-06-30). The published `@intentsolutions/jrig-cli`
-  **0.1.2** release carries the two provider fixes below (it was last cut at
-  `0.1.1`, before any of these landed), so a consumer pinning the CLI stops
-  hitting the false NO-SHIP those bugs inflated.
+  **0.1.2** release carries all four changes below — including the two
+  provider fixes — as it was last cut at `0.1.1`, before any of these landed;
+  a consumer pinning the CLI stops hitting the false NO-SHIP those bugs
+  inflated.
   - `feat(eval)`: `j-rig eval --emit-bundle` now emits a real `gate-result/v1`
     Evidence Bundle from an eval run (#172).
   - `fix(providers)`: functional-exec `max_tokens` raised and length-truncation
