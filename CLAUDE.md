@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
-pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, typecheck, and tests on Node 22.
+pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, format:check, typecheck, and tests on Node 22.
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ pnpm run test                 # Run vitest
 pnpm run lint                 # ESLint (flat config, typescript-eslint)
 pnpm run format:check         # Prettier check
 pnpm run typecheck            # tsc --noEmit across all packages + tests/
-pnpm run check                # Full validation (lint + typecheck + test)
+pnpm run check                # Full validation (lint + format:check + typecheck + test)
 
 # Single-package operations
 pnpm --filter @j-rig/core run build
@@ -75,7 +75,7 @@ Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The An
 Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_events` + `human_reviews` entities). Three surfaces:
 
 - **Adoption signal** (`@intentsolutions/refiner-core` `adoption.ts`): `computeAdoptionVerdict()` — a deterministic time-decay adoption rate joined with the baseline-value flag into an advisory 2×2 (`keep` / `watch` / `deprecate_review` / `obsolete_review` / `hold`). AND-combined never averaged (no rolled score — C3); `now`-injected; the Thompson bandit is **rejected** (DR-103 D5); advisory-and-deprecate-only via the additive `LaunchReport.adoptionVerdict?` field (the `RolloutDecision` union is **not** mutated); thresholds ship `provisional: true` until back-tested. `toAdoptionObservations()` re-applies the kernel anti-gaming invariant (`source_verified`) at ingestion.
-- **Intake verbs** (`@j-rig/cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
+- **Intake verbs** (`@intentsolutions/jrig-cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
 - **Determinism fix**: `buildLaunchReport` now takes an injected clock (`opts.now`) so the launch-report artifact is replayable (DR-103 D5 B5.1) — the determinism the bandit-rejection rests on.
 
 ## Non-Negotiable Design Principles
@@ -129,7 +129,7 @@ Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_
 ## AI code review (Greptile + Gemini)
 
 Two AI reviewers run on PRs here, **both advisory** — neither is a branch-protection
-required check. The deterministic merge gate is this repo's own CI (`pnpm run check` (lint + typecheck + test)) plus CodeQL.
+required check. The deterministic merge gate is this repo's own CI (`pnpm run check` (lint + format:check + typecheck + test)) plus CodeQL.
 
 - **Gemini Code Assist** (`.gemini/config.yaml` + `.gemini/styleguide.md`) is the
   **active** reviewer. Re-instated 2026-06-24 as the fallback after the Greptile
