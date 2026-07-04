@@ -88,10 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2026-06-15
 
-All seven workspace packages bump to `2.1.0` in lockstep with the root version.
-`@intentsolutions/rollout-gate` is the only published package (separate
-`rollout-gate-v*` publish tag); the remaining `@j-rig/*` workspace packages stay
-internal to the monorepo.
+All seven workspace packages bumped to `2.1.0` in lockstep with the root version.
+At the time of this release `@intentsolutions/rollout-gate` was the only published
+package (separate `rollout-gate-v*` publish tag), with the remaining `@j-rig/*`
+workspace packages internal to the monorepo. _(The monorepo has since grown to
+nine packages, four now published — `@intentsolutions/{jrig-cli,refiner,refiner-core,rollout-gate}`;
+see `[Unreleased]` for current publish status.)_
 
 ### Added
 

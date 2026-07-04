@@ -1,14 +1,14 @@
-# j-rig-binary-eval
+# j-rig-skill-binary-eval
 
-Part of the **[Intent Eval Platform](https://github.com/intent-solutions-io/intent-eval-platform)** — the umbrella mapping the six repos that converge via a shared Evidence Bundle schema.
+Part of the **[Intent Eval Platform](https://github.com/intent-solutions-io/intent-eval-platform)** — the umbrella grouping the platform's six repos: five converge via a shared Evidence Bundle schema (`intent-eval-core`, `intent-eval-lab`, `audit-harness`, `j-rig-skill-binary-eval`, `intent-rollout-gate`), plus `intent-eval-dashboard` as a satellite consumer (not part of the convergence taxonomy).
 
 > Software-grade release discipline for Claude Skills
 
 Binary evaluation harness that treats `SKILL.md` artifacts as production software. Package integrity, trigger precision, functional quality, regression gating, baseline comparison, model-aware testing, and evidence-backed rollout decisions — all through binary yes/no criteria with external evaluators.
 
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-binary-eval/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-binary-eval)](https://github.com/jeremylongshore/j-rig-binary-eval/releases)
+[![CI](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-skill-binary-eval)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases)
 
 **Links:** [Master Blueprint](000-docs/007-PP-PLAN-master-build-blueprint.md) · [Epic Index](000-docs/epics/README.md) · [Doc Index](000-docs/000-INDEX.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
@@ -144,9 +144,9 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 ### Current Status
 
-**Phase:** Epic 01 complete (repo foundation). Ready for Epic 02 (Spec Layer).
+**Phase:** Well beyond the initial foundation epic — the monorepo publishes four `@intentsolutions/*` packages (`jrig-cli`, `refiner`, `refiner-core`, `rollout-gate`) with the root semver line at `v2.1.0`. See the [CHANGELOG](CHANGELOG.md) and [Epic Index](000-docs/epics/README.md) for shipped scope.
 
-pnpm monorepo with nine workspace packages — published `@intentsolutions/{refiner-core,refiner,rollout-gate}` plus `@j-rig/{migrate,pr-comment}`, and the internal-only `@j-rig/{core,cli,db,dashboard}` eval engine — on a TypeScript baseline (tsup builds), with quality guardrails (ESLint, Prettier, Vitest) and CI/CD workflows.
+pnpm monorepo with nine workspace packages — four published to npm (`@intentsolutions/{jrig-cli,refiner,refiner-core,rollout-gate}`) and five internal-only (`@j-rig/{core,dashboard,db,migrate,pr-comment}`, the eval engine plus its `migrate`/`pr-comment` helpers; the `@j-rig` scope is unpublished) — on a TypeScript baseline (tsup builds), with quality guardrails (ESLint, Prettier, Vitest) and CI/CD workflows.
 
 ### Choosing a provider
 

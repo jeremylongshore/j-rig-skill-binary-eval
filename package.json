@@ -55,7 +55,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jeremylongshore/j-rig-binary-eval.git"
+    "url": "https://github.com/jeremylongshore/j-rig-skill-binary-eval.git"
   },
   "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
   "pnpm": {
