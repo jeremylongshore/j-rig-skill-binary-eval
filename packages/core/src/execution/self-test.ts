@@ -7,6 +7,28 @@ import type { JudgmentResult } from "../judgment/types.js";
 /** Wall-clock ceiling for a self-test run. Deterministic scripts are fast. */
 export const DEFAULT_SELF_TEST_TIMEOUT_MS = 120_000;
 
+/**
+ * Tokenize a command string into argv, respecting single/double quotes so an
+ * argument that contains spaces survives (`node -e "a b"` → `["node","-e","a b"]`,
+ * `python3 "my dir/x.py"` → `["python3","my dir/x.py"]`). This is quoting ONLY —
+ * no shell, no variable/glob expansion — so the command string is not an
+ * injection surface. Adjacent quoted + unquoted parts concatenate into one token
+ * (`-e"a b"` → `-e a b` as a single arg).
+ */
+export function tokenizeCommand(command: string): string[] {
+  const tokens: string[] = [];
+  const wholeToken = /(?:[^\s"']+|"[^"]*"|'[^']*')+/g;
+  const part = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
+  for (const raw of command.match(wholeToken) ?? []) {
+    let token = "";
+    part.lastIndex = 0;
+    let p: RegExpExecArray | null;
+    while ((p = part.exec(raw)) !== null) token += p[1] ?? p[2] ?? p[0];
+    tokens.push(token);
+  }
+  return tokens;
+}
+
 /** Outcome of running a skill's declared `self_test.command`. */
 export interface SelfTestResult {
   /** The command started (false only on spawn failure, e.g. interpreter not found). */
@@ -48,7 +70,7 @@ export function runSelfTest(
 ): SelfTestResult {
   const start = Date.now();
   const expectedExit = selfTest.expect_exit;
-  const argv = selfTest.command.trim().split(/\s+/).filter(Boolean);
+  const argv = tokenizeCommand(selfTest.command);
   const [exe, ...args] = argv;
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_SELF_TEST_TIMEOUT_MS;
   const env = opts?.env ?? scopedEnv();
@@ -116,7 +138,17 @@ function scopedEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   // PATH is required to resolve `python3`/`node`/…; the rest are harmless locale
   // / temp / Windows-resolution vars. Nothing that could carry an API key.
-  for (const key of ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT", "PATHEXT"]) {
+  for (const key of [
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TMPDIR",
+    "TEMP", // Windows temp-dir resolution
+    "TMP", // Windows temp-dir resolution
+    "SYSTEMROOT",
+    "PATHEXT",
+  ]) {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }

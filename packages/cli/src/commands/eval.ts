@@ -570,6 +570,21 @@ export function registerEvalCommand(program: Command): void {
               allJudgments.push(...judgments);
             }
 
+            // Fold the (model-independent) self-test verdict into THIS model's
+            // judgments BEFORE the tally + persistence, so it counts in the
+            // score line, the console output, the stored criterion_results, and
+            // the run summary — consistent with the rollout decision it drives.
+            if (selfTestJudgment) {
+              allJudgments.push(selfTestJudgment);
+              const stOutcome =
+                selfTestJudgment.verdict === "yes" ? CriterionOutcome.PASS : CriterionOutcome.FAIL;
+              if (stOutcome === CriterionOutcome.FAIL) runHadFailure = true;
+              emitRuntimeCriterionEvaluated(correlation, {
+                matcherClass: "deterministic",
+                outcome: stOutcome,
+              });
+            }
+
             const passed = allJudgments.filter((j) => j.verdict === "yes").length;
             const total = allJudgments.length;
 
@@ -604,20 +619,6 @@ export function registerEvalCommand(program: Command): void {
               warnings,
               errors,
             });
-
-            // Fold the (model-independent) self-test verdict into THIS model's
-            // judgments + scoring criteria so it flows through the same
-            // scorecard → blocker → rollout path as every other criterion.
-            if (selfTestJudgment) {
-              allJudgments.push(selfTestJudgment);
-              const stOutcome =
-                selfTestJudgment.verdict === "yes" ? CriterionOutcome.PASS : CriterionOutcome.FAIL;
-              if (stOutcome === CriterionOutcome.FAIL) runHadFailure = true;
-              emitRuntimeCriterionEvaluated(correlation, {
-                matcherClass: "deterministic",
-                outcome: stOutcome,
-              });
-            }
 
             // ── Governance ─────────────────────────────────────────────
             const scoringCriteria = selfTestCriterion

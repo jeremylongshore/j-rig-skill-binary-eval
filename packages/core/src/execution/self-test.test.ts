@@ -10,6 +10,7 @@ import {
   runSelfTest,
   summarizeSelfTest,
   toSelfTestJudgment,
+  tokenizeCommand,
 } from "./self-test.js";
 
 const dirs: string[] = [];
@@ -69,6 +70,13 @@ describe("runSelfTest", () => {
     expect(r.passed).toBe(true);
   });
 
+  it("handles a quoted argument that contains a space", () => {
+    const dir = skillDir("with space.js", "process.exit(0);");
+    const r = runSelfTest(spec('node "with space.js"'), dir);
+    expect(r.ran).toBe(true);
+    expect(r.passed).toBe(true);
+  });
+
   it("fails closed when the interpreter cannot be spawned", () => {
     const dir = skillDir("x.js", "");
     const r = runSelfTest(spec("definitely-not-a-real-binary-xyz x.js"), dir);
@@ -103,6 +111,29 @@ describe("runSelfTest", () => {
     } finally {
       delete process.env.JRIG_SELFTEST_SENTINEL;
     }
+  });
+});
+
+describe("tokenizeCommand", () => {
+  it("splits a simple command on whitespace", () => {
+    expect(tokenizeCommand("python3 scripts/triage.py --self-test")).toEqual([
+      "python3",
+      "scripts/triage.py",
+      "--self-test",
+    ]);
+  });
+
+  it("keeps a double-quoted argument with spaces intact", () => {
+    expect(tokenizeCommand('node "my dir/x.py" --flag')).toEqual(["node", "my dir/x.py", "--flag"]);
+  });
+
+  it("keeps a single-quoted argument intact", () => {
+    expect(tokenizeCommand("node -e 'a b c'")).toEqual(["node", "-e", "a b c"]);
+  });
+
+  it("collapses runs of whitespace and returns [] for empty", () => {
+    expect(tokenizeCommand("  node   x.js  ")).toEqual(["node", "x.js"]);
+    expect(tokenizeCommand("   ")).toEqual([]);
   });
 });
 
