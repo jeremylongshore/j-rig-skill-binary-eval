@@ -226,3 +226,64 @@ describe("EvalSpecSchema", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("EvalSpecSchema self_test", () => {
+  const baseSpec = {
+    spec_version: "1.0" as const,
+    skill_name: "test-skill",
+    description: "test",
+    criteria: [{ id: "c1", description: "test", method: "judge" as const }],
+    test_cases: [{ id: "t1", description: "test", tier: "core" as const, prompt: "test" }],
+  };
+
+  it("accepts and RETAINS a self_test block (does not silently strip it)", () => {
+    const result = EvalSpecSchema.safeParse({
+      ...baseSpec,
+      self_test: {
+        command: "python3 scripts/triage.py --self-test",
+        expect_exit: 0,
+        asserts: ["Xid 94 -> reschedule"],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.self_test).toBeDefined();
+      expect(result.data.self_test?.command).toContain("--self-test");
+      expect(result.data.self_test?.asserts).toHaveLength(1);
+    }
+  });
+
+  it("applies self_test defaults (expect_exit 0, blocker true)", () => {
+    const result = EvalSpecSchema.safeParse({ ...baseSpec, self_test: { command: "node x.js" } });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.self_test).toEqual({
+        command: "node x.js",
+        expect_exit: 0,
+        blocker: true,
+      });
+    }
+  });
+
+  it("is undefined when absent", () => {
+    const result = EvalSpecSchema.safeParse(baseSpec);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.self_test).toBeUndefined();
+  });
+
+  it("rejects an unknown key inside self_test (strict)", () => {
+    const result = EvalSpecSchema.safeParse({
+      ...baseSpec,
+      self_test: { command: "node x.js", bogus: 1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects the reserved 'self-test' criterion id", () => {
+    const result = EvalSpecSchema.safeParse({
+      ...baseSpec,
+      criteria: [{ id: "self-test", description: "collides", method: "judge" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});

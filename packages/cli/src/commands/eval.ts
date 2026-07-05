@@ -10,6 +10,9 @@ import {
   runTriggerTests,
   computeMetrics,
   runFunctionalTests,
+  runSelfTest,
+  toSelfTestJudgment,
+  buildSelfTestCriterion,
   judgeCriteria,
   selectCriteriaForTestCase,
   computeScoreCard,
@@ -30,7 +33,7 @@ import {
   GateDecision,
   type EvalCorrelation,
 } from "@j-rig/core";
-import type { JudgmentResult, ObservedOutcome, EvidenceStatement } from "@j-rig/core";
+import type { JudgmentResult, ObservedOutcome, EvidenceStatement, Criterion } from "@j-rig/core";
 import {
   getOrCreateSkillVersion,
   createRun,
@@ -80,6 +83,7 @@ interface EvalOptions {
   provider?: string;
   emitBundle?: string;
   traceBoundary?: boolean;
+  runSelfTest?: boolean;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -284,6 +288,14 @@ export function registerEvalCommand(program: Command): void {
         "single-turn completion eval cannot fully grade. A boundary summary always prints when " +
         "any case hits it; this flag adds the full per-case detail.",
     )
+    .option(
+      "--run-self-test",
+      "Execute the skill's declared `self_test.command` (a deterministic script) and fold its " +
+        "exit-code verdict in as a binary `self-test` criterion — grading the script's observed " +
+        "output, not the model's claim. OPT-IN: this runs a command the eval-spec declares, so " +
+        "only pass it for skills you trust. The command runs shell-free, in the skill dir, with " +
+        "a scoped env (no inherited API keys) and a timeout.",
+    )
     .action(async (skillDir: string, opts: EvalOptions) => {
       const startTime = Date.now();
 
@@ -357,6 +369,35 @@ export function registerEvalCommand(program: Command): void {
         const bundleRunIds: number[] = [];
         const jrigVersion = __CLI_VERSION__ ?? "0.0.0";
         const commit = resolveCommitSha(absDir, skillSnapshotSha);
+
+        // ── Deterministic self-test (opt-in) ─────────────────────────────
+        // Run the skill's declared `self_test.command` ONCE (it is
+        // model-independent) and fold its verdict into every model's scorecard
+        // as a `self-test` criterion. This closes the "script-backed skills
+        // under-score" gap: a completion-only eval grades the model reading
+        // SKILL.md, never the deterministic script that actually produces the
+        // correct verdicts (design principle #3 — observed outranks claimed).
+        let selfTestJudgment: JudgmentResult | undefined;
+        let selfTestCriterion: Criterion | undefined;
+        if (spec.self_test) {
+          if (opts.runSelfTest) {
+            const st = runSelfTest(spec.self_test, absDir);
+            selfTestJudgment = toSelfTestJudgment(st);
+            selfTestCriterion = buildSelfTestCriterion(spec.self_test);
+            if (!opts.json) {
+              const mark = st.passed ? icon("pass") : icon("error");
+              console.log(
+                `  Self-test: ${mark} ${selfTestJudgment.reasoning}` +
+                  (selfTestCriterion.blocker ? " (blocker)" : ""),
+              );
+            }
+          } else if (!opts.json) {
+            console.log(
+              "  Self-test: skill declares a self_test; re-run with --run-self-test to " +
+                "execute it as a deterministic criterion.",
+            );
+          }
+        }
 
         for (const model of models) {
           const modelStart = Date.now();
@@ -564,8 +605,25 @@ export function registerEvalCommand(program: Command): void {
               errors,
             });
 
+            // Fold the (model-independent) self-test verdict into THIS model's
+            // judgments + scoring criteria so it flows through the same
+            // scorecard → blocker → rollout path as every other criterion.
+            if (selfTestJudgment) {
+              allJudgments.push(selfTestJudgment);
+              const stOutcome =
+                selfTestJudgment.verdict === "yes" ? CriterionOutcome.PASS : CriterionOutcome.FAIL;
+              if (stOutcome === CriterionOutcome.FAIL) runHadFailure = true;
+              emitRuntimeCriterionEvaluated(correlation, {
+                matcherClass: "deterministic",
+                outcome: stOutcome,
+              });
+            }
+
             // ── Governance ─────────────────────────────────────────────
-            const scoreCard = computeScoreCard(allJudgments, spec.criteria);
+            const scoringCriteria = selfTestCriterion
+              ? [...spec.criteria, selfTestCriterion]
+              : spec.criteria;
+            const scoreCard = computeScoreCard(allJudgments, scoringCriteria);
             const decision = decideRollout(scoreCard);
             const report = buildLaunchReport(
               skillName,

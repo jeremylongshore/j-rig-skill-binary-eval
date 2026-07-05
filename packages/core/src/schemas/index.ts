@@ -10,6 +10,8 @@ export {
   type SiblingSkill,
 } from "./eval-spec.js";
 
+export { SelfTestSchema, SELF_TEST_CRITERION_ID, type SelfTest } from "./self-test.js";
+
 export { EvalContractSchema, type EvalContract } from "./eval-contract.js";
 
 export {
