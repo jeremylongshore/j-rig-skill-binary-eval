@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -106,6 +106,72 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
         );
         expect(row.predicate.metadata?.ground_truth).toBe(false);
       }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  // A spec author declares which model the skill targets (e.g. deepseek-v4-flash);
+  // j-rig used to ignore `spec.models` and default `--models` to sonnet, which on
+  // the OpenAI-compatible path 400s to empty output and blocks the run for a reason
+  // unrelated to skill quality. The spec's models must be the default; `--models`
+  // must still override.
+  it("uses the spec's models by default and lets --models override", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-models-e2e-"));
+    const specPath = join(work, "spec.yaml");
+    writeFileSync(
+      specPath,
+      [
+        'spec_version: "1.0"',
+        "skill_name: j-rig-eval",
+        "description: model-resolution e2e",
+        "models:",
+        "  - spec-model-alpha",
+        "criteria:",
+        "  - id: c1",
+        "    description: produces a non-empty response",
+        "    method: deterministic",
+        "    deterministic_check: not_empty",
+        "test_cases:",
+        "  - id: t1",
+        "    description: basic",
+        "    tier: core",
+        "    prompt: evaluate a skill",
+        "    trigger_expectation: should_trigger",
+        "    criteria_ids:",
+        "      - c1",
+        "",
+      ].join("\n"),
+    );
+    const run = (extraArgs: string[], db: string) =>
+      spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          specPath,
+          "--provider",
+          "stub",
+          "--db",
+          db,
+          ...extraArgs,
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+    try {
+      // No --models → the spec's model is used, not the sonnet default.
+      const r1 = run([], join(work, "a.db"));
+      expect(r1.status, `default-models run failed:\n${r1.stderr}`).toBe(0);
+      expect(r1.stdout).toContain("spec-model-alpha");
+      expect(r1.stdout).not.toContain("Model: sonnet");
+
+      // --models still overrides the spec.
+      const r2 = run(["--models", "flag-model-beta"], join(work, "b.db"));
+      expect(r2.status, `override run failed:\n${r2.stderr}`).toBe(0);
+      expect(r2.stdout).toContain("flag-model-beta");
+      expect(r2.stdout).not.toContain("spec-model-alpha");
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

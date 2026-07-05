@@ -265,7 +265,12 @@ export function registerEvalCommand(program: Command): void {
     .description("Run full 7-layer binary evaluation on a skill")
     .argument("<skill-dir>", "Path to skill directory containing SKILL.md")
     .option("--spec <path>", "Path to eval spec YAML")
-    .option("--models <list>", "Comma-separated model list", "sonnet")
+    .option(
+      "--models <list>",
+      "Comma-separated model list. Overrides the spec's `models` when given; " +
+        "otherwise the spec's declared models are used (falling back to sonnet).",
+      "sonnet",
+    )
     .option("--db <path>", "SQLite DB path", "j-rig.db")
     .option("--json", "Output as JSON")
     .option("--no-trigger", "Skip trigger tests")
@@ -296,7 +301,7 @@ export function registerEvalCommand(program: Command): void {
         "only pass it for skills you trust. The command runs shell-free, in the skill dir, with " +
         "a scoped env (no inherited API keys) and a timeout.",
     )
-    .action(async (skillDir: string, opts: EvalOptions) => {
+    .action(async (skillDir: string, opts: EvalOptions, command: Command) => {
       const startTime = Date.now();
 
       try {
@@ -316,7 +321,17 @@ export function registerEvalCommand(program: Command): void {
         const absDir = resolve(skillDir);
         const { parsed: skill, raw: skillContent } = loadSkillMd(absDir);
         const spec = loadEvalSpec(opts.spec, absDir);
-        const models = opts.models.split(",").map((m) => m.trim());
+        // Honor the spec's declared `models` unless the operator EXPLICITLY passed
+        // `--models`. The spec author knows which model the skill targets (e.g.
+        // `deepseek-v4-flash`); silently defaulting to the CLI's "sonnet" tested the
+        // wrong model — and on the OpenAI-compatible path an unknown model id 400s
+        // to empty output, so every judge criterion fails on an absent response and
+        // the run blocks for a reason unrelated to skill quality. The `--models`
+        // flag, when given, still overrides (source === "cli").
+        const modelsExplicit = command.getOptionValueSource("models") === "cli";
+        const modelsCsv =
+          modelsExplicit || spec.models.length === 0 ? opts.models : spec.models.join(",");
+        const models = modelsCsv.split(",").map((m) => m.trim());
         const database = openDb(opts.db);
         const skillName = skill.frontmatter.name;
         // Kernel cutover [9k5h.15]: the standard tier is open-world on optional
