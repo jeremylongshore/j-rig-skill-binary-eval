@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CriterionSchema } from "./criterion.js";
+import { SELF_TEST_CRITERION_ID, SelfTestSchema } from "./self-test.js";
 import { TestCaseSchema } from "./test-case.js";
 
 /**
@@ -57,6 +58,10 @@ export const EvalSpecSchema = z
       .describe("Name of the skill being evaluated"),
     description: z.string().min(1).describe("What this eval spec covers"),
     criteria: z.array(CriterionSchema).min(1).describe("Binary criteria to evaluate"),
+    self_test: SelfTestSchema.optional().describe(
+      "Optional deterministic self-test: run the skill's own script (opt-in, via " +
+        "`--run-self-test`) and fold its exit-code verdict in as a binary criterion.",
+    ),
     test_cases: z.array(TestCaseSchema).min(1).describe("Test cases to run"),
     models: z.array(ModelTarget).default(["sonnet"]).describe("Models to test independently"),
     siblings: z
@@ -73,6 +78,19 @@ export const EvalSpecSchema = z
   // load-time validation; `selectCriteriaForTestCase` keeps the same guard at
   // runtime as defense-in-depth).
   .superRefine((spec, ctx) => {
+    // `self-test` is a reserved criterion id: when a spec declares `self_test`,
+    // j-rig injects a synthetic criterion under this id to score the script's
+    // exit-code verdict. A user criterion sharing the id would collide with it.
+    spec.criteria.forEach((c, ci) => {
+      if (c.id === SELF_TEST_CRITERION_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `criterion id "${SELF_TEST_CRITERION_ID}" is reserved for the self_test verdict`,
+          path: ["criteria", ci, "id"],
+        });
+      }
+    });
+
     const knownCriteria = new Set(spec.criteria.map((c) => c.id));
     spec.test_cases.forEach((tc, ti) => {
       tc.criteria_ids?.forEach((cid, ci) => {
