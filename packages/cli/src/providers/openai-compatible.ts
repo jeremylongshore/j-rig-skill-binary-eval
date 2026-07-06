@@ -43,6 +43,7 @@ import type {
   ExecutionOutput,
   ExecutionMeta,
   JudgeProvider,
+  JudgeCallOptions,
   JudgmentVerdict,
   ChatMessage,
   CompletionRequest,
@@ -674,6 +675,7 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
     prompt: string,
     output: string,
     judge_prompt?: string,
+    options?: JudgeCallOptions,
   ): Promise<{ verdict: JudgmentVerdict; confidence: number; reasoning: string }> {
     const system =
       "You are a strict binary evaluator. Decide whether the OUTPUT satisfies the " +
@@ -693,7 +695,9 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
         { role: "user", content: user },
       ],
       maxTokens: REASONING_VERDICT_MAX_TOKENS,
-      temperature: 0,
+      // Greedy by default; multi-sample majority voting passes a temperature
+      // so the N samples draw independent verdicts.
+      temperature: options?.temperature ?? 0,
     });
 
     const parsed = parseJsonObject(result.text);

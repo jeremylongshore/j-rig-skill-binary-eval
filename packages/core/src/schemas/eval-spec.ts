@@ -64,6 +64,39 @@ export const EvalSpecSchema = z
     ),
     test_cases: z.array(TestCaseSchema).min(1).describe("Test cases to run"),
     models: z.array(ModelTarget).default(["sonnet"]).describe("Models to test independently"),
+    samples: z
+      .number()
+      .int()
+      .min(1)
+      .max(25)
+      .optional()
+      .describe(
+        "Default judge samples per judge-method criterion (N-sample majority voting). An " +
+          "un-seeded LLM judge is nondeterministic even at temperature 0, so a single call " +
+          "makes the binary verdict unstable run-to-run; N samples + majority vote turn that " +
+          "noise into a measured agreement fraction. Omitted = 1 (legacy single call). A " +
+          "criterion's own `samples` overrides this.",
+      ),
+    judge_temperature: z
+      .number()
+      .min(0)
+      .max(2)
+      .optional()
+      .describe(
+        "Default sampling temperature for judge calls (provider default 0 when omitted). " +
+          "A criterion's own `judge_temperature` overrides this.",
+      ),
+    min_blocker_agreement: z
+      .number()
+      .min(0.5)
+      .max(1)
+      .optional()
+      .describe(
+        "Stability gate: a multi-sampled blocker 'no' counts as a release-blocking failure " +
+          "only when its agreement fraction is >= this threshold; below it the verdict is " +
+          "too unstable to honestly BLOCK (or sign) on, and is downgraded to a warning. " +
+          "Applies only to judge-method criteria that were actually multi-sampled.",
+      ),
     siblings: z
       .array(SiblingSkillSchema)
       .optional()
