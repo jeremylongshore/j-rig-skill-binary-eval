@@ -40,8 +40,7 @@ import { SkillFrontmatterSchema } from "@intentsolutions/core/validators/v1/auth
  * schema-revision-candidate record.
  */
 export type SchemaValidityResult =
-  | { readonly valid: true }
-  | { readonly valid: false; readonly issues: readonly string[] };
+  { readonly valid: true } | { readonly valid: false; readonly issues: readonly string[] };
 
 /**
  * A pure validator for SKILL.md frontmatter. Receives the FULL skill-doc text
