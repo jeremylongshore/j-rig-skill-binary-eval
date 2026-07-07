@@ -84,6 +84,7 @@ interface EvalOptions {
   emitBundle?: string;
   traceBoundary?: boolean;
   runSelfTest?: boolean;
+  samples?: string;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -294,6 +295,13 @@ export function registerEvalCommand(program: Command): void {
         "any case hits it; this flag adds the full per-case detail.",
     )
     .option(
+      "--samples <n>",
+      "Judge samples per judge-method criterion (N-sample majority voting): the verdict is " +
+        "the majority vote and `confidence` becomes the measured agreement fraction. " +
+        "Overrides the spec's `samples`; a criterion's own `samples` overrides both. " +
+        "Default: the spec's `samples`, else 1 (single call).",
+    )
+    .option(
       "--run-self-test",
       "Execute the skill's declared `self_test.command` (a deterministic script) and fold its " +
         "exit-code verdict in as a binary `self-test` criterion — grading the script's observed " +
@@ -332,6 +340,17 @@ export function registerEvalCommand(program: Command): void {
         const modelsCsv =
           modelsExplicit || spec.models.length === 0 ? opts.models : spec.models.join(",");
         const models = modelsCsv.split(",").map((m) => m.trim());
+
+        // Judge sample count for N-sample majority voting: `--samples` (the
+        // re-run/stability-protocol override) beats the spec's `samples`
+        // default; a criterion's own `samples` beats both (resolved in the
+        // judgment engine). Undefined = 1 = legacy single call.
+        // Number(), not parseInt(): parseInt silently truncates "2.5" to 2;
+        // Number keeps the fraction so the integer check below rejects it.
+        const judgeSamples = opts.samples !== undefined ? Number(opts.samples) : spec.samples;
+        if (judgeSamples !== undefined && (!Number.isInteger(judgeSamples) || judgeSamples < 1)) {
+          throw new Error(`--samples must be a positive integer, got "${opts.samples}"`);
+        }
         const database = openDb(opts.db);
         const skillName = skill.frontmatter.name;
         // Kernel cutover [9k5h.15]: the standard tier is open-world on optional
@@ -472,7 +491,14 @@ export function registerEvalCommand(program: Command): void {
               spec.test_cases,
               skill,
               providers.execution,
-              { model },
+              {
+                model,
+                // Pin execution to greedy decoding unless the spec opts into
+                // sampling: at the API default (~1.0) the OUTPUT being judged
+                // is a fresh random draw every run — verdict variance that no
+                // amount of judge stabilization can absorb.
+                temperature: spec.execution_temperature ?? 0,
+              },
             );
 
             if (!opts.json) {
@@ -547,6 +573,10 @@ export function registerEvalCommand(program: Command): void {
               );
               const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
                 model,
+                // N-sample majority voting: --samples overrides the spec's
+                // default; a criterion's own `samples` overrides both.
+                samples: judgeSamples,
+                judgeTemperature: spec.judge_temperature,
               });
 
               // OTel per-criterion events (067 §§ 1.1, 1.2). For judge-method
@@ -555,19 +585,26 @@ export function registerEvalCommand(program: Command): void {
               // outcome mapped to the closed {pass,fail,skip} enum.
               for (const j of judgments) {
                 if (j.method === "judge") {
-                  emitJudgeInvoked(correlation, {
-                    judgeId: `j-rig:judge:${j.criterion_id}`,
-                    modelId: j.judge_model ?? model,
-                    modelVersion: skillVersion,
-                  });
-                  // A judge with no seed cannot reach RF-2 (066 § 1); j-rig
-                  // judges run un-seeded today, so verdict_source is
-                  // llm_no_seed and the seed attribute is null (omitted).
-                  emitJudgeVerdict(correlation, {
-                    verdict: j.verdict,
-                    verdictSource: JudgeVerdictSource.LLM_NO_SEED,
-                    seed: null,
-                  });
+                  // One invoked+verdict pair PER SAMPLE: with multi-sample
+                  // majority voting the per-sample verdicts are the auditable
+                  // trace of the judge noise the majority decision absorbed.
+                  // Single-call results have no sample_verdicts and emit the
+                  // legacy single pair.
+                  for (const sampleVerdict of j.sample_verdicts ?? [j.verdict]) {
+                    emitJudgeInvoked(correlation, {
+                      judgeId: `j-rig:judge:${j.criterion_id}`,
+                      modelId: j.judge_model ?? model,
+                      modelVersion: skillVersion,
+                    });
+                    // A judge with no seed cannot reach RF-2 (066 § 1); j-rig
+                    // judges run un-seeded today, so verdict_source is
+                    // llm_no_seed and the seed attribute is null (omitted).
+                    emitJudgeVerdict(correlation, {
+                      verdict: sampleVerdict,
+                      verdictSource: JudgeVerdictSource.LLM_NO_SEED,
+                      seed: null,
+                    });
+                  }
                 }
                 const criterionOutcome =
                   j.verdict === "yes"
@@ -579,10 +616,19 @@ export function registerEvalCommand(program: Command): void {
                 emitRuntimeCriterionEvaluated(correlation, {
                   matcherClass: j.method,
                   outcome: criterionOutcome,
+                  // Multi-sample enrichment: agreement is queryable per
+                  // criterion without folding the N judge.verdict events.
+                  samples: j.samples,
+                  agreement: j.agreement,
                 });
               }
 
-              allJudgments.push(...judgments);
+              // Stamp each judgment row with its test case: a criterion judged
+              // on multiple test cases produces one row per case, and the
+              // vote-evidence array is ambiguous without the id.
+              allJudgments.push(
+                ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
+              );
             }
 
             // Fold the (model-independent) self-test verdict into THIS model's
@@ -639,7 +685,12 @@ export function registerEvalCommand(program: Command): void {
             const scoringCriteria = selfTestCriterion
               ? [...spec.criteria, selfTestCriterion]
               : spec.criteria;
-            const scoreCard = computeScoreCard(allJudgments, scoringCriteria);
+            const scoreCard = computeScoreCard(allJudgments, scoringCriteria, [], {
+              // Stability gate: a multi-sampled blocker "no" below this
+              // agreement fraction downgrades to a warning — a verdict too
+              // unstable to reproduce is too unstable to BLOCK (or sign) on.
+              min_blocker_agreement: spec.min_blocker_agreement,
+            });
             const decision = decideRollout(scoreCard);
             const report = buildLaunchReport(
               skillName,
@@ -702,6 +753,45 @@ export function registerEvalCommand(program: Command): void {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
               const triggerRan = opts.trigger !== false;
+              // Vote evidence (audit-substrate review, finding 1): the signed
+              // predicate must carry the FOLD INPUTS — per-judgment samples,
+              // agreement, and per-sample verdicts — plus the aggregation rule
+              // in force, so a verifier can re-derive the verdict from the
+              // signed bytes ("majority of these N recorded votes", never
+              // "the judge said so"). `stability` is present IFF multi-
+              // sampling actually ran, so absence unambiguously means "no
+              // stability evidence" — never a fake measured-0.
+              const criteriaById = new Map(scoringCriteria.map((c) => [c.id, c]));
+              const multiSampled = allJudgments.some((j) => (j.samples ?? 1) >= 2);
+              const voteEvidence = {
+                aggregation: {
+                  rule: "majority-vote",
+                  denominator_rule: "errored-samples-count-as-unsure",
+                  blocker_quorum: spec.min_blocker_agreement ?? null,
+                  samples_default: judgeSamples ?? 1,
+                },
+                criteria: allJudgments.map((j) => ({
+                  criterion_id: j.criterion_id,
+                  ...(j.test_case_id !== undefined ? { test_case_id: j.test_case_id } : {}),
+                  blocker: criteriaById.get(j.criterion_id)?.blocker ?? false,
+                  method: j.method,
+                  verdict: j.verdict,
+                  ...(j.samples !== undefined ? { samples: j.samples } : {}),
+                  ...(j.agreement !== undefined ? { agreement: j.agreement } : {}),
+                  ...(j.sample_verdicts !== undefined
+                    ? { sample_verdicts: j.sample_verdicts }
+                    : {}),
+                })),
+                ...(multiSampled
+                  ? {
+                      stability: {
+                        min_blocker_agreement: spec.min_blocker_agreement ?? null,
+                        unstable_blocker_failures: scoreCard.unstable_blocker_failures ?? 0,
+                      },
+                    }
+                  : {}),
+              };
+              const hasJudgeCriteria = allJudgments.some((j) => j.method === "judge");
               const statement = composeStatement({
                 gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
                 gateDecision,
@@ -731,7 +821,14 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
+                  ...voteEvidence,
                 },
+                // Honest replay-fidelity claim: an un-seeded API judge caps the
+                // statement below RF-2 (the OTel llm_no_seed classification) —
+                // the fold is replayable from the recorded votes above, the
+                // votes are not reproducible from scratch. Pure-deterministic
+                // runs make no claim rather than guessing a higher level.
+                ...(hasJudgeCriteria ? { replayFidelityLevel: "RF-1" as const } : {}),
                 ...(gateDecision === "fail"
                   ? { failureMode: report.blockers[0] ?? "blocker-criterion-failed" }
                   : {}),

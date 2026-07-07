@@ -88,6 +88,15 @@ export interface ComposeStatementInput {
   failureMode?: string;
   /** Required when gateDecision === "advisory" per kernel rule. */
   advisorySeverity?: AdvisorySeverity;
+  /**
+   * Optional replay-fidelity level (kernel gate-result/v1 enum). State the
+   * HONEST level: for an un-seeded API judge the fold is replayable-from-
+   * record but the votes are not reproducible-from-scratch (< RF-2, matching
+   * the OTel `llm_no_seed` verdict-source classification). Omitting it lets a
+   * reader assume more determinism than exists — silence defaults to the
+   * stronger, false claim.
+   */
+  replayFidelityLevel?: "RF-0" | "RF-1" | "RF-2" | "RF-3" | "RF-4";
 }
 
 /**
@@ -133,6 +142,8 @@ export function composeStatement(input: ComposeStatementInput): EvidenceStatemen
   if (input.metadata !== undefined) predicate.metadata = input.metadata;
   if (input.failureMode !== undefined) predicate.failure_mode = input.failureMode;
   if (input.advisorySeverity !== undefined) predicate.advisory_severity = input.advisorySeverity;
+  if (input.replayFidelityLevel !== undefined)
+    predicate.replay_fidelity_level = input.replayFidelityLevel;
 
   const candidate = {
     _type: STATEMENT_TYPE,

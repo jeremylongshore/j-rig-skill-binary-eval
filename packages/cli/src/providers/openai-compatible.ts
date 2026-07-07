@@ -43,6 +43,7 @@ import type {
   ExecutionOutput,
   ExecutionMeta,
   JudgeProvider,
+  JudgeCallOptions,
   JudgmentVerdict,
   ChatMessage,
   CompletionRequest,
@@ -603,7 +604,7 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
   async execute(
     prompt: string,
     context: ExecutionContext,
-    options?: { timeout_ms?: number; model?: string },
+    options?: { timeout_ms?: number; model?: string; temperature?: number },
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
@@ -618,6 +619,9 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
           { role: "system", content: context.skill_body },
           { role: "user", content: prompt },
         ],
+        // Honor the eval's execution-temperature pin (reproducible outputs);
+        // absent, the API default (~1.0) applies.
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
         // Functional execution must leave room for a full skill output AND, on
         // reasoning models (e.g. deepseek-v4-flash), the hidden reasoning tokens
         // that count against max_tokens but never appear in `content`. At the old
@@ -674,6 +678,7 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
     prompt: string,
     output: string,
     judge_prompt?: string,
+    options?: JudgeCallOptions,
   ): Promise<{ verdict: JudgmentVerdict; confidence: number; reasoning: string }> {
     const system =
       "You are a strict binary evaluator. Decide whether the OUTPUT satisfies the " +
@@ -693,7 +698,9 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
         { role: "user", content: user },
       ],
       maxTokens: REASONING_VERDICT_MAX_TOKENS,
-      temperature: 0,
+      // Greedy by default; multi-sample majority voting passes a temperature
+      // so the N samples draw independent verdicts.
+      temperature: options?.temperature ?? 0,
     });
 
     const parsed = parseJsonObject(result.text);

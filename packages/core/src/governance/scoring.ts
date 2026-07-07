@@ -36,26 +36,57 @@ export interface BuildLaunchReportOptions {
 }
 
 /**
+ * Stability options for {@link computeScoreCard} — the noise-robustness gate.
+ */
+export interface StabilityOptions {
+  /**
+   * Agreement fraction a MULTI-SAMPLED blocker "no" must reach to count as a
+   * release-blocking failure. Below it, the verdict is too unstable to
+   * honestly BLOCK (or sign) on — it downgrades to `unstable_blocker_failures`
+   * (still `failed`, so the rollout lands on WARN, never a noise-BLOCK and
+   * never a false SHIP). Single-call judge results and deterministic results
+   * are never downgraded — with one sample there is no stability evidence,
+   * so the legacy any-blocker-no → BLOCK rule stands.
+   */
+  min_blocker_agreement?: number;
+}
+
+/**
  * Compute a score card from judgment results.
  */
 export function computeScoreCard(
   results: JudgmentResult[],
   criteria: Criterion[],
   regressions: Regression[] = [],
+  stability?: StabilityOptions,
 ): ScoreCard {
   const criteriaMap = new Map(criteria.map((c) => [c.id, c]));
+  const threshold = stability?.min_blocker_agreement;
 
   let passed = 0,
     failed = 0,
     unsure = 0,
-    blockerFailures = 0;
+    blockerFailures = 0,
+    unstableBlockerFailures = 0;
 
   for (const r of results) {
     if (r.verdict === "yes") passed++;
     else if (r.verdict === "no") {
       failed++;
       const criterion = criteriaMap.get(r.criterion_id);
-      if (criterion?.blocker) blockerFailures++;
+      if (criterion?.blocker) {
+        // Stability gate: only a REPRODUCED blocker "no" blocks. Applies only
+        // when the judge actually multi-sampled (samples >= 2) AND the spec
+        // opted into a threshold; everything else keeps legacy semantics.
+        const unstable =
+          threshold !== undefined &&
+          r.method === "judge" &&
+          typeof r.agreement === "number" &&
+          (r.samples ?? 1) >= 2 &&
+          r.agreement < threshold;
+        if (unstable) unstableBlockerFailures++;
+        else blockerFailures++;
+      }
     } else {
       unsure++;
     }
@@ -71,6 +102,7 @@ export function computeScoreCard(
     blocker_failures: blockerFailures,
     sacred_regressions: sacredRegressions,
     pass_rate: results.length > 0 ? passed / results.length : 0,
+    unstable_blocker_failures: unstableBlockerFailures,
   };
 }
 
@@ -83,6 +115,11 @@ export function computeScoreCard(
  * - Obsolete candidate → OBSOLETE_REVIEW
  * - Any non-blocker failures or unsure → WARN
  * - All pass → SHIP
+ *
+ * Stability note: when the spec opts into `min_blocker_agreement`, a
+ * multi-sampled blocker "no" below the threshold never reaches
+ * `blocker_failures` (see {@link computeScoreCard}) — it stays in `failed`,
+ * so the decision lands on WARN: never a noise-BLOCK, never a false SHIP.
  */
 export function decideRollout(score: ScoreCard, isObsolete: boolean = false): RolloutDecision {
   if (score.blocker_failures > 0) return "block";
@@ -115,7 +152,11 @@ export function buildLaunchReport(
   const warnings: string[] = [];
 
   if (score.blocker_failures > 0) {
-    blockers.push(`${score.blocker_failures} blocker criteria failed`);
+    // "criterion evaluations", not "criteria": the count is per judgment row,
+    // and one criterion judged on multiple test cases contributes one row per
+    // test case — saying "criteria" over-counts distinct criteria (flagged on
+    // the first published vote-evidence bundle).
+    blockers.push(`${score.blocker_failures} blocker criterion evaluation(s) failed`);
   }
   if (score.sacred_regressions > 0) {
     blockers.push(`${score.sacred_regressions} sacred regressions detected`);
@@ -126,8 +167,18 @@ export function buildLaunchReport(
   if (score.unsure > 0) {
     warnings.push(`${score.unsure} criteria could not be judged (unsure)`);
   }
-  if (score.failed > 0 && score.blocker_failures === 0) {
-    warnings.push(`${score.failed} non-blocker criteria failed`);
+  if ((score.unstable_blocker_failures ?? 0) > 0) {
+    warnings.push(
+      `${score.unstable_blocker_failures} blocker criterion evaluation(s) failed below the agreement ` +
+        `stability threshold — unstable verdicts downgraded to warnings, not blockers ` +
+        `(re-run with more samples to resolve)`,
+    );
+  }
+  // Unstable blocker failures are already covered by their own warning above —
+  // don't double-report them as "non-blocker" failures here.
+  const nonBlockerFailures = score.failed - (score.unstable_blocker_failures ?? 0);
+  if (nonBlockerFailures > 0 && score.blocker_failures === 0) {
+    warnings.push(`${nonBlockerFailures} non-blocker criterion evaluation(s) failed`);
   }
 
   const reasoning =

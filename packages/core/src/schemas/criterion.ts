@@ -33,6 +33,26 @@ export const CriterionSchema = z
       .default(false)
       .describe("If true, evaluate in context of sibling skills"),
     judge_prompt: z.string().optional().describe("Prompt template for judge-based criteria"),
+    samples: z
+      .number()
+      .int()
+      .min(1)
+      .max(25)
+      .optional()
+      .describe(
+        "Judge samples for THIS criterion (N-sample majority voting; verdict = majority, " +
+          "confidence = agreement fraction). Overrides the spec-level `samples`. Ignored for " +
+          "deterministic criteria. Omitted = single call (legacy).",
+      ),
+    judge_temperature: z
+      .number()
+      .min(0)
+      .max(2)
+      .optional()
+      .describe(
+        "Sampling temperature for judge calls on THIS criterion (overrides the spec-level " +
+          "`judge_temperature`). Ignored for deterministic criteria.",
+      ),
     deterministic_check: z
       .string()
       .optional()

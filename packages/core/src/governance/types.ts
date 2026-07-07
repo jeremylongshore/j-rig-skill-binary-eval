@@ -34,6 +34,15 @@ export interface ScoreCard {
   blocker_failures: number;
   sacred_regressions: number;
   pass_rate: number;
+  /**
+   * ADDITIVE (stability gate): blocker "no" verdicts whose multi-sample judge
+   * agreement fell below the spec's `min_blocker_agreement` threshold. These
+   * still count in `failed` (the majority said no) but NOT in
+   * `blocker_failures` — a verdict too unstable to reproduce is too unstable
+   * to BLOCK (or sign) on, so it downgrades to a warning. Optional so
+   * hand-built ScoreCard literals (tests, external callers) stay valid.
+   */
+  unstable_blocker_failures?: number;
 }
 
 /**

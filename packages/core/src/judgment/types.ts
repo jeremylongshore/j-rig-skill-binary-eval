@@ -5,6 +5,15 @@ export type JudgmentVerdict = "yes" | "no" | "unsure";
 
 /**
  * Result of judging a single criterion.
+ *
+ * `samples` / `agreement` / `sample_verdicts` are ADDITIVE multi-sample fields:
+ * absent on deterministic results and on legacy single-call judge results
+ * (samples=1), so every existing consumer keeps its exact shape. When a judge
+ * criterion is multi-sampled (N-sample majority voting), `verdict` is the
+ * majority vote, `agreement` is the fraction of tallied samples that voted for
+ * it, and `confidence` REUSES the existing field to carry that agreement
+ * fraction — a real, observed number replacing the judge's self-reported (and
+ * uncalibrated) confidence.
  */
 export interface JudgmentResult {
   criterion_id: string;
@@ -13,6 +22,40 @@ export interface JudgmentResult {
   reasoning: string;
   method: "deterministic" | "judge";
   judge_model?: string;
+  /**
+   * ADDITIVE: the test case this judgment row belongs to. A criterion judged
+   * on multiple test cases produces one row per test case — without this id
+   * the flattened vote-evidence array is ambiguous to automated consumers
+   * (flagged on the first published vote-evidence bundle). Set by the eval
+   * command; absent on synthetic rows (e.g. the self-test verdict).
+   */
+  test_case_id?: string;
+  /** Judge samples tallied into this verdict (absent = single call). */
+  samples?: number;
+  /** Fraction of tallied samples agreeing with the majority verdict (multi-sample only). */
+  agreement?: number;
+  /**
+   * Per-sample verdicts in DISPATCH order (multi-sample only) — the audit
+   * trail of the noise. Promise.allSettled preserves input order, not
+   * completion order; the majority fold is order-invariant, but any future
+   * order-dependent fold (e.g. sequential quorum-lock early-stop) must record
+   * its own ordering explicitly.
+   */
+  sample_verdicts?: JudgmentVerdict[];
+}
+
+/**
+ * Per-call options a judge provider MAY honor. Additive and optional so the
+ * mock/stub providers (and any external implementation) remain valid without
+ * change — a narrower implementation simply ignores it.
+ */
+export interface JudgeCallOptions {
+  /**
+   * Sampling temperature for THIS judge call. Multi-sample majority voting
+   * samples at temperature > 0 to draw independent verdicts; single-call
+   * judging keeps the provider default (0, greedy).
+   */
+  temperature?: number;
 }
 
 /**
@@ -52,5 +95,6 @@ export interface JudgeProvider {
     prompt: string,
     output: string,
     judge_prompt?: string,
+    options?: JudgeCallOptions,
   ): Promise<{ verdict: JudgmentVerdict; confidence: number; reasoning: string }>;
 }

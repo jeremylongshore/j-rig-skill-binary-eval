@@ -18,6 +18,8 @@ export async function runFunctionalTests(
     file_contents?: Record<string, string>;
     timeout_ms?: number;
     model?: string;
+    /** Sampling temperature for skill execution (see ExecutionProvider). */
+    temperature?: number;
   },
 ): Promise<ObservedOutcome[]> {
   const outcomes: ObservedOutcome[] = [];
@@ -39,6 +41,7 @@ export async function runFunctionalTests(
       const result = await provider.execute(tc.prompt, context, {
         timeout_ms: options?.timeout_ms,
         model: options?.model,
+        temperature: options?.temperature,
       });
 
       outcomes.push({

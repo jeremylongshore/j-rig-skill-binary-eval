@@ -196,6 +196,148 @@ describe("judgeCriteria", () => {
   });
 });
 
+describe("judgeCriteria — N-sample majority voting", () => {
+  /** A judge that replays a scripted verdict sequence, one per call. */
+  function sequenceJudge(
+    script: Array<"yes" | "no" | "unsure" | Error>,
+    calls?: Array<{ temperature?: number }>,
+  ): JudgeProvider {
+    let i = 0;
+    return {
+      async judge(_d, _p, _o, _jp, options) {
+        calls?.push({ temperature: options?.temperature });
+        const step = script[i++];
+        if (step === undefined) throw new Error("sequenceJudge exhausted");
+        if (step instanceof Error) throw step;
+        return { verdict: step, confidence: 0.9, reasoning: `sample says ${step}` };
+      },
+    };
+  }
+
+  const judgeCrit = (extra?: Record<string, unknown>): Criterion =>
+    CriterionSchema.parse({
+      id: "m1",
+      description: "Subjective quality",
+      method: "judge",
+      ...extra,
+    });
+
+  it("majority-votes the verdict and reports agreement as confidence", async () => {
+    const provider = sequenceJudge(["yes", "no", "yes", "yes", "no"]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 5 });
+
+    expect(r!.verdict).toBe("yes");
+    expect(r!.samples).toBe(5);
+    expect(r!.agreement).toBeCloseTo(3 / 5);
+    expect(r!.confidence).toBeCloseTo(3 / 5);
+    expect(r!.sample_verdicts).toEqual(["yes", "no", "yes", "yes", "no"]);
+    expect(r!.reasoning).toContain("[3/5 yes]");
+    expect(r!.reasoning).toContain("sample says yes");
+  });
+
+  it("abstains to unsure on a plurality tie", async () => {
+    const provider = sequenceJudge(["yes", "no", "yes", "no"]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 4 });
+
+    expect(r!.verdict).toBe("unsure");
+    expect(r!.agreement).toBeCloseTo(0.5);
+    expect(r!.reasoning).toContain("tie");
+  });
+
+  it("counts errored samples as unsure votes — missing evidence weakens agreement", async () => {
+    const provider = sequenceJudge(["yes", new Error("boom"), "yes"]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(r!.verdict).toBe("yes");
+    expect(r!.samples).toBe(3);
+    expect(r!.agreement).toBeCloseTo(2 / 3);
+    expect(r!.sample_verdicts).toEqual(["yes", "unsure", "yes"]);
+    expect(r!.reasoning).toContain("errored");
+  });
+
+  it("never reports false certainty from a degraded run (1 success + 4 errors)", async () => {
+    // Regression: dropping failures shrank the denominator — a 1-of-5 degraded
+    // run reported agreement 1.0 with samples=1 and bypassed the stability
+    // gate. With error→unsure votes the run reads as what it is: mostly
+    // missing evidence.
+    const provider = sequenceJudge([
+      "no",
+      new Error("down"),
+      new Error("down"),
+      new Error("down"),
+      new Error("down"),
+    ]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 5 });
+
+    expect(r!.verdict).toBe("unsure");
+    expect(r!.samples).toBe(5);
+    expect(r!.agreement).toBeCloseTo(4 / 5);
+    expect(r!.sample_verdicts).toEqual(["no", "unsure", "unsure", "unsure", "unsure"]);
+  });
+
+  it("degrades to the legacy error result when every sample fails", async () => {
+    const provider = sequenceJudge([new Error("down"), new Error("down"), new Error("down")]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(r!.verdict).toBe("unsure");
+    expect(r!.confidence).toBe(0);
+    expect(r!.reasoning).toContain("down");
+    expect(r!.samples).toBeUndefined();
+  });
+
+  it("keeps the legacy single-call result shape when samples is 1 or unset", async () => {
+    const provider = sequenceJudge(["yes"]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 1 });
+
+    expect(r!.verdict).toBe("yes");
+    expect(r!.confidence).toBe(0.9); // provider-reported, not agreement
+    expect(r!.samples).toBeUndefined();
+    expect(r!.agreement).toBeUndefined();
+    expect(r!.sample_verdicts).toBeUndefined();
+  });
+
+  it("lets a criterion's own samples override the run-level default", async () => {
+    const provider = sequenceJudge(["yes", "yes", "yes"]);
+    const [r] = await judgeCriteria([judgeCrit({ samples: 3 })], makeOutcome("t"), provider, {
+      samples: 1,
+    });
+
+    expect(r!.samples).toBe(3);
+    expect(r!.agreement).toBe(1);
+  });
+
+  it("threads judge temperature through to the provider, criterion override first", async () => {
+    const calls: Array<{ temperature?: number }> = [];
+    const provider = sequenceJudge(["yes", "yes"], calls);
+    await judgeCriteria([judgeCrit({ judge_temperature: 0.7 })], makeOutcome("t"), provider, {
+      samples: 2,
+      judgeTemperature: 0.2,
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls.every((c) => c.temperature === 0.7)).toBe(true);
+  });
+
+  it("passes no call options when neither level sets a temperature", async () => {
+    const calls: Array<{ temperature?: number }> = [];
+    const provider = sequenceJudge(["yes"], calls);
+    await judgeCriteria([judgeCrit()], makeOutcome("t"), provider);
+
+    expect(calls).toEqual([{ temperature: undefined }]);
+  });
+
+  it("defaults multi-sample runs to temperature 0.7 when none is configured", async () => {
+    // Majority voting needs independent draws; sampling a nearly-collapsed
+    // temperature-0 distribution understates variance while multiplying cost.
+    const calls: Array<{ temperature?: number }> = [];
+    const provider = sequenceJudge(["yes", "yes", "yes"], calls);
+    await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(calls).toHaveLength(3);
+    expect(calls.every((c) => c.temperature === 0.7)).toBe(true);
+  });
+});
+
 describe("calibration", () => {
   it("measures accuracy against golden cases", async () => {
     const goldenCases: GoldenCase[] = [

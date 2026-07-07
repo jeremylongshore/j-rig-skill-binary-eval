@@ -255,3 +255,99 @@ describe("launch report", () => {
     expect(report.reasoning).toContain("blocked");
   });
 });
+
+describe("stability gate (noise-robust blocker scoring)", () => {
+  const blockerCriterion = criterion({
+    id: "b1",
+    description: "Blocker criterion",
+    method: "judge",
+    blocker: true,
+  });
+
+  function sampledNo(id: string, agreement: number, samples: number): JudgmentResult {
+    return {
+      criterion_id: id,
+      verdict: "no",
+      confidence: agreement,
+      reasoning: "",
+      method: "judge",
+      samples,
+      agreement,
+      sample_verdicts: [],
+    };
+  }
+
+  it("downgrades a multi-sampled blocker 'no' below the agreement threshold to unstable (WARN, not BLOCK)", () => {
+    const score = computeScoreCard([sampledNo("b1", 0.6, 5)], [blockerCriterion], [], {
+      min_blocker_agreement: 0.8,
+    });
+    expect(score.blocker_failures).toBe(0);
+    expect(score.unstable_blocker_failures).toBe(1);
+    expect(score.failed).toBe(1);
+    expect(decideRollout(score)).toBe("warn");
+  });
+
+  it("keeps a multi-sampled blocker 'no' at or above the threshold as a real BLOCK", () => {
+    const score = computeScoreCard([sampledNo("b1", 0.8, 5)], [blockerCriterion], [], {
+      min_blocker_agreement: 0.8,
+    });
+    expect(score.blocker_failures).toBe(1);
+    expect(score.unstable_blocker_failures).toBe(0);
+    expect(decideRollout(score)).toBe("block");
+  });
+
+  it("never downgrades a single-call blocker 'no' — one sample carries no stability evidence", () => {
+    const singleCall: JudgmentResult = {
+      criterion_id: "b1",
+      verdict: "no",
+      confidence: 0.3,
+      reasoning: "",
+      method: "judge",
+    };
+    const score = computeScoreCard([singleCall], [blockerCriterion], [], {
+      min_blocker_agreement: 0.8,
+    });
+    expect(score.blocker_failures).toBe(1);
+    expect(decideRollout(score)).toBe("block");
+  });
+
+  it("never downgrades a deterministic blocker failure", () => {
+    const detCriterion = CriterionSchema.parse({
+      id: "d1",
+      description: "Deterministic blocker",
+      method: "deterministic",
+      blocker: true,
+      deterministic_check: "contains",
+    });
+    const detResult: JudgmentResult = {
+      criterion_id: "d1",
+      verdict: "no",
+      confidence: 1,
+      reasoning: "",
+      method: "deterministic",
+    };
+    const score = computeScoreCard([detResult], [detCriterion], [], {
+      min_blocker_agreement: 0.8,
+    });
+    expect(score.blocker_failures).toBe(1);
+    expect(decideRollout(score)).toBe("block");
+  });
+
+  it("keeps legacy semantics when no threshold is configured, even for multi-sampled results", () => {
+    const score = computeScoreCard([sampledNo("b1", 0.6, 5)], [blockerCriterion]);
+    expect(score.blocker_failures).toBe(1);
+    expect(decideRollout(score)).toBe("block");
+  });
+
+  it("surfaces the unstable downgrade as a launch-report warning, not a blocker", () => {
+    const score = computeScoreCard([sampledNo("b1", 0.6, 5)], [blockerCriterion], [], {
+      min_blocker_agreement: 0.8,
+    });
+    const report = buildLaunchReport("test-skill", score, [], [], false);
+    expect(report.decision).toBe("warn");
+    expect(report.blockers).toHaveLength(0);
+    expect(report.warnings.join(" ")).toContain("agreement stability threshold");
+    // The unstable blocker must not be double-reported as a non-blocker failure.
+    expect(report.warnings.join(" ")).not.toContain("non-blocker criterion evaluation");
+  });
+});
