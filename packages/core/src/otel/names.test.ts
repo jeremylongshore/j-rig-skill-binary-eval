@@ -93,7 +93,7 @@ describe("OTel attribute keys", () => {
     expect(OtelAttrs.COST_PHASE_INPUT_TOKENS).toBe("cost.phase.input_tokens");
     expect(OtelAttrs.COST_PHASE_OUTPUT_TOKENS).toBe("cost.phase.output_tokens");
     expect(OtelAttrs.COST_PHASE_CALLS).toBe("cost.phase.calls");
-    expect(OtelAttrs.COST_PHASE_JUDGE_SAMPLES).toBe("cost.phase.judge_samples");
+    expect(OtelAttrs.COST_PHASE_JUDGE_SAMPLES).toBe("cost.phase.judge_samples_default");
   });
 
   it("every attribute key is dotted-lowercase with snake_case leaves (§ 4.1)", () => {
