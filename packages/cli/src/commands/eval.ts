@@ -491,7 +491,14 @@ export function registerEvalCommand(program: Command): void {
               spec.test_cases,
               skill,
               providers.execution,
-              { model },
+              {
+                model,
+                // Pin execution to greedy decoding unless the spec opts into
+                // sampling: at the API default (~1.0) the OUTPUT being judged
+                // is a fresh random draw every run — verdict variance that no
+                // amount of judge stabilization can absorb.
+                temperature: spec.execution_temperature ?? 0,
+              },
             );
 
             if (!opts.json) {

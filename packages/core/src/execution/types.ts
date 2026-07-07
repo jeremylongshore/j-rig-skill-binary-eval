@@ -61,6 +61,17 @@ export interface ExecutionProvider {
   execute(
     prompt: string,
     context: ExecutionContext,
-    options?: { timeout_ms?: number; model?: string },
+    options?: {
+      timeout_ms?: number;
+      model?: string;
+      /**
+       * Sampling temperature for the skill-under-test's execution. Left unset,
+       * providers fall back to the API default (typically 1.0) — which makes
+       * the OUTPUT being judged a fresh random draw every run. Reproducible
+       * verdicts need the eval to pin this (the eval command pins 0 unless the
+       * spec overrides via `execution_temperature`).
+       */
+      temperature?: number;
+    },
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }>;
 }

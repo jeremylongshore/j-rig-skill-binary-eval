@@ -86,6 +86,17 @@ export const EvalSpecSchema = z
         "Default sampling temperature for judge calls (provider default 0 when omitted). " +
           "A criterion's own `judge_temperature` overrides this.",
       ),
+    execution_temperature: z
+      .number()
+      .min(0)
+      .max(2)
+      .optional()
+      .describe(
+        "Sampling temperature for the skill-under-test's EXECUTION. Omitted = 0 (greedy): " +
+          "left at the API default (~1.0) the judged output is a fresh random draw every " +
+          "run, so the verdict varies for reasons unrelated to skill quality. Set > 0 " +
+          "deliberately to eval under sampling variance.",
+      ),
     min_blocker_agreement: z
       .number()
       .min(0.5)

@@ -604,7 +604,7 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
   async execute(
     prompt: string,
     context: ExecutionContext,
-    options?: { timeout_ms?: number; model?: string },
+    options?: { timeout_ms?: number; model?: string; temperature?: number },
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
@@ -619,6 +619,9 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
           { role: "system", content: context.skill_body },
           { role: "user", content: prompt },
         ],
+        // Honor the eval's execution-temperature pin (reproducible outputs);
+        // absent, the API default (~1.0) applies.
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
         // Functional execution must leave room for a full skill output AND, on
         // reasoning models (e.g. deepseek-v4-flash), the hidden reasoning tokens
         // that count against max_tokens but never appear in `content`. At the old

@@ -440,7 +440,7 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
   async execute(
     prompt: string,
     context: ExecutionContext,
-    options?: { timeout_ms?: number; model?: string },
+    options?: { timeout_ms?: number; model?: string; temperature?: number },
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
@@ -456,6 +456,9 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
           { role: "user", content: prompt },
         ],
         maxTokens: 1024,
+        // Honor the eval's execution-temperature pin (reproducible outputs);
+        // absent, the API default (~1.0) applies.
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
         ...(controller ? { signal: controller.signal } : {}),
       });
       const completed = new Date();

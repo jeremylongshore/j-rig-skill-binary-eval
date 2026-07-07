@@ -208,3 +208,29 @@ describe("checkOutputExpectations", () => {
     expect(result.passed).toBe(true);
   });
 });
+
+describe("execution temperature threading", () => {
+  it("forwards the temperature option to the provider (the reproducibility pin)", async () => {
+    const seen: Array<number | undefined> = [];
+    const provider: ExecutionProvider = {
+      async execute(_prompt, _context, options) {
+        seen.push(options?.temperature);
+        const now = new Date().toISOString();
+        return {
+          text: "ok",
+          artifacts: [],
+          tool_calls: 0,
+          meta: { started_at: now, completed_at: now, duration_ms: 1, timed_out: false },
+        };
+      },
+    };
+    const tc: TestCase[] = [
+      { id: "t1", description: "test", tier: "core", prompt: "p", expected_output_contains: [] },
+    ];
+
+    await runFunctionalTests(tc, skill, provider, { temperature: 0 });
+    await runFunctionalTests(tc, skill, provider, {});
+
+    expect(seen).toEqual([0, undefined]);
+  });
+});
