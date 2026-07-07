@@ -86,6 +86,29 @@ export const EvalSpecSchema = z
         "Default sampling temperature for judge calls (provider default 0 when omitted). " +
           "A criterion's own `judge_temperature` overrides this.",
       ),
+    judge_timeout_ms: z
+      .number()
+      .int()
+      .min(1000)
+      .max(600000)
+      .optional()
+      .describe(
+        "Wall-clock budget per judge call in milliseconds (default 120000 when omitted). A " +
+          "judge verdict is a small structured completion, so an unbounded hang is never " +
+          "right — a timed-out call rejects and votes 'unsure' under the errored-sample " +
+          "semantics rather than stalling the run.",
+      ),
+    judge_sample_concurrency: z
+      .number()
+      .int()
+      .min(1)
+      .max(25)
+      .optional()
+      .describe(
+        "Max judge samples in flight per criterion (omitted = all N concurrent). Bound it " +
+          "when the judge endpoint rate-limits bursts — e.g. a free tier at ~30 requests/min " +
+          "cannot absorb a samples x criteria dispatch all at once.",
+      ),
     execution_temperature: z
       .number()
       .min(0)

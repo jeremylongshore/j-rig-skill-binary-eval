@@ -721,6 +721,11 @@ export function registerEvalCommand(program: Command): void {
                 // default; a criterion's own `samples` overrides both.
                 samples: judgeSamples,
                 judgeTemperature: spec.judge_temperature,
+                // Per-call judge timeout (engine defaults 120s when unset) and
+                // the per-criterion sample-dispatch bound for rate-limited
+                // judge endpoints.
+                judgeTimeoutMs: spec.judge_timeout_ms,
+                sampleConcurrency: spec.judge_sample_concurrency,
               });
 
               // OTel per-criterion events (067 §§ 1.1, 1.2). For judge-method
@@ -954,6 +959,11 @@ export function registerEvalCommand(program: Command): void {
                   ...(j.agreement !== undefined ? { agreement: j.agreement } : {}),
                   ...(j.sample_verdicts !== undefined
                     ? { sample_verdicts: j.sample_verdicts }
+                    : {}),
+                  // Aligned index-for-index with sample_verdicts: the timing
+                  // signal an auditor needs to discount correlated votes.
+                  ...(j.sample_latencies_ms !== undefined
+                    ? { sample_latencies_ms: j.sample_latencies_ms }
                     : {}),
                 })),
                 ...(multiSampled

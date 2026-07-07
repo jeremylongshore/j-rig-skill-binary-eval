@@ -17,7 +17,29 @@ export interface JudgeOptions {
   samples?: number;
   /** Default sampling temperature for judge calls. */
   judgeTemperature?: number;
+  /**
+   * Wall-clock budget per judge call in milliseconds, threaded to the
+   * provider as `timeout_ms`. Defaults to DEFAULT_JUDGE_TIMEOUT_MS — the ONE
+   * deliberate behavior change from the legacy engine, which passed no
+   * timeout and let a hung judge call stall the whole run.
+   */
+  judgeTimeoutMs?: number;
+  /**
+   * Max judge samples in flight per criterion. Unset = all N concurrent
+   * (legacy behavior); bound it when the judge endpoint rate-limits bursts
+   * (e.g. Groq's free tier at ~30 requests/min).
+   */
+  sampleConcurrency?: number;
 }
+
+/**
+ * Default per-call judge timeout. A judge verdict is a small structured
+ * completion (~seconds); an unbounded hang is never right — a live NVIDIA NIM
+ * call once hung a judge for OVER AN HOUR while execution calls were already
+ * bounded. 120s is generous for slow reasoning judges yet turns a hang into a
+ * rejected sample, which votes "unsure" under the errored-sample semantics.
+ */
+export const DEFAULT_JUDGE_TIMEOUT_MS = 120_000;
 
 /**
  * Default judge temperature when multi-sampling (samples >= 2) and neither the
@@ -109,6 +131,7 @@ async function judgeWithLLM(
     criterion.judge_temperature ??
     options?.judgeTemperature ??
     (samples >= 2 ? DEFAULT_MULTI_SAMPLE_JUDGE_TEMPERATURE : undefined);
+  const timeoutMs = options?.judgeTimeoutMs ?? DEFAULT_JUDGE_TIMEOUT_MS;
   const model = options?.model;
 
   const callOnce = () =>
@@ -117,7 +140,10 @@ async function judgeWithLLM(
       outcome.prompt,
       outcome.output.text,
       criterion.judge_prompt,
-      temperature !== undefined ? { temperature } : undefined,
+      {
+        ...(temperature !== undefined ? { temperature } : {}),
+        timeout_ms: timeoutMs,
+      },
     );
 
   if (samples <= 1) {
@@ -137,12 +163,25 @@ async function judgeWithLLM(
   }
 
   // N-sample path. Samples run concurrently (N is small and bounded by the
-  // schema). A sample that throws votes "unsure": missing evidence must land
-  // in the quorum DENOMINATOR and weaken agreement, never silently shrink it —
+  // schema), optionally bounded by `sampleConcurrency` so an N x criteria
+  // burst stays under a rate-limited endpoint's requests/min ceiling. A
+  // sample that throws votes "unsure": missing evidence must land in the
+  // quorum DENOMINATOR and weaken agreement, never silently shrink it —
   // dropping failures would let a 1-of-5 degraded run report agreement 1.0
   // with samples=1 and bypass the stability gate entirely. Only when EVERY
   // sample fails does the result degrade to the legacy error shape.
-  const settled = await Promise.allSettled(Array.from({ length: samples }, callOnce));
+  const latencies = new Array<number>(samples);
+  const settled = await settleWithConcurrency(
+    Array.from({ length: samples }, (_, i) => async () => {
+      const startedAt = Date.now();
+      try {
+        return await callOnce();
+      } finally {
+        latencies[i] = Date.now() - startedAt;
+      }
+    }),
+    options?.sampleConcurrency ?? samples,
+  );
   const ok = settled.filter(
     (s): s is PromiseFulfilledResult<Awaited<ReturnType<typeof callOnce>>> =>
       s.status === "fulfilled",
@@ -177,7 +216,35 @@ async function judgeWithLLM(
     samples: settled.length,
     agreement,
     sample_verdicts: settled.map((s) => (s.status === "fulfilled" ? s.value.verdict : "unsure")),
+    sample_latencies_ms: latencies,
   };
+}
+
+/**
+ * Settle `tasks` with at most `limit` in flight, preserving INDEX alignment:
+ * `result[i]` is always task i's outcome regardless of completion order, and
+ * tasks are dispatched in ascending index order (workers pull the next unclaimed
+ * index), so `sample_verdicts` / `sample_latencies_ms` keep dispatch-order
+ * semantics. `limit >= tasks.length` is equivalent to Promise.allSettled.
+ */
+async function settleWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  limit: number,
+): Promise<Array<PromiseSettledResult<T>>> {
+  const results = new Array<PromiseSettledResult<T>>(tasks.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), tasks.length) }, async () => {
+    while (next < tasks.length) {
+      const i = next++;
+      try {
+        results[i] = { status: "fulfilled", value: await tasks[i]!() };
+      } catch (reason) {
+        results[i] = { status: "rejected", reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 function judgeError(criterionId: string, model: string | undefined, err: unknown): JudgmentResult {
