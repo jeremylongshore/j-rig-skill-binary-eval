@@ -345,7 +345,9 @@ export function registerEvalCommand(program: Command): void {
         // re-run/stability-protocol override) beats the spec's `samples`
         // default; a criterion's own `samples` beats both (resolved in the
         // judgment engine). Undefined = 1 = legacy single call.
-        const judgeSamples = opts.samples !== undefined ? parseInt(opts.samples, 10) : spec.samples;
+        // Number(), not parseInt(): parseInt silently truncates "2.5" to 2;
+        // Number keeps the fraction so the integer check below rejects it.
+        const judgeSamples = opts.samples !== undefined ? Number(opts.samples) : spec.samples;
         if (judgeSamples !== undefined && (!Number.isInteger(judgeSamples) || judgeSamples < 1)) {
           throw new Error(`--samples must be a positive integer, got "${opts.samples}"`);
         }

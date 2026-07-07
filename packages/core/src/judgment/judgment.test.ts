@@ -244,13 +244,35 @@ describe("judgeCriteria — N-sample majority voting", () => {
     expect(r!.reasoning).toContain("tie");
   });
 
-  it("drops errored samples from the tally instead of counting them as votes", async () => {
+  it("counts errored samples as unsure votes — missing evidence weakens agreement", async () => {
     const provider = sequenceJudge(["yes", new Error("boom"), "yes"]);
     const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
 
     expect(r!.verdict).toBe("yes");
-    expect(r!.samples).toBe(2);
-    expect(r!.agreement).toBe(1);
+    expect(r!.samples).toBe(3);
+    expect(r!.agreement).toBeCloseTo(2 / 3);
+    expect(r!.sample_verdicts).toEqual(["yes", "unsure", "yes"]);
+    expect(r!.reasoning).toContain("errored");
+  });
+
+  it("never reports false certainty from a degraded run (1 success + 4 errors)", async () => {
+    // Regression: dropping failures shrank the denominator — a 1-of-5 degraded
+    // run reported agreement 1.0 with samples=1 and bypassed the stability
+    // gate. With error→unsure votes the run reads as what it is: mostly
+    // missing evidence.
+    const provider = sequenceJudge([
+      "no",
+      new Error("down"),
+      new Error("down"),
+      new Error("down"),
+      new Error("down"),
+    ]);
+    const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 5 });
+
+    expect(r!.verdict).toBe("unsure");
+    expect(r!.samples).toBe(5);
+    expect(r!.agreement).toBeCloseTo(4 / 5);
+    expect(r!.sample_verdicts).toEqual(["no", "unsure", "unsure", "unsure", "unsure"]);
   });
 
   it("degrades to the legacy error result when every sample fails", async () => {
@@ -302,6 +324,17 @@ describe("judgeCriteria — N-sample majority voting", () => {
     await judgeCriteria([judgeCrit()], makeOutcome("t"), provider);
 
     expect(calls).toEqual([{ temperature: undefined }]);
+  });
+
+  it("defaults multi-sample runs to temperature 0.7 when none is configured", async () => {
+    // Majority voting needs independent draws; sampling a nearly-collapsed
+    // temperature-0 distribution understates variance while multiplying cost.
+    const calls: Array<{ temperature?: number }> = [];
+    const provider = sequenceJudge(["yes", "yes", "yes"], calls);
+    await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(calls).toHaveLength(3);
+    expect(calls.every((c) => c.temperature === 0.7)).toBe(true);
   });
 });
 

@@ -20,6 +20,18 @@ export interface JudgeOptions {
 }
 
 /**
+ * Default judge temperature when multi-sampling (samples >= 2) and neither the
+ * criterion nor the run configured one. Majority voting measures agreement
+ * across INDEPENDENT draws; sampling a nearly-collapsed temperature-0
+ * distribution understates the judge's real variance (temp-0 API calls are
+ * still nondeterministic — batch-composition/kernel effects — but barely).
+ * 0.7 is the starting arm of the pre-registered temperature sweep in the
+ * methodology brief (intent-os 025-RA-ANLY, after Radharapu et al. N=10/T=0.7);
+ * single-call judging keeps the greedy provider default.
+ */
+export const DEFAULT_MULTI_SAMPLE_JUDGE_TEMPERATURE = 0.7;
+
+/**
  * Judge a set of criteria against an observed outcome.
  *
  * Deterministic checks run first (no API cost).
@@ -92,7 +104,10 @@ async function judgeWithLLM(
   options?: JudgeOptions,
 ): Promise<JudgmentResult> {
   const samples = criterion.samples ?? options?.samples ?? 1;
-  const temperature = criterion.judge_temperature ?? options?.judgeTemperature;
+  const temperature =
+    criterion.judge_temperature ??
+    options?.judgeTemperature ??
+    (samples >= 2 ? DEFAULT_MULTI_SAMPLE_JUDGE_TEMPERATURE : undefined);
   const model = options?.model;
 
   const callOnce = () =>
@@ -121,9 +136,11 @@ async function judgeWithLLM(
   }
 
   // N-sample path. Samples run concurrently (N is small and bounded by the
-  // schema); a sample that throws is DROPPED from the tally rather than
-  // polluting it with a synthetic "unsure" vote — unless every sample fails,
-  // which degrades to the legacy error result.
+  // schema). A sample that throws votes "unsure": missing evidence must land
+  // in the quorum DENOMINATOR and weaken agreement, never silently shrink it —
+  // dropping failures would let a 1-of-5 degraded run report agreement 1.0
+  // with samples=1 and bypass the stability gate entirely. Only when EVERY
+  // sample fails does the result degrade to the legacy error shape.
   const settled = await Promise.allSettled(Array.from({ length: samples }, callOnce));
   const ok = settled.filter(
     (s): s is PromiseFulfilledResult<Awaited<ReturnType<typeof callOnce>>> =>
@@ -133,15 +150,16 @@ async function judgeWithLLM(
     const firstErr = (settled[0] as PromiseRejectedResult).reason;
     return judgeError(criterion.id, model, firstErr);
   }
+  const errored = settled.length - ok.length;
 
-  const votes: Record<JudgmentVerdict, number> = { yes: 0, no: 0, unsure: 0 };
+  const votes: Record<JudgmentVerdict, number> = { yes: 0, no: 0, unsure: errored };
   for (const s of ok) votes[s.value.verdict]++;
 
   const top = Math.max(votes.yes, votes.no, votes.unsure);
   const winners = (Object.keys(votes) as JudgmentVerdict[]).filter((v) => votes[v] === top);
   // A plurality tie has no honest majority — abstain rather than pick a side.
   const verdict: JudgmentVerdict = winners.length === 1 ? winners[0]! : "unsure";
-  const agreement = top / ok.length;
+  const agreement = top / settled.length;
   const majoritySample = ok.find((s) => s.value.verdict === verdict) ?? ok[0]!;
 
   return {
@@ -150,12 +168,14 @@ async function judgeWithLLM(
     // The measured agreement fraction replaces the judge's self-reported
     // confidence: it is the observed stability of the verdict, not a vibe.
     confidence: agreement,
-    reasoning: `[${top}/${ok.length} ${winners.length === 1 ? verdict : `tie: ${winners.join("/")}`}] ${majoritySample.value.reasoning}`,
+    reasoning:
+      `[${top}/${settled.length} ${winners.length === 1 ? verdict : `tie: ${winners.join("/")}`}]` +
+      `${errored > 0 ? ` (${errored} sample(s) errored → unsure)` : ""} ${majoritySample.value.reasoning}`,
     method: "judge",
     judge_model: model,
-    samples: ok.length,
+    samples: settled.length,
     agreement,
-    sample_verdicts: ok.map((s) => s.value.verdict),
+    sample_verdicts: settled.map((s) => (s.status === "fulfilled" ? s.value.verdict : "unsure")),
   };
 }
 
