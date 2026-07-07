@@ -26,8 +26,9 @@ export interface JudgeOptions {
  * distribution understates the judge's real variance (temp-0 API calls are
  * still nondeterministic — batch-composition/kernel effects — but barely).
  * 0.7 is the starting arm of the pre-registered temperature sweep in the
- * methodology brief (intent-os 025-RA-ANLY, after Radharapu et al. N=10/T=0.7);
- * single-call judging keeps the greedy provider default.
+ * noise-robust methodology brief (intent-os 000-docs doc 025, after
+ * Radharapu et al. N=10/T=0.7); single-call judging keeps the greedy
+ * provider default.
  */
 export const DEFAULT_MULTI_SAMPLE_JUDGE_TEMPERATURE = 0.7;
 
