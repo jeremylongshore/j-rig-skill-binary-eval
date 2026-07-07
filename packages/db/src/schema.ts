@@ -68,6 +68,12 @@ export const runSummaries = sqliteTable("run_summaries", {
 /**
  * Artifacts — file-based evidence linked to a run.
  * Actual content is on the filesystem; this tracks metadata.
+ *
+ * `sha256` is the content digest of the file at record time (`sha256:`-prefixed,
+ * matching the platform digest convention of `input_hash`). It binds the DB row
+ * to the exact bytes it points at — without it the row is a mutable pointer and
+ * the tamper-evident layer (git+Rekor) has nothing to anchor to. NULLABLE:
+ * rows recorded before the column shipped (and callers without a digest) stay valid.
  */
 export const artifacts = sqliteTable("artifacts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -76,6 +82,7 @@ export const artifacts = sqliteTable("artifacts", {
   filename: text("filename").notNull(),
   relative_path: text("relative_path").notNull(),
   size_bytes: integer("size_bytes"),
+  sha256: text("sha256"),
   created_at: text("created_at").notNull().default("(datetime('now'))"),
 });
 

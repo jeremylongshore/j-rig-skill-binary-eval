@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import { basename, resolve } from "node:path";
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import {
   checkPackage,
@@ -1097,7 +1097,15 @@ export function registerEvalCommand(program: Command): void {
             format: "array",
             outputPath: opts.emitBundle,
           });
-          const sizeBytes = statSync(bundlePath).size;
+          // Digest the WRITTEN bytes (not the in-memory rows) so the stored
+          // sha256 binds the DB row to the exact file on disk — the DB→bundle
+          // link is integrity-checkable, not a mutable path+size pointer.
+          // Size and digest come from ONE read so they describe the same bytes
+          // (no stat-then-read race). sha256:-prefixed per the platform digest
+          // convention (input_hash).
+          const bundleBytes = readFileSync(bundlePath);
+          const sizeBytes = bundleBytes.byteLength;
+          const bundleSha256 = "sha256:" + createHash("sha256").update(bundleBytes).digest("hex");
           for (const rid of bundleRunIds) {
             recordArtifact(
               database,
@@ -1106,6 +1114,7 @@ export function registerEvalCommand(program: Command): void {
               basename(bundlePath),
               bundlePath,
               sizeBytes,
+              bundleSha256,
             );
           }
           if (!opts.json) {

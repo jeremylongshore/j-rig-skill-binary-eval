@@ -4,7 +4,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { EvidenceStatementSchema, PREDICATE_URI } from "@j-rig/core";
+import { createDatabase } from "@j-rig/db";
 
 /**
  * End-to-end self-eval: the tool that evaluates skills, tested evaluating a
@@ -105,6 +107,25 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
           row.predicate.metadata?.rollout_decision,
         );
         expect(row.predicate.metadata?.ground_truth).toBe(false);
+      }
+
+      // 4. The DB→bundle link is integrity-checked: every evidence-bundle
+      // artifact row stores the sha256 of the exact bytes on disk
+      // (sha256:-prefixed per the platform digest convention) — not just a
+      // mutable path+size pointer.
+      const expectedDigest =
+        "sha256:" + createHash("sha256").update(readFileSync(bundlePath)).digest("hex");
+      const database = createDatabase(dbPath);
+      try {
+        const artifactRows = database.sqlite
+          .prepare("SELECT sha256 FROM artifacts WHERE artifact_type = 'evidence-bundle'")
+          .all() as Array<{ sha256: string | null }>;
+        expect(artifactRows.length).toBeGreaterThanOrEqual(1);
+        for (const artifactRow of artifactRows) {
+          expect(artifactRow.sha256).toBe(expectedDigest);
+        }
+      } finally {
+        database.close();
       }
     } finally {
       rmSync(work, { recursive: true, force: true });

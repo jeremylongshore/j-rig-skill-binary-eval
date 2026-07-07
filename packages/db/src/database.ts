@@ -67,15 +67,16 @@ const CREATE_TABLES = `
     filename TEXT NOT NULL,
     relative_path TEXT NOT NULL,
     size_bytes INTEGER,
+    sha256 TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (run_id) REFERENCES runs(id)
   );
 
   -- Skill usage events — intake fact table for the j-rig ingest-skill verb
   -- (ISEDC DR-103 D1/D2/D5). The tenant_id column lands in this FIRST CREATE
-  -- TABLE per DR-103 D2 B2.1 (database.ts is CREATE-IF-NOT-EXISTS only — no ALTER
-  -- path — so a future column add cannot retrofit cleanly; the multi-tenancy slot
-  -- is reserved now). NULL tenant_id = the single-tenant/global bucket, never
+  -- TABLE per DR-103 D2 B2.1 (database.ts had no ALTER path when this landed —
+  -- the ADDITIVE_COLUMNS retrofit came later — so the multi-tenancy slot was
+  -- reserved up front). NULL tenant_id = the single-tenant/global bucket, never
   -- pooled cross-tenant (D2 B2.2). cass_passed = 0 rows are persisted-but-excluded.
   CREATE TABLE IF NOT EXISTS skill_usage_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +113,32 @@ const CREATE_TABLES = `
 `;
 
 /**
+ * Additive column retrofits for databases created before a column shipped.
+ * CREATE TABLE IF NOT EXISTS skips existing tables, so a column added to
+ * CREATE_TABLES never reaches an existing file — and drizzle SELECT statements
+ * name every schema column, so the code would break against that file without
+ * the ALTER.
+ * Entries must be nullable with no default (existing rows stay valid) and are
+ * applied only when pragma table_info shows the column missing (idempotent).
+ */
+const ADDITIVE_COLUMNS: ReadonlyArray<{ table: string; column: string; ddl: string }> = [
+  {
+    table: "artifacts",
+    column: "sha256",
+    ddl: "ALTER TABLE artifacts ADD COLUMN sha256 TEXT",
+  },
+];
+
+function applyAdditiveColumns(sqlite: BetterSqlite3.Database): void {
+  for (const { table, column, ddl } of ADDITIVE_COLUMNS) {
+    const cols = sqlite.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === column)) {
+      sqlite.exec(ddl);
+    }
+  }
+}
+
+/**
  * Create and initialize a j-rig database.
  *
  * @param dbPath - Path to SQLite file. Use ":memory:" for testing.
@@ -121,6 +148,7 @@ export function createDatabase(dbPath: string): JRigDatabase {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(CREATE_TABLES);
+  applyAdditiveColumns(sqlite);
 
   const db = drizzle(sqlite, { schema });
 
