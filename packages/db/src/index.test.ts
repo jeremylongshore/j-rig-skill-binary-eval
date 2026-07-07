@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import Database from "better-sqlite3";
 import {
   createDatabase,
   type JRigDatabase,
@@ -191,6 +195,31 @@ describe("evidence persistence", () => {
     expect(arts[0].size_bytes).toBe(1234);
   });
 
+  it("round-trips an artifact sha256 digest", () => {
+    const digest = "sha256:" + "a1".repeat(32);
+    recordArtifact(
+      database,
+      runId,
+      "evidence-bundle",
+      "bundle.json",
+      "/tmp/bundle.json",
+      42,
+      digest,
+    );
+
+    const arts = getRunArtifacts(database, runId);
+    expect(arts).toHaveLength(1);
+    expect(arts[0].sha256).toBe(digest);
+  });
+
+  it("stores NULL sha256 when the digest is omitted", () => {
+    recordArtifact(database, runId, "report", "report.json", ".j-rig/runs/1/report.json");
+
+    const arts = getRunArtifacts(database, runId);
+    expect(arts).toHaveLength(1);
+    expect(arts[0].sha256).toBeNull();
+  });
+
   it("queries recent runs", () => {
     transitionRun(database, runId, "completed");
 
@@ -223,5 +252,70 @@ describe("evidence persistence", () => {
 
   it("throws for non-existent run on transition", () => {
     expect(() => transitionRun(database, 9999, "running")).toThrow("not found");
+  });
+});
+
+describe("additive column retrofit", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "j-rig-db-retrofit-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // A database created before the sha256 column shipped must gain the column on
+  // open (CREATE TABLE IF NOT EXISTS skips existing tables), with existing rows
+  // intact — otherwise drizzle SELECTs, which name every schema column, break.
+  it("retrofits artifacts.sha256 onto a pre-sha256 database file", () => {
+    const dbPath = join(dir, "old.db");
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE artifacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL,
+        artifact_type TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        size_bytes INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    raw
+      .prepare(
+        "INSERT INTO artifacts (run_id, artifact_type, filename, relative_path, size_bytes) VALUES (1, 'report', 'r.json', '/tmp/r.json', 7)",
+      )
+      .run();
+    raw.close();
+
+    const database = createDatabase(dbPath);
+    try {
+      const arts = getRunArtifacts(database, 1);
+      expect(arts).toHaveLength(1);
+      expect(arts[0].size_bytes).toBe(7);
+      expect(arts[0].sha256).toBeNull();
+
+      const digest = "sha256:" + "b2".repeat(32);
+      recordArtifact(database, 1, "evidence-bundle", "b.json", "/tmp/b.json", 9, digest);
+      const after = getRunArtifacts(database, 1);
+      expect(after).toHaveLength(2);
+      expect(after[1].sha256).toBe(digest);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("is idempotent across reopens of an already-retrofitted file", () => {
+    const dbPath = join(dir, "new.db");
+    createDatabase(dbPath).close();
+    const reopened = createDatabase(dbPath);
+    try {
+      const cols = reopened.sqlite.pragma("table_info(artifacts)") as Array<{ name: string }>;
+      expect(cols.filter((c) => c.name === "sha256")).toHaveLength(1);
+    } finally {
+      reopened.close();
+    }
   });
 });

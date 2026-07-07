@@ -131,6 +131,10 @@ export function storeRunSummary(
 
 /**
  * Record an artifact reference.
+ *
+ * `sha256` (optional, `sha256:`-prefixed) is the content digest of the file at
+ * record time — it makes the DB→file link integrity-checkable instead of a
+ * mutable path+size pointer. Callers that have the written bytes should pass it.
  */
 export function recordArtifact(
   { db }: JRigDatabase,
@@ -139,6 +143,7 @@ export function recordArtifact(
   filename: string,
   relativePath: string,
   sizeBytes?: number,
+  sha256?: string,
 ): void {
   db.insert(artifacts)
     .values({
@@ -147,6 +152,7 @@ export function recordArtifact(
       filename,
       relative_path: relativePath,
       size_bytes: sizeBytes ?? null,
+      sha256: sha256 ?? null,
     })
     .run();
 }
