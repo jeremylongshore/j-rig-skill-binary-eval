@@ -173,11 +173,13 @@ async function judgeWithLLM(
   const latencies = new Array<number>(samples);
   const settled = await settleWithConcurrency(
     Array.from({ length: samples }, (_, i) => async () => {
-      const startedAt = Date.now();
+      // performance.now() is monotonic — an NTP clock step mid-call cannot
+      // produce a negative or skewed latency the way Date.now() deltas can.
+      const startedAt = performance.now();
       try {
         return await callOnce();
       } finally {
-        latencies[i] = Date.now() - startedAt;
+        latencies[i] = Math.round(performance.now() - startedAt);
       }
     }),
     options?.sampleConcurrency ?? samples,
