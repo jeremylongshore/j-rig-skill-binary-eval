@@ -19,6 +19,7 @@
 
 import type {
   CompletionRequest,
+  CostPhaseNameValue,
   CompletionResult,
   Provider,
   ProviderError,
@@ -29,7 +30,10 @@ import type {
 } from "@j-rig/core";
 
 /** The three sequential phases of a per-model eval run. */
-export type EvalPhase = "trigger" | "execution" | "judge";
+// Tied to the core cost.* vocabulary so the two cannot silently drift: a
+// fourth phase added in one place is a type error in the other, not a
+// phase whose cost lands in the run total with no phase event.
+export type EvalPhase = CostPhaseNameValue;
 
 export interface PhaseCost {
   calls: number;

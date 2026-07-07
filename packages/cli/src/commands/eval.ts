@@ -25,12 +25,15 @@ import {
   emitJudgeInvoked,
   emitJudgeVerdict,
   emitGateDecisionEmitted,
+  emitCostRunRecorded,
+  emitCostPhaseRecorded,
   composeStatement,
   writeBundle,
   RuntimeTerminalState,
   CriterionOutcome,
   JudgeVerdictSource,
   GateDecision,
+  CostPhaseName,
   type EvalCorrelation,
 } from "@j-rig/core";
 import type { JudgmentResult, ObservedOutcome, EvidenceStatement, Criterion } from "@j-rig/core";
@@ -878,6 +881,35 @@ export function registerEvalCommand(program: Command): void {
                     : `$${costReport.estimated_usd.toFixed(4)}`
                 } — ${perModel}`,
               );
+            }
+
+            // OTel cost.* run-end summary (observability review BUILD-NOW #1):
+            // the console block above scrolls away across a benchmark matrix;
+            // these events are the queryable record. Cost never rides the
+            // pinned judge.*/gate.* payloads. usd_known/omitted-estimated_usd
+            // discrimination lives in emitCostRunRecorded — a null estimate
+            // (no rate on file) must never surface as a measured $0.
+            if (costReport) {
+              for (const phase of Object.values(CostPhaseName)) {
+                const p = costReport.phases[phase];
+                emitCostPhaseRecorded(correlation, {
+                  phase,
+                  inputTokens: p.input_tokens,
+                  outputTokens: p.output_tokens,
+                  calls: p.calls,
+                  // Judge phase only: the RUN-LEVEL sample default (the attr is
+                  // named judge_samples_default) — a criterion's own `samples`
+                  // override is not reflected here; the signed bundle's
+                  // aggregation.samples_default carries the same semantics.
+                  ...(phase === CostPhaseName.JUDGE ? { judgeSamples: judgeSamples ?? 1 } : {}),
+                });
+              }
+              emitCostRunRecorded(correlation, {
+                totalInputTokens: costReport.total.input_tokens,
+                totalOutputTokens: costReport.total.output_tokens,
+                totalCalls: costReport.total.calls,
+                estimatedUsd: costReport.estimated_usd,
+              });
             }
 
             allResults[model] = {
