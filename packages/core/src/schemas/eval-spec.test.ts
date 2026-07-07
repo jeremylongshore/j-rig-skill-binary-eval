@@ -287,3 +287,61 @@ describe("EvalSpecSchema self_test", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("EvalSpecSchema judge robustness fields", () => {
+  const baseSpec = {
+    spec_version: "1.0" as const,
+    skill_name: "test-skill",
+    description: "test",
+    criteria: [{ id: "c1", description: "test", method: "judge" as const }],
+    test_cases: [{ id: "t1", description: "test", tier: "core" as const, prompt: "test" }],
+  };
+
+  it("accepts and retains judge_timeout_ms and judge_sample_concurrency", () => {
+    const result = EvalSpecSchema.safeParse({
+      ...baseSpec,
+      judge_timeout_ms: 60000,
+      judge_sample_concurrency: 4,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.judge_timeout_ms).toBe(60000);
+      expect(result.data.judge_sample_concurrency).toBe(4);
+    }
+  });
+
+  it("leaves both undefined when absent (engine applies the 120s default)", () => {
+    const result = EvalSpecSchema.safeParse(baseSpec);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.judge_timeout_ms).toBeUndefined();
+      expect(result.data.judge_sample_concurrency).toBeUndefined();
+    }
+  });
+
+  it("rejects judge_timeout_ms outside 1000..600000 or non-integer", () => {
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 999 }).success).toBe(false);
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600001 }).success).toBe(false);
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1500.5 }).success).toBe(false);
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1000 }).success).toBe(true);
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600000 }).success).toBe(true);
+  });
+
+  it("rejects judge_sample_concurrency outside 1..25 or non-integer", () => {
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 0 }).success).toBe(
+      false,
+    );
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 26 }).success).toBe(
+      false,
+    );
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 2.5 }).success).toBe(
+      false,
+    );
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 1 }).success).toBe(
+      true,
+    );
+    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 25 }).success).toBe(
+      true,
+    );
+  });
+});

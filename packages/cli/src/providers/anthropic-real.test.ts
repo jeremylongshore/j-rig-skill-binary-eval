@@ -294,4 +294,42 @@ describe("AnthropicJudgeProvider", () => {
     const out = await judge.judge("c", "p", "o");
     expect(out.confidence).toBe(1);
   });
+
+  it("honors timeout_ms: a hung endpoint aborts and rejects as network_timeout", async () => {
+    // A judge call carried NO timeout before this option (observed live: a
+    // NIM endpoint hung a judge call for over an hour). The transport below
+    // never resolves until the abort signal fires — the call must reject.
+    const transport: Transport = (req) =>
+      new Promise((_resolve, reject) => {
+        req.signal?.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        );
+      });
+    const provider: Provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const judge = new AnthropicJudgeProvider("sonnet", provider);
+    await expect(judge.judge("c", "p", "o", undefined, { timeout_ms: 10 })).rejects.toMatchObject({
+      category: "network_timeout",
+    });
+  });
+
+  it("threads the abort signal on timeout_ms and clears the timer on success", async () => {
+    const { transport, lastRequest } = fakeTransport(
+      textResponse('{"verdict": "yes", "confidence": 1, "reasoning": "r"}'),
+    );
+    const provider: Provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const judge = new AnthropicJudgeProvider("sonnet", provider);
+    const out = await judge.judge("c", "p", "o", undefined, { timeout_ms: 5000 });
+    expect(out.verdict).toBe("yes");
+    expect(lastRequest()!.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("passes no signal when no timeout is configured (legacy call shape)", async () => {
+    const { transport, lastRequest } = fakeTransport(
+      textResponse('{"verdict": "yes", "confidence": 1, "reasoning": "r"}'),
+    );
+    const provider: Provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const judge = new AnthropicJudgeProvider("sonnet", provider);
+    await judge.judge("c", "p", "o");
+    expect(lastRequest()!.signal).toBeUndefined();
+  });
 });

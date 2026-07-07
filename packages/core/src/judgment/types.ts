@@ -42,6 +42,14 @@ export interface JudgmentResult {
    * its own ordering explicitly.
    */
   sample_verdicts?: JudgmentVerdict[];
+  /**
+   * Per-sample wall-clock latency in milliseconds, aligned index-for-index
+   * with `sample_verdicts` (multi-sample only, absent on single-call). The
+   * one signal an auditor needs to discount correlated votes — N samples
+   * that all landed in the same burst window are weaker evidence of
+   * independence than samples spread across distinct completions.
+   */
+  sample_latencies_ms?: number[];
 }
 
 /**
@@ -56,6 +64,14 @@ export interface JudgeCallOptions {
    * judging keeps the provider default (0, greedy).
    */
   temperature?: number;
+  /**
+   * Wall-clock budget for THIS judge call in milliseconds. A judge verdict is
+   * a small structured completion — an unbounded hang is never right (a live
+   * NVIDIA NIM call once hung a judge for over an hour). Real providers honor
+   * it via AbortController; a timed-out call rejects and votes "unsure" under
+   * the errored-sample semantics.
+   */
+  timeout_ms?: number;
 }
 
 /**

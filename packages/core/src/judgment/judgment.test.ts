@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { judgeCriteria } from "./engine.js";
+import { judgeCriteria, DEFAULT_JUDGE_TIMEOUT_MS } from "./engine.js";
 import { runCalibration } from "./calibration.js";
 import type { JudgeProvider, GoldenCase } from "./types.js";
 import { CriterionSchema } from "../schemas/criterion.js";
@@ -200,12 +200,12 @@ describe("judgeCriteria — N-sample majority voting", () => {
   /** A judge that replays a scripted verdict sequence, one per call. */
   function sequenceJudge(
     script: Array<"yes" | "no" | "unsure" | Error>,
-    calls?: Array<{ temperature?: number }>,
+    calls?: Array<{ temperature?: number; timeout_ms?: number }>,
   ): JudgeProvider {
     let i = 0;
     return {
       async judge(_d, _p, _o, _jp, options) {
-        calls?.push({ temperature: options?.temperature });
+        calls?.push({ temperature: options?.temperature, timeout_ms: options?.timeout_ms });
         const step = script[i++];
         if (step === undefined) throw new Error("sequenceJudge exhausted");
         if (step instanceof Error) throw step;
@@ -318,12 +318,14 @@ describe("judgeCriteria — N-sample majority voting", () => {
     expect(calls.every((c) => c.temperature === 0.7)).toBe(true);
   });
 
-  it("passes no call options when neither level sets a temperature", async () => {
-    const calls: Array<{ temperature?: number }> = [];
+  it("passes no temperature — but always the default timeout — when neither level sets one", async () => {
+    const calls: Array<{ temperature?: number; timeout_ms?: number }> = [];
     const provider = sequenceJudge(["yes"], calls);
     await judgeCriteria([judgeCrit()], makeOutcome("t"), provider);
 
-    expect(calls).toEqual([{ temperature: undefined }]);
+    // The default per-call timeout is the one deliberate behavior change from
+    // the legacy no-options path: an unbounded judge hang is never right.
+    expect(calls).toEqual([{ temperature: undefined, timeout_ms: DEFAULT_JUDGE_TIMEOUT_MS }]);
   });
 
   it("defaults multi-sample runs to temperature 0.7 when none is configured", async () => {
@@ -335,6 +337,189 @@ describe("judgeCriteria — N-sample majority voting", () => {
 
     expect(calls).toHaveLength(3);
     expect(calls.every((c) => c.temperature === 0.7)).toBe(true);
+  });
+});
+
+describe("judgeCriteria — sampling robustness (timeout, pacing, per-sample timing)", () => {
+  const robustCrit = (): Criterion =>
+    CriterionSchema.parse({ id: "r1", description: "Subjective quality", method: "judge" });
+
+  const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  const yes = { verdict: "yes" as const, confidence: 0.9, reasoning: "ok" };
+
+  it("threads the default 120s timeout into single-call AND multi-sample judge calls", async () => {
+    const seen: Array<number | undefined> = [];
+    const provider: JudgeProvider = {
+      async judge(_d, _p, _o, _jp, options) {
+        seen.push(options?.timeout_ms);
+        return yes;
+      },
+    };
+    await judgeCriteria([robustCrit()], makeOutcome("t"), provider);
+    await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(DEFAULT_JUDGE_TIMEOUT_MS).toBe(120_000);
+    expect(seen).toEqual([120_000, 120_000, 120_000, 120_000]);
+  });
+
+  it("honors a judgeTimeoutMs override on every call", async () => {
+    const seen: Array<number | undefined> = [];
+    const provider: JudgeProvider = {
+      async judge(_d, _p, _o, _jp, options) {
+        seen.push(options?.timeout_ms);
+        return yes;
+      },
+    };
+    await judgeCriteria([robustCrit()], makeOutcome("t"), provider, {
+      samples: 2,
+      judgeTimeoutMs: 30_000,
+    });
+
+    expect(seen).toEqual([30_000, 30_000]);
+  });
+
+  it("respects the sampleConcurrency bound — max in-flight tracked in the mock", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const provider: JudgeProvider = {
+      async judge() {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await delay(5);
+        inFlight--;
+        return yes;
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, {
+      samples: 6,
+      sampleConcurrency: 2,
+    });
+
+    expect(maxInFlight).toBeLessThanOrEqual(2);
+    expect(r!.samples).toBe(6);
+    expect(r!.sample_verdicts).toHaveLength(6);
+    expect(r!.verdict).toBe("yes");
+  });
+
+  it("keeps all N samples concurrent when no bound is set (legacy dispatch)", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const provider: JudgeProvider = {
+      async judge() {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await delay(5);
+        inFlight--;
+        return yes;
+      },
+    };
+    await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 5 });
+
+    expect(maxInFlight).toBe(5);
+  });
+
+  it("keeps sample_verdicts aligned to dispatch order when completions reorder", async () => {
+    // Call 0 is slow, calls 1..3 fast: with a bound of 2 the completion order
+    // is 1,2,3,0 — the recorded verdicts must still follow dispatch order.
+    const script = [
+      { verdict: "no" as const, delayMs: 40 },
+      { verdict: "yes" as const, delayMs: 1 },
+      { verdict: "yes" as const, delayMs: 1 },
+      { verdict: "yes" as const, delayMs: 1 },
+    ];
+    let i = 0;
+    const provider: JudgeProvider = {
+      async judge() {
+        const step = script[i++]!;
+        await delay(step.delayMs);
+        return { verdict: step.verdict, confidence: 0.9, reasoning: `sample says ${step.verdict}` };
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, {
+      samples: 4,
+      sampleConcurrency: 2,
+    });
+
+    expect(r!.sample_verdicts).toEqual(["no", "yes", "yes", "yes"]);
+    expect(r!.sample_latencies_ms).toHaveLength(4);
+    expect(r!.verdict).toBe("yes");
+  });
+
+  it("folds a timed-out sample into an unsure vote and completes the run", async () => {
+    // A provider that honors timeout_ms the way the real adapters do: the call
+    // rejects when the simulated completion outlives the budget.
+    let call = 0;
+    const provider: JudgeProvider = {
+      judge(_d, _p, _o, _jp, options) {
+        const latency = call++ === 0 ? 1_000 : 1;
+        return new Promise((resolve, reject) => {
+          const done = setTimeout(() => resolve(yes), latency);
+          if (options?.timeout_ms !== undefined && options.timeout_ms < latency) {
+            setTimeout(() => {
+              clearTimeout(done);
+              reject(new Error("judge call timed out"));
+            }, options.timeout_ms);
+          }
+        });
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, {
+      samples: 3,
+      judgeTimeoutMs: 20,
+    });
+
+    expect(r!.verdict).toBe("yes");
+    expect(r!.sample_verdicts).toEqual(["unsure", "yes", "yes"]);
+    expect(r!.agreement).toBeCloseTo(2 / 3);
+    expect(r!.reasoning).toContain("errored");
+    // The timed-out sample still records its (bounded) latency. The lower
+    // bound is slack (15 < the 20ms budget): Node timers may fire ~1ms early
+    // relative to Date.now() deltas.
+    expect(r!.sample_latencies_ms).toHaveLength(3);
+    expect(r!.sample_latencies_ms![0]).toBeGreaterThanOrEqual(15);
+  });
+
+  it("records per-sample latencies aligned index-for-index with verdicts (multi-sample only)", async () => {
+    const provider: JudgeProvider = {
+      async judge() {
+        await delay(2);
+        return yes;
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(r!.sample_latencies_ms).toHaveLength(3);
+    expect(r!.sample_latencies_ms!.length).toBe(r!.sample_verdicts!.length);
+    for (const ms of r!.sample_latencies_ms!) {
+      expect(Number.isFinite(ms)).toBe(true);
+      expect(ms).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("keeps the single-call result shape latency-free", async () => {
+    const provider: JudgeProvider = {
+      async judge() {
+        return yes;
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 1 });
+
+    expect(r!.verdict).toBe("yes");
+    expect(r!.sample_latencies_ms).toBeUndefined();
+  });
+
+  it("omits latencies on the degraded all-error legacy shape", async () => {
+    const provider: JudgeProvider = {
+      async judge() {
+        throw new Error("down");
+      },
+    };
+    const [r] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 3 });
+
+    expect(r!.verdict).toBe("unsure");
+    expect(r!.samples).toBeUndefined();
+    expect(r!.sample_latencies_ms).toBeUndefined();
   });
 });
 

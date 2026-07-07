@@ -508,20 +508,33 @@ export class AnthropicJudgeProvider implements JudgeProvider {
       `PROMPT: ${prompt}\n\n` +
       `OUTPUT:\n${output}`;
 
-    const result = await this.#provider.complete({
-      model: this.#model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      // 2048 (was 256): a verdict + one-sentence reasoning can exceed 256
-      // tokens and truncate the JSON object, losing the verdict. Matches the
-      // openai-compatible judge budget (#173).
-      maxTokens: 2048,
-      // Greedy by default; multi-sample majority voting passes a temperature
-      // so the N samples draw independent verdicts.
-      temperature: options?.temperature ?? 0,
-    });
+    // Judge calls carry the same abort-on-timeout bound as execution calls: a
+    // hung endpoint must reject — the engine folds the rejection into an
+    // "unsure" vote — never stall the run.
+    const controller = options?.timeout_ms ? new AbortController() : undefined;
+    const timer = controller
+      ? setTimeout(() => controller.abort(), options!.timeout_ms)
+      : undefined;
+    let result;
+    try {
+      result = await this.#provider.complete({
+        model: this.#model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        // 2048 (was 256): a verdict + one-sentence reasoning can exceed 256
+        // tokens and truncate the JSON object, losing the verdict. Matches the
+        // openai-compatible judge budget (#173).
+        maxTokens: 2048,
+        // Greedy by default; multi-sample majority voting passes a temperature
+        // so the N samples draw independent verdicts.
+        temperature: options?.temperature ?? 0,
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
 
     const parsed = parseJsonObject(result.text);
     // Recover the verdict from the structured parse when available, else from a
