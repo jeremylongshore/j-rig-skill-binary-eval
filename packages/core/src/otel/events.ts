@@ -16,6 +16,7 @@ import {
   type RuntimeTerminalStateValue,
   type JudgeVerdictSourceValue,
   type GateDecisionValue,
+  type CostPhaseNameValue,
 } from "./names.js";
 
 /** Shared correlation metadata carried by every event (067 § 4.2). */
@@ -143,5 +144,61 @@ export function emitGateDecisionEmitted(
     [OtelAttrs.GATE_NAME]: payload.gateName,
     [OtelAttrs.GATE_DECISION]: payload.decision,
     [OtelAttrs.GATE_POLICY_REF]: payload.policyRef,
+  });
+}
+
+/**
+ * `cost.run.recorded` — run-end cost summary for one per-model eval run.
+ * `estimatedUsd` is `number | null` (null = a recorded model has no rate on
+ * file): the helper sets `cost.run.usd_known` as the discriminator and OMITS
+ * `cost.run.estimated_usd` when null — an unknown estimate must never render
+ * as 0, because $0 is a real price (free tier).
+ */
+export function emitCostRunRecorded(
+  c: EvalCorrelation,
+  payload: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCalls: number;
+    estimatedUsd: number | null;
+  },
+): void {
+  emitOtelEvent(OtelEvents.COST_RUN_RECORDED, {
+    ...correlationAttrs(c),
+    [OtelAttrs.COST_RUN_TOTAL_INPUT_TOKENS]: payload.totalInputTokens,
+    [OtelAttrs.COST_RUN_TOTAL_OUTPUT_TOKENS]: payload.totalOutputTokens,
+    [OtelAttrs.COST_RUN_TOTAL_CALLS]: payload.totalCalls,
+    [OtelAttrs.COST_RUN_USD_KNOWN]: payload.estimatedUsd !== null,
+    ...(payload.estimatedUsd !== null
+      ? { [OtelAttrs.COST_RUN_ESTIMATED_USD]: payload.estimatedUsd }
+      : {}),
+  });
+}
+
+/**
+ * `cost.phase.recorded` — per-phase cost breakdown for one per-model eval run.
+ * `judgeSamples` (judge phase only) is the resolved samples-per-criterion
+ * multiplier — the ×N multi-sample majority voting applies to judge cost;
+ * omit it for the trigger/execution phases.
+ */
+export function emitCostPhaseRecorded(
+  c: EvalCorrelation,
+  payload: {
+    phase: CostPhaseNameValue;
+    inputTokens: number;
+    outputTokens: number;
+    calls: number;
+    judgeSamples?: number;
+  },
+): void {
+  emitOtelEvent(OtelEvents.COST_PHASE_RECORDED, {
+    ...correlationAttrs(c),
+    [OtelAttrs.COST_PHASE_NAME]: payload.phase,
+    [OtelAttrs.COST_PHASE_INPUT_TOKENS]: payload.inputTokens,
+    [OtelAttrs.COST_PHASE_OUTPUT_TOKENS]: payload.outputTokens,
+    [OtelAttrs.COST_PHASE_CALLS]: payload.calls,
+    ...(payload.judgeSamples !== undefined
+      ? { [OtelAttrs.COST_PHASE_JUDGE_SAMPLES]: payload.judgeSamples }
+      : {}),
   });
 }

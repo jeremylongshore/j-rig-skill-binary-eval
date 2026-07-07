@@ -18,12 +18,14 @@ export {
   CriterionOutcome,
   JudgeVerdictSource,
   GateDecision,
+  CostPhaseName,
   type OtelEventName,
   type OtelAttrKey,
   type RuntimeTerminalStateValue,
   type CriterionOutcomeValue,
   type JudgeVerdictSourceValue,
   type GateDecisionValue,
+  type CostPhaseNameValue,
 } from "./names.js";
 
 export {
@@ -40,6 +42,8 @@ export {
   emitJudgeInvoked,
   emitJudgeVerdict,
   emitGateDecisionEmitted,
+  emitCostRunRecorded,
+  emitCostPhaseRecorded,
   type EvalCorrelation,
 } from "./events.js";
 

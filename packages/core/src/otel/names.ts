@@ -65,6 +65,16 @@ export const OtelEvents = {
    * to the audit-harness iah-E07 emitter.
    */
   GATE_DECISION_EMITTED: "gate.decision.emitted",
+
+  // COST events (observability review BUILD-NOW #1). `cost.*` is the
+  // reserved-but-unnamed 067 category minted HERE — this file is the naming
+  // authority until the taxonomy doc gains its cost.* section (a separate docs
+  // follow-up in intent-eval-lab). Run-end summary events only: cost NEVER
+  // rides the pinned judge.*/gate.* payloads.
+  /** Run-end cost summary — one per per-model eval run with a real provider. */
+  COST_RUN_RECORDED: "cost.run.recorded",
+  /** Per-phase cost breakdown — one per eval phase (trigger/execution/judge). */
+  COST_PHASE_RECORDED: "cost.phase.recorded",
 } as const;
 
 export type OtelEventName = (typeof OtelEvents)[keyof typeof OtelEvents];
@@ -115,6 +125,26 @@ export const OtelAttrs = {
   GATE_NAME: "gate.name",
   GATE_DECISION: "gate.decision",
   GATE_POLICY_REF: "gate.policy_ref",
+
+  // cost.run.recorded payload (minted here — see the cost.* note on OtelEvents).
+  COST_RUN_TOTAL_INPUT_TOKENS: "cost.run.total_input_tokens",
+  COST_RUN_TOTAL_OUTPUT_TOKENS: "cost.run.total_output_tokens",
+  COST_RUN_TOTAL_CALLS: "cost.run.total_calls",
+  // CRITICAL SEMANTIC: `estimated_usd` is OMITTED when unknown and
+  // `cost.run.usd_known` (bool) is the discriminator. The cost report's null
+  // (no rate on file) must NEVER render as 0 — $0 is a real price (free-tier
+  // endpoints), and "unknown shown as free" is measured-wrong.
+  COST_RUN_ESTIMATED_USD: "cost.run.estimated_usd",
+  COST_RUN_USD_KNOWN: "cost.run.usd_known",
+
+  // cost.phase.recorded payload (minted here — see the cost.* note on OtelEvents).
+  COST_PHASE_NAME: "cost.phase.name",
+  COST_PHASE_INPUT_TOKENS: "cost.phase.input_tokens",
+  COST_PHASE_OUTPUT_TOKENS: "cost.phase.output_tokens",
+  COST_PHASE_CALLS: "cost.phase.calls",
+  // Judge phase only: the resolved samples-per-criterion multiplier — the ×N
+  // that multi-sample majority voting applies to judge cost.
+  COST_PHASE_JUDGE_SAMPLES: "cost.phase.judge_samples",
 } as const;
 
 export type OtelAttrKey = (typeof OtelAttrs)[keyof typeof OtelAttrs];
@@ -170,3 +200,15 @@ export const GateDecision = {
 } as const;
 
 export type GateDecisionValue = (typeof GateDecision)[keyof typeof GateDecision];
+
+/**
+ * Closed enum for `cost.phase.name` — the three strictly-sequential phases of
+ * a per-model eval run, matching the CLI cost meter's `EvalPhase` vocabulary.
+ */
+export const CostPhaseName = {
+  TRIGGER: "trigger",
+  EXECUTION: "execution",
+  JUDGE: "judge",
+} as const;
+
+export type CostPhaseNameValue = (typeof CostPhaseName)[keyof typeof CostPhaseName];

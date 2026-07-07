@@ -6,6 +6,7 @@ import {
   CriterionOutcome,
   JudgeVerdictSource,
   GateDecision,
+  CostPhaseName,
 } from "./names.js";
 
 /**
@@ -31,6 +32,11 @@ describe("OTel event names (067 § 1.1, 1.2, 2.2)", () => {
 
   it("pins the gate.* governance event name verbatim, matching iah-E07 (§ 2.2)", () => {
     expect(OtelEvents.GATE_DECISION_EMITTED).toBe("gate.decision.emitted");
+  });
+
+  it("pins the cost.* run-end summary event names (minted here; 067 reserved category)", () => {
+    expect(OtelEvents.COST_RUN_RECORDED).toBe("cost.run.recorded");
+    expect(OtelEvents.COST_PHASE_RECORDED).toBe("cost.phase.recorded");
   });
 
   it("every event name is dotted-lowercase with snake_case leaves (§ 4.1)", () => {
@@ -74,6 +80,22 @@ describe("OTel attribute keys", () => {
     expect(OtelAttrs.GATE_POLICY_REF).toBe("gate.policy_ref");
   });
 
+  it("pins the cost.run.recorded payload keys (minted here)", () => {
+    expect(OtelAttrs.COST_RUN_TOTAL_INPUT_TOKENS).toBe("cost.run.total_input_tokens");
+    expect(OtelAttrs.COST_RUN_TOTAL_OUTPUT_TOKENS).toBe("cost.run.total_output_tokens");
+    expect(OtelAttrs.COST_RUN_TOTAL_CALLS).toBe("cost.run.total_calls");
+    expect(OtelAttrs.COST_RUN_ESTIMATED_USD).toBe("cost.run.estimated_usd");
+    expect(OtelAttrs.COST_RUN_USD_KNOWN).toBe("cost.run.usd_known");
+  });
+
+  it("pins the cost.phase.recorded payload keys (minted here)", () => {
+    expect(OtelAttrs.COST_PHASE_NAME).toBe("cost.phase.name");
+    expect(OtelAttrs.COST_PHASE_INPUT_TOKENS).toBe("cost.phase.input_tokens");
+    expect(OtelAttrs.COST_PHASE_OUTPUT_TOKENS).toBe("cost.phase.output_tokens");
+    expect(OtelAttrs.COST_PHASE_CALLS).toBe("cost.phase.calls");
+    expect(OtelAttrs.COST_PHASE_JUDGE_SAMPLES).toBe("cost.phase.judge_samples");
+  });
+
   it("every attribute key is dotted-lowercase with snake_case leaves (§ 4.1)", () => {
     for (const key of Object.values(OtelAttrs)) {
       expect(key).toMatch(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/);
@@ -102,5 +124,9 @@ describe("OTel closed enums", () => {
     expect(Object.values(GateDecision).sort()).toEqual(
       ["advisory", "error", "fail", "pass"].sort(),
     );
+  });
+
+  it("cost.phase.name enum is the closed per-model eval phase set", () => {
+    expect(Object.values(CostPhaseName).sort()).toEqual(["execution", "judge", "trigger"].sort());
   });
 });
