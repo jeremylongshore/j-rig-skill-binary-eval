@@ -616,6 +616,10 @@ export function registerEvalCommand(program: Command): void {
                 emitRuntimeCriterionEvaluated(correlation, {
                   matcherClass: j.method,
                   outcome: criterionOutcome,
+                  // Multi-sample enrichment: agreement is queryable per
+                  // criterion without folding the N judge.verdict events.
+                  samples: j.samples,
+                  agreement: j.agreement,
                 });
               }
 
@@ -744,6 +748,44 @@ export function registerEvalCommand(program: Command): void {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
               const triggerRan = opts.trigger !== false;
+              // Vote evidence (audit-substrate review, finding 1): the signed
+              // predicate must carry the FOLD INPUTS — per-judgment samples,
+              // agreement, and per-sample verdicts — plus the aggregation rule
+              // in force, so a verifier can re-derive the verdict from the
+              // signed bytes ("majority of these N recorded votes", never
+              // "the judge said so"). `stability` is present IFF multi-
+              // sampling actually ran, so absence unambiguously means "no
+              // stability evidence" — never a fake measured-0.
+              const criteriaById = new Map(scoringCriteria.map((c) => [c.id, c]));
+              const multiSampled = allJudgments.some((j) => (j.samples ?? 1) >= 2);
+              const voteEvidence = {
+                aggregation: {
+                  rule: "majority-vote",
+                  denominator_rule: "errored-samples-count-as-unsure",
+                  blocker_quorum: spec.min_blocker_agreement ?? null,
+                  samples_default: judgeSamples ?? 1,
+                },
+                criteria: allJudgments.map((j) => ({
+                  criterion_id: j.criterion_id,
+                  blocker: criteriaById.get(j.criterion_id)?.blocker ?? false,
+                  method: j.method,
+                  verdict: j.verdict,
+                  ...(j.samples !== undefined ? { samples: j.samples } : {}),
+                  ...(j.agreement !== undefined ? { agreement: j.agreement } : {}),
+                  ...(j.sample_verdicts !== undefined
+                    ? { sample_verdicts: j.sample_verdicts }
+                    : {}),
+                })),
+                ...(multiSampled
+                  ? {
+                      stability: {
+                        min_blocker_agreement: spec.min_blocker_agreement ?? null,
+                        unstable_blocker_failures: scoreCard.unstable_blocker_failures ?? 0,
+                      },
+                    }
+                  : {}),
+              };
+              const hasJudgeCriteria = allJudgments.some((j) => j.method === "judge");
               const statement = composeStatement({
                 gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
                 gateDecision,
@@ -773,7 +815,14 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
+                  ...voteEvidence,
                 },
+                // Honest replay-fidelity claim: an un-seeded API judge caps the
+                // statement below RF-2 (the OTel llm_no_seed classification) —
+                // the fold is replayable from the recorded votes above, the
+                // votes are not reproducible from scratch. Pure-deterministic
+                // runs make no claim rather than guessing a higher level.
+                ...(hasJudgeCriteria ? { replayFidelityLevel: "RF-1" as const } : {}),
                 ...(gateDecision === "fail"
                   ? { failureMode: report.blockers[0] ?? "blocker-criterion-failed" }
                   : {}),

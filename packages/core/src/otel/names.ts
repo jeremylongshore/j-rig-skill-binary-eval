@@ -93,6 +93,13 @@ export const OtelAttrs = {
   // runtime.criterion.evaluated payload (067 § 1.1).
   RUNTIME_CRITERION_MATCHER_CLASS: "runtime.criterion.matcher_class",
   RUNTIME_CRITERION_OUTCOME: "runtime.criterion.outcome",
+  // Multi-sample judging enrichment (additive): judge samples tallied for
+  // this criterion + the fraction agreeing with the majority. Absent on
+  // single-call and deterministic criteria. `agreement` below the spec's
+  // stability threshold is the "verdict too noisy to trust" signal, queryable
+  // without folding the N per-sample judge.verdict events.
+  RUNTIME_CRITERION_SAMPLES: "runtime.criterion.samples",
+  RUNTIME_CRITERION_AGREEMENT: "runtime.criterion.agreement",
 
   // judge.invoked payload (067 § 1.2).
   JUDGE_ID: "judge.id",

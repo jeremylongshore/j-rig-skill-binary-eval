@@ -71,12 +71,25 @@ export function emitRuntimeRunFinished(
  */
 export function emitRuntimeCriterionEvaluated(
   c: EvalCorrelation,
-  payload: { matcherClass: string; outcome: CriterionOutcomeValue },
+  payload: {
+    matcherClass: string;
+    outcome: CriterionOutcomeValue;
+    /** Judge samples tallied (multi-sample judging only; omit for single-call/deterministic). */
+    samples?: number;
+    /** Fraction of samples agreeing with the majority verdict (multi-sample only). */
+    agreement?: number;
+  },
 ): void {
   emitOtelEvent(OtelEvents.RUNTIME_CRITERION_EVALUATED, {
     ...correlationAttrs(c),
     [OtelAttrs.RUNTIME_CRITERION_MATCHER_CLASS]: payload.matcherClass,
     [OtelAttrs.RUNTIME_CRITERION_OUTCOME]: payload.outcome,
+    ...(payload.samples !== undefined
+      ? { [OtelAttrs.RUNTIME_CRITERION_SAMPLES]: payload.samples }
+      : {}),
+    ...(payload.agreement !== undefined
+      ? { [OtelAttrs.RUNTIME_CRITERION_AGREEMENT]: payload.agreement }
+      : {}),
   });
 }
 

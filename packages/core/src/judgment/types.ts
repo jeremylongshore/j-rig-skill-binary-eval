@@ -26,7 +26,13 @@ export interface JudgmentResult {
   samples?: number;
   /** Fraction of tallied samples agreeing with the majority verdict (multi-sample only). */
   agreement?: number;
-  /** Per-sample verdicts in completion order (multi-sample only) — the audit trail of the noise. */
+  /**
+   * Per-sample verdicts in DISPATCH order (multi-sample only) — the audit
+   * trail of the noise. Promise.allSettled preserves input order, not
+   * completion order; the majority fold is order-invariant, but any future
+   * order-dependent fold (e.g. sequential quorum-lock early-stop) must record
+   * its own ordering explicitly.
+   */
   sample_verdicts?: JudgmentVerdict[];
 }
 
