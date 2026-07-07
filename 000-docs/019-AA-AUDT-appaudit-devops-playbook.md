@@ -778,7 +778,7 @@ Ordered by likelihood x impact. These are real sharp edges from reading the code
 | Audit harness (npm)                   | <https://www.npmjs.com/package/@intentsolutions/audit-harness>                                            |
 | Audit harness (GitHub)                | <https://github.com/jeremylongshore/audit-harness>                                                        |
 | Predicate URI (NOT yet DNSSEC-pinned) | <https://evals.intentsolutions.io/gate-result/v1>                                                         |
-| Security intake                       | mailto:security@jeremylongshore.com                                                                       |
+| Security intake                       | <security@jeremylongshore.com>                                                                       |
 
 ### First-Week Checklist
 
