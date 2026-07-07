@@ -135,6 +135,26 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     defaultModel: "deepseek/deepseek-chat",
     keyEnv: "OPENROUTER_API_KEY",
   },
+  // The two FREE-tier judge candidates for the judge value benchmark (does
+  // N-sample majority on a free judge beat one paid judge on stability AND
+  // cost?). Listed LAST so key-presence auto-detection still prefers the paid
+  // default (deepseek) — select these explicitly via --provider /
+  // --judge-provider.
+  groq: {
+    id: "groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    // Groq free tier: ~30 requests/min — fine for single-skill evals; budget
+    // for it when multi-sampling (N x criteria calls per test case).
+    defaultModel: "llama-3.3-70b-versatile",
+    keyEnv: "GROQ_API_KEY",
+  },
+  nvidia: {
+    id: "nvidia",
+    // NVIDIA NIM (build.nvidia.com) OpenAI-compatible endpoint, free tier.
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    defaultModel: "meta/llama-3.3-70b-instruct",
+    keyEnv: "NVIDIA_API_KEY",
+  },
 };
 
 /** Alias `moonshot` → the `kimi` preset (same vendor). */
@@ -211,8 +231,10 @@ export function resolveOpenAICompatConfig(
     };
   }
 
-  // 3. Built-in presets in priority order.
-  for (const presetId of ["deepseek", "kimi", "openrouter"]) {
+  // 3. Built-in presets in priority order (paid defaults first; the free-tier
+  // judge candidates last, so they only auto-select when nothing else is
+  // keyed).
+  for (const presetId of ["deepseek", "kimi", "openrouter", "groq", "nvidia"]) {
     const cfg = fromPreset(presetId);
     if (cfg) return cfg;
   }
