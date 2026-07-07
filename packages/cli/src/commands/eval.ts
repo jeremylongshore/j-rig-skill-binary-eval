@@ -166,9 +166,15 @@ function selectJudgeOverride(
       const modelId = judgeModel || targetModel;
       return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
     }
+    // `--judge-model` alone with NO real key anywhere: fall back to the stub
+    // judge (its constructor enforces the J_RIG_ALLOW_STUB opt-in gate) so
+    // the flag composes with stub/test environments, mirroring
+    // selectProviders' fallback. Only an EXPLICIT --judge-provider fails loud.
+    const modelId = judgeModel || targetModel;
+    return { judge: new StubJudgeProvider(modelId), name: "stub", modelId };
   }
   throw new Error(
-    `--judge-provider "${judgeProvider ?? "(auto)"}" requested but no API key resolves for it — ` +
+    `--judge-provider "${judgeProvider}" requested but no API key resolves for it — ` +
       `set that preset's key env var (or drop the flag)`,
   );
 }
