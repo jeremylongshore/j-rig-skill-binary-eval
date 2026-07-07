@@ -263,11 +263,7 @@ export type AdoptionAxis = "high" | "low" | "inconclusive" | "insufficient";
  *                       fires (a low-evidence skill is held, not deprecated).
  */
 export type AdoptionVerdictKind =
-  | "keep"
-  | "watch"
-  | "deprecate_review"
-  | "obsolete_review"
-  | "hold";
+  "keep" | "watch" | "deprecate_review" | "obsolete_review" | "hold";
 
 /** Per-tenant decayed breakdown (DR-103 D5 B5.4 — the verdict must be explainable). */
 export interface TenantAdoption {

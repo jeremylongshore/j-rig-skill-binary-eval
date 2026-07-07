@@ -51,14 +51,7 @@ const TRACER_VERSION = "2.1.0";
  * branching at every call site.
  */
 export type OtelAttrValue =
-  | string
-  | number
-  | boolean
-  | string[]
-  | number[]
-  | boolean[]
-  | null
-  | undefined;
+  string | number | boolean | string[] | number[] | boolean[] | null | undefined;
 
 export type OtelEventPayload = Record<string, OtelAttrValue>;
 
