@@ -138,6 +138,17 @@ describe("EvalCostMeter", () => {
     expect(r.total.input_tokens).toBe(5 + 1 + 1);
   });
 
+  it("ignores a missing usage object instead of propagating NaN", () => {
+    const meter = new EvalCostMeter();
+    meter.record("m", undefined as unknown as import("@j-rig/core").TokenUsage);
+    meter.record("m", {} as import("@j-rig/core").TokenUsage);
+
+    const r = meter.report();
+    expect(r.total.calls).toBe(1); // the {} usage counts as a call with 0 tokens
+    expect(r.total.input_tokens).toBe(0);
+    expect(Number.isNaN(r.total.input_tokens)).toBe(false);
+  });
+
   it("delegates results unchanged (transparent decorator)", async () => {
     const meter = new EvalCostMeter();
     const p = new CostTrackingProvider(fakeProvider("m"), meter);

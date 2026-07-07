@@ -98,15 +98,21 @@ export class EvalCostMeter {
   readonly #byModel = new Map<string, PhaseCost>();
 
   record(model: string, usage: TokenUsage): void {
+    // Defensive: a misbehaving adapter may omit usage or its fields — never
+    // let NaN propagate into the report (a wrong number is worse than none).
+    if (!usage) return;
+    const input = usage.inputTokens ?? 0;
+    const output = usage.outputTokens ?? 0;
+
     const p = this.#phases[this.phase];
     p.calls++;
-    p.input_tokens += usage.inputTokens;
-    p.output_tokens += usage.outputTokens;
+    p.input_tokens += input;
+    p.output_tokens += output;
 
     const m = this.#byModel.get(model) ?? emptyPhase();
     m.calls++;
-    m.input_tokens += usage.inputTokens;
-    m.output_tokens += usage.outputTokens;
+    m.input_tokens += input;
+    m.output_tokens += output;
     this.#byModel.set(model, m);
   }
 
@@ -191,7 +197,8 @@ export class CostTrackingProvider implements Provider {
   async batch(reqs: CompletionRequest[]): Promise<Array<CompletionResult | ProviderError>> {
     const results = await this.#inner.batch(reqs);
     for (const r of results) {
-      if (!(r instanceof Error) && "usage" in r) {
+      // `in` throws on null/undefined — guard the object shape before probing.
+      if (r && typeof r === "object" && !(r instanceof Error) && "usage" in r) {
         this.#meter.record(r.model, r.usage);
       }
     }
