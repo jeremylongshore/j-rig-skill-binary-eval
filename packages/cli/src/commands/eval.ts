@@ -892,8 +892,10 @@ export function registerEvalCommand(program: Command): void {
                   inputTokens: p.input_tokens,
                   outputTokens: p.output_tokens,
                   calls: p.calls,
-                  // Judge phase only: the resolved ×N multiplier multi-sample
-                  // majority voting applies to judge cost.
+                  // Judge phase only: the RUN-LEVEL sample default (the attr is
+                  // named judge_samples_default) — a criterion's own `samples`
+                  // override is not reflected here; the signed bundle's
+                  // aggregation.samples_default carries the same semantics.
                   ...(phase === CostPhaseName.JUDGE ? { judgeSamples: judgeSamples ?? 1 } : {}),
                 });
               }

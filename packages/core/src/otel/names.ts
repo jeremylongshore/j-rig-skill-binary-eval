@@ -144,7 +144,7 @@ export const OtelAttrs = {
   COST_PHASE_CALLS: "cost.phase.calls",
   // Judge phase only: the resolved samples-per-criterion multiplier — the ×N
   // that multi-sample majority voting applies to judge cost.
-  COST_PHASE_JUDGE_SAMPLES: "cost.phase.judge_samples",
+  COST_PHASE_JUDGE_SAMPLES: "cost.phase.judge_samples_default",
 } as const;
 
 export type OtelAttrKey = (typeof OtelAttrs)[keyof typeof OtelAttrs];

@@ -202,7 +202,7 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
     expect(ev.attributes["cost.phase.input_tokens"]).toBe(9_000);
     expect(ev.attributes["cost.phase.output_tokens"]).toBe(1_500);
     expect(ev.attributes["cost.phase.calls"]).toBe(15);
-    expect(ev.attributes["cost.phase.judge_samples"]).toBe(5);
+    expect(ev.attributes["cost.phase.judge_samples_default"]).toBe(5);
   });
 
   it("emitCostPhaseRecorded omits judge_samples on non-judge phases", () => {
@@ -215,6 +215,6 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
       }),
     );
     expect(ev.attributes["cost.phase.name"]).toBe("trigger");
-    expect("cost.phase.judge_samples" in ev.attributes).toBe(false);
+    expect("cost.phase.judge_samples_default" in ev.attributes).toBe(false);
   });
 });
