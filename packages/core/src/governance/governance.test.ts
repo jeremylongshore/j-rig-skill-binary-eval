@@ -348,6 +348,6 @@ describe("stability gate (noise-robust blocker scoring)", () => {
     expect(report.blockers).toHaveLength(0);
     expect(report.warnings.join(" ")).toContain("agreement stability threshold");
     // The unstable blocker must not be double-reported as a non-blocker failure.
-    expect(report.warnings.join(" ")).not.toContain("non-blocker criteria failed");
+    expect(report.warnings.join(" ")).not.toContain("non-blocker criterion evaluation");
   });
 });

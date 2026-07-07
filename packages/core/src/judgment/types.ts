@@ -22,6 +22,14 @@ export interface JudgmentResult {
   reasoning: string;
   method: "deterministic" | "judge";
   judge_model?: string;
+  /**
+   * ADDITIVE: the test case this judgment row belongs to. A criterion judged
+   * on multiple test cases produces one row per test case — without this id
+   * the flattened vote-evidence array is ambiguous to automated consumers
+   * (flagged on the first published vote-evidence bundle). Set by the eval
+   * command; absent on synthetic rows (e.g. the self-test verdict).
+   */
+  test_case_id?: string;
   /** Judge samples tallied into this verdict (absent = single call). */
   samples?: number;
   /** Fraction of tallied samples agreeing with the majority verdict (multi-sample only). */

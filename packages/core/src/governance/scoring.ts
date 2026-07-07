@@ -152,7 +152,11 @@ export function buildLaunchReport(
   const warnings: string[] = [];
 
   if (score.blocker_failures > 0) {
-    blockers.push(`${score.blocker_failures} blocker criteria failed`);
+    // "criterion evaluations", not "criteria": the count is per judgment row,
+    // and one criterion judged on multiple test cases contributes one row per
+    // test case — saying "criteria" over-counts distinct criteria (flagged on
+    // the first published vote-evidence bundle).
+    blockers.push(`${score.blocker_failures} blocker criterion evaluation(s) failed`);
   }
   if (score.sacred_regressions > 0) {
     blockers.push(`${score.sacred_regressions} sacred regressions detected`);
@@ -165,7 +169,7 @@ export function buildLaunchReport(
   }
   if ((score.unstable_blocker_failures ?? 0) > 0) {
     warnings.push(
-      `${score.unstable_blocker_failures} blocker criteria failed below the agreement ` +
+      `${score.unstable_blocker_failures} blocker criterion evaluation(s) failed below the agreement ` +
         `stability threshold — unstable verdicts downgraded to warnings, not blockers ` +
         `(re-run with more samples to resolve)`,
     );
@@ -174,7 +178,7 @@ export function buildLaunchReport(
   // don't double-report them as "non-blocker" failures here.
   const nonBlockerFailures = score.failed - (score.unstable_blocker_failures ?? 0);
   if (nonBlockerFailures > 0 && score.blocker_failures === 0) {
-    warnings.push(`${nonBlockerFailures} non-blocker criteria failed`);
+    warnings.push(`${nonBlockerFailures} non-blocker criterion evaluation(s) failed`);
   }
 
   const reasoning =

@@ -623,7 +623,12 @@ export function registerEvalCommand(program: Command): void {
                 });
               }
 
-              allJudgments.push(...judgments);
+              // Stamp each judgment row with its test case: a criterion judged
+              // on multiple test cases produces one row per case, and the
+              // vote-evidence array is ambiguous without the id.
+              allJudgments.push(
+                ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
+              );
             }
 
             // Fold the (model-independent) self-test verdict into THIS model's
@@ -767,6 +772,7 @@ export function registerEvalCommand(program: Command): void {
                 },
                 criteria: allJudgments.map((j) => ({
                   criterion_id: j.criterion_id,
+                  ...(j.test_case_id !== undefined ? { test_case_id: j.test_case_id } : {}),
                   blocker: criteriaById.get(j.criterion_id)?.blocker ?? false,
                   method: j.method,
                   verdict: j.verdict,
