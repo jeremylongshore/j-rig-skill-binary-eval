@@ -201,11 +201,7 @@ export function gateEvalSet(
  *                        (removing the block is structurally inadmissible).
  */
 export type BlockUtilityClass =
-  | "load-bearing"
-  | "harmful"
-  | "inert"
-  | "inconclusive"
-  | "schema-required";
+  "load-bearing" | "harmful" | "inert" | "inconclusive" | "schema-required";
 
 /**
  * The COMPUTED per-block utility record. Carries the SIGNED `utility` delta plus

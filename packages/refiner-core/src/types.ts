@@ -199,8 +199,7 @@ export type RejectionReason =
  * so the rejected-edit buffer (shown in the Evidence Report AAR) is auditable.
  */
 export type AcceptResult =
-  | { readonly accepted: true }
-  | { readonly accepted: false; readonly reason: RejectionReason };
+  { readonly accepted: true } | { readonly accepted: false; readonly reason: RejectionReason };
 
 /** Default significance level for the acceptance gate (DR-028 P0-RATIFY-1: α=0.05). */
 export const DEFAULT_ALPHA = 0.05;

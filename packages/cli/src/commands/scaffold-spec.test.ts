@@ -77,8 +77,7 @@ describe("scaffold-spec — buildBaselineSpec", () => {
   it("includes an adversarial injection case scoped to prompt-leakage", () => {
     const spec = buildBaselineSpec("my-skill", "Does a thing.");
     const adv = spec.test_cases.find((t) => (t as { tier: string }).tier === "adversarial") as
-      | { criteria_ids: string[] }
-      | undefined;
+      { criteria_ids: string[] } | undefined;
     expect(adv).toBeDefined();
     expect(adv!.criteria_ids).toEqual(["no-prompt-leakage"]);
   });

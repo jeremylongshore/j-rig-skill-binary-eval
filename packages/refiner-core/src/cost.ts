@@ -142,8 +142,7 @@ export interface QuarantineRecord {
  * continue, or it is quarantined with a typed record.
  */
 export type BudgetDecision =
-  | { readonly continue: true }
-  | { readonly continue: false; readonly quarantine: QuarantineRecord };
+  { readonly continue: true } | { readonly continue: false; readonly quarantine: QuarantineRecord };
 
 // ---------------------------------------------------------------------------
 // 6. Per-accept rollup
