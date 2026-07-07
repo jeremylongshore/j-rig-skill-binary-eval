@@ -266,9 +266,10 @@ describe("additive column retrofit", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // A database created before the sha256 column shipped must gain the column on
-  // open (CREATE TABLE IF NOT EXISTS skips existing tables), with existing rows
-  // intact — otherwise drizzle SELECTs, which name every schema column, break.
+  // A database created before the sha256 column shipped must gain the column
+  // on open (CREATE TABLE IF NOT EXISTS skips existing tables), with existing
+  // rows intact — otherwise drizzle SELECT statements, which name every schema
+  // column, break.
   it("retrofits artifacts.sha256 onto a pre-sha256 database file", () => {
     const dbPath = join(dir, "old.db");
     const raw = new Database(dbPath);

@@ -115,8 +115,9 @@ const CREATE_TABLES = `
 /**
  * Additive column retrofits for databases created before a column shipped.
  * CREATE TABLE IF NOT EXISTS skips existing tables, so a column added to
- * CREATE_TABLES never reaches an existing file — and drizzle SELECTs name every
- * schema column, so the code would break against that file without the ALTER.
+ * CREATE_TABLES never reaches an existing file — and drizzle SELECT statements
+ * name every schema column, so the code would break against that file without
+ * the ALTER.
  * Entries must be nullable with no default (existing rows stay valid) and are
  * applied only when pragma table_info shows the column missing (idempotent).
  */
