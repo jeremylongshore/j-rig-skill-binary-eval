@@ -71,7 +71,8 @@ import {
   OpenAICompatJudgeProvider,
   resolveOpenAICompatConfig,
 } from "../providers/openai-compatible.js";
-import type { TriggerProvider, ExecutionProvider, JudgeProvider } from "@j-rig/core";
+import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
+import { CostTrackingProvider, EvalCostMeter } from "../providers/cost-tracking.js";
 
 interface EvalOptions {
   spec?: string;
@@ -85,6 +86,8 @@ interface EvalOptions {
   traceBoundary?: boolean;
   runSelfTest?: boolean;
   samples?: string;
+  judgeProvider?: string;
+  judgeModel?: string;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -96,6 +99,78 @@ interface SelectedProviders {
   real: boolean;
   /** Short provider name recorded in evidence (`anthropic`/`deepseek`/`stub`/…). */
   providerName: string;
+  /**
+   * Judge backend name — equals `providerName` unless `--judge-provider`
+   * decoupled the judge from the execution model (the judge value benchmark:
+   * a weak judge gives wrong verdicts, so the judge is independently
+   * swappable).
+   */
+  judgeProviderName: string;
+  /** Concrete model id the judge runs on — feeds JudgmentResult.judge_model + OTel. */
+  judgeModelId: string;
+}
+
+/** Extra provider-selection inputs: cost metering + judge decoupling. */
+interface ProviderExtras {
+  meter?: EvalCostMeter;
+  judgeProvider?: string;
+  judgeModel?: string;
+}
+
+/**
+ * Resolve an INDEPENDENT judge backend when `--judge-provider`/`--judge-model`
+ * decouple the judge from the skill-under-test's provider. Fails LOUD when the
+ * requested backend has no key — silently judging on a different vendor than
+ * asked would corrupt the benchmark this exists for.
+ */
+function selectJudgeOverride(
+  targetModel: string,
+  extras?: ProviderExtras,
+): { judge: JudgeProvider; name: string; modelId: string } | null {
+  const judgeProvider = extras?.judgeProvider?.trim().toLowerCase();
+  const judgeModel = extras?.judgeModel?.trim();
+  if (!judgeProvider && !judgeModel) return null;
+
+  const wrap = (p: Provider): Provider =>
+    extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+
+  if (judgeProvider === "stub") {
+    const modelId = judgeModel || targetModel;
+    return { judge: new StubJudgeProvider(modelId), name: "stub", modelId };
+  }
+
+  if (judgeProvider === "anthropic") {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 8) {
+      throw new Error("--judge-provider anthropic requires ANTHROPIC_API_KEY");
+    }
+    const provider = wrap(new RealAnthropicProvider({ apiKey }));
+    const modelId = judgeModel || targetModel;
+    return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
+  }
+
+  // Preset / generic OpenAI-compatible path. `--judge-model` alone rides the
+  // auto-detected OpenAI-compatible backend (Anthropic fallback below).
+  const cfg = resolveOpenAICompatConfig(process.env, judgeProvider);
+  if (cfg) {
+    const provider = wrap(
+      new RealOpenAICompatProvider({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, name: cfg.name }),
+    );
+    const modelId = judgeModel || cfg.defaultModel || targetModel;
+    return { judge: new OpenAICompatJudgeProvider(modelId, provider), name: cfg.name, modelId };
+  }
+  if (!judgeProvider) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (apiKey && apiKey.length >= 8) {
+      const provider = wrap(new RealAnthropicProvider({ apiKey }));
+      const modelId = judgeModel || targetModel;
+      return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
+    }
+  }
+  throw new Error(
+    `--judge-provider "${judgeProvider ?? "(auto)"}" requested but no API key resolves for it — ` +
+      `set that preset's key env var (or drop the flag)`,
+  );
 }
 
 /**
@@ -116,67 +191,99 @@ interface SelectedProviders {
  * the OpenAI-compatible path; `anthropic` skips straight to the Anthropic path;
  * `stub` forces the stub path (still gated by the opt-in).
  */
-function selectProviders(model: string, preferred?: string): SelectedProviders {
+function selectProviders(
+  model: string,
+  preferred?: string,
+  extras?: ProviderExtras,
+): SelectedProviders {
   const want = preferred?.trim().toLowerCase();
+  const wrap = (p: Provider): Provider =>
+    extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
 
-  // Explicit stub request — let the stub constructors enforce the opt-in gate.
-  if (want === "stub") {
+  const base = ((): SelectedProviders => {
+    // Explicit stub request — let the stub constructors enforce the opt-in gate.
+    if (want === "stub") {
+      return {
+        trigger: new StubTriggerProvider(model),
+        execution: new StubExecutionProvider(model),
+        judge: new StubJudgeProvider(model),
+        real: false,
+        providerName: "stub",
+        judgeProviderName: "stub",
+        judgeModelId: model,
+      };
+    }
+
+    // 1. OpenAI-compatible path (DeepSeek / Kimi / OpenRouter / Groq / NVIDIA /
+    // generic LLM_*). Skipped only when the operator explicitly asked for
+    // `anthropic`.
+    if (want !== "anthropic") {
+      const cfg = resolveOpenAICompatConfig(process.env, want);
+      if (cfg) {
+        // The --models target (haiku/sonnet/opus) is an Anthropic-only label and is
+        // NOT a valid vendor model id on the OpenAI-compatible path — sending it to
+        // Groq/DeepSeek 404s. Use the configured vendor model (LLM_MODEL / preset
+        // defaultModel); fall back to the target only if no vendor model is set.
+        const effectiveModel =
+          cfg.defaultModel && cfg.defaultModel.length > 0 ? cfg.defaultModel : model;
+        const provider = wrap(
+          new RealOpenAICompatProvider({
+            apiKey: cfg.apiKey,
+            baseUrl: cfg.baseUrl,
+            name: cfg.name,
+          }),
+        );
+        return {
+          trigger: new OpenAICompatTriggerProvider(effectiveModel, provider),
+          execution: new OpenAICompatExecutionProvider(effectiveModel, provider),
+          judge: new OpenAICompatJudgeProvider(effectiveModel, provider),
+          real: true,
+          providerName: cfg.name,
+          judgeProviderName: cfg.name,
+          judgeModelId: effectiveModel,
+        };
+      }
+    }
+
+    // 2. Real Anthropic path.
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (apiKey && apiKey.length >= 8) {
+      const provider = wrap(new RealAnthropicProvider({ apiKey }));
+      return {
+        trigger: new AnthropicTriggerProvider(model, provider),
+        execution: new AnthropicExecutionProvider(model, provider),
+        judge: new AnthropicJudgeProvider(model, provider),
+        real: true,
+        providerName: "anthropic",
+        judgeProviderName: "anthropic",
+        judgeModelId: model,
+      };
+    }
+
+    // 3. No real key — stub providers (each constructor re-asserts the opt-in gate).
     return {
       trigger: new StubTriggerProvider(model),
       execution: new StubExecutionProvider(model),
       judge: new StubJudgeProvider(model),
       real: false,
       providerName: "stub",
+      judgeProviderName: "stub",
+      judgeModelId: model,
     };
-  }
+  })();
 
-  // 1. OpenAI-compatible path (DeepSeek / Kimi / OpenRouter / generic LLM_*).
-  // Skipped only when the operator explicitly asked for `anthropic`.
-  if (want !== "anthropic") {
-    const cfg = resolveOpenAICompatConfig(process.env, want);
-    if (cfg) {
-      // The --models target (haiku/sonnet/opus) is an Anthropic-only label and is
-      // NOT a valid vendor model id on the OpenAI-compatible path — sending it to
-      // Groq/DeepSeek 404s. Use the configured vendor model (LLM_MODEL / preset
-      // defaultModel); fall back to the target only if no vendor model is set.
-      const effectiveModel =
-        cfg.defaultModel && cfg.defaultModel.length > 0 ? cfg.defaultModel : model;
-      const provider = new RealOpenAICompatProvider({
-        apiKey: cfg.apiKey,
-        baseUrl: cfg.baseUrl,
-        name: cfg.name,
-      });
-      return {
-        trigger: new OpenAICompatTriggerProvider(effectiveModel, provider),
-        execution: new OpenAICompatExecutionProvider(effectiveModel, provider),
-        judge: new OpenAICompatJudgeProvider(effectiveModel, provider),
-        real: true,
-        providerName: cfg.name,
-      };
-    }
-  }
-
-  // 2. Real Anthropic path.
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (apiKey && apiKey.length >= 8) {
-    const provider = new RealAnthropicProvider({ apiKey });
+  // Judge decoupling: `--judge-provider` / `--judge-model` swap ONLY the judge
+  // leg; trigger + execution stay on the base backend.
+  const override = selectJudgeOverride(model, extras);
+  if (override) {
     return {
-      trigger: new AnthropicTriggerProvider(model, provider),
-      execution: new AnthropicExecutionProvider(model, provider),
-      judge: new AnthropicJudgeProvider(model, provider),
-      real: true,
-      providerName: "anthropic",
+      ...base,
+      judge: override.judge,
+      judgeProviderName: override.name,
+      judgeModelId: override.modelId,
     };
   }
-
-  // 3. No real key — stub providers (each constructor re-asserts the opt-in gate).
-  return {
-    trigger: new StubTriggerProvider(model),
-    execution: new StubExecutionProvider(model),
-    judge: new StubJudgeProvider(model),
-    real: false,
-    providerName: "stub",
-  };
+  return base;
 }
 
 /**
@@ -293,6 +400,18 @@ export function registerEvalCommand(program: Command): void {
         "empty-output) for the functional pass. Characterizes tool/script-dependent skills a " +
         "single-turn completion eval cannot fully grade. A boundary summary always prints when " +
         "any case hits it; this flag adds the full per-case detail.",
+    )
+    .option(
+      "--judge-provider <name>",
+      "Judge on a DIFFERENT backend than the skill-under-test: deepseek | kimi | moonshot | " +
+        "openrouter | groq | nvidia | anthropic | stub. Trigger + execution stay on --provider's " +
+        "backend. Fails loud if the requested judge backend has no key. (The judge value " +
+        "benchmark: free multi-sampled judges vs a single paid judge.)",
+    )
+    .option(
+      "--judge-model <id>",
+      "Override the judge's model id (rides --judge-provider's backend when given, else the " +
+        "auto-detected one).",
     )
     .option(
       "--samples <n>",
@@ -442,8 +561,16 @@ export function registerEvalCommand(program: Command): void {
           // Select real vs stub providers ONCE per model so the trigger /
           // execution / judge layers all run against the same backend and the
           // same real `Provider` instance (one key, one transport). The
-          // optional --provider flag forces a specific vendor.
-          const providers = selectProviders(model, opts.provider);
+          // optional --provider flag forces a specific vendor;
+          // --judge-provider/--judge-model decouple ONLY the judge leg. The
+          // cost meter rides every real provider call and is phase-flipped at
+          // each boundary below.
+          const costMeter = new EvalCostMeter();
+          const providers = selectProviders(model, opts.provider, {
+            meter: costMeter,
+            judgeProvider: opts.judgeProvider,
+            judgeModel: opts.judgeModel,
+          });
 
           // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
           // (067 § 1.1). The DB integer runId stays the storage key; the
@@ -466,9 +593,15 @@ export function registerEvalCommand(program: Command): void {
                   : `${providers.providerName.toUpperCase()} (not ground truth)`
               }`,
             );
+            if (providers.judgeProviderName !== providers.providerName) {
+              console.log(
+                `  Judge: ${providers.judgeProviderName} (${providers.judgeModelId}) — decoupled via --judge-provider`,
+              );
+            }
           }
 
           // ── Trigger tests ──────────────────────────────────────────────
+          costMeter.phase = "trigger";
           if (opts.trigger !== false) {
             const roster = buildRoster(skill.frontmatter, spec.siblings);
             const triggerResults = await runTriggerTests(
@@ -487,6 +620,7 @@ export function registerEvalCommand(program: Command): void {
 
           // ── Functional tests + judgment ────────────────────────────────
           if (opts.functional !== false) {
+            costMeter.phase = "execution";
             const outcomes: ObservedOutcome[] = await runFunctionalTests(
               spec.test_cases,
               skill,
@@ -557,6 +691,7 @@ export function registerEvalCommand(program: Command): void {
             const testCaseById = new Map(spec.test_cases.map((tc) => [tc.id, tc]));
             const allJudgments: JudgmentResult[] = [];
 
+            costMeter.phase = "judge";
             for (const outcome of outcomes) {
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
@@ -572,7 +707,10 @@ export function registerEvalCommand(program: Command): void {
                 testCase.criteria_ids,
               );
               const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
-                model,
+                // The JUDGE's model id (differs from the eval target when
+                // --judge-provider/--judge-model decouple the judge) — feeds
+                // JudgmentResult.judge_model, evidence, and the OTel modelId.
+                model: providers.judgeModelId,
                 // N-sample majority voting: --samples overrides the spec's
                 // default; a criterion's own `samples` overrides both.
                 samples: judgeSamples,
@@ -704,14 +842,44 @@ export function registerEvalCommand(program: Command): void {
               { now: new Date(modelStart).toISOString() },
             );
 
+            // ── Eval cost (Jeremy's ask: "what does it cost to eval this
+            // skill, as-is?") — real token usage per phase, × N judge samples,
+            // with a best-effort USD estimate. Stub runs record nothing.
+            const costReport = providers.real ? costMeter.report() : null;
+            if (!opts.json && costReport) {
+              const { total, phases } = costReport;
+              console.log(
+                `  Eval cost: ${total.input_tokens} in / ${total.output_tokens} out tokens, ` +
+                  `${total.calls} calls ` +
+                  `(trigger ${phases.trigger.calls}, execution ${phases.execution.calls}, ` +
+                  `judge ${phases.judge.calls})`,
+              );
+              const perModel = costReport.by_model
+                .map(
+                  (m) =>
+                    `${m.model}: ${m.usd === null ? "no rate on file" : `$${m.usd.toFixed(4)}`}`,
+                )
+                .join("; ");
+              console.log(
+                `    estimated: ${
+                  costReport.estimated_usd === null
+                    ? "n/a (a model has no rate on file)"
+                    : `$${costReport.estimated_usd.toFixed(4)}`
+                } — ${perModel}`,
+              );
+            }
+
             allResults[model] = {
               provider: providers.providerName,
               model,
+              judge_provider: providers.judgeProviderName,
+              judge_model: providers.judgeModelId,
               ground_truth: providers.real,
               pkgReport,
               scoreCard,
               decision,
               report,
+              cost: costReport,
             };
 
             // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
