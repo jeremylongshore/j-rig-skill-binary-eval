@@ -7,6 +7,7 @@ import { registerReportCommand } from "./commands/report.js";
 import { registerOptimizeCommand } from "./commands/optimize.js";
 import { registerDriftCommand } from "./commands/drift.js";
 import { registerEmitEvidenceCommand } from "./commands/emit-evidence.js";
+import { registerEmitRefinerPassCommand } from "./commands/emit-refiner-pass.js";
 import { registerParseAgentsCommand } from "./commands/parse-agents.js";
 import { registerMigrateCommand } from "./commands/migrate.js";
 import { registerSkillSignalCommands } from "./commands/skill-signals.js";
@@ -34,6 +35,7 @@ function createProgram(): Command {
   registerOptimizeCommand(program);
   registerDriftCommand(program);
   registerEmitEvidenceCommand(program);
+  registerEmitRefinerPassCommand(program);
   registerParseAgentsCommand(program);
   registerMigrateCommand(program);
   registerSkillSignalCommands(program);
