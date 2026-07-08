@@ -388,10 +388,11 @@ function renderHeaderRow([label, value]: readonly [string, string]): string {
 
 /** Turn the (single legal) predicate URI into a link; escape everything else. */
 function linkifyUri(value: string): string {
-  if (!value.includes(SKILL_REFINER_PASS_V1_URI)) return esc(value);
   // Linkify EVERY occurrence: split on the URI, escape each surrounding part,
-  // and rejoin with the anchor. Deterministic; byte-identical to the prior
-  // single-occurrence path when the URI appears once.
+  // and rejoin with the anchor. `split` on the fixed URI naturally yields the
+  // whole (escaped) string when the URI is absent — no `.includes()` URL check
+  // (which reads as substring sanitization). Deterministic; byte-identical to
+  // the prior single-occurrence path when the URI appears once.
   const link = `<a href="${SKILL_REFINER_PASS_V1_URI}">${esc(SKILL_REFINER_PASS_V1_URI)}</a>`;
   return value
     .split(SKILL_REFINER_PASS_V1_URI)
