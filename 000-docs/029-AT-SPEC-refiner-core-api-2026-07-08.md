@@ -23,7 +23,7 @@ Per DR-028 T3 (`bd` is the canonical writer; GitHub and Plane are projections), 
 
 `@intentsolutions/refiner-core` is the **pure core** of the Skill Refiner — the eval-guided improvement loop that proposes safe, minimal `SKILL.md` edits and accepts a candidate only on a strict, statistically-significant improvement. It is the second product in the Intent Solutions agent-rig stack: **Test** (J-Rig Skill Binary Eval) → **Improve** (Skill Refiner) → **Ship** (Rollout Gate).
 
-Everything in this package is **I/O-free by construction**: no file handles, no model clients, no network, no `process.exit`. Persistence, scoring, and the live model call live in the adapter layer (`@intentsolutions/refiner`), behind the [`RefinerStrategy`](#81-refinerstrategy) interface. The only non-pure input — wall-clock time — is injected explicitly (into `bootstrap`, `computeAdoptionVerdict`, and the version-contract triggers), so even time-dependent output is deterministic given its inputs.
+Everything in this package is **I/O-free by construction**: no file handles, no model clients, no network, no `process.exit`. Persistence, scoring, and the live model call live in the adapter layer (`@intentsolutions/refiner`), behind the [`RefinerStrategy`](#81-collaborators--refinerstrategy) interface. The only non-pure input — wall-clock time — is injected explicitly (into `bootstrap`, `computeAdoptionVerdict`, and the version-contract triggers), so even time-dependent output is deterministic given its inputs.
 
 The surface is faithful to plan 027 § 4 + the DR-028 (Session 7) deltas, and has grown per epic `intent-eval-lab#206` / ISEDC DR-103 (the skill-scoring layer) while keeping the same purity discipline.
 
