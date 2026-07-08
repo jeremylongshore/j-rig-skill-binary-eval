@@ -84,7 +84,33 @@ function splitTableRow(line: string): string[] {
 
 /** True for a markdown table delimiter row like `| --- | :---: |`. */
 function isTableDelimiter(line: string): boolean {
-  return /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-");
+  // Single anchored character class (`|`, `-`, `:`, whitespace) — a delimiter
+  // row like `| --- | :---: |` is entirely these chars. One quantifier between
+  // anchors is linear: no overlapping `\s*`/`\s+` runs that could backtrack.
+  return /^[\s:|-]+$/.test(line) && line.includes("-");
+}
+
+/**
+ * True iff the markdown carries a URL whose host is the reserved
+ * `labs.intentsolutions.io` (or a subdomain of it). We parse candidate URL
+ * tokens and compare the parsed host — NOT a raw substring — so prose that
+ * merely mentions the host is fine; only a real URL is a violation (SPEC § 8.1),
+ * and an attacker cannot smuggle the host as an arbitrary substring of another.
+ */
+function referencesForbiddenPredicateHost(markdown: string): boolean {
+  const urlTokens = markdown.match(/https?:\/\/[^\s)\]}<>"']+/gi) ?? [];
+  for (const tok of urlTokens) {
+    let host: string;
+    try {
+      host = new URL(tok).host.toLowerCase();
+    } catch {
+      continue; // not a parseable URL
+    }
+    if (host === FORBIDDEN_PREDICATE_HOST || host.endsWith("." + FORBIDDEN_PREDICATE_HOST)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -93,9 +119,9 @@ function isTableDelimiter(line: string): boolean {
  * (SPEC § 13): all 10 numbered sections, in order, and the URI discipline.
  */
 export function parseReport(markdown: string): ParsedReport {
-  if (markdown.includes(FORBIDDEN_PREDICATE_HOST)) {
+  if (referencesForbiddenPredicateHost(markdown)) {
     throw new ReportRenderError(
-      `report references ${FORBIDDEN_PREDICATE_HOST} — that host is reserved-don't-touch and MUST NOT appear as a predicate URI (SPEC § 8.1, CISO binding)`,
+      `report references a ${FORBIDDEN_PREDICATE_HOST} URL — that host is reserved-don't-touch and MUST NOT appear as a predicate URI (SPEC § 8.1, CISO binding)`,
     );
   }
 
@@ -188,7 +214,9 @@ function parseHeaderTable(lines: string[]): Array<readonly [string, string]> {
 function parseSections(lines: string[]): Array<{ num: number; title: string; body: string }> {
   const out: Array<{ num: number; title: string; body: string }> = [];
   let current: { num: number; title: string; bodyLines: string[] } | null = null;
-  const headingRe = /^##\s+(\d+)[.)]?\s+(.*)$/;
+  // `[ \t]` (not `\s`) and a mandatory digit run between the two whitespace
+  // groups: exactly one way to split any line, so the match is linear.
+  const headingRe = /^##[ \t]+(\d+)[.)]?[ \t]+(.*)$/;
   for (const line of lines) {
     const m = line.match(headingRe);
     if (m) {

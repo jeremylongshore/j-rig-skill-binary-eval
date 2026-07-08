@@ -124,7 +124,8 @@ describe("parseReport — conformance gate (SPEC § 13)", () => {
       "https://labs.intentsolutions.io/skill-refiner-pass/v1",
     );
     expect(() => parseReport(bad)).toThrow(ReportRenderError);
-    expect(() => parseReport(bad)).toThrow(/labs\.intentsolutions\.io/);
+    // String matcher (substring on the message) — no unanchored regex.
+    expect(() => parseReport(bad)).toThrow("labs.intentsolutions.io");
   });
 
   it("REFUSES a report missing a required section (completeness gate)", () => {
