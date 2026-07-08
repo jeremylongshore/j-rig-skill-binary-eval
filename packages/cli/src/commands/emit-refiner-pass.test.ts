@@ -313,9 +313,13 @@ describe("emit-refiner-pass — predicate-URI correctness (never labs.*)", () =>
     expect(r.code).toBe(0);
     const stmt = JSON.parse(r.stdout);
     expect(stmt.predicateType).toBe(SKILL_REFINER_PASS_V1_URI);
-    // Host must be evals.*, never labs.* (ISEDC CISO binding DR-004 / DR-010).
-    expect(stmt.predicateType).toMatch(/^https:\/\/evals\.intentsolutions\.io\//);
-    expect(stmt.predicateType).not.toMatch(/labs\.intentsolutions\.io/);
+    // Host must be exactly evals.intentsolutions.io, never labs.* (ISEDC CISO
+    // binding DR-004 / DR-010). Parse the URL and assert on the exact host
+    // property — a substring/regex check on the whole URL string could be
+    // bypassed by a crafted path segment (js/regex/missing-regexp-anchor).
+    const host = new URL(stmt.predicateType).host;
+    expect(host).toBe("evals.intentsolutions.io");
+    expect(host).not.toBe("labs.intentsolutions.io");
   });
 });
 

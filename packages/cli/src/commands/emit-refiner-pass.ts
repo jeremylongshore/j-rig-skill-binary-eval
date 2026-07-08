@@ -328,9 +328,9 @@ async function buildPredicateBody(opts: EmitRefinerPassOptions): Promise<Record<
  * The full set of input keys `normalizeRecord` recognizes — both the snake_case
  * predicate-body names and their camelCase refiner-core aliases. Any input key
  * NOT in this set is refused (see below): silently dropping an unknown key would
- * mask a typo'd required field (e.g. `skill_verison_id`) and weaken the
- * fail-closed guarantee. The kernel `.strict()` validator only sees the
- * normalized snake_case object, so unknown-key rejection must happen HERE.
+ * mask a misspelled required field (e.g. `skill_ver_id` for `skill_version_id`)
+ * and weaken the fail-closed guarantee. The kernel `.strict()` validator only
+ * sees the normalized snake_case object, so unknown-key rejection must happen HERE.
  */
 const RECOGNIZED_INPUT_KEYS: ReadonlySet<string> = new Set([
   // snake_case (predicate-body field names)
