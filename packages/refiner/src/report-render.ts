@@ -214,9 +214,11 @@ function parseHeaderTable(lines: string[]): Array<readonly [string, string]> {
 function parseSections(lines: string[]): Array<{ num: number; title: string; body: string }> {
   const out: Array<{ num: number; title: string; body: string }> = [];
   let current: { num: number; title: string; bodyLines: string[] } | null = null;
-  // `[ \t]` (not `\s`) and a mandatory digit run between the two whitespace
-  // groups: exactly one way to split any line, so the match is linear.
-  const headingRe = /^##[ \t]+(\d+)[.)]?[ \t]+(.*)$/;
+  // ONE whitespace quantifier (anchored by `^##`, followed by a mandatory digit)
+  // plus a zero-width lookahead requiring a separator — no second `+`, so there
+  // are no two competing whitespace runs that could backtrack. The title is the
+  // remainder of the line after the matched prefix, trimmed.
+  const headingRe = /^##[ \t]+(\d+)[.)]?(?=[ \t])/;
   for (const line of lines) {
     const m = line.match(headingRe);
     if (m) {
@@ -226,7 +228,7 @@ function parseSections(lines: string[]): Array<{ num: number; title: string; bod
           title: current.title,
           body: current.bodyLines.join("\n").trim(),
         });
-      current = { num: Number(m[1]), title: m[2].trim(), bodyLines: [] };
+      current = { num: Number(m[1]), title: line.slice(m[0].length).trim(), bodyLines: [] };
       continue;
     }
     if (current) current.bodyLines.push(line);
