@@ -59,3 +59,15 @@ export {
 
 // CLI (step 7)
 export { registerRefineCommand } from "./cli.js";
+
+// Evidence-report renderer — deterministic markdown → self-contained HTML
+// (SPEC skill-refiner-evidence-report/v1.0.0-draft; bead bd_000-projects-0r8m.10)
+export {
+  renderReportHtml,
+  parseReport,
+  renderTrajectoryChart,
+  ReportRenderError,
+  SKILL_REFINER_PASS_V1_URI,
+  type ParsedReport,
+  type ScoreRow,
+} from "./report-render.js";
