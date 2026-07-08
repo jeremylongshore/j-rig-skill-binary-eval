@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
@@ -56,14 +56,100 @@ async function run(program: Command, argv: string[]): Promise<void> {
 }
 
 describe("registerRefineCommand — registration shape (build-order step 7)", () => {
-  it("registers a `refine` group with the 5 documented subcommands", () => {
+  it("registers a `refine` group with the 6 documented subcommands", () => {
     const { program, cleanup } = setup();
     try {
       const refine = program.commands.find((c) => c.name() === "refine");
       expect(refine).toBeDefined();
       const subs = refine!.commands.map((c) => c.name()).sort();
-      expect(subs).toEqual(["apply", "bootstrap", "propose", "score", "status"]);
+      expect(subs).toEqual(["apply", "bootstrap", "propose", "render-report", "score", "status"]);
     } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("`j-rig refine render-report` — deterministic markdown → HTML", () => {
+  let log: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    log = vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => log.mockRestore());
+
+  it("renders a canonical report to a self-contained HTML file", async () => {
+    const { program, cleanup } = setup();
+    const dir = mkdtempSync(join(tmpdir(), "refiner-report-"));
+    try {
+      const md = [
+        "# Skill Refiner Evidence Report — demo — 2026-06-30",
+        "",
+        "| Field   | Value  |",
+        "| ------- | ------ |",
+        "| Verdict | accept |",
+        "",
+        "## 1. Context",
+        "manual trigger.",
+        "## 2. Eval set composition",
+        "N = 8 synthetic.",
+        "## 3. Score trajectory",
+        "",
+        "| Dimension  | Baseline | Candidate | Delta   | Non-regressed |",
+        "| ---------- | -------- | --------- | ------- | ------------- |",
+        "| behavioral | 0.7000   | 0.8000    | +0.1000 | —             |",
+        "",
+        "## 4. Accepted edits (replayable)",
+        "one replace op.",
+        "## 5. Rejected edits (audit trail)",
+        "none.",
+        "## 6. Hook-layer gate evidence (per pass)",
+        "line (L2).",
+        "## 7. Signed Evidence Bundle (in-toto Statement v1)",
+        "https://evals.intentsolutions.io/skill-refiner-pass/v1",
+        "## 8. Architectural bindings",
+        "DR-010.",
+        "## 9. Limitations + risks",
+        "bounded by the eval-set.",
+        "## 10. Status banding",
+        "Status: `ACTIVE`.",
+        "",
+      ].join("\n");
+      const mdPath = join(dir, "report.md");
+      const htmlPath = join(dir, "report.html");
+      writeFileSync(mdPath, md, "utf8");
+
+      await run(program, ["refine", "render-report", mdPath, "--output", htmlPath]);
+
+      const html = readFileSync(htmlPath, "utf8");
+      expect(html.startsWith("<!doctype html>")).toBe(true);
+      expect(html).toContain('class="verdict accept"');
+      expect(html).toContain("<svg");
+      expect(html).not.toContain("labs.intentsolutions.io");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      cleanup();
+    }
+  });
+
+  it("fails loudly on a non-conforming report (missing sections)", async () => {
+    const { program, cleanup } = setup();
+    const dir = mkdtempSync(join(tmpdir(), "refiner-report-bad-"));
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const mdPath = join(dir, "bad.md");
+      writeFileSync(
+        mdPath,
+        "# Bad report\n\n| Field | Value |\n| - | - |\n| Verdict | accept |\n",
+        "utf8",
+      );
+      await expect(run(program, ["refine", "render-report", mdPath])).rejects.toThrow("exit");
+      expect(err).toHaveBeenCalled();
+    } finally {
+      exit.mockRestore();
+      err.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
       cleanup();
     }
   });

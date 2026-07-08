@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill Refiner Evidence Report — validate-skillmd — 2026-06-30</title>
+<style>
+:root{--fg:#0f172a;--muted:#475569;--line:#e2e8f0;--bg:#ffffff;--accent:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:#f8fafc}
+.report{max-width:900px;margin:0 auto;padding:2rem 1.25rem;background:var(--bg)}
+h1{font-size:1.6rem;margin:0 0 .75rem}
+h2{font-size:1.2rem;margin:1.75rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid var(--line)}
+.hero{border-bottom:2px solid var(--line);padding-bottom:1rem;margin-bottom:1rem}
+.hero-metric{color:var(--muted);margin:.5rem 0 0}
+.verdict{display:inline-flex;align-items:center;gap:.6rem;padding:.4rem .8rem;border-radius:6px;font-weight:600}
+.verdict.accept{background:#dcfce7;color:#166534}
+.verdict.reject{background:#fee2e2;color:#991b1b}
+.vlabel{font-size:.9rem;letter-spacing:.05em}
+.vdetail{font-weight:400;font-size:.85rem}
+table{border-collapse:collapse;width:100%;margin:.5rem 0;font-size:.92rem}
+.meta-table th{text-align:left;white-space:nowrap;color:var(--muted);font-weight:600;padding:.3rem .75rem .3rem 0;vertical-align:top;width:1%}
+.meta-table td{padding:.3rem 0;border-bottom:1px solid var(--line)}
+.section-table th{text-align:left;background:#f1f5f9;padding:.4rem .6rem;border:1px solid var(--line)}
+.section-table td{padding:.4rem .6rem;border:1px solid var(--line)}
+pre{background:#0f172a;color:#e2e8f0;padding:.9rem 1rem;border-radius:6px;overflow:auto;font-size:.85rem}
+pre.diff span.add{color:#4ade80}
+pre.diff span.del{color:#f87171}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em}
+p code,li code,td code{background:#f1f5f9;padding:.05rem .3rem;border-radius:3px}
+.chart{display:block;margin:.5rem 0;background:#fff;border:1px solid var(--line);border-radius:6px}
+.chart .cTitle{font-size:12px;fill:var(--muted)}
+.chart .cLbl{font-size:12px;fill:var(--fg)}
+.chart .cDelta{font-size:11px;fill:var(--muted)}
+a{color:var(--accent)}
+.foot{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+ul{margin:.4rem 0 .4rem 1.2rem;padding:0}
+</style>
+</head>
+<body>
+<main class="report">
+<header class="hero">
+<h1>Skill Refiner Evidence Report — validate-skillmd — 2026-06-30</h1>
+<div class="verdict accept"><span class="vlabel">ACCEPT</span><span class="vdetail">behavioral Pareto-dominant (+0.1200); all 2 named dimension(s) non-regressed</span></div>
+<p class="hero-metric">Behavioral delta: <strong>+0.1200</strong></p>
+</header>
+<section class="meta">
+<h2>Metadata</h2>
+<table class="meta-table"><tbody><tr><th>Date</th><td>2026-06-30T00:00:00Z</td></tr><tr><th>Skill</th><td>validate-skillmd</td></tr><tr><th>Skill version (input)</th><td><code>a1b2c3d4</code></td></tr><tr><th>Skill version (output)</th><td><code>e5f6a7b8</code></td></tr><tr><th>SkillVersion id</th><td>0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b</td></tr><tr><th>Parent SkillVersion id</th><td>0190a0b1-c2d3-7e4f-8a5b-0c6d7e8f9a0b</td></tr><tr><th>Eval set</th><td><code>9f8e7d6c</code> v1.0.0</td></tr><tr><th>Verdict</th><td>accept</td></tr><tr><th>Behavioral delta</th><td>+0.1200 pp</td></tr><tr><th>Named-dimension deltas</th><td>readability +0.0100 (non-regressed); brevity +0.0000 (non-regressed)</td></tr><tr><th>Significance level (α)</th><td>0.05</td></tr><tr><th>Test statistic</th><td>one-sided-z</td></tr><tr><th>Refiner strategy</th><td>skill-opt-style/v1</td></tr><tr><th>Edit proposal</th><td><code>c0ffee12</code></td></tr><tr><th>Signing mode</th><td>staging</td></tr><tr><th>Rekor log index</th><td>null</td></tr></tbody></table>
+</section>
+<section class="trajectory">
+<h2>Score trajectory</h2>
+<svg viewBox="0 0 720 176" width="100%" role="img" aria-label="Score trajectory: baseline vs candidate per dimension" class="chart"><text x="8" y="16" class="cTitle">Score trajectory — baseline (grey) vs candidate</text><text x="8" y="42" class="cLbl">behavioral (behavioral)</text><rect x="160" y="30" width="333.70" height="12" fill="#94a3b8"><title>baseline 0.71</title></rect><rect x="160" y="46" width="390.10" height="12" fill="#2563eb"><title>candidate 0.83</title></rect><text x="556.10" y="50" class="cDelta">+0.1200</text><text x="8" y="86" class="cLbl">readability</text><rect x="160" y="74" width="423.00" height="12" fill="#94a3b8"><title>baseline 0.9</title></rect><rect x="160" y="90" width="427.70" height="12" fill="#16a34a"><title>candidate 0.91</title></rect><text x="593.70" y="94" class="cDelta">+0.0100</text><text x="8" y="130" class="cLbl">brevity</text><rect x="160" y="118" width="399.50" height="12" fill="#94a3b8"><title>baseline 0.85</title></rect><rect x="160" y="134" width="399.50" height="12" fill="#16a34a"><title>candidate 0.85</title></rect><text x="565.50" y="138" class="cDelta">0.0000</text></svg>
+</section>
+<section id="s1"><h2>1. Context</h2>
+<p>This skill was refined under trigger class <code>manual</code>. An operator ran the Skill Refiner against <code>validate-skillmd</code> after the <code>authoring/v1</code> frontmatter overlay gained a new required field, to check whether a bounded <code>SKILL.md</code> edit could raise the behavioral pass rate on the frozen eval-set without regressing readability or brevity.</p></section>
+<section id="s2"><h2>2. Eval set composition</h2>
+<p>The verdict was derived against a frozen <code>synthetic</code> eval-set of <code>N = 24</code> probes, stratified across trigger-match, functional, and adversarial slices. It is pinned by <code>eval_set_ref</code> = { hash <code>sha256:9f8e7d6c…</code>, version <code>1.0.0</code>, lineage_id <code>0190a0a0-b1b1-7c2c-8d3d-0e4e5f6a7b8c</code> }. This eval-set is the epistemic basis of the claim; the rendered hash matches the signed kernel body byte-for-byte.</p></section>
+<section id="s3"><h2>3. Score trajectory</h2>
+<p>The before/after behavioral metric plus every named dimension's delta across the pass. The behavioral dimension is significantly Pareto-dominant and no named dimension regressed — the accept predicate holds.</p>
+<table class="section-table"><thead><tr><th>Dimension</th><th>Baseline</th><th>Candidate</th><th>Delta</th><th>Non-regressed</th></tr></thead><tbody><tr><td>behavioral</td><td>0.7100</td><td>0.8300</td><td>+0.1200</td><td>—</td></tr><tr><td>readability</td><td>0.9000</td><td>0.9100</td><td>+0.0100</td><td>true</td></tr><tr><td>brevity</td><td>0.8500</td><td>0.8500</td><td>+0.0000</td><td>true</td></tr></tbody></table></section>
+<section id="s4"><h2>4. Accepted edits (replayable)</h2>
+<p>Strategy <code>skill-opt-style/v1</code> proposed one <code>replace</code> op, targeting the observed failure cluster (skills that under-specified the trigger phrasing). Rationale (verbatim): *&quot;Tighten the trigger sentence so the discovery layer matches the canonical invocation; the failing rollouts all missed on paraphrased triggers.&quot;*</p>
+<p>Pre-score → post-score: behavioral <code>0.7100</code> → <code>0.8300</code>. The acceptance-gate evidence: behavioral delta <code>+0.1200</code> significant at α <code>0.05</code> (one-sided-z); readability <code>+0.0100</code> and brevity <code>+0.0000</code> both non-regressed.</p>
+<pre class="diff"><code>--- a/SKILL.md
++++ b/SKILL.md
+@@ description @@
+<span class="del">-Validate a SKILL.md file.</span>
+<span class="add">+Validate a SKILL.md file against the four-tier validation system. Trigger with</span>
+<span class="add">+&quot;validate this skill&quot;, &quot;grade my skill&quot;, &quot;check SKILL.md&quot;.</span></code></pre>
+<p>The rendered edit hashes to <code>edit_proposal_hash</code> = <code>sha256:c0ffee12…</code>; a reader can re-derive the bounded op and reproduce the post-edit artifact whose content hashes to <code>result_snapshot_hash</code> = <code>sha256:e5f6a7b8…</code>.</p></section>
+<section id="s5"><h2>5. Rejected edits (audit trail)</h2>
+<p>Two candidates were rejected before the accepted one cleared the gate:</p>
+<table class="section-table"><thead><tr><th>Candidate</th><th>Op class</th><th>Strategy</th><th>Pre → post (behavioral)</th><th>Rejection reason</th></tr></thead><tbody><tr><td>cand-1</td><td>add</td><td>naive-in-context/v1</td><td>0.7100 → 0.7150</td><td>no-behavioral-improvement</td></tr><tr><td>cand-2</td><td>replace</td><td>skill-opt-style/v1</td><td>0.7100 → 0.7900</td><td>pareto-incomparable</td></tr></tbody></table>
+<p><code>cand-2</code> improved the behavioral dimension but regressed brevity below the non-regression bar, so it is Pareto-incomparable (DR-028 tie-break). Rejection reasons are structured codes, not free prose, so no <code>SKILL.md</code> content leaks onto a transparency log.</p></section>
+<section id="s6"><h2>6. Hook-layer gate evidence (per pass)</h2>
+<table class="section-table"><thead><tr><th>Pass</th><th>SkillVersion id</th><th>ScoreRecord hash</th><th>Signed row</th><th>Rekor index</th><th>Hook layer</th></tr></thead><tbody><tr><td>1</td><td><code>0190a1b2…</code></td><td><code>sha256:beef01…</code></td><td>skill-refiner-pass/v1</td><td>null</td><td>line (L2)</td></tr></tbody></table>
+<p>The verdict was enforced by the line (L2) hook layer. Under <code>staging</code> no production Rekor index exists yet, so the signed row's <code>rekor_log_index</code> is <code>null</code>.</p></section>
+<section id="s7"><h2>7. Signed Evidence Bundle (in-toto Statement v1)</h2>
+<p>The signed <code>skill-refiner-pass/v1</code> row: <code>predicateType</code> = <code>https://evals.intentsolutions.io/skill-refiner-pass/v1</code>; the <code>subject</code> is the post-edit artifact whose <code>digest.sha256</code> equals <code>result_snapshot_hash</code> without the <code>sha256:</code> prefix (<code>e5f6a7b8…</code>). This row is <code>sigstore_staging</code> and carries no production Rekor index.</p>
+<p>Verify the DSSE-wrapped Statement with:</p>
+<pre><code>cosign verify-blob \
+  --certificate-identity-regexp '^https://github.com/jeremylongshore/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --rekor-url https://rekor.sigstore.dev \
+  --bundle skill-refiner-pass.bundle.json \
+  result-snapshot.md
+jq '.payload | @base64d | fromjson | .predicate' skill-refiner-pass.bundle.json</code></pre>
+<p>Each row is independently verifiable; there is NO top-level bundle signature (Blueprint B § 7).</p></section>
+<section id="s8"><h2>8. Architectural bindings</h2>
+<p>This report honors: DR-010 (unification thesis; every validator emits an Evidence Bundle), Blueprint B § 7 (predicate-authority + no-top-level-bundle- signature rules), the Canonical Glossary, DR-028 (the accept predicate + SkillVersion semantics), and DR-082 / DR-085 (the predicate URI + one-way-door corrections). The emission path honors the P0 beads on the signed-evidence Tier-1 kernel track.</p></section>
+<section id="s9"><h2>9. Limitations + risks</h2>
+<p>The frozen <code>N = 24</code> eval-set may not exercise every real invocation the skill sees in the wild; the behavioral dimension can be Goodharted by a candidate that over-fits the probe phrasing. Recommended re-validation cadence: re-bootstrap the eval-set on any frontier-model bump or after 90 days, whichever comes first. This accept verdict is a claim bounded by the frozen eval-set.</p></section>
+<section id="s10"><h2>10. Status banding</h2>
+<p>Status: <code>ACTIVE</code>.</p></section>
+<footer class="foot">
+<p>Deterministically rendered from the canonical markdown report — this HTML is a derived view, not a source of truth (SPEC § 10). Verify against the signed <a href="https://evals.intentsolutions.io/skill-refiner-pass/v1">skill-refiner-pass/v1</a> attestation body; see § 7 for the <code>cosign verify-blob</code> command.</p>
+</footer>
+</main>
+</body>
+</html>

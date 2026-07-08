@@ -7,6 +7,7 @@
  *   j-rig refine propose <skill-dir>     — propose a bounded edit (tiered model)
  *   j-rig refine apply <skill-dir>       — apply a stored proposal → new version
  *   j-rig refine status <skill-id>       — show the refiner store / event log
+ *   j-rig refine render-report <md>      — deterministic markdown → self-contained HTML
  *
  * The command group is BUILT here, in the `@intentsolutions/refiner` package, so the
  * orchestration logic ships with the refiner — the only edit in `@intentsolutions/jrig-cli` is a
@@ -21,8 +22,8 @@
  * commands (`bootstrap`, `apply`, `status`) run fully offline.
  */
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { Command } from "commander";
 import {
   makeSkillDoc,
@@ -39,6 +40,7 @@ import {
   SkillOptStyleStrategy,
   type RefinerStrategy,
 } from "@intentsolutions/refiner-core";
+import { renderReportHtml, ReportRenderError } from "./report-render.js";
 
 /** Load the SKILL.md in `skillDir` into a content-addressed SkillDoc. */
 function loadSkillDoc(skillDir: string): SkillDoc {
@@ -263,6 +265,33 @@ export function registerRefineCommand(
           }
         }
       } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+      }
+    });
+
+  // ── render-report ────────────────────────────────────────────────────────
+  refine
+    .command("render-report")
+    .description(
+      "Render a canonical markdown Evidence Report to self-contained HTML (deterministic)",
+    )
+    .argument("<report.md>", "Path to the canonical markdown Skill Refiner Evidence Report")
+    .option("--output <path>", "Write the HTML to <path> (default: stdout)")
+    .action((reportPath: string, opts: { output?: string }) => {
+      try {
+        const md = readFileSync(resolve(reportPath), "utf8");
+        const html = renderReportHtml(md);
+        if (opts.output) {
+          const out = resolve(opts.output);
+          writeFileSync(out, html);
+          console.log(`Rendered ${reportPath} → ${out}`);
+        } else {
+          process.stdout.write(html);
+        }
+      } catch (err) {
+        if (err instanceof ReportRenderError) {
+          fail(`report render failed (non-conforming markdown): ${err.message}`);
+        }
         fail(err instanceof Error ? err.message : String(err));
       }
     });

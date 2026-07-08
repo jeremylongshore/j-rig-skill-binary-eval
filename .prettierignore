@@ -9,3 +9,6 @@ CHANGELOG.md
 # Deliberately-malformed test fixtures: the harness asserts these FAIL to
 # parse, so Prettier cannot (and must not) format them.
 packages/*/fixtures/invalid/**
+# Golden-file fixtures: their bytes are load-bearing — the renderer's output is
+# asserted byte-identical to these, so Prettier must not reformat them.
+packages/*/src/__fixtures__/**/*.golden.html
