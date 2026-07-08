@@ -151,6 +151,15 @@ describe("parseReport — conformance gate (SPEC § 13)", () => {
     const bad = SAMPLE_MD.replace(/\| behavioral[^\n]*\n/, "");
     expect(() => parseReport(bad)).toThrow(/behavioral/);
   });
+
+  it("FAILS CLOSED on a before/after row with fewer columns than the header", () => {
+    // Truncate the behavioral row so it is missing its trailing cells — the
+    // parser must throw a clear ReportRenderError, never a TypeError on an
+    // undefined cell.
+    const bad = SAMPLE_MD.replace(/\| behavioral[^\n]*\n/, "| behavioral |\n");
+    expect(() => parseReport(bad)).toThrow(ReportRenderError);
+    expect(() => parseReport(bad)).toThrow(/fewer columns|missing a required/);
+  });
 });
 
 describe("renderTrajectoryChart — deterministic inline SVG", () => {
