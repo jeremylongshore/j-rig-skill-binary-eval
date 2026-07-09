@@ -160,6 +160,17 @@ describe("parseReport — conformance gate (SPEC § 13)", () => {
     expect(() => parseReport(bad)).toThrow(ReportRenderError);
     expect(() => parseReport(bad)).toThrow(/fewer columns|missing a required/);
   });
+
+  it("FAILS CLOSED on an empty numeric cell (Number('') is 0, not NaN)", () => {
+    // Blank out the behavioral baseline cell — an empty cell must be rejected,
+    // never silently parsed as 0.
+    const bad = SAMPLE_MD.replace(
+      /\| behavioral[^\n]*\n/,
+      "| behavioral |     | 0.8300 | +0.1200 | — |\n",
+    );
+    expect(() => parseReport(bad)).toThrow(ReportRenderError);
+    expect(() => parseReport(bad)).toThrow(/empty/);
+  });
 });
 
 describe("renderTrajectoryChart — deterministic inline SVG", () => {

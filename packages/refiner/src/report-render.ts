@@ -296,6 +296,14 @@ function parseNumber(cell: string | undefined): number {
     );
   }
   const cleaned = cell.replace(/[`*]/g, "").replace(/^\+/, "").trim();
+  // Number("") and Number("   ") are 0 (NOT NaN), so an empty/blank cell would
+  // silently parse as zero — a wrong baseline/candidate/delta. Fail closed: an
+  // empty cell is a missing value, not a zero (SPEC § 7.1).
+  if (cleaned === "") {
+    throw new ReportRenderError(
+      "before/after table cell is empty — a numeric value is required (SPEC § 7.1)",
+    );
+  }
   const n = Number(cleaned);
   if (Number.isNaN(n)) {
     throw new ReportRenderError(`before/after table cell is not a number: '${cell}' (SPEC § 7.1)`);
