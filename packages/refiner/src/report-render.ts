@@ -271,6 +271,11 @@ function parseScoreTable(body: string): ScoreRow[] {
     const nri = headerCells.findIndex((h) => h.includes("non") && h.includes("regress"));
     if (di === -1 || bi === -1 || ci === -1 || dli === -1) continue;
     const dimension = cells[di];
+    if (dimension === undefined) {
+      throw new ReportRenderError(
+        "before/after table row has fewer columns than the header (SPEC § 7.1)",
+      );
+    }
     const baseline = parseNumber(cells[bi]);
     const candidate = parseNumber(cells[ci]);
     const delta = parseNumber(cells[dli]);
@@ -282,7 +287,14 @@ function parseScoreTable(body: string): ScoreRow[] {
 }
 
 /** Parse a numeric cell, tolerating a leading `+` and surrounding markup. */
-function parseNumber(cell: string): number {
+function parseNumber(cell: string | undefined): number {
+  if (cell === undefined) {
+    // A row with fewer columns than the header indexes past its cells — fail
+    // closed with a clear message instead of a TypeError on undefined.
+    throw new ReportRenderError(
+      "before/after table row is missing a required numeric cell (SPEC § 7.1)",
+    );
+  }
   const cleaned = cell.replace(/[`*]/g, "").replace(/^\+/, "").trim();
   const n = Number(cleaned);
   if (Number.isNaN(n)) {
@@ -376,11 +388,16 @@ function renderHeaderRow([label, value]: readonly [string, string]): string {
 
 /** Turn the (single legal) predicate URI into a link; escape everything else. */
 function linkifyUri(value: string): string {
-  const idx = value.indexOf(SKILL_REFINER_PASS_V1_URI);
-  if (idx === -1) return esc(value);
-  const before = value.slice(0, idx);
-  const after = value.slice(idx + SKILL_REFINER_PASS_V1_URI.length);
-  return `${esc(before)}<a href="${SKILL_REFINER_PASS_V1_URI}">${esc(SKILL_REFINER_PASS_V1_URI)}</a>${esc(after)}`;
+  // Linkify EVERY occurrence: split on the URI, escape each surrounding part,
+  // and rejoin with the anchor. `split` on the fixed URI naturally yields the
+  // whole (escaped) string when the URI is absent — no `.includes()` URL check
+  // (which reads as substring sanitization). Deterministic; byte-identical to
+  // the prior single-occurrence path when the URI appears once.
+  const link = `<a href="${SKILL_REFINER_PASS_V1_URI}">${esc(SKILL_REFINER_PASS_V1_URI)}</a>`;
+  return value
+    .split(SKILL_REFINER_PASS_V1_URI)
+    .map((part) => esc(part))
+    .join(link);
 }
 
 /**
