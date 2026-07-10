@@ -394,8 +394,8 @@ export function registerEvalCommand(program: Command): void {
     .option("--no-functional", "Skip functional tests")
     .option(
       "--provider <name>",
-      "Force a provider: deepseek | kimi | moonshot | openrouter | anthropic | stub " +
-        "(default: auto-detect from env keys, preferring an OpenAI-compatible endpoint)",
+      "Force a provider: deepseek | kimi | moonshot | openrouter | groq | nvidia | openai | " +
+        "anthropic | stub (default: auto-detect from env keys, preferring an OpenAI-compatible endpoint)",
     )
     .option(
       "--emit-bundle <path>",
@@ -413,7 +413,7 @@ export function registerEvalCommand(program: Command): void {
     .option(
       "--judge-provider <name>",
       "Judge on a DIFFERENT backend than the skill-under-test: deepseek | kimi | moonshot | " +
-        "openrouter | groq | nvidia | anthropic | stub. Trigger + execution stay on --provider's " +
+        "openrouter | groq | nvidia | openai | anthropic | stub. Trigger + execution stay on --provider's " +
         "backend. Fails loud if the requested judge backend has no key. (The judge value " +
         "benchmark: free multi-sampled judges vs a single paid judge.)",
     )

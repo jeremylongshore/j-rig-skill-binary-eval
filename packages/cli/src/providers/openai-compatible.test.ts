@@ -81,6 +81,25 @@ describe("resolveOpenAICompatConfig", () => {
     expect(cfg!.baseUrl).toContain("openrouter");
   });
 
+  it("selects openai (gpt-4o-mini) when only OPENAI_API_KEY is set", () => {
+    const cfg = resolveOpenAICompatConfig({ OPENAI_API_KEY: KEY });
+    expect(cfg!.name).toBe("openai");
+    expect(cfg!.baseUrl).toBe("https://api.openai.com/v1");
+    expect(cfg!.defaultModel).toBe("gpt-4o-mini");
+  });
+
+  it("prefers the cheaper deepseek default over openai when both keys are set", () => {
+    // openai sits after deepseek in the auto-detect order (paid defaults first,
+    // cheapest first) — so a deepseek key wins the auto-pick.
+    const cfg = resolveOpenAICompatConfig({ DEEPSEEK_API_KEY: KEY, OPENAI_API_KEY: KEY });
+    expect(cfg!.name).toBe("deepseek");
+  });
+
+  it("honors an explicit --provider openai over the default order", () => {
+    const cfg = resolveOpenAICompatConfig({ DEEPSEEK_API_KEY: KEY, OPENAI_API_KEY: KEY }, "openai");
+    expect(cfg!.name).toBe("openai");
+  });
+
   it("honors an explicit --provider preference (kimi) over the default order", () => {
     const cfg = resolveOpenAICompatConfig({ DEEPSEEK_API_KEY: KEY, MOONSHOT_API_KEY: KEY }, "kimi");
     expect(cfg!.name).toBe("kimi");

@@ -68,7 +68,7 @@ Seven-layer evaluation stack (bottom to top):
 
 Key entities: `eval_specs`, `criteria`, `test_cases`, `runs`, `skill_versions`, `observed_outcomes`, `criterion_results`, `experiments`, `regressions`, `baselines`, `launch_reports`
 
-Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The Anthropic provider speaks the Messages API wire format directly through an injectable `Transport` seam rather than the `@anthropic-ai/sdk` (no added SDK dependency). The same `Transport` seam backs the OpenAI-Chat-Completions adapter (`providers/openai-compatible.ts`) covering DeepSeek (`deepseek-v4-flash`, env `DEEPSEEK_API_KEY`), Kimi/Moonshot, and OpenRouter — one adapter, no per-vendor SDK.
+Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The Anthropic provider speaks the Messages API wire format directly through an injectable `Transport` seam rather than the `@anthropic-ai/sdk` (no added SDK dependency). The same `Transport` seam backs the OpenAI-Chat-Completions adapter (`providers/openai-compatible.ts`) covering DeepSeek (`deepseek-v4-flash`, env `DEEPSEEK_API_KEY`), Kimi/Moonshot, OpenRouter, Groq (`llama-3.3-70b-versatile`), NVIDIA NIM (`meta/llama-3.3-70b-instruct`), and OpenAI (`gpt-4o-mini`) — one adapter, no per-vendor SDK. The preset table mirrors the Skill Refiner provider registry (`@intentsolutions/refiner`), so `j-rig eval --provider <name>` and `refine score --provider <name>` resolve the same backend.
 
 ### Skill-scoring layer (epic intent-eval-lab#206 / ISEDC DR-103)
 

@@ -135,6 +135,16 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     defaultModel: "deepseek/deepseek-chat",
     keyEnv: "OPENROUTER_API_KEY",
   },
+  openai: {
+    id: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    // OpenAI proper — paid, but cheap on the mini tier and the most reliable
+    // JSON/instruction-following of the OpenAI-compatible set. Mirrors the
+    // Refiner provider registry's `openai` entry so `refine score --provider
+    // openai` and `j-rig eval --provider openai` resolve the SAME backend.
+    defaultModel: "gpt-4o-mini",
+    keyEnv: "OPENAI_API_KEY",
+  },
   // The two FREE-tier judge candidates for the judge value benchmark (does
   // N-sample majority on a free judge beat one paid judge on stability AND
   // cost?). Listed LAST so key-presence auto-detection still prefers the paid
@@ -233,8 +243,9 @@ export function resolveOpenAICompatConfig(
 
   // 3. Built-in presets in priority order (paid defaults first; the free-tier
   // judge candidates last, so they only auto-select when nothing else is
-  // keyed).
-  for (const presetId of ["deepseek", "kimi", "openrouter", "groq", "nvidia"]) {
+  // keyed). `openai` sits among the paid defaults — after the cheaper deepseek/
+  // kimi/openrouter, before the free groq/nvidia.
+  for (const presetId of ["deepseek", "kimi", "openrouter", "openai", "groq", "nvidia"]) {
     const cfg = fromPreset(presetId);
     if (cfg) return cfg;
   }
