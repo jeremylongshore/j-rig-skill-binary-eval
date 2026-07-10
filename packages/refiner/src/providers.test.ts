@@ -39,8 +39,12 @@ describe("provider registry — shape mirrors the eval command", () => {
     });
   });
 
-  it("auto-picks free/cheap first, Anthropic last", () => {
-    expect(AUTO_PICK_ORDER).toEqual(["nvidia", "deepseek", "groq", "anthropic"]);
+  it("auto-picks the most dependable free/cheap first; flaky nvidia LAST", () => {
+    // Reliability-adjusted cost: groq (dependable free) → deepseek (cheap) →
+    // openai (paid, reliable JSON) → anthropic (paid fallback) → nvidia (free but
+    // flaky NIM endpoint — kept auto-pickable so an nvidia-only user resolves, but
+    // demoted so a dependable key always wins when present).
+    expect(AUTO_PICK_ORDER).toEqual(["groq", "deepseek", "openai", "anthropic", "nvidia"]);
   });
 });
 
@@ -106,11 +110,22 @@ describe("resolveProvider — generic LLM_* triple", () => {
 });
 
 describe("resolveProvider — auto-pick (no --provider, no LLM_* triple)", () => {
-  it("prefers nvidia (FREE) when multiple keys are present", () => {
+  it("prefers a dependable cheap provider over flaky nvidia when both are present", () => {
+    // nvidia is $0 but its NIM endpoint is flaky, so a dependable key wins: with
+    // nvidia + deepseek + anthropic all set, deepseek (earlier in the order) is
+    // chosen — nvidia is the last-resort fallback, not the first pick.
     const r = resolveProvider({
       env: { NVIDIA_API_KEY: KEY, DEEPSEEK_API_KEY: KEY, ANTHROPIC_API_KEY: KEY },
     });
+    expect(r.name).toBe("deepseek");
+  });
+
+  it("still auto-resolves nvidia when it is the ONLY free/cheap key", () => {
+    // Demoting nvidia must not orphan an nvidia-only user: with only NVIDIA_API_KEY
+    // set it resolves to nvidia (and gets its runtime behavior) rather than throwing.
+    const r = resolveProvider({ env: { NVIDIA_API_KEY: KEY } });
     expect(r.name).toBe("nvidia");
+    expect(r.format).toBe("openai");
   });
 
   it("falls to deepseek when nvidia is absent", () => {

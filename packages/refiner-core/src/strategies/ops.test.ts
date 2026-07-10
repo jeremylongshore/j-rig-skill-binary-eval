@@ -50,23 +50,54 @@ describe("parseProposalResponse", () => {
     expect(parsed.ops).toHaveLength(MAX_OPS_PER_PROPOSAL);
   });
 
-  it("throws on an unknown op kind", () => {
+  it("drops an unknown op kind but keeps the valid ops (one bad op is not fatal)", () => {
+    // Over-eager / imperfect models (esp. non-Anthropic ones) occasionally emit a
+    // malformed op alongside good ones. Dropping the bad op — instead of discarding
+    // the whole proposal — preserves the model's valid edits.
     const completion = JSON.stringify({
       rationale: "r",
-      ops: [{ kind: "rewrite", target: "x", content: "y" }],
+      ops: [
+        { kind: "rewrite", target: "x", content: "y" }, // invalid kind → dropped
+        { kind: "delete", target: "obsolete line" }, // valid → kept
+      ],
     });
-    expect(() => parseProposalResponse(completion)).toThrow(OpParseError);
+    const parsed = parseProposalResponse(completion);
+    expect(parsed.ops).toHaveLength(1);
+    expect(parsed.ops[0]).toEqual({ kind: "delete", target: "obsolete line" });
   });
 
-  it("throws on an empty anchor", () => {
+  it("drops an op with an empty anchor (field-incomplete op is not fatal)", () => {
     const completion = JSON.stringify({
       rationale: "r",
-      ops: [{ kind: "delete", target: "" }],
+      ops: [
+        { kind: "delete", target: "" }, // empty anchor → dropped
+        { kind: "add", after: "## Usage", content: "\nExample." }, // valid → kept
+      ],
     });
-    expect(() => parseProposalResponse(completion)).toThrow(OpParseError);
+    const parsed = parseProposalResponse(completion);
+    expect(parsed.ops).toHaveLength(1);
+    expect(parsed.ops[0]).toEqual({ kind: "add", after: "## Usage", content: "\nExample." });
+  });
+
+  it("returns an empty (no-op) proposal when EVERY op is malformed", () => {
+    // Zero surviving valid ops is a legitimate outcome, not an error.
+    const completion = JSON.stringify({
+      rationale: "nothing salvageable",
+      ops: [{ kind: "rewrite" }, { kind: "delete", target: "" }],
+    });
+    const parsed = parseProposalResponse(completion);
+    expect(parsed.rationale).toBe("nothing salvageable");
+    expect(parsed.ops).toHaveLength(0);
   });
 
   it("throws when the JSON is malformed", () => {
     expect(() => parseProposalResponse("{not valid")).toThrow(OpParseError);
+  });
+
+  it("throws when the envelope is not a { rationale, ops[] } shape", () => {
+    // The envelope is the ONE hard requirement — a bare array or a non-object is fatal.
+    expect(() => parseProposalResponse(JSON.stringify({ ops: "not an array" }))).toThrow(
+      OpParseError,
+    );
   });
 });

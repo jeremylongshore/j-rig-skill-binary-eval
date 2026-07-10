@@ -355,6 +355,12 @@ export class OpenAICompatCompletionClient implements CompletionClient {
         model: req.model,
         max_tokens: req.maxTokens ?? 1024,
         messages: [{ role: "user", content: req.prompt }],
+        // The refiner uses this client only to elicit a JSON op-block, so force
+        // JSON mode: smaller/faster models (deepseek-v4-flash, Groq Llama) then
+        // return a bare JSON object instead of prose or fenced markdown. Every
+        // provider here (OpenAI/DeepSeek/Groq) supports response_format; the
+        // propose prompts already say "JSON" (OpenAI's json_object precondition).
+        response_format: { type: "json_object" },
       },
     });
     if (res.status < 200 || res.status >= 300) {

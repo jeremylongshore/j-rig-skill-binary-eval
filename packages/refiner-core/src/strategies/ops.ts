@@ -30,11 +30,6 @@ const replaceOpSchema = z.object({
 
 const opSchema = z.discriminatedUnion("kind", [addOpSchema, deleteOpSchema, replaceOpSchema]);
 
-const responseSchema = z.object({
-  rationale: z.string(),
-  ops: z.array(opSchema),
-});
-
 export interface ParsedProposal {
   readonly rationale: string;
   readonly ops: readonly EditOp[];
@@ -76,13 +71,26 @@ export function extractJsonObject(text: string): string {
   throw new OpParseError("unterminated JSON object in completion");
 }
 
+/** Lenient outer envelope: a `{ rationale, ops[] }` object, ops validated per-item below. */
+const responseEnvelopeSchema = z.object({
+  rationale: z.string().default(""),
+  ops: z.array(z.unknown()).default([]),
+});
+
 /**
  * Parse + bound a model completion into a proposal. Enforces:
- *   - valid op grammar (add/delete/replace with non-empty anchors),
- *   - at most MAX_OPS_PER_PROPOSAL ops (excess is truncated, not an error,
- *     keeping the mechanism robust to over-eager models).
+ *   - a `{ rationale, ops[] }` envelope (the only hard requirement),
+ *   - valid op grammar (add/delete/replace with non-empty anchors) PER OP —
+ *     a malformed op is DROPPED, not fatal, so one bad op never discards a
+ *     proposal's valid edits (robust to over-eager / imperfect models, esp.
+ *     non-Anthropic ones that occasionally emit a field-incomplete op),
+ *   - at most MAX_OPS_PER_PROPOSAL ops (excess truncated, not an error).
  *
- * @throws OpParseError if no parseable, schema-valid JSON is present.
+ * Zero surviving valid ops is a valid outcome (an empty, no-op proposal), NOT
+ * an error — mirrors a strategy that legitimately proposes nothing this pass.
+ *
+ * @throws OpParseError only if no JSON object is present, the JSON does not
+ *   parse, or the envelope is not a `{ rationale, ops[] }` shape.
  */
 export function parseProposalResponse(completion: string): ParsedProposal {
   let json: string;
@@ -99,11 +107,18 @@ export function parseProposalResponse(completion: string): ParsedProposal {
     throw new OpParseError(`completion JSON did not parse: ${String(e)}`);
   }
 
-  const parsed = responseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new OpParseError(`completion did not match op schema: ${parsed.error.message}`);
+  const envelope = responseEnvelopeSchema.safeParse(raw);
+  if (!envelope.success) {
+    throw new OpParseError(
+      `completion is not a { rationale, ops[] } object: ${envelope.error.message}`,
+    );
   }
 
-  const ops = parsed.data.ops.slice(0, MAX_OPS_PER_PROPOSAL);
-  return { rationale: parsed.data.rationale, ops };
+  const ops: EditOp[] = [];
+  for (const candidate of envelope.data.ops) {
+    if (ops.length >= MAX_OPS_PER_PROPOSAL) break; // bounded-edit discipline
+    const op = opSchema.safeParse(candidate);
+    if (op.success) ops.push(op.data); // drop malformed ops, keep the valid ones
+  }
+  return { rationale: envelope.data.rationale, ops };
 }

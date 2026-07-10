@@ -88,6 +88,14 @@ export const PROVIDER_REGISTRY: Record<string, ProviderEntry> = {
     keyEnv: "GROQ_API_KEY",
     format: "openai",
   },
+  // OpenAI proper (paid, but cheap + the most reliable JSON/instruction-following).
+  openai: {
+    name: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-4o-mini",
+    keyEnv: "OPENAI_API_KEY",
+    format: "openai",
+  },
   // Additional OpenAI-compatible presets carried for parity with eval (not in
   // the auto-pick order below, but selectable via an explicit `--provider`).
   kimi: {
@@ -113,12 +121,23 @@ const PROVIDER_ALIASES: Record<string, string> = {
 
 /**
  * Auto-pick preference order (used when NO `--provider` and NO generic `LLM_*`
- * triple is set): the first provider whose key env var is present wins. FREE
- * first (nvidia), then cheap (deepseek), then free-tier (groq), then the paid
- * fallback (anthropic). This is the "don't need Anthropic" core: with only a
- * DeepSeek/Groq/NVIDIA key, propose+score run on a free/cheap model.
+ * triple is set): the first provider whose key env var is present wins. Ordered
+ * by RELIABILITY-adjusted cost: `groq` (free tier, dependable) → `deepseek`
+ * (cheap) → `openai` (paid, most reliable JSON) → `anthropic` (paid fallback) →
+ * `nvidia` LAST. `nvidia` is $0 but its NIM free-tier endpoint is flaky
+ * (503/non-JSON), so it is demoted to a last resort rather than removed — a user
+ * whose ONLY key is `NVIDIA_API_KEY` still auto-resolves to it (and gets its
+ * runtime behavior), but when a dependable key is also present that wins. This
+ * is the "don't need Anthropic" core: with only a Groq/DeepSeek/OpenAI/NVIDIA
+ * key, propose+score run without ever touching Anthropic.
  */
-export const AUTO_PICK_ORDER: readonly string[] = ["nvidia", "deepseek", "groq", "anthropic"];
+export const AUTO_PICK_ORDER: readonly string[] = [
+  "groq",
+  "deepseek",
+  "openai",
+  "anthropic",
+  "nvidia",
+];
 
 /** A resolved, ready-to-use provider configuration for propose() / score(). */
 export interface ResolvedProvider {
