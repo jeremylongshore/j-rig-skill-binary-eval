@@ -42,20 +42,35 @@ export {
   type ScoreOptions,
 } from "./score.js";
 
-// propose() adapter (step 6)
+// propose() adapter (step 6) — provider-agnostic
 export {
   propose,
   createRefinerModel,
+  createCompletionClient,
   resolveProposeModelId,
   assertNotOpus,
   AnthropicCompletionClient,
+  OpenAICompatCompletionClient,
   ProposeAdapterError,
   type ProposeModelTier,
   type CompletionClient,
   type CompletionTransport,
   type ProposeModelOptions,
   type AnthropicCompletionClientOptions,
+  type OpenAICompatCompletionClientOptions,
 } from "./propose.js";
+
+// Provider registry / resolver (the "don't require Anthropic" core)
+export {
+  PROVIDER_REGISTRY,
+  AUTO_PICK_ORDER,
+  resolveProvider,
+  NoProviderError,
+  type ProviderEntry,
+  type ProviderFormat,
+  type ResolvedProvider,
+  type ResolveProviderOptions,
+} from "./providers.js";
 
 // CLI (step 7)
 export { registerRefineCommand } from "./cli.js";
