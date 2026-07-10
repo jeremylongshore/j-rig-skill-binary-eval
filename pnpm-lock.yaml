@@ -51,8 +51,8 @@ importers:
         specifier: 0.9.0
         version: 0.9.0
       '@intentsolutions/refiner':
-        specifier: ^0.2.0
-        version: 0.2.0(@intentsolutions/core@0.9.0)
+        specifier: workspace:^
+        version: link:../refiner
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -733,14 +733,6 @@ packages:
   '@intentsolutions/core@0.9.0':
     resolution: {integrity: sha512-XGF3rR/FFgRz1qkiXMEXLijmPX3/9layH9e2wqykMitkl2gX/JREpS6ilRXB1tVnkdcHnDdfAxWstpW/UoGKsA==}
     engines: {node: '>=20.0.0', pnpm: '>=9.0.0'}
-
-  '@intentsolutions/refiner-core@0.2.0':
-    resolution: {integrity: sha512-UOEoaSgkZpGch3WiClegZGfesSv4aayKaE+59JSvs3o2uTPbvGtDvOw/ahv1nwKR07vby5SnyBIhlAk8nOGNnw==}
-    peerDependencies:
-      '@intentsolutions/core': ^0.8.0
-
-  '@intentsolutions/refiner@0.2.0':
-    resolution: {integrity: sha512-yMs6LGoeHcc3oRYU115nfvDc4jR36dbWXS32a06i4CCaflbL1nCC3RAwv3d914nQjqagA85PwrqnMvUeQho/Kw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -2752,18 +2744,6 @@ snapshots:
   '@intentsolutions/core@0.9.0':
     dependencies:
       zod: 4.4.3
-
-  '@intentsolutions/refiner-core@0.2.0(@intentsolutions/core@0.9.0)':
-    dependencies:
-      '@intentsolutions/core': 0.9.0
-      zod: 4.4.3
-
-  '@intentsolutions/refiner@0.2.0(@intentsolutions/core@0.9.0)':
-    dependencies:
-      '@intentsolutions/refiner-core': 0.2.0(@intentsolutions/core@0.9.0)
-      commander: 15.0.0
-    transitivePeerDependencies:
-      - '@intentsolutions/core'
 
   '@isaacs/cliui@8.0.2':
     dependencies:
