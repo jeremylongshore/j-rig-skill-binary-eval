@@ -342,6 +342,32 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     }
   });
 
+  it("score fails early when the resolved provider has no default model", async () => {
+    // Generic LLM_* endpoint WITHOUT LLM_MODEL → resolveProvider yields an empty
+    // defaultModel. The CLI must fail here, not spawn `j-rig eval --models ""`.
+    process.env.LLM_BASE_URL = "https://gateway.example.com/v1";
+    process.env.LLM_API_KEY = "gateway-key-1234-not-real";
+    const { program, skillDir, cleanup } = setup();
+    try {
+      await expect(run(program, ["refine", "score", skillDir])).rejects.toThrow();
+      expect(String(err.mock.calls[0][0])).toMatch(/has no default model/);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("propose fails early when the resolved provider has no default model", async () => {
+    process.env.LLM_BASE_URL = "https://gateway.example.com/v1";
+    process.env.LLM_API_KEY = "gateway-key-1234-not-real";
+    const { program, skillDir, cleanup } = setup();
+    try {
+      await expect(run(program, ["refine", "propose", skillDir])).rejects.toThrow();
+      expect(String(err.mock.calls[0][0])).toMatch(/has no default model/);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("propose fails loud when --provider names a backend with no key", async () => {
     // Only a free key is present, but the operator explicitly asked for anthropic.
     process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";

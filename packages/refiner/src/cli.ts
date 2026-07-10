@@ -170,6 +170,15 @@ export function registerRefineCommand(
             }
           } else {
             modelTier = opts.model ?? resolved.defaultModel;
+            // A generic LLM_* endpoint without LLM_MODEL (or a preset lacking a
+            // default) yields an empty model id. Fail here with an actionable
+            // message rather than spawning `j-rig eval --models ""` downstream.
+            if (!modelTier) {
+              fail(
+                `provider '${resolved.name}' has no default model — pass --model <vendor-model-id> ` +
+                  `(or set LLM_MODEL when using a generic LLM_* endpoint)`,
+              );
+            }
           }
 
           const doc = loadSkillDoc(skillDir);
@@ -252,7 +261,16 @@ export function registerRefineCommand(
             }
             proposeOpts = { format: "anthropic", tier };
           } else {
-            proposeOpts = { format: "openai", model: opts.model ?? resolved.defaultModel };
+            const model = opts.model ?? resolved.defaultModel;
+            // Same empty-model-id guard as `score`: fail early in the CLI with an
+            // actionable message rather than after setup with a ProposeAdapterError.
+            if (!model) {
+              fail(
+                `provider '${resolved.name}' has no default model — pass --model <vendor-model-id> ` +
+                  `(or set LLM_MODEL when using a generic LLM_* endpoint)`,
+              );
+            }
+            proposeOpts = { format: "openai", model };
           }
 
           const doc = loadSkillDoc(skillDir);
