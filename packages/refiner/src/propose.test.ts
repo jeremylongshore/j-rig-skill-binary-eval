@@ -34,12 +34,12 @@ const PROPOSAL_JSON =
 
 describe("tiered routing + no-opus guard (AC-5)", () => {
   it("resolves haiku/sonnet aliases to concrete model ids", () => {
-    expect(resolveProposeModelId("haiku")).toBe("claude-haiku-4-5");
-    expect(resolveProposeModelId("sonnet")).toBe("claude-sonnet-4-5");
+    expect(resolveProposeModelId("haiku")).toBe("claude-haiku-4-5-20251001");
+    expect(resolveProposeModelId("sonnet")).toBe("claude-sonnet-4-6");
   });
 
   it("passes through a fully-qualified non-opus id", () => {
-    expect(resolveProposeModelId("claude-sonnet-4-5")).toBe("claude-sonnet-4-5");
+    expect(resolveProposeModelId("claude-sonnet-4-6")).toBe("claude-sonnet-4-6");
   });
 
   it("assertNotOpus rejects any opus id", () => {
@@ -53,12 +53,12 @@ describe("tiered routing + no-opus guard (AC-5)", () => {
 
   it("createRefinerModel records the resolved concrete model id (default sonnet)", () => {
     const model = createRefinerModel(mockClient(PROPOSAL_JSON));
-    expect(model.id).toBe("claude-sonnet-4-5");
+    expect(model.id).toBe("claude-sonnet-4-6");
   });
 
   it("createRefinerModel honours the haiku tier", () => {
     const model = createRefinerModel(mockClient(PROPOSAL_JSON), { tier: "haiku" });
-    expect(model.id).toBe("claude-haiku-4-5");
+    expect(model.id).toBe("claude-haiku-4-5-20251001");
   });
 });
 
@@ -69,14 +69,14 @@ describe("propose() adapter — wires a RefinerStrategy to a mocked client (step
       tier: "sonnet",
     });
     expect(client.calls).toHaveLength(1);
-    expect(client.calls[0].model).toBe("claude-sonnet-4-5");
-    expect(proposal.refinerModel).toBe("claude-sonnet-4-5");
+    expect(client.calls[0].model).toBe("claude-sonnet-4-6");
+    expect(proposal.refinerModel).toBe("claude-sonnet-4-6");
   });
 
   it("routes through haiku when asked", async () => {
     const client = mockClient(PROPOSAL_JSON);
     await propose(new NaiveInContextStrategy(), { doc, rollouts: [] }, client, { tier: "haiku" });
-    expect(client.calls[0].model).toBe("claude-haiku-4-5");
+    expect(client.calls[0].model).toBe("claude-haiku-4-5-20251001");
   });
 
   it("produces a proposal anchored to the doc + tagged with the strategy id", async () => {
@@ -109,7 +109,7 @@ describe("AnthropicCompletionClient — SDK-free, injectable transport", () => {
   it("posts to the Messages API and extracts text — without a live key/network", async () => {
     const transport = vi.fn(okTransport("hello world"));
     const client = new AnthropicCompletionClient({ apiKey: "test-key-1234", transport });
-    const out = await client.complete({ model: "claude-sonnet-4-5", prompt: "hi" });
+    const out = await client.complete({ model: "claude-sonnet-4-6", prompt: "hi" });
     expect(out).toBe("hello world");
     expect(transport).toHaveBeenCalledOnce();
     const req = transport.mock.calls[0][0];
@@ -121,7 +121,7 @@ describe("AnthropicCompletionClient — SDK-free, injectable transport", () => {
   it("refuses a missing/short key before any network call", async () => {
     const transport = vi.fn(okTransport("x"));
     const client = new AnthropicCompletionClient({ apiKey: "short", transport });
-    await expect(client.complete({ model: "claude-sonnet-4-5", prompt: "hi" })).rejects.toThrow(
+    await expect(client.complete({ model: "claude-sonnet-4-6", prompt: "hi" })).rejects.toThrow(
       /apiKey/,
     );
     expect(transport).not.toHaveBeenCalled();
@@ -139,16 +139,18 @@ describe("AnthropicCompletionClient — SDK-free, injectable transport", () => {
   it("maps a non-2xx response to a ProposeAdapterError", async () => {
     const transport: CompletionTransport = async () => ({ status: 429, json: {} });
     const client = new AnthropicCompletionClient({ apiKey: "test-key-1234", transport });
-    await expect(client.complete({ model: "claude-haiku-4-5", prompt: "hi" })).rejects.toThrow(
-      /HTTP 429/,
-    );
+    await expect(
+      client.complete({ model: "claude-haiku-4-5-20251001", prompt: "hi" }),
+    ).rejects.toThrow(/HTTP 429/);
   });
 
   it("does not leak the key into thrown errors", async () => {
     const transport: CompletionTransport = async () => ({ status: 500, json: {} });
     const client = new AnthropicCompletionClient({ apiKey: "super-secret-key-value", transport });
-    await client.complete({ model: "claude-haiku-4-5", prompt: "hi" }).catch((e: unknown) => {
-      expect(String(e)).not.toContain("super-secret-key-value");
-    });
+    await client
+      .complete({ model: "claude-haiku-4-5-20251001", prompt: "hi" })
+      .catch((e: unknown) => {
+        expect(String(e)).not.toContain("super-secret-key-value");
+      });
   });
 });

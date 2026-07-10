@@ -32,10 +32,10 @@ import type { EditProposal } from "@intentsolutions/refiner-core";
 /** Tiers a propose() pass may run on. `opus` is intentionally absent (AC-5). */
 export type ProposeModelTier = "haiku" | "sonnet";
 
-/** Short tier alias → concrete Anthropic API model id (mirrors eval's map). */
+/** Short tier alias → concrete Anthropic API model id (current GA; mirrors eval's map). */
 const TIER_MODEL_ID: Record<ProposeModelTier, string> = {
-  haiku: "claude-haiku-4-5",
-  sonnet: "claude-sonnet-4-5",
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-6",
 };
 
 /** Concrete opus model ids that must NEVER back a propose() pass (AC-5 guard). */

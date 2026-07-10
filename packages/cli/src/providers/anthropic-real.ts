@@ -60,11 +60,11 @@ const DEFAULT_BASE_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 1024;
 
-/** Short model aliases → concrete Anthropic API model ids. */
+/** Short model aliases → concrete Anthropic API model ids (current GA models). */
 const MODEL_ALIASES: Record<string, string> = {
-  haiku: "claude-haiku-4-5",
-  sonnet: "claude-sonnet-4-5",
-  opus: "claude-opus-4-1",
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-8",
 };
 
 /**
