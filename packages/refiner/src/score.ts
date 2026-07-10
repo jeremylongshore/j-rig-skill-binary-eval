@@ -19,7 +19,11 @@
 
 import type { SkillDoc, EvalSet, ScoreRecord, ScoreDimension } from "@intentsolutions/refiner-core";
 
-/** Per-pass scoring tier. Opus is excluded by construction (AC-5). */
+/**
+ * Per-pass scoring model. On the Anthropic path a tier (`haiku`|`sonnet`; opus
+ * excluded by construction, AC-5). On the OpenAI-compatible path a raw vendor
+ * model id is passed through instead — the tier discipline is Anthropic-specific.
+ */
 export type ScoreModelTier = "haiku" | "sonnet";
 
 /** Result of running the evaluator: its exit code + captured stdout/stderr. */
@@ -33,8 +37,17 @@ export interface EvalRunnerResult {
 export interface EvalInvocation {
   /** Absolute/relative path to the skill directory containing SKILL.md. */
   readonly skillDir: string;
-  /** Model tier passed to `--models` (haiku|sonnet — never opus). */
-  readonly modelTier: ScoreModelTier;
+  /**
+   * Value forwarded to `--models`. On the Anthropic path this is the `haiku`|
+   * `sonnet` tier; on the OpenAI-compatible path it is the raw vendor model id.
+   */
+  readonly modelTier: string;
+  /**
+   * Optional `--provider <name>` forwarded to `j-rig eval`. When set, eval
+   * resolves that backend (deepseek/groq/nvidia/anthropic/…) — the SAME provider
+   * names this package's registry uses — so `refine score` and `j-rig eval` agree.
+   */
+  readonly provider?: string;
 }
 
 /**
@@ -54,7 +67,16 @@ export class ScoreAdapterError extends Error {
 
 export interface ScoreOptions {
   readonly skillDir: string;
-  readonly modelTier?: ScoreModelTier;
+  /**
+   * Model forwarded to `--models`: a `haiku`|`sonnet` tier (Anthropic path, the
+   * default) OR a raw vendor model id (OpenAI-compatible path). Default `sonnet`.
+   */
+  readonly modelTier?: string;
+  /**
+   * Optional `--provider <name>` forwarded to `j-rig eval` so scoring runs on the
+   * SAME backend propose() resolved (deepseek/groq/nvidia/anthropic/…).
+   */
+  readonly provider?: string;
 }
 
 /**
@@ -63,7 +85,7 @@ export interface ScoreOptions {
  * @param doc      The skill version being scored (its hash anchors the record).
  * @param evalSet  The held-out set the score is "against" (its hash anchors it).
  * @param runner   The injected evaluator shell-out (default spawns j-rig).
- * @param opts     skillDir (the directory j-rig evals) + modelTier (default sonnet).
+ * @param opts     skillDir + modelTier (default sonnet) + optional provider.
  * @returns A refiner-core ScoreRecord with the kernel-pinned `behavioral` dim
  *          mapped from j-rig's pass_rate, plus `pass_count` / `total` dims.
  * @throws ScoreAdapterError if the evaluator failed or emitted unparseable output.
@@ -74,8 +96,12 @@ export async function score(
   runner: EvalRunner,
   opts: ScoreOptions,
 ): Promise<ScoreRecord> {
-  const modelTier: ScoreModelTier = opts.modelTier ?? "sonnet";
-  const result = await runner.run({ skillDir: opts.skillDir, modelTier });
+  const modelTier: string = opts.modelTier ?? "sonnet";
+  const result = await runner.run({
+    skillDir: opts.skillDir,
+    modelTier,
+    ...(opts.provider ? { provider: opts.provider } : {}),
+  });
 
   if (result.exitCode !== 0) {
     throw new ScoreAdapterError(
@@ -102,7 +128,7 @@ interface JRigScoreCard {
  * differs (the OpenAI-compatible path substitutes a vendor model id for the
  * short alias — so a single-entry object is taken as-is).
  */
-function extractScoreCard(stdout: string, modelTier: ScoreModelTier): JRigScoreCard {
+function extractScoreCard(stdout: string, modelTier: string): JRigScoreCard {
   const json = parseLastJsonObject(stdout);
   if (json === null) {
     throw new ScoreAdapterError("j-rig eval produced no parseable JSON object on stdout");
@@ -181,6 +207,13 @@ export function createSubprocessEvalRunner(
       const command = opts.command ?? "j-rig";
       const baseArgs = opts.args ?? ["eval"];
       const args = [...baseArgs, invocation.skillDir, "--json", "--models", invocation.modelTier];
+      // Forward the resolved provider so eval hits the same backend (deepseek/
+      // groq/nvidia/anthropic/…) propose() picked. `j-rig eval` already supports
+      // `--provider`; when the backend is OpenAI-compatible, eval uses its vendor
+      // default model (a haiku/sonnet tier is not a valid vendor model id there).
+      if (invocation.provider) {
+        args.push("--provider", invocation.provider);
+      }
       return await new Promise<EvalRunnerResult>((resolvePromise, rejectPromise) => {
         const child = spawn(command, args, {
           env: opts.env ?? process.env,

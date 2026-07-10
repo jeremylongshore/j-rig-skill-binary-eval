@@ -264,7 +264,30 @@ describe("`j-rig refine status` — offline", () => {
 describe("`j-rig refine score` / `propose` — guard rails", () => {
   let err: MockInstance<typeof console.error>;
   let exit: MockInstance<typeof process.exit>;
+  // Provider key env vars that resolveProvider() consults. Guard-rail tests run
+  // with a CONTROLLED environment: every one is cleared up front, then each test
+  // sets exactly the key(s) it needs. This makes the provider-agnostic paths
+  // deterministic regardless of what keys the developer/CI environment happens
+  // to expose.
+  const PROVIDER_KEY_ENVS = [
+    "ANTHROPIC_API_KEY",
+    "NVIDIA_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "GROQ_API_KEY",
+    "MOONSHOT_API_KEY",
+    "OPENROUTER_API_KEY",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL",
+    "LLM_PROVIDER",
+  ];
+  let savedEnv: Record<string, string | undefined>;
   beforeEach(() => {
+    savedEnv = {};
+    for (const k of PROVIDER_KEY_ENVS) {
+      savedEnv[k] = process.env[k];
+      delete process.env[k];
+    }
     err = vi.spyOn(console, "error").mockImplementation(() => {});
     // `fail()` calls process.exit(1); throw instead so the test can assert it.
     exit = vi.spyOn(process, "exit").mockImplementation((() => {
@@ -272,15 +295,20 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     }) as typeof process.exit);
   });
   afterEach(() => {
+    for (const k of PROVIDER_KEY_ENVS) {
+      if (savedEnv[k] !== undefined) process.env[k] = savedEnv[k];
+      else delete process.env[k];
+    }
     err.mockRestore();
     exit.mockRestore();
   });
 
-  it("score rejects an opus tier (validation-only)", async () => {
+  it("score rejects an opus tier on the anthropic provider (validation-only)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key-1234-not-real";
     const { program, skillDir, cleanup } = setup();
     try {
       await expect(
-        run(program, ["refine", "score", skillDir, "--model", "opus"]),
+        run(program, ["refine", "score", skillDir, "--provider", "anthropic", "--model", "opus"]),
       ).rejects.toThrow();
       expect(err).toHaveBeenCalled();
       expect(String(err.mock.calls[0][0])).toMatch(/haiku or sonnet/);
@@ -289,24 +317,51 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     }
   });
 
-  it("propose refuses without ANTHROPIC_API_KEY", async () => {
-    const prev = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
+  it("score refuses when NO provider key is set (Anthropic NOT required)", async () => {
     const { program, skillDir, cleanup } = setup();
     try {
-      await expect(run(program, ["refine", "propose", skillDir])).rejects.toThrow();
-      expect(String(err.mock.calls[0][0])).toMatch(/ANTHROPIC_API_KEY/);
+      await expect(run(program, ["refine", "score", skillDir])).rejects.toThrow();
+      // The error lists the env vars it looked for, incl. the free ones — never
+      // singling out Anthropic as required.
+      expect(String(err.mock.calls[0][0])).toMatch(/no LLM provider credential found/);
+      expect(String(err.mock.calls[0][0])).toMatch(/NVIDIA_API_KEY/);
     } finally {
-      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
       cleanup();
     }
   });
 
-  it("propose rejects an opus tier before touching the key", async () => {
+  it("propose refuses when NO provider key is set (Anthropic NOT required)", async () => {
+    const { program, skillDir, cleanup } = setup();
+    try {
+      await expect(run(program, ["refine", "propose", skillDir])).rejects.toThrow();
+      const msg = String(err.mock.calls[0][0]);
+      expect(msg).toMatch(/does NOT require Anthropic/);
+      expect(msg).toMatch(/NVIDIA_API_KEY/);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("propose fails loud when --provider names a backend with no key", async () => {
+    // Only a free key is present, but the operator explicitly asked for anthropic.
+    process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";
     const { program, skillDir, cleanup } = setup();
     try {
       await expect(
-        run(program, ["refine", "propose", skillDir, "--model", "opus"]),
+        run(program, ["refine", "propose", skillDir, "--provider", "anthropic"]),
+      ).rejects.toThrow();
+      expect(String(err.mock.calls[0][0])).toMatch(/ANTHROPIC_API_KEY is not set/);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("propose rejects an opus tier on anthropic before touching the wire", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key-1234-not-real";
+    const { program, skillDir, cleanup } = setup();
+    try {
+      await expect(
+        run(program, ["refine", "propose", skillDir, "--provider", "anthropic", "--model", "opus"]),
       ).rejects.toThrow();
       expect(String(err.mock.calls[0][0])).toMatch(/haiku or sonnet/);
     } finally {
@@ -314,9 +369,8 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     }
   });
 
-  it("propose rejects an unknown strategy", async () => {
-    const prev = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "test-key-1234-not-real";
+  it("propose rejects an unknown strategy (after a provider resolves)", async () => {
+    process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";
     const { program, skillDir, cleanup } = setup();
     try {
       await expect(
@@ -324,13 +378,12 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
       ).rejects.toThrow();
       expect(String(err.mock.calls[0][0])).toMatch(/unknown refiner strategy/);
     } finally {
-      if (prev !== undefined) process.env.ANTHROPIC_API_KEY = prev;
-      else delete process.env.ANTHROPIC_API_KEY;
       cleanup();
     }
   });
 
   it("score reports a missing eval set", async () => {
+    process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";
     const { program, skillDir, cleanup } = setup();
     try {
       await expect(

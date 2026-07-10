@@ -33,8 +33,15 @@ import {
   type EditProposal,
 } from "@intentsolutions/refiner-core";
 import { RefinerStore } from "./store.js";
-import { score, createSubprocessEvalRunner, type ScoreModelTier } from "./score.js";
-import { propose, AnthropicCompletionClient, type ProposeModelTier } from "./propose.js";
+import { score, createSubprocessEvalRunner } from "./score.js";
+import {
+  propose,
+  createCompletionClient,
+  resolveProvider,
+  NoProviderError,
+  type ProposeModelTier,
+  type ProposeModelOptions,
+} from "./propose.js";
 import {
   NaiveInContextStrategy,
   SkillOptStyleStrategy,
@@ -119,18 +126,52 @@ export function registerRefineCommand(
   // ── score ────────────────────────────────────────────────────────────────
   refine
     .command("score")
-    .description("Score a skill by delegating to `j-rig eval` (haiku|sonnet)")
+    .description("Score a skill by delegating to `j-rig eval` (any provider)")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
     .option("--eval-set <hash>", "Eval-set hash to score against (defaults to bootstrap)")
-    .option("--model <tier>", "Scoring tier: haiku | sonnet (never opus)", "sonnet")
+    .option(
+      "--provider <name>",
+      "LLM backend: nvidia | deepseek | groq | anthropic | kimi | openrouter " +
+        "(default: auto-pick the first present key, preferring free/cheap; Anthropic is NOT required)",
+    )
+    .option(
+      "--model <id>",
+      "Scoring model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
+        "providers: a raw vendor model id (defaults to the provider's default).",
+    )
     .option("--json", "Output as JSON")
     .action(
-      async (skillDir: string, opts: { evalSet?: string; model?: string; json?: boolean }) => {
+      async (
+        skillDir: string,
+        opts: { evalSet?: string; provider?: string; model?: string; json?: boolean },
+      ) => {
         try {
-          const tier = (opts.model ?? "sonnet") as ScoreModelTier;
-          if (tier !== "haiku" && tier !== "sonnet") {
-            fail(`--model must be haiku or sonnet (got '${opts.model}'); opus is validation-only`);
+          // Resolve the backend the SAME way propose() does, so `refine score`
+          // never hard-requires Anthropic and agrees with `j-rig eval`.
+          let resolved;
+          try {
+            resolved = resolveProvider({ provider: opts.provider });
+          } catch (err) {
+            if (err instanceof NoProviderError) fail(err.message);
+            throw err;
           }
+
+          // Model discipline is per-format: Anthropic keeps the haiku|sonnet tier
+          // (opus is validation-only); OpenAI-compatible providers accept a raw
+          // vendor id and default to the provider's default model.
+          let modelTier: string;
+          if (resolved.format === "anthropic") {
+            modelTier = opts.model ?? "sonnet";
+            if (modelTier !== "haiku" && modelTier !== "sonnet") {
+              fail(
+                `--model must be haiku or sonnet on the anthropic provider (got '${opts.model}'); ` +
+                  `opus is validation-only`,
+              );
+            }
+          } else {
+            modelTier = opts.model ?? resolved.defaultModel;
+          }
+
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
           // Resolve the eval set: an explicit --eval-set hash from the store, else
@@ -144,12 +185,16 @@ export function registerRefineCommand(
           store.putSkillDoc(doc);
           store.putEvalSet(evalSet);
           const runner = createSubprocessEvalRunner();
-          const record = await score(doc, evalSet, runner, { skillDir, modelTier: tier });
+          const record = await score(doc, evalSet, runner, {
+            skillDir,
+            modelTier,
+            provider: resolved.name,
+          });
           store.putScoreRecord(record);
           if (opts.json) {
             console.log(JSON.stringify(record, null, 2));
           } else {
-            console.log(`Scored '${doc.skillId}' (tier ${tier})`);
+            console.log(`Scored '${doc.skillId}' (${resolved.name} / ${modelTier})`);
             console.log(
               `  behavioral: ${record.behavioral.value.toFixed(4)} (n=${record.behavioral.n})`,
             );
@@ -163,37 +208,69 @@ export function registerRefineCommand(
   // ── propose ────────────────────────────────────────────────────────────────
   refine
     .command("propose")
-    .description("Propose a bounded SKILL.md edit (tiered model; never opus)")
+    .description("Propose a bounded SKILL.md edit (any provider; free/cheap by default)")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
     .option("--strategy <id>", "Strategy: skill-opt-style | naive-in-context", "skill-opt-style")
-    .option("--model <tier>", "Propose tier: haiku | sonnet (never opus)", "sonnet")
+    .option(
+      "--provider <name>",
+      "LLM backend: nvidia | deepseek | groq | anthropic | kimi | openrouter " +
+        "(default: auto-pick the first present key, preferring free/cheap; Anthropic is NOT required)",
+    )
+    .option(
+      "--model <id>",
+      "Propose model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
+        "providers: a raw vendor model id (defaults to the provider's default).",
+    )
     .option("--json", "Output as JSON")
     .action(
-      async (skillDir: string, opts: { strategy?: string; model?: string; json?: boolean }) => {
+      async (
+        skillDir: string,
+        opts: { strategy?: string; provider?: string; model?: string; json?: boolean },
+      ) => {
         try {
-          const tier = (opts.model ?? "sonnet") as ProposeModelTier;
-          if (tier !== "haiku" && tier !== "sonnet") {
-            fail(`--model must be haiku or sonnet (got '${opts.model}'); opus is validation-only`);
+          // PROVIDER-AGNOSTIC: resolve a backend from --provider / LLM_* / the
+          // first present key (preferring free/cheap). No Anthropic requirement.
+          let resolved;
+          try {
+            resolved = resolveProvider({ provider: opts.provider });
+          } catch (err) {
+            if (err instanceof NoProviderError) fail(err.message);
+            throw err;
           }
-          const apiKey = process.env.ANTHROPIC_API_KEY;
-          if (!apiKey || apiKey.length < 8) {
-            fail(
-              "propose requires ANTHROPIC_API_KEY (set it, or call propose() with a mock client in tests)",
-            );
+
+          // Model discipline is per-format. Anthropic: haiku|sonnet tier + the
+          // no-opus guard (applied inside createRefinerModel). OpenAI-compatible:
+          // a raw vendor model id, defaulting to the provider's default.
+          let proposeOpts: ProposeModelOptions;
+          if (resolved.format === "anthropic") {
+            const tier = (opts.model ?? "sonnet") as ProposeModelTier;
+            if (tier !== "haiku" && tier !== "sonnet") {
+              fail(
+                `--model must be haiku or sonnet on the anthropic provider (got '${opts.model}'); ` +
+                  `opus is validation-only`,
+              );
+            }
+            proposeOpts = { format: "anthropic", tier };
+          } else {
+            proposeOpts = { format: "openai", model: opts.model ?? resolved.defaultModel };
           }
+
           const doc = loadSkillDoc(skillDir);
           const strategy = selectStrategy(opts.strategy);
           const store = storeFactory(process.cwd());
           store.putSkillDoc(doc);
-          const client = new AnthropicCompletionClient({ apiKey });
+          // Build the client that matches the resolved provider's wire format
+          // (Anthropic Messages vs OpenAI Chat Completions).
+          const client = createCompletionClient(resolved);
           // No scored rollouts on the CLI path yet (harvest is wave 2+); the
           // strategies tolerate an empty rollout set (single-pass proposal).
-          const proposal = await propose(strategy, { doc, rollouts: [] }, client, { tier });
+          const proposal = await propose(strategy, { doc, rollouts: [] }, client, proposeOpts);
           const hash = store.putEditProposal(proposal);
           if (opts.json) {
             console.log(JSON.stringify(proposal, null, 2));
           } else {
             console.log(`Proposed ${proposal.ops.length} op(s) for '${doc.skillId}'`);
+            console.log(`  provider: ${resolved.name}`);
             console.log(`  strategy: ${proposal.refinerStrategyId}`);
             console.log(`  model:    ${proposal.refinerModel}`);
             console.log(`  stored:   .j-rig/refiner/store/${hash.slice(0, 12)}…`);

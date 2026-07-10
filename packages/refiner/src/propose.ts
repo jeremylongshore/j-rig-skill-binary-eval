@@ -1,5 +1,5 @@
 /**
- * propose() adapter — Anthropic-backed RefinerModel + tiered routing (plan 027
+ * propose() adapter — PROVIDER-AGNOSTIC RefinerModel + tiered routing (plan 027
  * § 4 Phase A build-order step 6, "most complex; comes last").
  *
  * The PURE propose() mechanism lives in `@intentsolutions/refiner-core` behind the
@@ -8,17 +8,30 @@
  * the I/O adapter that supplies a REAL `RefinerModel` backed by a model client,
  * and the tiered-routing policy that picks which model id a pass runs on.
  *
- * AC-5 (Huyen economics, P0-RATIFY): per-pass proposing routes to `haiku` or
- * `sonnet` ONLY. Opus is bound to final validation, reached through a SEPARATE
- * `validate()` path — never through propose(). The {@link ProposeModelTier} type
- * makes `opus` unrepresentable here, and {@link assertNotOpus} is a runtime
- * belt-and-suspenders for an id that resolves to an opus model.
+ * PROVIDER-AGNOSTIC (this branch): propose() no longer hard-requires Anthropic.
+ * It resolves a backend via {@link resolveProvider} (shared with score()) — an
+ * explicit `--provider`, else the generic `LLM_*` triple, else auto-pick the first
+ * present key preferring FREE/cheap OpenAI-compatible providers (nvidia →
+ * deepseek → groq → anthropic). Two client formats are supported:
+ *   - `anthropic` — the raw Messages API (unchanged; keeps the haiku|sonnet tier
+ *     discipline + the no-opus guard, which are Anthropic-tier concepts).
+ *   - `openai` — the OpenAI Chat Completions wire format (DeepSeek/Groq/NVIDIA/…),
+ *     reusing the SAME single-turn shape the eval command's OpenAI-compat adapter
+ *     uses. Raw vendor model ids; the no-opus guard does not apply.
+ *
+ * AC-5 (Huyen economics, P0-RATIFY): on the ANTHROPIC path, per-pass proposing
+ * routes to `haiku` or `sonnet` ONLY. Opus is bound to final validation, reached
+ * through a SEPARATE `validate()` path — never through propose(). The
+ * {@link ProposeModelTier} type makes `opus` unrepresentable, and
+ * {@link assertNotOpus} is a runtime belt-and-suspenders for an id that resolves
+ * to an opus model. This tier discipline is Anthropic-specific; on the
+ * OpenAI-compatible path any vendor model id is accepted.
  *
  * The model client is INJECTED via {@link CompletionClient} so unit tests mock it
- * (no live ANTHROPIC_API_KEY needed to run the suite). The default client speaks
- * the raw Anthropic Messages API through an injectable transport — the same
- * SDK-free convention the eval command's RealAnthropicProvider uses, so this adds
- * no new dependency and stays CISO-gate-clean (key never logged).
+ * (no live key needed to run the suite). The default clients speak the raw
+ * Anthropic Messages API OR the OpenAI Chat Completions API through an injectable
+ * transport — the same SDK-free convention the eval command's providers use, so
+ * this adds no new dependency and stays CISO-gate-clean (key never logged).
  */
 
 import type {
@@ -28,8 +41,9 @@ import type {
   RefinerStrategy,
 } from "@intentsolutions/refiner-core";
 import type { EditProposal } from "@intentsolutions/refiner-core";
+import type { ResolvedProvider } from "./providers.js";
 
-/** Tiers a propose() pass may run on. `opus` is intentionally absent (AC-5). */
+/** Tiers a propose() pass may run on (Anthropic path). `opus` is intentionally absent (AC-5). */
 export type ProposeModelTier = "haiku" | "sonnet";
 
 /** Short tier alias → concrete Anthropic API model id (current GA; mirrors eval's map). */
@@ -86,17 +100,38 @@ export function resolveProposeModelId(tier: ProposeModelTier | string): string {
 }
 
 export interface ProposeModelOptions {
-  /** Tier for the pass (default sonnet). Opus is unrepresentable here. */
+  /**
+   * Model for the pass. On the Anthropic path a tier (`haiku`|`sonnet`, default
+   * `sonnet`; opus unrepresentable). On the OpenAI-compatible path a raw vendor
+   * model id (e.g. `meta/llama-3.3-70b-instruct`); when omitted the resolved
+   * provider's default model is used.
+   */
   readonly tier?: ProposeModelTier;
+  /**
+   * Wire format the client speaks — selects whether the no-opus tier discipline
+   * applies. Defaults to `"anthropic"` for backward compatibility (existing
+   * callers pass an Anthropic client + a tier).
+   */
+  readonly format?: "anthropic" | "openai";
+  /**
+   * On the OpenAI-compatible path, the raw model id to use. Ignored on the
+   * Anthropic path (which resolves `tier` → concrete id). When omitted, the model
+   * id is left to the caller/provider default (empty ⇒ the client must supply it).
+   */
+  readonly model?: string;
   /** Max tokens for the completion (default 1024). */
   readonly maxTokens?: number;
 }
 
 /**
  * Build a refiner-core {@link RefinerModel} backed by an injected completion
- * client + a tier. The returned model's `id` is the resolved concrete model id
- * (recorded on every EditProposal as `refinerModel`, so a proposal is
- * mechanism-AND-model traceable). Guaranteed non-opus.
+ * client. The returned model's `id` is the resolved model id (recorded on every
+ * EditProposal as `refinerModel`, so a proposal is mechanism-AND-model traceable).
+ *
+ * On the ANTHROPIC path the tier is resolved to a concrete Anthropic id and the
+ * no-opus guard fires (guaranteed non-opus). On the OPENAI-compatible path a raw
+ * vendor model id is used verbatim — the tier discipline / no-opus guard are
+ * Anthropic-tier concepts and do not apply.
  *
  * The `complete()` method returns a {@link CompletionResult} carrying both the
  * generated text and the token usage reported by the API. The {@link CompletionClient}
@@ -106,15 +141,18 @@ export interface ProposeModelOptions {
  * `@intentsolutions/refiner-core` will accumulate the usage field regardless — a zero stub
  * means "uncounted" tokens, not "no tokens used".
  *
- * @param client The completion client (real Anthropic, or a test fake).
- * @param opts   tier (default sonnet) + maxTokens.
+ * @param client The completion client (real Anthropic / OpenAI-compat, or a test fake).
+ * @param opts   tier|model + format + maxTokens.
  */
 export function createRefinerModel(
   client: CompletionClient,
   opts: ProposeModelOptions = {},
 ): RefinerModel {
-  const tier: ProposeModelTier = opts.tier ?? "sonnet";
-  const modelId = resolveProposeModelId(tier); // throws if it resolves to opus
+  const format = opts.format ?? "anthropic";
+  const modelId =
+    format === "anthropic"
+      ? resolveProposeModelId(opts.tier ?? "sonnet") // throws if it resolves to opus
+      : (opts.model ?? ""); // OpenAI-compat: raw vendor id, no tier discipline
   const maxTokens = opts.maxTokens ?? 1024;
   return {
     id: modelId,
@@ -145,6 +183,36 @@ export async function propose(
   const model = createRefinerModel(client, opts);
   return await strategy.propose({ ...ctx, model });
 }
+
+/**
+ * Build the right {@link CompletionClient} for a resolved provider. This is the
+ * client-selection seam the CLI uses AFTER {@link resolveProvider} decided which
+ * backend to talk to: an `anthropic`-format provider gets the Messages-API client;
+ * an `openai`-format provider gets the Chat-Completions client. Both route through
+ * an injectable transport (default real `fetch`), so a test can hand a fake.
+ */
+export function createCompletionClient(
+  resolved: ResolvedProvider,
+  transport?: CompletionTransport,
+): CompletionClient {
+  if (resolved.format === "anthropic") {
+    return new AnthropicCompletionClient({
+      apiKey: resolved.apiKey,
+      baseUrl: resolved.baseUrl,
+      ...(transport ? { transport } : {}),
+    });
+  }
+  return new OpenAICompatCompletionClient({
+    apiKey: resolved.apiKey,
+    baseUrl: resolved.baseUrl,
+    name: resolved.name,
+    ...(transport ? { transport } : {}),
+  });
+}
+
+/** Re-export the provider resolver so the CLI reaches it through this adapter. */
+export { resolveProvider, NoProviderError, PROVIDER_REGISTRY } from "./providers.js";
+export type { ResolvedProvider } from "./providers.js";
 
 /**
  * Injectable transport for the default Anthropic client — POST a JSON body,
@@ -223,6 +291,83 @@ function extractText(json: unknown): string {
     .filter((b) => b.type === "text" && typeof b.text === "string")
     .map((b) => b.text as string)
     .join("");
+}
+
+export interface OpenAICompatCompletionClientOptions {
+  /** API key forwarded as the Bearer token (held privately; never logged). */
+  readonly apiKey: string;
+  /** Base URL of the OpenAI-compatible endpoint (no trailing `/chat/completions`). */
+  readonly baseUrl: string;
+  /** Short provider name for error attribution. */
+  readonly name?: string;
+  /** Injectable network seam; defaults to a real `fetch`-backed transport. */
+  readonly transport?: CompletionTransport;
+}
+
+/**
+ * {@link CompletionClient} over the OpenAI **Chat Completions** wire format
+ * (`POST {base}/chat/completions`, `Authorization: Bearer <key>`,
+ * `choices[0].message.content` response). This is the same single-turn shape the
+ * eval command's `RealOpenAICompatProvider` uses, distilled to the "prompt in,
+ * text out" surface propose() needs — so DeepSeek / Groq / NVIDIA / any
+ * OpenAI-compatible endpoint backs a refiner pass with NO new SDK dependency and
+ * NO tier discipline (raw vendor model ids; the no-opus guard is Anthropic-only).
+ *
+ * The key is held privately and never echoed (CISO G-1). Routes through the same
+ * injectable `CompletionTransport` seam as the Anthropic client, so the whole
+ * client — including this one — is testable without a live key or network.
+ */
+export class OpenAICompatCompletionClient implements CompletionClient {
+  readonly #apiKey: string;
+  readonly #baseUrl: string;
+  readonly #name: string;
+  readonly #transport: CompletionTransport;
+
+  constructor(opts: OpenAICompatCompletionClientOptions) {
+    this.#apiKey = opts.apiKey;
+    // Normalize: strip trailing slashes so `${base}/chat/completions` is clean.
+    this.#baseUrl = opts.baseUrl.replace(/\/+$/, "");
+    this.#name = opts.name ?? "openai-compatible";
+    this.#transport = opts.transport ?? createFetchTransport();
+  }
+
+  async complete(req: { model: string; prompt: string; maxTokens?: number }): Promise<string> {
+    if (this.#apiKey.length < 8) {
+      throw new ProposeAdapterError(`${this.#name} apiKey missing or too short`);
+    }
+    if (!req.model || req.model.length === 0) {
+      throw new ProposeAdapterError(
+        `${this.#name} requires a model id (pass --model, or ensure the provider has a default)`,
+      );
+    }
+    const res = await this.#transport({
+      url: `${this.#baseUrl}/chat/completions`,
+      headers: {
+        "content-type": "application/json",
+        // Authorization: Bearer is the OpenAI-style auth every compatible vendor
+        // accepts; placed here and never echoed (G-1).
+        authorization: `Bearer ${this.#apiKey}`,
+      },
+      body: {
+        model: req.model,
+        max_tokens: req.maxTokens ?? 1024,
+        messages: [{ role: "user", content: req.prompt }],
+      },
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new ProposeAdapterError(`${this.#name} API returned HTTP ${res.status}`);
+    }
+    return extractChatCompletionText(res.json);
+  }
+}
+
+/** Pull `choices[0].message.content` from an OpenAI Chat Completions response. */
+function extractChatCompletionText(json: unknown): string {
+  const choices = (json as Record<string, unknown> | null)?.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return "";
+  const message = (choices[0] as Record<string, unknown> | null)?.message as
+    Record<string, unknown> | undefined;
+  return typeof message?.content === "string" ? message.content : "";
 }
 
 /** Real `fetch`-backed {@link CompletionTransport}. */
