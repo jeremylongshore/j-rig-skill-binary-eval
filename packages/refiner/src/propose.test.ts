@@ -200,6 +200,17 @@ describe("OpenAICompatCompletionClient — Chat Completions, SDK-free, injectabl
     expect(transport.mock.calls[0][0].url).toBe("https://api.deepseek.com/chat/completions");
   });
 
+  it("strips MULTIPLE trailing slashes (linear, ReDoS-safe) without eating inner slashes", async () => {
+    const transport = vi.fn(okChatTransport("x"));
+    const client = new OpenAICompatCompletionClient({
+      apiKey: "key-12345678",
+      baseUrl: "https://api.groq.com/openai/v1///",
+      transport,
+    });
+    await client.complete({ model: "llama-3.3-70b-versatile", prompt: "hi" });
+    expect(transport.mock.calls[0][0].url).toBe("https://api.groq.com/openai/v1/chat/completions");
+  });
+
   it("parses choices[0].message.content (empty string when absent)", async () => {
     const transport: CompletionTransport = async () => ({ status: 200, json: { choices: [] } });
     const client = new OpenAICompatCompletionClient({

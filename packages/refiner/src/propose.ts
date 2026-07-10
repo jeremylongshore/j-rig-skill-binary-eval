@@ -326,7 +326,10 @@ export class OpenAICompatCompletionClient implements CompletionClient {
   constructor(opts: OpenAICompatCompletionClientOptions) {
     this.#apiKey = opts.apiKey;
     // Normalize: strip trailing slashes so `${base}/chat/completions` is clean.
-    this.#baseUrl = opts.baseUrl.replace(/\/+$/, "");
+    // A linear char-scan (not a `/\/+$/` regex) — the anchored one-or-more
+    // quantifier is a polynomial-ReDoS shape on library-supplied input (CodeQL
+    // js/polynomial-redos); a scan is O(n) with no backtracking.
+    this.#baseUrl = stripTrailingSlashes(opts.baseUrl);
     this.#name = opts.name ?? "openai-compatible";
     this.#transport = opts.transport ?? createFetchTransport();
   }
@@ -359,6 +362,18 @@ export class OpenAICompatCompletionClient implements CompletionClient {
     }
     return extractChatCompletionText(res.json);
   }
+}
+
+/**
+ * Strip trailing `/` characters in linear time. Deliberately NOT `s.replace(/\/+$/,
+ * "")` — that anchored one-or-more quantifier is a polynomial-ReDoS shape when the
+ * input is library-supplied (CodeQL js/polynomial-redos). A backward char-scan is
+ * O(n) with no backtracking.
+ */
+function stripTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return end === s.length ? s : s.slice(0, end);
 }
 
 /** Pull `choices[0].message.content` from an OpenAI Chat Completions response. */
