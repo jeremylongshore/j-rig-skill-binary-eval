@@ -16,6 +16,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Skill Refiner provider seam — PUBLISHED (2026-07-10).** The Refiner is now
+  provider-agnostic and runs the full loop on free/cheap OpenAI-compatible models
+  without ever requiring Anthropic. Published `@intentsolutions/refiner-core` +
+  `@intentsolutions/refiner` **0.3.0** (lockstep, sigstore) and
+  `@intentsolutions/jrig-cli` **0.2.0**.
+  - `feat(refiner)` (#203): `j-rig refine score --provider` / `propose --provider`
+    resolve any registered backend (groq/deepseek/openai/anthropic/nvidia/kimi/
+    openrouter) via a shared provider registry + `resolveProvider`; reliability-
+    first auto-pick order (`groq → deepseek → openai → anthropic → nvidia`-last,
+    nvidia demoted for its flaky NIM tier but still auto-resolvable when it is the
+    only key). Anthropic is never required.
+  - `fix(refiner)` (#203): op-parse tolerance — a malformed op is DROPPED, not
+    fatal, so one bad op never discards a proposal's valid edits (robust to
+    imperfect non-Anthropic models); OpenAI-compat clients request
+    `response_format: json_object` so models emit parseable JSON, not prose.
+  - `fix(refiner)` (#203): both CLI actions fail early with an actionable message
+    when a resolved provider has no default model, instead of forwarding an empty
+    `--models`/hitting a late `ProposeAdapterError`.
+  - `feat(cli)` (#204): added an `openai` eval preset (`gpt-4o-mini`) so
+    `j-rig eval --provider openai` resolves; `groq`/`nvidia` were already present.
+    The eval preset table now MIRRORS the Refiner provider registry, so
+    `eval --provider X` and `refine score --provider X` hit the same backend.
+  - `build(cli)` (#204): the CLI's `@intentsolutions/refiner` dep moved from a
+    plain `^0.2.0` range (which resolved the PUBLISHED refiner, causing the
+    packaged CLI to lag the workspace) to `workspace:^` — links the workspace
+    refiner locally and `pnpm publish` rewrites it to `^0.3.0`.
 - **Eval provider + judge hardening, and the eval→Evidence-Bundle bridge**
   (merged to main 2026-06-30). The published `@intentsolutions/jrig-cli`
   **0.1.2** release carries all four changes below — including the two
