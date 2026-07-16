@@ -117,7 +117,9 @@ function main() {
       );
       writeFileSync(resultPath, stdout, "utf8");
       const statements = JSON.parse(readFileSync(statementsPath, "utf8"));
-      row.decisions = statements.map((st) => st?.predicate?.gate_decision ?? "error");
+      row.decisions = Array.isArray(statements)
+        ? statements.map((st) => st?.predicate?.gate_decision ?? "error")
+        : [];
       row.statementsFile = `${skill.key}.statements.json`;
       row.status = "ok";
       ok += 1;

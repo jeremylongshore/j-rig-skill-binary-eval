@@ -113,6 +113,9 @@ function sha256Hex(s: string): string {
 
 /** Generate a kernel-valid UUIDv7 from a 16-byte source + ms timestamp. */
 export function uuidv7(nowMs: number, rand: Uint8Array): string {
+  if (rand.length < 16) {
+    throw new Error("uuidv7: rand buffer must be at least 16 bytes");
+  }
   const b = Buffer.from(rand.slice(0, 16));
   const ts = BigInt(nowMs);
   b[0] = Number((ts >> 40n) & 0xffn);
@@ -295,7 +298,7 @@ function statementReasons(rosterDir: string, row: RosterRow): string[] {
   ) as readonly { predicate?: StatementPredicate }[];
   const reasons: string[] = [];
   for (const st of statements) {
-    const meta = st.predicate?.metadata;
+    const meta = st?.predicate?.metadata;
     if (meta?.provider === "stub" || meta?.ground_truth === false) {
       throw new Error(
         `${row.key}: statements were produced under STUB mode (ground_truth:false) — refusing to emit signed evidence from placeholder verdicts`,
@@ -306,7 +309,7 @@ function statementReasons(rosterDir: string, row: RosterRow): string[] {
         `${meta.passed}/${meta.total_criteria} criteria passed on ${meta.model ?? "unknown-model"} (provider: ${meta.provider ?? "unknown"})`,
       );
     }
-    for (const r of st.predicate?.gate_reasons ?? []) reasons.push(String(r).slice(0, 300));
+    for (const r of st?.predicate?.gate_reasons ?? []) reasons.push(String(r).slice(0, 300));
   }
   return reasons.slice(0, 6);
 }
