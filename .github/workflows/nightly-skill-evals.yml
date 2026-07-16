@@ -100,7 +100,9 @@ jobs:
         run: node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
 
       - name: Emit gate-result/v1 EvidenceBundle(s) from the roster results
-        run: node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --roster build/roster --out build/evidence --ref "${GITHUB_REF}"
+        run: >
+          node --experimental-strip-types ci/emit-evidence/emit-evidence.ts
+          --roster build/roster --out build/evidence --ref "${GITHUB_REF}"
 
       - name: Sign each EvidenceBundle (cosign keyless -> production Rekor)
         run: |
@@ -129,7 +131,8 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          cert_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/nightly-skill-evals.yml@${GITHUB_REF}"
+          wf_path=".github/workflows/nightly-skill-evals.yml"
+          cert_identity="https://github.com/${GITHUB_REPOSITORY}/${wf_path}@${GITHUB_REF}"
           cert_issuer="https://token.actions.githubusercontent.com"
           echo "verifying against identity: ${cert_identity}"
           verified=0
@@ -157,7 +160,9 @@ jobs:
           echo "verified $verified signed bundle(s) — emit->sign->verify chain closed in-repo"
 
       - name: Assemble report-manifest.json (fail-closed on shape mismatch)
-        run: node --experimental-strip-types ci/emit-evidence/assemble-manifest.ts --dir build/evidence --out build/evidence/report-manifest.json
+        run: >
+          node --experimental-strip-types ci/emit-evidence/assemble-manifest.ts
+          --dir build/evidence --out build/evidence/report-manifest.json
 
       # Fixed rolling prerelease: created once (idempotent), then only the
       # attached manifest asset moves. Prerelease => never shadows the repo's
@@ -170,11 +175,18 @@ jobs:
           if gh release view evidence-latest --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "evidence-latest release already exists"
           else
+            notes="Rolling signed-evidence manifest for the labs.intentsolutions.io reports hub"
+            notes="${notes} (repo row key: jrig). One gate-result/v1 row per roster skill"
+            notes="${notes} (eval-roster/roster.json), produced nightly by"
+            notes="${notes} .github/workflows/nightly-skill-evals.yml running this repo's own"
+            notes="${notes} j-rig eval CLI on DeepSeek, re-uploaded (--clobber) each run."
+            notes="${notes} Verify: cosign verify-blob against the OIDC identity pinned in the"
+            notes="${notes} manifest's signing block."
             gh release create evidence-latest \
               --repo "${GITHUB_REPOSITORY}" \
               --prerelease \
               --title "Nightly skill-eval evidence (rolling)" \
-              --notes "Rolling signed-evidence manifest for the labs.intentsolutions.io reports hub (repo row key: jrig). One gate-result/v1 row per roster skill (eval-roster/roster.json), produced nightly by .github/workflows/nightly-skill-evals.yml running this repo's own j-rig eval CLI on DeepSeek, re-uploaded (--clobber) each run. Verify: cosign verify-blob against the OIDC identity pinned in the manifest's signing block."
+              --notes "${notes}"
           fi
 
       - name: Publish report-manifest.json onto evidence-latest (--clobber)
