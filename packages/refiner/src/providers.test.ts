@@ -37,6 +37,14 @@ describe("provider registry — shape mirrors the eval command", () => {
       defaultModel: "llama-3.3-70b-versatile",
       format: "openai",
     });
+    // Parity with eval's `minimax` preset (explicit-select only — reasoning
+    // model, deliberately NOT in the auto-pick order).
+    expect(PROVIDER_REGISTRY.minimax).toMatchObject({
+      baseUrl: "https://api.minimax.io/v1",
+      keyEnv: "MINIMAX_API_KEY",
+      defaultModel: "MiniMax-M3",
+      format: "openai",
+    });
   });
 
   it("auto-picks the most dependable free/cheap first; flaky nvidia LAST", () => {

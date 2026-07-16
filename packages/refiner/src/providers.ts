@@ -105,6 +105,17 @@ export const PROVIDER_REGISTRY: Record<string, ProviderEntry> = {
     keyEnv: "MOONSHOT_API_KEY",
     format: "openai",
   },
+  // MiniMax international endpoint (api.minimaxi.com is the separate
+  // legacy/CN surface; keys are NOT interchangeable). M3 is a reasoning model
+  // that inlines a leading <think> block — eval's adapter strips it. Mirrors
+  // eval's `minimax` preset.
+  minimax: {
+    name: "minimax",
+    baseUrl: "https://api.minimax.io/v1",
+    defaultModel: "MiniMax-M3",
+    keyEnv: "MINIMAX_API_KEY",
+    format: "openai",
+  },
   openrouter: {
     name: "openrouter",
     baseUrl: "https://openrouter.ai/api/v1",
