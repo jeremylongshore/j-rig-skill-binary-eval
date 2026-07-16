@@ -1,0 +1,200 @@
+# ── Nightly skill-eval roster: run j-rig eval over real skills, publish signed evidence ──
+#
+# PURELY ADDITIVE workflow: no existing workflow, gate, or branch-protection
+# context changes. It is NOT a PR check and never reports a status context.
+#
+# This is the platform's dogfood heartbeat. Every night it:
+#   1. checks out the roster source repo READ-ONLY at the PINNED commit in
+#      eval-roster/roster.json (reproducible skill corpus, never a moving branch);
+#   2. runs THIS repo's own workspace CLI (`j-rig eval`) over every roster
+#      skill on DeepSeek (deepseek-v4-flash — automated runs use cheap
+#      API-key providers only, never Anthropic keys; provider policy
+#      2026-07-16), 5-sample majority voting to de-noise judge verdicts;
+#   3. shapes one kernel gate-result/v1 row per skill (honest: a crashed eval
+#      publishes gate_decision:"error"), wrapped in kernel EvidenceBundles
+#      validated against @intentsolutions/core@0.9.0 — the EXACT version the
+#      labs dashboard verifies with (ci/emit-evidence/);
+#   4. keyless-signs each bundle's canonical bytes with cosign (Fulcio OIDC +
+#      production Rekor), then verifies every signature back in-repo;
+#   5. assembles report-manifest.json and uploads it onto the rolling
+#      `evidence-latest` prerelease (--clobber).
+#
+# The dashboard fetches:
+#   releases/download/evidence-latest/report-manifest.json
+# and pins these OIDC claims for the `jrig` row:
+#   issuer      https://token.actions.githubusercontent.com
+#   subject     repo:jeremylongshore/j-rig-skill-binary-eval:ref:refs/heads/main
+#   workflowRef jeremylongshore/j-rig-skill-binary-eval/.github/workflows/nightly-skill-evals.yml@refs/heads/main
+name: Nightly skill evals (signed evidence)
+
+on:
+  schedule:
+    - cron: "30 3 * * *" # daily 03:30 UTC
+  workflow_dispatch: # activation / re-run without waiting for the cron
+
+concurrency:
+  group: nightly-skill-evals
+  cancel-in-progress: true
+
+permissions: {} # default-deny; the job grants exactly what it needs
+
+jobs:
+  eval-and-emit:
+    name: Run the skill-eval roster and emit signed evidence
+    # Claims must pin refs/heads/main — a dispatch from any other ref would
+    # produce an unverifiable manifest, so guard instead of emitting one.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write # create/upload the rolling evidence-latest release
+      id-token: write # cosign keyless (Fulcio OIDC)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read pinned roster-source commit
+        id: roster
+        run: echo "sha=$(node -p "require('./eval-roster/roster.json').source.ref")" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout roster source (read-only, pinned commit)
+        uses: actions/checkout@v7
+        with:
+          repository: jeremylongshore/claude-code-plugins-plus-skills
+          ref: ${{ steps.roster.outputs.sha }}
+          path: .roster-src
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node >= 22.6 — the emit scripts run under --experimental-strip-types.
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace CLI
+        run: pnpm run build
+
+      - name: Run the eval roster (DeepSeek; per-skill fail-open, roster fail-closed)
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: node eval-roster/run-roster.mjs --src .roster-src --out build/roster
+
+      # Standalone install (NOT a workspace member): pins the kernel validators
+      # to the exact version the dashboard verifies with, via the committed
+      # ci/emit-evidence/pnpm-lock.yaml. Root workspace untouched.
+      - name: Install kernel validators (standalone, frozen lockfile)
+        working-directory: ci/emit-evidence
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      - name: Emit-evidence self-check (kernel-valid + canonical-stable)
+        run: node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
+
+      - name: Emit gate-result/v1 EvidenceBundle(s) from the roster results
+        run: node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --roster build/roster --out build/evidence --ref "${GITHUB_REF}"
+
+      - name: Sign each EvidenceBundle (cosign keyless -> production Rekor)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          signed=0
+          for bundle in build/evidence/bundle-*.json; do
+            case "$bundle" in *.sigstore.json) continue;; esac
+            sig="${bundle%.json}.sigstore.json"
+            echo "::group::cosign sign-blob $bundle"
+            cosign sign-blob --yes --new-bundle-format --bundle "$sig" "$bundle"
+            echo "::endgroup::"
+            signed=$((signed + 1))
+          done
+          if [ "$signed" -eq 0 ]; then
+            echo "::error::no EvidenceBundles were produced to sign"
+            exit 1
+          fi
+          echo "signed $signed bundle(s)"
+
+      # Verify each signature back, in-repo, before publishing — a signature
+      # nobody in the producing pipeline checks is not a verified chain. The
+      # pinned identity is the SAME claim pair the manifest skeleton records
+      # and the dashboard re-checks at ingest.
+      - name: Verify each EvidenceBundle signature (cosign verify-blob; fail-closed)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cert_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/nightly-skill-evals.yml@${GITHUB_REF}"
+          cert_issuer="https://token.actions.githubusercontent.com"
+          echo "verifying against identity: ${cert_identity}"
+          verified=0
+          for bundle in build/evidence/bundle-*.json; do
+            case "$bundle" in *.sigstore.json) continue;; esac
+            sig="${bundle%.json}.sigstore.json"
+            if [ ! -s "$sig" ]; then
+              echo "::error::expected signature ${sig} for ${bundle} but it is missing/empty"
+              exit 1
+            fi
+            echo "::group::cosign verify-blob $bundle"
+            cosign verify-blob \
+              --new-bundle-format \
+              --bundle "$sig" \
+              --certificate-identity "$cert_identity" \
+              --certificate-oidc-issuer "$cert_issuer" \
+              "$bundle"
+            echo "::endgroup::"
+            verified=$((verified + 1))
+          done
+          if [ "$verified" -eq 0 ]; then
+            echo "::error::no signed EvidenceBundles were found to verify"
+            exit 1
+          fi
+          echo "verified $verified signed bundle(s) — emit->sign->verify chain closed in-repo"
+
+      - name: Assemble report-manifest.json (fail-closed on shape mismatch)
+        run: node --experimental-strip-types ci/emit-evidence/assemble-manifest.ts --dir build/evidence --out build/evidence/report-manifest.json
+
+      # Fixed rolling prerelease: created once (idempotent), then only the
+      # attached manifest asset moves. Prerelease => never shadows the repo's
+      # `latest` (which the per-package npm releases already own).
+      - name: Ensure rolling evidence-latest prerelease exists (idempotent)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view evidence-latest --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "evidence-latest release already exists"
+          else
+            gh release create evidence-latest \
+              --repo "${GITHUB_REPOSITORY}" \
+              --prerelease \
+              --title "Nightly skill-eval evidence (rolling)" \
+              --notes "Rolling signed-evidence manifest for the labs.intentsolutions.io reports hub (repo row key: jrig). One gate-result/v1 row per roster skill (eval-roster/roster.json), produced nightly by .github/workflows/nightly-skill-evals.yml running this repo's own j-rig eval CLI on DeepSeek, re-uploaded (--clobber) each run. Verify: cosign verify-blob against the OIDC identity pinned in the manifest's signing block."
+          fi
+
+      - name: Publish report-manifest.json onto evidence-latest (--clobber)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload evidence-latest build/evidence/report-manifest.json \
+            --repo "${GITHUB_REPOSITORY}" --clobber
+          echo "report-manifest.json published to the evidence-latest rolling prerelease"
+
+      # The roster runner's raw outputs (per-skill j-rig statements + results)
+      # ride along as a run artifact for humans; the dashboard consumes only
+      # the signed manifest above.
+      - name: Upload raw roster outputs (run artifact, 14-day retention)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roster-outputs
+          path: |
+            build/roster/*.json
+            build/roster/*.error.log
+          retention-days: 14
