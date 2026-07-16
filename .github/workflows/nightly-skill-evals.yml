@@ -31,6 +31,21 @@ on:
   schedule:
     - cron: "30 3 * * *" # daily 03:30 UTC
   workflow_dispatch: # activation / re-run without waiting for the cron
+    inputs:
+      provider:
+        description: >-
+          Provider preset override (empty = roster.json's provider). The
+          preset must exist in the CLI at main and its key must be a repo
+          secret wired below.
+        required: false
+        default: ""
+      models:
+        description: >-
+          Model id override — REQUIRED whenever provider differs from the
+          roster default (the specs pin the DeepSeek model id, which other
+          backends 404 on). Example: MiniMax-M3.
+        required: false
+        default: ""
 
 concurrency:
   group: nightly-skill-evals
@@ -84,10 +99,21 @@ jobs:
       - name: Build workspace CLI
         run: pnpm run build
 
-      - name: Run the eval roster (DeepSeek; per-skill fail-open, roster fail-closed)
+      - name: Run the eval roster (per-skill fail-open, roster fail-closed)
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: node eval-roster/run-roster.mjs --src .roster-src --out build/roster
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Empty on schedule runs (no inputs context) -> roster.json defaults.
+          INPUT_PROVIDER: ${{ inputs.provider || '' }}
+          INPUT_MODELS: ${{ inputs.models || '' }}
+        run: |
+          set -euo pipefail
+          args=""
+          if [ -n "${INPUT_PROVIDER}" ]; then args="$args --provider ${INPUT_PROVIDER}"; fi
+          if [ -n "${INPUT_MODELS}" ]; then args="$args --models ${INPUT_MODELS}"; fi
+          # shellcheck disable=SC2086  # word-splitting of $args is intended
+          node eval-roster/run-roster.mjs --src .roster-src --out build/roster $args
 
       # Standalone install (NOT a workspace member): pins the kernel validators
       # to the exact version the dashboard verifies with, via the committed
