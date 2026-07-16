@@ -1,0 +1,43 @@
+{
+  "$comment": "Nightly skill-eval roster. Skills are checked out READ-ONLY from source.githubRepo at the PINNED source.ref (never a moving branch) so every nightly run evaluates a reproducible skill corpus. Every listed skill must carry its own hand-authored eval-spec.yaml at <path>/eval-spec.yaml — scaffold-only specs don't qualify. Provider policy (2026-07-16): automated runs use cheap API-key providers only (DeepSeek primary); never Anthropic keys.",
+  "source": {
+    "githubRepo": "jeremylongshore/claude-code-plugins-plus-skills",
+    "ref": "6fb9d99ac80a1d40b5f0fef2cf4e676ca7303038"
+  },
+  "provider": "deepseek",
+  "samples": 5,
+  "skills": [
+    {
+      "key": "coreweave-gpu-node-forensics",
+      "path": "plugins/saas-packs/coreweave-pack/skills/coreweave-gpu-node-forensics"
+    },
+    {
+      "key": "coreweave-gpu-cost-leak-hunter",
+      "path": "plugins/saas-packs/coreweave-pack/skills/coreweave-gpu-cost-leak-hunter"
+    },
+    {
+      "key": "coreweave-fabric-diagnostics",
+      "path": "plugins/saas-packs/coreweave-pack/skills/coreweave-fabric-diagnostics"
+    },
+    {
+      "key": "databricks-bundle-medic",
+      "path": "plugins/saas-packs/databricks-pack/skills/databricks-bundle-medic"
+    },
+    {
+      "key": "databricks-cluster-forensics",
+      "path": "plugins/saas-packs/databricks-pack/skills/databricks-cluster-forensics"
+    },
+    {
+      "key": "databricks-cost-leak-hunter",
+      "path": "plugins/saas-packs/databricks-pack/skills/databricks-cost-leak-hunter"
+    },
+    {
+      "key": "databricks-streaming-guardian",
+      "path": "plugins/saas-packs/databricks-pack/skills/databricks-streaming-guardian"
+    },
+    {
+      "key": "databricks-uc-migration-pilot",
+      "path": "plugins/saas-packs/databricks-pack/skills/databricks-uc-migration-pilot"
+    }
+  ]
+}
