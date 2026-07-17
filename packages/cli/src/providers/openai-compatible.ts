@@ -145,6 +145,18 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     defaultModel: "gpt-4o-mini",
     keyEnv: "OPENAI_API_KEY",
   },
+  minimax: {
+    id: "minimax",
+    // MiniMax's international OpenAI-compatible endpoint (api.minimaxi.com is
+    // the separate legacy/CN surface — keys are NOT interchangeable across the
+    // two). MiniMax-M3 is a reasoning model that inlines its chain-of-thought
+    // as a leading `<think>…</think>` block in `message.content`; the adapter
+    // strips it (see stripThinkBlock) so judge/verdict parsing sees only the
+    // answer. Model ids churn — override via LLM_MODEL/--model.
+    baseUrl: "https://api.minimax.io/v1",
+    defaultModel: "MiniMax-M3",
+    keyEnv: "MINIMAX_API_KEY",
+  },
   // The two FREE-tier judge candidates for the judge value benchmark (does
   // N-sample majority on a free judge beat one paid judge on stability AND
   // cost?). Listed LAST so key-presence auto-detection still prefers the paid
@@ -244,8 +256,18 @@ export function resolveOpenAICompatConfig(
   // 3. Built-in presets in priority order (paid defaults first; the free-tier
   // judge candidates last, so they only auto-select when nothing else is
   // keyed). `openai` sits among the paid defaults — after the cheaper deepseek/
-  // kimi/openrouter, before the free groq/nvidia.
-  for (const presetId of ["deepseek", "kimi", "openrouter", "openai", "groq", "nvidia"]) {
+  // kimi/openrouter, before the free groq/nvidia. `minimax` trails the other
+  // paid presets (reasoning model — slower + thinking tokens billed) but still
+  // outranks the free tiers.
+  for (const presetId of [
+    "deepseek",
+    "kimi",
+    "openrouter",
+    "openai",
+    "minimax",
+    "groq",
+    "nvidia",
+  ]) {
     const cfg = fromPreset(presetId);
     if (cfg) return cfg;
   }
@@ -255,6 +277,26 @@ export function resolveOpenAICompatConfig(
 // ---------------------------------------------------------------------------
 // Wire normalization helpers (OpenAI Chat Completions shape)
 // ---------------------------------------------------------------------------
+
+/**
+ * Strip a LEADING `<think>…</think>` chain-of-thought block from message
+ * content. Some reasoning models on the OpenAI-compatible surface (MiniMax-M3;
+ * others behind OpenRouter) inline their reasoning in `message.content`
+ * instead of a separate `reasoning_content` field — without stripping, every
+ * judge/verdict parse sees the reasoning first and misreads it as the answer.
+ * Only a literal leading tag triggers (models that never emit one are
+ * untouched). An UNTERMINATED leading block (the reasoning exhausted
+ * max_tokens before the answer started) yields "" — an honest empty output,
+ * which the boundary tracer already surfaces — rather than leaking raw
+ * chain-of-thought into criterion judging.
+ */
+export function stripThinkBlock(text: string): string {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("<think>")) return text;
+  const end = trimmed.indexOf("</think>");
+  if (end === -1) return "";
+  return trimmed.slice(end + "</think>".length).trimStart();
+}
 
 /** Map an OpenAI-style `finish_reason` to the vendor-neutral `FinishReason`. */
 function mapFinishReason(raw: unknown): FinishReason {
@@ -404,7 +446,7 @@ export class RealOpenAICompatProvider implements Provider {
 
     const choice = this.#firstChoice(res.json);
     const message = (choice.message ?? {}) as Record<string, unknown>;
-    const text = typeof message.content === "string" ? message.content : "";
+    const text = stripThinkBlock(typeof message.content === "string" ? message.content : "");
 
     const result: CompletionResult = {
       text,
@@ -448,7 +490,7 @@ export class RealOpenAICompatProvider implements Provider {
 
     const choice = this.#firstChoice(res.json);
     const message = (choice.message ?? {}) as Record<string, unknown>;
-    const text = typeof message.content === "string" ? message.content : "";
+    const text = stripThinkBlock(typeof message.content === "string" ? message.content : "");
     const usage = mapUsage((res.json as Record<string, unknown>).usage);
 
     const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];

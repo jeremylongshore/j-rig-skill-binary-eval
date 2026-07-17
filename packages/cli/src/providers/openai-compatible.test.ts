@@ -8,6 +8,7 @@ import {
   OpenAICompatJudgeProvider,
   resolveOpenAICompatConfig,
   PROVIDER_PRESETS,
+  stripThinkBlock,
 } from "./openai-compatible.js";
 import type { Transport, TransportRequest, TransportResponse } from "./transport.js";
 
@@ -86,6 +87,22 @@ describe("resolveOpenAICompatConfig", () => {
     expect(cfg!.name).toBe("openai");
     expect(cfg!.baseUrl).toBe("https://api.openai.com/v1");
     expect(cfg!.defaultModel).toBe("gpt-4o-mini");
+  });
+
+  it("selects minimax (MiniMax-M3) when only MINIMAX_API_KEY is set", () => {
+    const cfg = resolveOpenAICompatConfig({ MINIMAX_API_KEY: KEY });
+    expect(cfg!.name).toBe("minimax");
+    expect(cfg!.baseUrl).toBe("https://api.minimax.io/v1");
+    expect(cfg!.defaultModel).toBe("MiniMax-M3");
+  });
+
+  it("prefers minimax (paid) over the free tiers but below the other paid presets", () => {
+    expect(resolveOpenAICompatConfig({ MINIMAX_API_KEY: KEY, GROQ_API_KEY: KEY })!.name).toBe(
+      "minimax",
+    );
+    expect(resolveOpenAICompatConfig({ MINIMAX_API_KEY: KEY, OPENAI_API_KEY: KEY })!.name).toBe(
+      "openai",
+    );
   });
 
   it("prefers the cheaper deepseek default over openai when both keys are set", () => {
@@ -827,5 +844,29 @@ describe("resolveOpenAICompatConfig — override + alias branches", () => {
 
   it("returns null when neither a preset key, LLM_API_KEY, nor a full LLM triple is set", () => {
     expect(resolveOpenAICompatConfig({ LLM_BASE_URL: "https://x/v1", LLM_MODEL: "m" })).toBeNull();
+  });
+});
+
+describe("stripThinkBlock — reasoning-model content normalization", () => {
+  it("strips a leading <think> block (MiniMax-M3 inline reasoning)", () => {
+    expect(stripThinkBlock("<think>\nreasoning here\n</think>\npong")).toBe("pong");
+  });
+
+  it("strips a whitespace-prefixed leading <think> block", () => {
+    expect(stripThinkBlock("  \n<think>hm</think>  answer")).toBe("answer");
+  });
+
+  it("returns empty for an UNTERMINATED leading block (reasoning ate max_tokens)", () => {
+    expect(stripThinkBlock("<think>\nThe user is asking me to reply with exactly\n")).toBe("");
+  });
+
+  it("leaves non-reasoning content untouched", () => {
+    expect(stripThinkBlock("plain answer")).toBe("plain answer");
+    expect(stripThinkBlock("")).toBe("");
+  });
+
+  it("leaves a MID-text think tag untouched (only a literal leading tag triggers)", () => {
+    const s = "answer first, then <think>not a reasoning prefix</think>";
+    expect(stripThinkBlock(s)).toBe(s);
   });
 });
