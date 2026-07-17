@@ -68,6 +68,13 @@ function main() {
     return 1;
   }
   const roster = JSON.parse(readFileSync(join(repoRoot, "eval-roster", "roster.json"), "utf8"));
+  if (!/^[0-9a-f]{40}$/.test(roster.source?.ref ?? "")) {
+    console.error(
+      `run-roster: roster.source.ref must be a full 40-hex commit SHA (got "${roster.source?.ref}") — ` +
+        "a moving branch would break the reproducible-corpus invariant",
+    );
+    return 1;
+  }
   const provider = args.provider ?? roster.provider;
   const skills = roster.skills.filter((s) => (args.skills ? args.skills.includes(s.key) : true));
   mkdirSync(args.out, { recursive: true });

@@ -293,9 +293,13 @@ interface StatementPredicate {
  */
 function statementReasons(rosterDir: string, row: RosterRow): string[] {
   if (row.statementsFile === null) return [];
-  const statements = JSON.parse(
-    readFileSync(join(rosterDir, row.statementsFile), "utf8"),
-  ) as readonly { predicate?: StatementPredicate }[];
+  const parsed: unknown = JSON.parse(readFileSync(join(rosterDir, row.statementsFile), "utf8"));
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      `${row.key}: statements file is not a JSON array — refusing to emit from a malformed artifact`,
+    );
+  }
+  const statements = parsed as readonly { predicate?: StatementPredicate }[];
   const reasons: string[] = [];
   for (const st of statements) {
     const meta = st?.predicate?.metadata;
@@ -319,7 +323,13 @@ export function collectOutcomes(rosterDir: string): GateOutcome[] {
   if (!existsSync(summaryPath)) {
     throw new Error(`missing ${summaryPath} — run eval-roster/run-roster.mjs first`);
   }
-  const summary = JSON.parse(readFileSync(summaryPath, "utf8")) as readonly RosterRow[];
+  const parsedSummary: unknown = JSON.parse(readFileSync(summaryPath, "utf8"));
+  if (!Array.isArray(parsedSummary)) {
+    throw new Error(
+      `${summaryPath} is not a JSON array — refusing to emit from a malformed summary`,
+    );
+  }
+  const summary = parsedSummary as readonly RosterRow[];
   if (summary.length === 0) throw new Error("roster summary is empty");
   return summary.map((row) => {
     const evalFailed = row.status !== "ok" || row.specSha256 === null;
@@ -416,9 +426,11 @@ function gitSha(): string {
 
 function packageVersion(): string {
   try {
-    const pkg = JSON.parse(
-      readFileSync(join(process.cwd(), "ci", "emit-evidence", "package.json"), "utf8"),
-    ) as { version?: string };
+    // Resolve relative to THIS file, not process.cwd() — the script must
+    // report its own version no matter where it is invoked from.
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "package.json"), "utf8")) as {
+      version?: string;
+    };
     return pkg.version ?? "0.0.0";
   } catch {
     return "0.0.0";
