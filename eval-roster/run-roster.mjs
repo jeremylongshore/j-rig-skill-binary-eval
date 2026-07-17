@@ -81,7 +81,14 @@ function main() {
   // id; it is PAIRED with roster.provider, so it only applies when the
   // effective provider IS the roster's (a --provider override without
   // --models falls back to the spec's own model list).
-  const models = args.models ?? (provider === roster.provider ? (roster.models ?? null) : null);
+  const rosterProvider = String(roster.provider ?? "")
+    .trim()
+    .toLowerCase();
+  const effectiveProvider = String(provider ?? "")
+    .trim()
+    .toLowerCase();
+  const models =
+    args.models ?? (effectiveProvider === rosterProvider ? (roster.models ?? null) : null);
   const skills = roster.skills.filter((s) => (args.skills ? args.skills.includes(s.key) : true));
   mkdirSync(args.out, { recursive: true });
 
