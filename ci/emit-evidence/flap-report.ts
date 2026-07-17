@@ -132,7 +132,13 @@ export function loadCurrentVerdicts(currentPath: string): Map<string, Verdict> {
   if (!existsSync(path)) {
     throw new Error(`current manifest ${path} not found — run emit-evidence.ts first`);
   }
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`failed to parse current manifest JSON at ${path}: ${detail}`);
+  }
   return extractVerdicts(parsed, `current (${path})`);
 }
 
@@ -376,17 +382,26 @@ function parseArgs(argv: readonly string[]): {
   let current = join("build", "evidence");
   let out = join("build", "evidence", "flap-report.json");
   let sc = false;
+  // Flag-swallowing guard: `--previous --current x` must error, not silently
+  // consume `--current` as the value of `--previous`.
+  const valueOf = (flag: string, next: string | undefined): string => {
+    if (next === undefined || next.startsWith("--")) {
+      throw new Error(`missing value for ${flag}`);
+    }
+    return next;
+  };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--previous") {
-      previous = argv[i + 1] ?? previous;
+    const arg = argv[i];
+    if (arg === "--previous") {
+      previous = valueOf(arg, argv[i + 1]);
       i++;
-    } else if (argv[i] === "--current") {
-      current = argv[i + 1] ?? current;
+    } else if (arg === "--current") {
+      current = valueOf(arg, argv[i + 1]);
       i++;
-    } else if (argv[i] === "--out") {
-      out = argv[i + 1] ?? out;
+    } else if (arg === "--out") {
+      out = valueOf(arg, argv[i + 1]);
       i++;
-    } else if (argv[i] === "--self-check") {
+    } else if (arg === "--self-check") {
       sc = true;
     }
   }
