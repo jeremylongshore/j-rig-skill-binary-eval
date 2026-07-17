@@ -7,7 +7,7 @@
 #   1. checks out the roster source repo READ-ONLY at the PINNED commit in
 #      eval-roster/roster.json (reproducible skill corpus, never a moving branch);
 #   2. runs THIS repo's own workspace CLI (`j-rig eval`) over every roster
-#      skill on DeepSeek (deepseek-v4-flash — automated runs use cheap
+#      skill on the roster default provider (MiniMax-M3 since 2026-07-17 — automated runs use cheap
 #      API-key providers only, never Anthropic keys; provider policy
 #      2026-07-16), 5-sample majority voting to de-noise judge verdicts;
 #   3. shapes one kernel gate-result/v1 row per skill (honest: a crashed eval
@@ -205,7 +205,7 @@ jobs:
             notes="${notes} (repo row key: jrig). One gate-result/v1 row per roster skill"
             notes="${notes} (eval-roster/roster.json), produced nightly by"
             notes="${notes} .github/workflows/nightly-skill-evals.yml running this repo's own"
-            notes="${notes} j-rig eval CLI on DeepSeek, re-uploaded (--clobber) each run."
+            notes="${notes} j-rig eval CLI on the roster default provider, re-uploaded (--clobber) each run."
             notes="${notes} Verify: cosign verify-blob against the OIDC identity pinned in the"
             notes="${notes} manifest's signing block."
             gh release create evidence-latest \

@@ -76,6 +76,12 @@ function main() {
     return 1;
   }
   const provider = args.provider ?? roster.provider;
+  // Model precedence: --models flag > roster.models > the spec's own models
+  // list. roster.models exists because the specs pin a provider-specific model
+  // id; it is PAIRED with roster.provider, so it only applies when the
+  // effective provider IS the roster's (a --provider override without
+  // --models falls back to the spec's own model list).
+  const models = args.models ?? (provider === roster.provider ? (roster.models ?? null) : null);
   const skills = roster.skills.filter((s) => (args.skills ? args.skills.includes(s.key) : true));
   mkdirSync(args.out, { recursive: true });
 
@@ -112,7 +118,7 @@ function main() {
           specPath,
           "--samples",
           String(roster.samples),
-          ...(args.models ? ["--models", args.models] : []),
+          ...(models ? ["--models", models] : []),
           "--run-self-test",
           "--emit-bundle",
           statementsPath,

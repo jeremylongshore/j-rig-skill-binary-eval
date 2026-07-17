@@ -1,10 +1,11 @@
 {
-  "$comment": "Nightly skill-eval roster. Skills are checked out READ-ONLY from source.githubRepo at the PINNED source.ref (never a moving branch) so every nightly run evaluates a reproducible skill corpus. Every listed skill must carry its own hand-authored eval-spec.yaml at <path>/eval-spec.yaml — scaffold-only specs don't qualify. Provider policy (2026-07-16): automated runs use cheap API-key providers only (DeepSeek primary); never Anthropic keys.",
+  "$comment": "Nightly skill-eval roster. Skills are checked out READ-ONLY from source.githubRepo at the PINNED source.ref (never a moving branch) so every nightly run evaluates a reproducible skill corpus. Every listed skill must carry its own hand-authored eval-spec.yaml at <path>/eval-spec.yaml — scaffold-only specs don't qualify. Provider policy (2026-07-16): automated runs use cheap API-key providers only, never Anthropic keys. Default flipped deepseek→minimax 2026-07-17 (operator decision): the DeepSeek account is unfunded on our key while MiniMax is funded and carried the first green nightly (run 29545349026). `models` is the roster-level model override the runner applies whenever the provider differs from the model id pinned inside the specs (they pin deepseek-v4-flash, which other backends 404 on); a --models flag still wins over it.",
   "source": {
     "githubRepo": "jeremylongshore/claude-code-plugins-plus-skills",
     "ref": "6fb9d99ac80a1d40b5f0fef2cf4e676ca7303038"
   },
-  "provider": "deepseek",
+  "provider": "minimax",
+  "models": "MiniMax-M3",
   "samples": 5,
   "skills": [
     {
