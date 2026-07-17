@@ -17,7 +17,12 @@
 #   4. keyless-signs each bundle's canonical bytes with cosign (Fulcio OIDC +
 #      production Rekor), then verifies every signature back in-repo;
 #   5. assembles report-manifest.json and uploads it onto the rolling
-#      `evidence-latest` prerelease (--clobber).
+#      `evidence-latest` prerelease (--clobber);
+#   6. compares tonight's verdicts against the previously published manifest
+#      (ci/emit-evidence/flap-report.ts) and publishes flap-report.json as a
+#      SIDECAR asset on the same release — flap visibility is an integrity
+#      feature (a permanent signature must not ride a noisy verdict), but the
+#      signed evidence rows stay a pure function of tonight's run.
 #
 # The dashboard fetches:
 #   releases/download/evidence-latest/report-manifest.json
@@ -190,6 +195,28 @@ jobs:
           node --experimental-strip-types ci/emit-evidence/assemble-manifest.ts
           --dir build/evidence --out build/evidence/report-manifest.json
 
+      # ── Verdict-flap sidecar (integrity report, NOT signed evidence) ──
+      # Fetch last night's published manifest BEFORE the publish step clobbers
+      # it. Absence is tolerated (`|| true`): the very first run, or a deleted
+      # release, degrades to an honest first-run-or-unavailable flap report.
+      - name: Download the previously published manifest (tolerate absence)
+        run: |
+          curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/evidence-latest/report-manifest.json" \
+            -o build/previous-manifest.json || true
+
+      - name: Flap-report self-check (synthetic fixtures; flip/stable/new/missing-previous)
+        run: node --experimental-strip-types ci/emit-evidence/flap-report.ts --self-check
+
+      # Compares per-skill gate decisions night-over-night. Missing previous
+      # manifest never fails the run (the script exits 0 with an honest
+      # first-run report); the markdown summary lands in the run summary.
+      - name: Detect verdict flaps vs the previous nightly manifest
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types ci/emit-evidence/flap-report.ts \
+            --previous build/previous-manifest.json --current build/evidence \
+            --out build/evidence/flap-report.json | tee -a "$GITHUB_STEP_SUMMARY"
+
       # Fixed rolling prerelease: created once (idempotent), then only the
       # attached manifest asset moves. Prerelease => never shadows the repo's
       # `latest` (which the per-package npm releases already own).
@@ -223,6 +250,18 @@ jobs:
           gh release upload evidence-latest build/evidence/report-manifest.json \
             --repo "${GITHUB_REPOSITORY}" --clobber
           echo "report-manifest.json published to the evidence-latest rolling prerelease"
+
+      # Second asset on the same release: the flap sidecar. Consumers that
+      # fetch the signed manifest can fetch flap-report.json next to it to see
+      # whether tonight's verdicts are stable night-over-night.
+      - name: Publish flap-report.json onto evidence-latest (sidecar, --clobber)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload evidence-latest build/evidence/flap-report.json \
+            --repo "${GITHUB_REPOSITORY}" --clobber
+          echo "flap-report.json published as a sidecar asset on evidence-latest"
 
       # The roster runner's raw outputs (per-skill j-rig statements + results)
       # ride along as a run artifact for humans; the dashboard consumes only
