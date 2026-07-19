@@ -45,7 +45,7 @@
     "@intentsolutions/core": "^0.9.0"
   },
   "dependencies": {
-    "@intentsolutions/core": "0.9.0",
+    "@intentsolutions/core": "0.10.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
