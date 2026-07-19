@@ -34,10 +34,11 @@ evidence bundle's `coverage.dimensionsSkipped` (never a silent overclaim). The s
 6. **Model Variance** — Does it work across Haiku, Sonnet, and Opus? _(runs per model; true cross-model variance needs distinct provider models configured)_
 7. **Rollout Safety** — Any prompt leakage, overreach, or unsafe automation? _(runs by default)_
 
-> **Coverage honesty:** layers 4 and 5 are coded + unit-tested but are not yet plumbed into the
-> default eval path — every run declares its actual coverage in the signed evidence bundle. Wiring
-> them into the runtime is tracked as follow-up work; the harness never claims a layer scored a skill
-> when it did not.
+> **Coverage honesty:** all seven layers are runnable. Layers 4 and 5 are **opt-in** — enable them
+> with `--regression-baseline <prior-run.json>` (regression) and `--baseline-check` (baseline, which
+> doubles execution+judge cost). When they are not enabled, every run declares that in the signed
+> evidence bundle's `coverage.dimensionsSkipped` — the harness never claims a layer scored a skill
+> when it did not. A sacred (`regression_critical`) regression **blocks** release.
 
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
 
