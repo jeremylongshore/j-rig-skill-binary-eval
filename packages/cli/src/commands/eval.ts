@@ -18,6 +18,9 @@ import {
   computeScoreCard,
   decideRollout,
   buildLaunchReport,
+  detectRegressions,
+  compareBaseline,
+  isObsoleteCandidate,
   uuidv7,
   emitRuntimeRunStarted,
   emitRuntimeRunFinished,
@@ -36,7 +39,14 @@ import {
   CostPhaseName,
   type EvalCorrelation,
 } from "@j-rig/core";
-import type { JudgmentResult, ObservedOutcome, EvidenceStatement, Criterion } from "@j-rig/core";
+import type {
+  JudgmentResult,
+  ObservedOutcome,
+  EvidenceStatement,
+  Criterion,
+  Regression,
+  BaselineComparison,
+} from "@j-rig/core";
 import {
   getOrCreateSkillVersion,
   createRun,
@@ -91,6 +101,8 @@ interface EvalOptions {
   samples?: string;
   judgeProvider?: string;
   judgeModel?: string;
+  baselineCheck?: boolean;
+  regressionBaseline?: string;
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -313,7 +325,11 @@ function hasAnyRealKey(preferred?: string): boolean {
 /**
  * Register the `eval` command on the given Commander program.
  *
- * Orchestrates all 7 evaluation layers for a skill:
+ * Orchestrates the evaluation layers for a skill. All 7 are wired; 5 run by default
+ * (package-integrity, trigger, functional, rollout-safety, cost/latency) and layers 4 (regression,
+ * via --regression-baseline) and 5 (baseline, via --baseline-check) are opt-in. Every run declares
+ * its actual coverage in the evidence bundle's `coverage.dimensionsSkipped`, so this never claims to
+ * have scored a layer it skipped:
  *   1. Package integrity (deterministic)
  *   2. Trigger simulation (per model)
  *   3. Functional execution (per model)
@@ -376,10 +392,55 @@ function sanitizeSegment(raw: string, fallback: string): string {
   return cleaned.length > 0 ? cleaned : fallback;
 }
 
+/**
+ * Load a prior run's judgments for the Layer-4 regression comparison
+ * (--regression-baseline). Accepts a JSON array of { criterion_id, verdict };
+ * only those two fields drive detectRegressions, so the loaded rows are minimal
+ * JudgmentResults. Fails LOUD on a malformed file rather than silently skipping
+ * the regression layer — a silent skip would hide a real regression.
+ */
+export function loadRegressionBaseline(path: string): JudgmentResult[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    throw new Error(
+      `--regression-baseline: could not read/parse "${path}": ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `--regression-baseline: "${path}" must be a JSON array of { criterion_id, verdict }`,
+    );
+  }
+  const validVerdicts = new Set(["yes", "no", "unsure"]);
+  return raw.map((row, i) => {
+    const r = row as { criterion_id?: unknown; verdict?: unknown };
+    if (
+      typeof r.criterion_id !== "string" ||
+      typeof r.verdict !== "string" ||
+      !validVerdicts.has(r.verdict)
+    ) {
+      throw new Error(
+        `--regression-baseline: entry ${i} in "${path}" needs a string criterion_id and a verdict of yes|no|unsure`,
+      );
+    }
+    return {
+      criterion_id: r.criterion_id,
+      verdict: r.verdict as JudgmentResult["verdict"],
+      confidence: 1,
+      reasoning: "loaded from --regression-baseline",
+      method: "judge" as const,
+    };
+  });
+}
+
 export function registerEvalCommand(program: Command): void {
   program
     .command("eval")
-    .description("Run full 7-layer binary evaluation on a skill")
+    .description(
+      "Run the binary evaluation on a skill (5 of 7 layers by default; regression + baseline are opt-in, coverage reported in the evidence bundle)",
+    )
     .argument("<skill-dir>", "Path to skill directory containing SKILL.md")
     .option("--spec <path>", "Path to eval spec YAML")
     .option(
@@ -428,6 +489,19 @@ export function registerEvalCommand(program: Command): void {
         "the majority vote and `confidence` becomes the measured agreement fraction. " +
         "Overrides the spec's `samples`; a criterion's own `samples` overrides both. " +
         "Default: the spec's `samples`, else 1 (single call).",
+    )
+    .option(
+      "--baseline-check",
+      "Layer 5 (Baseline value): run an opt-in naked-model (empty skill body) comparison pass over " +
+        "the same test cases; if the skill adds no value over the base model the run is flagged " +
+        "obsolete_review. DOUBLES execution+judge cost. Off by default (baseline layer reported skipped).",
+    )
+    .option(
+      "--regression-baseline <path>",
+      "Layer 4 (Regression protection): path to a prior run's judgments — a JSON array of " +
+        '{ "criterion_id": string, "verdict": "yes"|"no"|"unsure" }. A criterion that passed then and ' +
+        "fails now is a regression; a SACRED (regression_critical) regression BLOCKS the rollout. " +
+        "Omit to skip the regression layer (reported skipped).",
     )
     .option(
       "--run-self-test",
@@ -833,23 +907,95 @@ export function registerEvalCommand(program: Command): void {
               errors,
             });
 
-            // ── Governance ─────────────────────────────────────────────
+            // ── Governance (score, layers 4 regression + 5 baseline, decision) ──
             const scoringCriteria = selfTestCriterion
               ? [...spec.criteria, selfTestCriterion]
               : spec.criteria;
-            const scoreCard = computeScoreCard(allJudgments, scoringCriteria, [], {
+
+            // Layer 5 — Baseline value (opt-in --baseline-check): re-run the same
+            // test cases against the NAKED model (empty skill body = no skill
+            // context) and compare. A skill that adds no value over the base model
+            // is flagged obsolete_review. Doubles execution+judge cost (metered),
+            // so it is opt-in; when off, the baseline layer is reported skipped.
+            let baselineComparisons: BaselineComparison[] = [];
+            let isObsolete = false;
+            let ranBaseline = false;
+            if (opts.baselineCheck) {
+              ranBaseline = true;
+              costMeter.phase = "execution";
+              const nakedOutcomes = await runFunctionalTests(
+                spec.test_cases,
+                { ...skill, body: "" },
+                providers.execution,
+                { model, temperature: spec.execution_temperature ?? 0 },
+              );
+              costMeter.phase = "judge";
+              const nakedJudgments: JudgmentResult[] = [];
+              for (const outcome of nakedOutcomes) {
+                const testCase = testCaseById.get(outcome.test_case_id);
+                if (!testCase) continue;
+                const nakedCriteria = selectCriteriaForTestCase(
+                  spec.criteria,
+                  testCase.criteria_ids,
+                );
+                const judgments = await judgeCriteria(nakedCriteria, outcome, providers.judge, {
+                  model: providers.judgeModelId,
+                  samples: judgeSamples,
+                  judgeTemperature: spec.judge_temperature,
+                  judgeTimeoutMs: spec.judge_timeout_ms,
+                  sampleConcurrency: spec.judge_sample_concurrency,
+                });
+                nakedJudgments.push(
+                  ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
+                );
+              }
+              baselineComparisons = compareBaseline(allJudgments, nakedJudgments);
+              isObsolete = isObsoleteCandidate(baselineComparisons);
+              if (!opts.json) {
+                const adds = baselineComparisons.filter((c) => c.skill_adds_value).length;
+                console.log(
+                  `  Baseline: skill adds value on ${adds}/${baselineComparisons.length} criteria` +
+                    (isObsolete
+                      ? " — FLAGGED obsolete_review (little value over the naked model)"
+                      : ""),
+                );
+              }
+            }
+
+            // Layer 4 — Regression protection (opt-in --regression-baseline <path>):
+            // compare this run against a prior run's judgments. A criterion that
+            // passed before and now fails is a regression; a SACRED regression
+            // (criterion.regression_critical) BLOCKS regardless of average gain —
+            // computeScoreCard folds sacred_regressions into the decision. Without
+            // a baseline the layer is honestly skipped (reported below).
+            let regressions: Regression[] = [];
+            let ranRegression = false;
+            if (opts.regressionBaseline) {
+              ranRegression = true;
+              const previousJudgments = loadRegressionBaseline(opts.regressionBaseline);
+              regressions = detectRegressions(previousJudgments, allJudgments, scoringCriteria);
+              if (!opts.json) {
+                const sacred = regressions.filter((r) => r.is_sacred).length;
+                console.log(
+                  `  Regression: ${regressions.length} regression(s) vs baseline` +
+                    (sacred > 0 ? ` — ${sacred} SACRED (BLOCKS)` : ""),
+                );
+              }
+            }
+
+            const scoreCard = computeScoreCard(allJudgments, scoringCriteria, regressions, {
               // Stability gate: a multi-sampled blocker "no" below this
               // agreement fraction downgrades to a warning — a verdict too
               // unstable to reproduce is too unstable to BLOCK (or sign) on.
               min_blocker_agreement: spec.min_blocker_agreement,
             });
-            const decision = decideRollout(scoreCard);
+            const decision = decideRollout(scoreCard, isObsolete);
             const report = buildLaunchReport(
               skillName,
               scoreCard,
-              [], // regressions: none in a standalone run
-              [], // baseline: none without a baseline comparison run
-              false, // isObsolete: not computed here
+              regressions,
+              baselineComparisons,
+              isObsolete,
               // DR-103 D5 B5.1: inject `now` so the launch-report artifact is
               // replayable (the determinism the adoption signal's bandit-rejection
               // rests on). One timestamp per model run.
@@ -1019,8 +1165,14 @@ export function registerEvalCommand(program: Command): void {
                     ...(triggerRan ? ["trigger"] : []),
                     "functional",
                     "behavioral",
+                    ...(ranRegression ? ["regression"] : []),
+                    ...(ranBaseline ? ["baseline"] : []),
                   ],
-                  dimensionsSkipped: [...(triggerRan ? [] : ["trigger"]), "regression", "baseline"],
+                  dimensionsSkipped: [
+                    ...(triggerRan ? [] : ["trigger"]),
+                    ...(ranRegression ? [] : ["regression"]),
+                    ...(ranBaseline ? [] : ["baseline"]),
+                  ],
                 },
                 policyRef: `${specContentHash}:eval-spec.yaml`,
                 policyHash: specContentHash,

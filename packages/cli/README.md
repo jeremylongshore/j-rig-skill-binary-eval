@@ -37,7 +37,7 @@ j-rig --help                         # list all commands
 
 j-rig check <skill-dir>              # deterministic package-integrity checks
 j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
-j-rig eval <skill-dir> --spec ...    # full 7-layer binary evaluation
+j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
