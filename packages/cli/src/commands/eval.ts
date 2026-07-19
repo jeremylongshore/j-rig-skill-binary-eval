@@ -313,7 +313,11 @@ function hasAnyRealKey(preferred?: string): boolean {
 /**
  * Register the `eval` command on the given Commander program.
  *
- * Orchestrates all 7 evaluation layers for a skill:
+ * Orchestrates the evaluation layers for a skill. All 7 are implemented; this default path wires
+ * 5 (package-integrity, trigger, functional, rollout-safety, cost/latency) and declares the actual
+ * coverage in the evidence bundle's `coverage.dimensionsSkipped` — layers 4 (regression) and 5
+ * (baseline) are coded but not yet plumbed here (see the empty-array TODOs at the buildLaunchReport
+ * call), so this never claims to have scored a layer it skipped:
  *   1. Package integrity (deterministic)
  *   2. Trigger simulation (per model)
  *   3. Functional execution (per model)
@@ -379,7 +383,9 @@ function sanitizeSegment(raw: string, fallback: string): string {
 export function registerEvalCommand(program: Command): void {
   program
     .command("eval")
-    .description("Run full 7-layer binary evaluation on a skill")
+    .description(
+      "Run the binary evaluation on a skill (5 of 7 layers by default; regression + baseline are opt-in, coverage reported in the evidence bundle)",
+    )
     .argument("<skill-dir>", "Path to skill directory containing SKILL.md")
     .option("--spec <path>", "Path to eval spec YAML")
     .option(
@@ -847,9 +853,9 @@ export function registerEvalCommand(program: Command): void {
             const report = buildLaunchReport(
               skillName,
               scoreCard,
-              [], // regressions: none in a standalone run
-              [], // baseline: none without a baseline comparison run
-              false, // isObsolete: not computed here
+              [], // regressions: L3 not plumbed into this path yet — wiring tracked in #222 (needs a --regression-baseline prior run)
+              [], // baseline: L4 not plumbed yet — tracked in #222 (opt-in naked-model pass). Coverage below reports both as skipped.
+              false, // isObsolete: not computed here (see #222)
               // DR-103 D5 B5.1: inject `now` so the launch-report artifact is
               // replayable (the determinism the adoption signal's bandit-rejection
               // rests on). One timestamp per model run.

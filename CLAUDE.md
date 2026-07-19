@@ -17,7 +17,7 @@ pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
-| `@intentsolutions/jrig-cli` | `@intentsolutions` | yes | The `j-rig` eval CLI — self-contained npm package (bundles `@j-rig/{core,db,migrate}`); external repos install it to run the 7-layer eval in CI. Bin name stays `j-rig`. |
+| `@intentsolutions/jrig-cli` | `@intentsolutions` | yes | The `j-rig` eval CLI — self-contained npm package (bundles `@j-rig/{core,db,migrate}`); external repos install it to run the eval harness in CI (5 of 7 layers by default; regression + baseline opt-in). Bin name stays `j-rig`. |
 | `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution), and the DETERMINISTIC time-decay **adoption signal** (`adoption.ts` — 2×2 baseline-value × decayed-adoption, bandit rejected; epic intent-eval-lab#206 / ISEDC DR-103) |
 | `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core`. **Provider-agnostic** since 0.3.0: `refine score/propose --provider` resolves any backend (groq/deepseek/openai/anthropic/nvidia/kimi/openrouter) via a shared registry — Anthropic is never required |
 | `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |

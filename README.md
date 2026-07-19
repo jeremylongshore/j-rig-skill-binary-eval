@@ -22,15 +22,22 @@ Claude Skills ship on instinct. A skill author writes a `SKILL.md`, eyeballs it,
 
 ### The Solution
 
-J-Rig Binary Eval is a seven-layer evaluation harness that scores every skill change across seven product surfaces before it ships:
+J-Rig Binary Eval is a seven-layer evaluation harness. All seven layers are implemented; a default
+`eval` run wires five of them and honestly reports which layers actually scored the skill in the
+evidence bundle's `coverage.dimensionsSkipped` (never a silent overclaim). The seven layers:
 
-1. **Package Integrity** — Does it parse, validate, and reference real files?
-2. **Trigger Quality** — Does it fire on the right prompts and stay silent on the wrong ones?
-3. **Functional Quality** — Does it complete its task and produce correct artifacts?
-4. **Regression Protection** — Did this change break anything that previously worked?
-5. **Baseline Value** — Does the skill actually outperform the naked model?
-6. **Model Variance** — Does it work across Haiku, Sonnet, and Opus?
-7. **Rollout Safety** — Any prompt leakage, overreach, or unsafe automation?
+1. **Package Integrity** — Does it parse, validate, and reference real files? _(runs by default)_
+2. **Trigger Quality** — Does it fire on the right prompts and stay silent on the wrong ones? _(runs by default, given a roster)_
+3. **Functional Quality** — Does it complete its task and produce correct artifacts? _(runs by default)_
+4. **Regression Protection** — Did this change break anything that previously worked? _(coded; runs when a prior-run baseline is supplied — otherwise reported as skipped)_
+5. **Baseline Value** — Does the skill actually outperform the naked model? _(coded; runs on an opt-in naked-model comparison pass — otherwise reported as skipped)_
+6. **Model Variance** — Does it work across Haiku, Sonnet, and Opus? _(runs per model; true cross-model variance needs distinct provider models configured)_
+7. **Rollout Safety** — Any prompt leakage, overreach, or unsafe automation? _(runs by default)_
+
+> **Coverage honesty:** layers 4 and 5 are coded + unit-tested but are not yet plumbed into the
+> default eval path — every run declares its actual coverage in the signed evidence bundle. Wiring
+> them into the runtime is tracked as follow-up work; the harness never claims a layer scored a skill
+> when it did not.
 
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
 

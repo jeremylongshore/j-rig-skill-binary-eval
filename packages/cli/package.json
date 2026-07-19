@@ -2,7 +2,7 @@
   "name": "@intentsolutions/jrig-cli",
   "version": "0.2.0",
   "private": false,
-  "description": "J-Rig seven-layer binary eval CLI for Claude Skills — the `j-rig` command: package integrity, trigger/functional/regression/baseline scoring, optimizer, and rollout-gate evidence. Self-contained (bundles the internal eval engine).",
+  "description": "J-Rig seven-layer binary eval CLI for Claude Skills — the `j-rig` command: package-integrity, trigger, functional, rollout-safety, and cost scoring by default (the regression + baseline layers are coded and opt-in; each run declares its coverage), plus optimizer and rollout-gate evidence. Self-contained (bundles the internal eval engine).",
   "keywords": [
     "j-rig",
     "jrig",
