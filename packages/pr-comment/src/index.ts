@@ -1,5 +1,5 @@
 /**
- * @j-rig/pr-comment — pure, idempotent renderer that turns a rollout-gate
+ * @intentsolutions/pr-comment — pure, idempotent renderer that turns a rollout-gate
  * decision into a marker-anchored markdown PR comment block.
  *
  * Pair with `@intentsolutions/rollout-gate`: feed `decide()`'s result straight

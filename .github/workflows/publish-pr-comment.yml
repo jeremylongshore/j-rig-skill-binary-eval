@@ -1,0 +1,105 @@
+name: Publish pr-comment
+
+# Publishes @intentsolutions/pr-comment to npm with sigstore provenance on tag
+# push `pr-comment-v*.*.*` (e.g. pr-comment-v2.1.0).
+#
+# Why this workflow exists: the package was marked `private: false` and carried a
+# publishConfig, but no workflow ever published it and it 404s on npm. It is named
+# as a platform deliverable by intent-eval-lab 000-docs/110-AT-SPEC § 6 step 3 —
+# the PR-comment surface that consumes a rollout-gate decision — so "publishable in
+# principle" was not enough.
+#
+# It publishes under @intentsolutions, NOT @j-rig: the npm key owns
+# @intentsolutions and the @j-rig scope 403s on publish. That is the same rename
+# @intentsolutions/rollout-gate already went through, for the same reason.
+#
+# Separate tag namespace from the repo-level `v*.*.*` releases, matching the other
+# per-package publish workflows. Flow: bump packages/pr-comment/package.json#version
+# via PR, merge, then tag from main HEAD. The job re-runs the full check chain,
+# verifies the tag matches the package version, builds, and publishes with
+# --provenance.
+
+on:
+  push:
+    tags:
+      - "pr-comment-v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write # sigstore provenance
+
+concurrency:
+  group: publish-pr-comment-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm (provenance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # ISEDC E09 DR / CISO reproducible-from-tag invariant (CISO #1): the
+          # bytes published to npm with --provenance MUST be the pushed tag's
+          # bytes. An implicit checkout attributes provenance to whatever the
+          # default ref resolves to — the #32-class one-way door. Pin to the tag.
+          ref: ${{ github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/pr-comment-v}"
+          pkg_version=$(node -p "require('./packages/pr-comment/package.json').version")
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag pr-comment-v$tag_version does not match package version $pkg_version" >&2
+            exit 1
+          fi
+
+      # Build FIRST: workspace typecheck resolves sibling package types from their
+      # built dist/ — a fresh clone has none until pnpm run build runs.
+      - name: Build
+        run: pnpm run build
+
+      - name: Full check chain
+        run: pnpm run check
+
+      - name: Verify the artifact is self-contained
+        # The renderer is a PURE function with zero runtime dependencies — that is
+        # the property that lets a consumer render a decision without pulling the
+        # eval engine. If a private @j-rig/* import ever leaks into the bundle the
+        # published package breaks on install, so assert it here rather than
+        # discovering it from a consumer's failed CI.
+        run: |
+          if grep -q 'from "@j-rig/' packages/pr-comment/dist/index.js; then
+            echo "dist/index.js imports a private @j-rig/* package — bundling regressed" >&2
+            exit 1
+          fi
+          if grep -q 'from .@j-rig/' packages/pr-comment/dist/index.d.ts; then
+            echo "dist/index.d.ts imports private @j-rig/* types — dts resolve regressed" >&2
+            exit 1
+          fi
+          deps=$(node -p "JSON.stringify(require('./packages/pr-comment/package.json').dependencies || {})")
+          if [ "$deps" != "{}" ]; then
+            echo "pr-comment gained runtime dependencies ($deps) — it must stay dependency-free" >&2
+            exit 1
+          fi
+
+      - name: Publish with provenance
+        working-directory: packages/pr-comment
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --provenance --no-git-checks

@@ -34,7 +34,7 @@ traceability docs nor a deterministic layering (dep-cruiser) gate.
 | refiner | `@intentsolutions/refiner` | CLI — skill-refiner orchestration | 6 |
 | migrate | `@j-rig/migrate` | codemod library | 4 |
 | db | `@j-rig/db` | SQLite persistence library | 2 |
-| pr-comment | `@j-rig/pr-comment` | PR-render library | 2 |
+| pr-comment | `@intentsolutions/pr-comment` | PR-render library | 2 |
 | rollout-gate | `@intentsolutions/rollout-gate` | decision-logic library | 2 |
 | dashboard | `@j-rig/dashboard` | presentation | **0** |
 
