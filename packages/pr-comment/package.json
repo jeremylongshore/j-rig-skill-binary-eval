@@ -1,5 +1,5 @@
 {
-  "name": "@j-rig/pr-comment",
+  "name": "@intentsolutions/pr-comment",
   "version": "2.1.0",
   "private": false,
   "description": "Pure, idempotent renderer that turns a rollout-gate decision into a marker-anchored markdown PR comment block",

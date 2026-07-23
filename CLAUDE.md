@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
-pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, format:check, typecheck, and tests on Node 22.
+pnpm monorepo with nine workspace packages. **Five `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, format:check, typecheck, and tests on Node 22.
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |
@@ -22,7 +22,7 @@ pnpm monorepo with nine workspace packages. **Four `@intentsolutions/*` packages
 | `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core`. **Provider-agnostic** since 0.3.0: `refine score/propose --provider` resolves any backend (groq/deepseek/openai/anthropic/nvidia/kimi/openrouter) via a shared registry — Anthropic is never required |
 | `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
 | `@j-rig/migrate` | `@j-rig` | no (bundled into jrig-cli) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
-| `@j-rig/pr-comment` | `@j-rig` | no (not on npm) | Pure idempotent renderer: rollout-gate decision → marker-anchored markdown PR comment block |
+| `@intentsolutions/pr-comment` | `@intentsolutions` | yes | Pure idempotent renderer with ZERO runtime deps: rollout-gate decision → marker-anchored markdown PR comment block. Renamed from `@j-rig/pr-comment` and published because doc 110 § 6 step 3 names it as a platform deliverable and it had 404'd on npm since it was written; the `@j-rig` scope 403s, so it took the same rename `rollout-gate` did |
 | `@j-rig/core` | `@j-rig` | no (bundled into jrig-cli) | Core eval-engine types + logic |
 | `@j-rig/db` | `@j-rig` | no (bundled into jrig-cli) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
 | `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
