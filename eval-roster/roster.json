@@ -1,8 +1,8 @@
 {
-  "$comment": "Nightly skill-eval roster. Labs skills audit-tests + validate-skillmd added 2026-07-23 (CCPI#1116 / pin 2f42e45c). skill-creator deferred until it ships an eval-spec.yaml beside SKILL.md.",
+  "$comment": "Nightly skill-eval roster. skill-creator added 2026-07-23 after CCPI#1118 shipped its hand-authored eval-spec.yaml (13\u219214). Pin = merge SHA of that PR.",
   "source": {
     "githubRepo": "jeremylongshore/claude-code-plugins-plus-skills",
-    "ref": "2f42e45cce9e5a27241ec93530ea6b43929761a6"
+    "ref": "a9dd5c02a3793412ed35525efd460b399554be13"
   },
   "provider": "minimax",
   "models": "MiniMax-M3",
@@ -59,6 +59,10 @@
     {
       "key": "validate-skillmd",
       "path": "plugins/productivity/intent-labs-pack/skills/validate-skillmd"
+    },
+    {
+      "key": "skill-creator",
+      "path": "plugins/skill-enhancers/skill-creator/skills/skill-creator"
     }
   ]
 }
