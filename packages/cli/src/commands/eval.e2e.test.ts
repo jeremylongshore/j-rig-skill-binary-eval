@@ -197,4 +197,42 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
       rmSync(work, { recursive: true, force: true });
     }
   });
+
+  it("returns a machine-readable run row when functional evaluation is skipped", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-trigger-only-e2e-"));
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          join(work, "trigger-only.db"),
+          "--no-functional",
+          "--json",
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+
+      expect(r.status, `trigger-only eval failed:\n${r.stderr}`).toBe(0);
+      const output = JSON.parse(r.stdout) as Record<
+        string,
+        { functional_skipped?: boolean; cost?: unknown; provider?: string }
+      >;
+      expect(output.sonnet).toMatchObject({
+        functional_skipped: true,
+        provider: "stub",
+        cost: null,
+      });
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
 });
