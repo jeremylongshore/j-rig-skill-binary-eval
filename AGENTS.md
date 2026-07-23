@@ -138,3 +138,7 @@ bd close <id>         # Complete work
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
+
+## Merge gate
+
+**CI required checks are the only merge gate.** Do not block merges waiting for Gemini or Greptile (both dark as of 2026-07-22). See `CLAUDE.md` § AI code review.

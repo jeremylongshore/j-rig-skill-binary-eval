@@ -126,6 +126,15 @@ Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_
 - Doc filing: `000-docs/` with v4 naming convention (`NNN-CC-CODE-description.md`)
 - Releases: tag-triggered, no auto-bump. For a repo-level GitHub Release, an engineer opens a PR bumping the **root** `package.json#version` + CHANGELOG, merges to main, then tags from main HEAD; `.github/workflows/release.yml` builds the Release on a `v*.*.*` tag and **verifies the tag matches the root `package.json#version`** (the previous auto-bump-on-push-to-main logic was removed). The published **CLI** follows a separate flow: bump `packages/cli/package.json#version`, then tag `jrig-cli-v*.*.*` (`publish-jrig-cli.yml`; see "Cut a release" above).
 
+## Nightly skill-eval roster
+
+Canonical roster: `eval-roster/roster.json` (14 skills as of 2026-07-23).
+
+- **Source pin:** `jeremylongshore/claude-code-plugins-plus-skills` at a fixed git SHA (never floating `main`).
+- **Latest growth:** skill-creator added after CCPI#1118 shipped its hand-authored `eval-spec.yaml` ([j-rig#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).
+- **Rule:** a skill joins the roster only when `SKILL.md` + `eval-spec.yaml` both exist at the pinned path.
+- Runner: `eval-roster/run-roster.mjs` + `.github/workflows/nightly-skill-evals.yml`.
+
 ## AI code review — BOTH REVIEWERS ARE DARK (do not wait for one)
 
 **As of 2026-07-22 no AI reviewer runs on this repo.** Verified by surveying the
