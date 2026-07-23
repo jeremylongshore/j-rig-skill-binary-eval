@@ -1,8 +1,8 @@
 {
-  "$comment": "Nightly skill-eval roster. Skills are checked out READ-ONLY from source.githubRepo at the PINNED source.ref (never a moving branch) so every nightly run evaluates a reproducible skill corpus. Every listed skill must carry its own hand-authored eval-spec.yaml at <path>/eval-spec.yaml \u2014 scaffold-only specs don't qualify. Provider policy (2026-07-16): automated runs use cheap API-key providers only, never Anthropic keys. Default flipped deepseek\u2192minimax 2026-07-17 (operator decision): the DeepSeek account is unfunded on our key while MiniMax is funded and carried the first green nightly (run 29545349026). `models` is the roster-level model override the runner applies whenever the provider differs from the model id pinned inside the specs (they pin deepseek-v4-flash, which other backends 404 on); a --models flag still wins over it. | 2026-07-23: labs skills paths added pending CCPI intent-labs-pack merge; bump source.ref to that merge SHA before merging this PR.",
+  "$comment": "Nightly skill-eval roster. Labs skills audit-tests + validate-skillmd added 2026-07-23 (CCPI#1116 / pin 2f42e45c). skill-creator deferred until it ships an eval-spec.yaml beside SKILL.md.",
   "source": {
     "githubRepo": "jeremylongshore/claude-code-plugins-plus-skills",
-    "ref": "bdb13c63e18451f94b3aa4d29559f7b42b8dc909"
+    "ref": "2f42e45cce9e5a27241ec93530ea6b43929761a6"
   },
   "provider": "minimax",
   "models": "MiniMax-M3",
@@ -59,10 +59,6 @@
     {
       "key": "validate-skillmd",
       "path": "plugins/productivity/intent-labs-pack/skills/validate-skillmd"
-    },
-    {
-      "key": "skill-creator",
-      "path": "plugins/skill-enhancers/skill-creator/skills/skill-creator"
     }
   ]
 }
