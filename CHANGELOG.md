@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Nightly skill-eval roster 13→14** — pin CCPI merge `a9dd5c02` and add
+  `skill-creator` after its hand-authored `eval-spec.yaml` landed
+  ([#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).
+- **Reviewer posture docs** — both AI reviewers dark; CI is the only merge gate
+  ([#230](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/230)).
+
+### Fixed
+
+- **Vale lane no longer permanently red**
+  ([#231](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/231)).
+
+### Added (prior unreleased)
+
 - **Skill Refiner provider seam — PUBLISHED (2026-07-10).** The Refiner is now
   provider-agnostic and runs the full loop on free/cheap OpenAI-compatible models
   without ever requiring Anthropic. Published `@intentsolutions/refiner-core` +
