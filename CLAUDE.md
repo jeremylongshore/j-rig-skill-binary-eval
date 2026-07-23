@@ -26,18 +26,6 @@ pnpm monorepo with nine workspace packages. **Five `@intentsolutions/*` packages
 | `@j-rig/core` | `@j-rig` | no (bundled into jrig-cli) | Core eval-engine types + logic |
 | `@j-rig/db` | `@j-rig` | no (bundled into jrig-cli) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
 | `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
-||||||| parent of 675a8fd (docs(claude): record that both AI reviewers are dark and CI is the only gate)
-| Package | Scope | Published? | Role |
-| --- | --- | --- | --- |
-| `@intentsolutions/jrig-cli` | `@intentsolutions` | yes | The `j-rig` eval CLI — self-contained npm package (bundles `@j-rig/{core,db,migrate}`); external repos install it to run the eval harness in CI (5 of 7 layers by default; regression + baseline opt-in). Bin name stays `j-rig`. |
-| `@intentsolutions/refiner-core` | `@intentsolutions` | yes | Skill Refiner pure core: bounded-edit apply, synthetic eval-set bootstrap, Pareto-dominant acceptance gate, `RefinerStrategy` interface, COMPUTED per-block slice-utility (LOBO causal attribution), and the DETERMINISTIC time-decay **adoption signal** (`adoption.ts` — 2×2 baseline-value × decayed-adoption, bandit rejected; epic intent-eval-lab#206 / ISEDC DR-103) |
-| `@intentsolutions/refiner` | `@intentsolutions` | yes | Skill Refiner orchestrator + I/O adapters + `j-rig refine` CLI; wraps `@intentsolutions/refiner-core`. **Provider-agnostic** since 0.3.0: `refine score/propose --provider` resolves any backend (groq/deepseek/openai/anthropic/nvidia/kimi/openrouter) via a shared registry — Anthropic is never required |
-| `@intentsolutions/rollout-gate` | `@intentsolutions` | yes | Thin rollout decision-logic library: consume a `gate-result/v1` Evidence Bundle + policy → allow/block (fail closed) |
-| `@j-rig/migrate` | `@j-rig` | no (bundled into jrig-cli) | Codemod rewriting `v0.1.0-draft` Evidence Bundle rows into the v2.0 `gate-result/v1` shape |
-| `@j-rig/pr-comment` | `@j-rig` | no (not on npm) | Pure idempotent renderer: rollout-gate decision → marker-anchored markdown PR comment block |
-| `@j-rig/core` | `@j-rig` | no (bundled into jrig-cli) | Core eval-engine types + logic |
-| `@j-rig/db` | `@j-rig` | no (bundled into jrig-cli) | SQLite evidence persistence + the skill-signal intake fact tables (CASS-gated `skill_usage_events`, curated-signal `skill_human_reviews`; epic intent-eval-lab#206 / DR-103) |
-| `@j-rig/dashboard` | `@j-rig` | no (internal) | Team dashboard (Epic 10 — placeholder) |
 
 The CLI workspace package is named `@intentsolutions/jrig-cli`; the published bin is `j-rig`. The remaining internal packages still use their `@j-rig/*` workspace names for single-package commands, e.g. `pnpm --filter @j-rig/core run build`.
 
