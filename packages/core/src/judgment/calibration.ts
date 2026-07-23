@@ -1,4 +1,5 @@
 import type { JudgeProvider, GoldenCase, CalibrationResult } from "./types.js";
+import { DEFAULT_JUDGE_TIMEOUT_MS } from "./engine.js";
 
 /**
  * Run calibration against golden cases to measure judge accuracy.
@@ -16,7 +17,13 @@ export async function runCalibration(
   const mismatches: CalibrationResult["mismatches"] = [];
 
   for (const golden of goldenCases) {
-    const { verdict } = await provider.judge(golden.explanation, golden.prompt, golden.output);
+    const { verdict } = await provider.judge(
+      golden.explanation,
+      golden.prompt,
+      golden.output,
+      undefined,
+      { timeout_ms: DEFAULT_JUDGE_TIMEOUT_MS },
+    );
 
     if (verdict === "unsure") {
       unsure++;

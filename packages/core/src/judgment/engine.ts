@@ -131,7 +131,17 @@ async function judgeWithLLM(
     criterion.judge_temperature ??
     options?.judgeTemperature ??
     (samples >= 2 ? DEFAULT_MULTI_SAMPLE_JUDGE_TEMPERATURE : undefined);
-  const timeoutMs = options?.judgeTimeoutMs ?? DEFAULT_JUDGE_TIMEOUT_MS;
+  // Programmatic callers can bypass the eval-spec schema. Treat zero,
+  // negatives, and non-finite values as invalid overrides so they cannot
+  // silently disable the provider timeout and recreate the unbounded-judge
+  // hang this default exists to prevent.
+  const configuredTimeoutMs = options?.judgeTimeoutMs;
+  const timeoutMs =
+    configuredTimeoutMs !== undefined &&
+    Number.isFinite(configuredTimeoutMs) &&
+    configuredTimeoutMs > 0
+      ? configuredTimeoutMs
+      : DEFAULT_JUDGE_TIMEOUT_MS;
   const model = options?.model;
 
   const callOnce = () =>
@@ -235,7 +245,13 @@ async function settleWithConcurrency<T>(
 ): Promise<Array<PromiseSettledResult<T>>> {
   const results = new Array<PromiseSettledResult<T>>(tasks.length);
   let next = 0;
-  const workers = Array.from({ length: Math.min(Math.max(1, limit), tasks.length) }, async () => {
+  // The schema rejects invalid concurrency, but this helper also sits behind
+  // a public programmatic API. A NaN/Infinity limit used to create zero
+  // workers and return a sparse result array. Normalize invalid limits to one
+  // worker; finite fractional values are floored before Array.from sees them.
+  const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1;
+  const workerCount = Math.min(Math.max(1, normalizedLimit), tasks.length);
+  const workers = Array.from({ length: workerCount }, async () => {
     while (next < tasks.length) {
       const i = next++;
       try {

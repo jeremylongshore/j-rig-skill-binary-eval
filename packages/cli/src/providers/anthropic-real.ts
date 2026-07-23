@@ -444,7 +444,11 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
-    const controller = options?.timeout_ms ? new AbortController() : undefined;
+    const hasTimeout =
+      options?.timeout_ms !== undefined &&
+      Number.isFinite(options.timeout_ms) &&
+      options.timeout_ms > 0;
+    const controller = hasTimeout ? new AbortController() : undefined;
     const timer = controller
       ? setTimeout(() => controller.abort(), options!.timeout_ms)
       : undefined;
@@ -511,7 +515,11 @@ export class AnthropicJudgeProvider implements JudgeProvider {
     // Judge calls carry the same abort-on-timeout bound as execution calls: a
     // hung endpoint must reject — the engine folds the rejection into an
     // "unsure" vote — never stall the run.
-    const controller = options?.timeout_ms ? new AbortController() : undefined;
+    const hasTimeout =
+      options?.timeout_ms !== undefined &&
+      Number.isFinite(options.timeout_ms) &&
+      options.timeout_ms > 0;
+    const controller = hasTimeout ? new AbortController() : undefined;
     const timer = controller
       ? setTimeout(() => controller.abort(), options!.timeout_ms)
       : undefined;

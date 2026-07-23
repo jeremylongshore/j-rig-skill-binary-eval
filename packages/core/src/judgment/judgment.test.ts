@@ -379,6 +379,27 @@ describe("judgeCriteria — sampling robustness (timeout, pacing, per-sample tim
     expect(seen).toEqual([30_000, 30_000]);
   });
 
+  it("rejects non-positive and non-finite programmatic timeout overrides", async () => {
+    const seen: Array<number | undefined> = [];
+    const provider: JudgeProvider = {
+      async judge(_d, _p, _o, _jp, options) {
+        seen.push(options?.timeout_ms);
+        return yes;
+      },
+    };
+
+    for (const judgeTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { judgeTimeoutMs });
+    }
+
+    expect(seen).toEqual([
+      DEFAULT_JUDGE_TIMEOUT_MS,
+      DEFAULT_JUDGE_TIMEOUT_MS,
+      DEFAULT_JUDGE_TIMEOUT_MS,
+      DEFAULT_JUDGE_TIMEOUT_MS,
+    ]);
+  });
+
   it("respects the sampleConcurrency bound — max in-flight tracked in the mock", async () => {
     let inFlight = 0;
     let maxInFlight = 0;
@@ -417,6 +438,26 @@ describe("judgeCriteria — sampling robustness (timeout, pacing, per-sample tim
     await judgeCriteria([robustCrit()], makeOutcome("t"), provider, { samples: 5 });
 
     expect(maxInFlight).toBe(5);
+  });
+
+  it("normalizes invalid programmatic sampleConcurrency values instead of returning holes", async () => {
+    for (const sampleConcurrency of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+      let calls = 0;
+      const provider: JudgeProvider = {
+        async judge() {
+          calls++;
+          return yes;
+        },
+      };
+      const [result] = await judgeCriteria([robustCrit()], makeOutcome("t"), provider, {
+        samples: 3,
+        sampleConcurrency,
+      });
+
+      expect(calls).toBe(3);
+      expect(result!.sample_verdicts).toEqual(["yes", "yes", "yes"]);
+      expect(result!.agreement).toBe(1);
+    }
   });
 
   it("keeps sample_verdicts aligned to dispatch order when completions reorder", async () => {
@@ -524,6 +565,29 @@ describe("judgeCriteria — sampling robustness (timeout, pacing, per-sample tim
 });
 
 describe("calibration", () => {
+  it("bounds every calibration judge call with the default timeout", async () => {
+    const seen: Array<number | undefined> = [];
+    const provider: JudgeProvider = {
+      async judge(_d, _p, _o, _jp, options) {
+        seen.push(options?.timeout_ms);
+        return { verdict: "yes", confidence: 1, reasoning: "ok" };
+      },
+    };
+    const goldenCases: GoldenCase[] = [
+      {
+        criterion_id: "bounded",
+        prompt: "p",
+        output: "o",
+        expected_verdict: "yes",
+        explanation: "Pass",
+      },
+    ];
+
+    await runCalibration(goldenCases, provider);
+
+    expect(seen).toEqual([DEFAULT_JUDGE_TIMEOUT_MS]);
+  });
+
   it("measures accuracy against golden cases", async () => {
     const goldenCases: GoldenCase[] = [
       {

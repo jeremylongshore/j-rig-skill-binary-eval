@@ -534,6 +534,24 @@ describe("OpenAICompatJudgeProvider", () => {
     await judge.judge("c", "p", "o");
     expect(lastRequest()!.signal).toBeUndefined();
   });
+
+  it("passes no signal for invalid non-positive or non-finite direct timeout values", async () => {
+    for (const timeout_ms of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const { transport, lastRequest } = fakeTransport(
+        textResponse('{"verdict": "yes", "confidence": 1, "reasoning": "r"}'),
+      );
+      const provider: Provider = new RealOpenAICompatProvider({
+        apiKey: KEY,
+        baseUrl: BASE,
+        transport,
+      });
+      const judge = new OpenAICompatJudgeProvider("m", provider);
+
+      await judge.judge("c", "p", "o", undefined, { timeout_ms });
+
+      expect(lastRequest()!.signal).toBeUndefined();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

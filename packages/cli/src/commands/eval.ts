@@ -85,7 +85,11 @@ import {
   resolveOpenAICompatConfig,
 } from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
-import { CostTrackingProvider, EvalCostMeter } from "../providers/cost-tracking.js";
+import {
+  CostTrackingProvider,
+  EvalCostMeter,
+  type EvalCostReport,
+} from "../providers/cost-tracking.js";
 
 interface EvalOptions {
   spec?: string;
@@ -701,6 +705,11 @@ export function registerEvalCommand(program: Command): void {
             }
           }
 
+          // Finalized after whichever phases run. This intentionally lives
+          // outside the functional branch: trigger-only real-provider runs
+          // spend tokens too and must emit the same cost.* run-end record.
+          let costReport: EvalCostReport | null = null;
+
           // ── Functional tests + judgment ────────────────────────────────
           if (opts.functional !== false) {
             costMeter.phase = "execution";
@@ -1005,58 +1014,7 @@ export function registerEvalCommand(program: Command): void {
             // ── Eval cost (Jeremy's ask: "what does it cost to eval this
             // skill, as-is?") — real token usage per phase, × N judge samples,
             // with a best-effort USD estimate. Stub runs record nothing.
-            const costReport = providers.real ? costMeter.report() : null;
-            if (!opts.json && costReport) {
-              const { total, phases } = costReport;
-              console.log(
-                `  Eval cost: ${total.input_tokens} in / ${total.output_tokens} out tokens, ` +
-                  `${total.calls} calls ` +
-                  `(trigger ${phases.trigger.calls}, execution ${phases.execution.calls}, ` +
-                  `judge ${phases.judge.calls})`,
-              );
-              const perModel = costReport.by_model
-                .map(
-                  (m) =>
-                    `${m.model}: ${m.usd === null ? "no rate on file" : `$${m.usd.toFixed(4)}`}`,
-                )
-                .join("; ");
-              console.log(
-                `    estimated: ${
-                  costReport.estimated_usd === null
-                    ? "n/a (a model has no rate on file)"
-                    : `$${costReport.estimated_usd.toFixed(4)}`
-                } — ${perModel}`,
-              );
-            }
-
-            // OTel cost.* run-end summary (observability review BUILD-NOW #1):
-            // the console block above scrolls away across a benchmark matrix;
-            // these events are the queryable record. Cost never rides the
-            // pinned judge.*/gate.* payloads. usd_known/omitted-estimated_usd
-            // discrimination lives in emitCostRunRecorded — a null estimate
-            // (no rate on file) must never surface as a measured $0.
-            if (costReport) {
-              for (const phase of Object.values(CostPhaseName)) {
-                const p = costReport.phases[phase];
-                emitCostPhaseRecorded(correlation, {
-                  phase,
-                  inputTokens: p.input_tokens,
-                  outputTokens: p.output_tokens,
-                  calls: p.calls,
-                  // Judge phase only: the RUN-LEVEL sample default (the attr is
-                  // named judge_samples_default) — a criterion's own `samples`
-                  // override is not reflected here; the signed bundle's
-                  // aggregation.samples_default carries the same semantics.
-                  ...(phase === CostPhaseName.JUDGE ? { judgeSamples: judgeSamples ?? 1 } : {}),
-                });
-              }
-              emitCostRunRecorded(correlation, {
-                totalInputTokens: costReport.total.input_tokens,
-                totalOutputTokens: costReport.total.output_tokens,
-                totalCalls: costReport.total.calls,
-                estimatedUsd: costReport.estimated_usd,
-              });
-            }
+            costReport = providers.real ? costMeter.report() : null;
 
             allResults[model] = {
               provider: providers.providerName,
@@ -1224,6 +1182,71 @@ export function registerEvalCommand(program: Command): void {
             transitionRun(database, runId, "completed");
           } else {
             transitionRun(database, runId, "completed");
+          }
+
+          // ── Eval cost (all executed phase combinations) ───────────────
+          // A --no-functional run used to skip this whole block because cost
+          // reporting lived inside the functional branch. Snapshot the meter
+          // here after trigger/execution/judge work has settled, then print and
+          // emit one consistent run-end record for both full and trigger-only
+          // real-provider evals. Stub runs remain honestly unmetered.
+          costReport ??= providers.real ? costMeter.report() : null;
+          if (!opts.json && costReport) {
+            const { total, phases } = costReport;
+            console.log(
+              `  Eval cost: ${total.input_tokens} in / ${total.output_tokens} out tokens, ` +
+                `${total.calls} calls ` +
+                `(trigger ${phases.trigger.calls}, execution ${phases.execution.calls}, ` +
+                `judge ${phases.judge.calls})`,
+            );
+            const perModel = costReport.by_model
+              .map(
+                (m) => `${m.model}: ${m.usd === null ? "no rate on file" : `$${m.usd.toFixed(4)}`}`,
+              )
+              .join("; ");
+            console.log(
+              `    estimated: ${
+                costReport.estimated_usd === null
+                  ? "n/a (a model has no rate on file)"
+                  : `$${costReport.estimated_usd.toFixed(4)}`
+              } — ${perModel}`,
+            );
+          }
+
+          // OTel cost.* run-end summary (observability review BUILD-NOW #1).
+          // Cost never rides the pinned judge.*/gate.* payloads.
+          if (costReport) {
+            for (const phase of Object.values(CostPhaseName)) {
+              const p = costReport.phases[phase];
+              emitCostPhaseRecorded(correlation, {
+                phase,
+                inputTokens: p.input_tokens,
+                outputTokens: p.output_tokens,
+                calls: p.calls,
+                ...(phase === CostPhaseName.JUDGE ? { judgeSamples: judgeSamples ?? 1 } : {}),
+              });
+            }
+            emitCostRunRecorded(correlation, {
+              totalInputTokens: costReport.total.input_tokens,
+              totalOutputTokens: costReport.total.output_tokens,
+              totalCalls: costReport.total.calls,
+              estimatedUsd: costReport.estimated_usd,
+            });
+          }
+
+          // Full runs populate the richer result in the functional branch.
+          // Trigger-only runs still need a machine-readable cost/provenance row.
+          if (!(model in allResults)) {
+            allResults[model] = {
+              provider: providers.providerName,
+              model,
+              judge_provider: providers.judgeProviderName,
+              judge_model: providers.judgeModelId,
+              ground_truth: providers.real,
+              pkgReport,
+              functional_skipped: true,
+              cost: costReport,
+            };
           }
 
           // OTel runtime.run.finished (067 § 1.1). Terminal state per the
