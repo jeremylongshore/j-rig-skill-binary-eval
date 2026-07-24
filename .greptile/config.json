@@ -1,12 +1,20 @@
 {
   "strictness": 3,
   "commentTypes": ["logic", "syntax"],
-  "triggerOnUpdates": true,
+  "triggerOnUpdates": false,
+  "triggerOnDrafts": false,
+  "disabledLabels": ["automated", "generated", "skip-greptile", "no-ai-review"],
+  "excludeAuthors": ["dependabot[bot]", "renovate[bot]"],
+  "ignoreKeywords": "[skip greptile]\n[skip ai review]",
   "fixWithAI": true,
   "statusCheck": false,
   "ignorePatterns": "node_modules/\ndist/\npackages/*/dist/\ncoverage/\npnpm-lock.yaml\n.audit-harness/\n**/*.snap",
-  "confidenceScoreSection": { "included": true },
-  "sequenceDiagramSection": { "included": true },
+  "confidenceScoreSection": {
+    "included": true
+  },
+  "sequenceDiagramSection": {
+    "included": true
+  },
   "rules": [
     {
       "id": "no-gate-weakening",
