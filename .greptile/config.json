@@ -1,21 +1,10 @@
 {
   "strictness": 3,
-  "commentTypes": [
-    "logic",
-    "syntax"
-  ],
+  "commentTypes": ["logic", "syntax"],
   "triggerOnUpdates": false,
   "triggerOnDrafts": false,
-  "disabledLabels": [
-    "automated",
-    "generated",
-    "skip-greptile",
-    "no-ai-review"
-  ],
-  "excludeAuthors": [
-    "dependabot[bot]",
-    "renovate[bot]"
-  ],
+  "disabledLabels": ["automated", "generated", "skip-greptile", "no-ai-review"],
+  "excludeAuthors": ["dependabot[bot]", "renovate[bot]"],
   "ignoreKeywords": "[skip greptile]\n[skip ai review]",
   "fixWithAI": true,
   "statusCheck": false,
@@ -35,91 +24,67 @@
     {
       "id": "binary-criteria-only",
       "rule": "Evaluation criteria must be BINARY (yes/no). Reject any criterion, score, or judge that returns a gradient, fuzzy float, 0-10 scale, or partial credit on a single criterion. Per-criterion judgments are pass/fail; only aggregate roll-ups may count passes. Flag new criteria definitions, judge prompts, or criterion_result shapes that emit a graded score where a boolean is required.",
-      "scope": [
-        "packages/**",
-        "000-docs/templates/eval-schemas/**"
-      ],
+      "scope": ["packages/**", "000-docs/templates/eval-schemas/**"],
       "severity": "high"
     },
     {
       "id": "evaluator-separate-from-skill",
       "rule": "The evaluator is ALWAYS separate from the skill under test — no self-judging. A skill must never grade its own output, and a judge/grader must not be the same model+context as the artifact it evaluates. Flag any code path that lets the skill-under-test influence, author, or short-circuit its own criterion_results.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "high"
     },
     {
       "id": "observed-outranks-claimed",
       "rule": "Observed behavior outranks claimed behavior. Grade what the skill actually did (captured outputs, artifacts, transcripts), never what the SKILL.md text claims it does. Flag judgment logic that trusts the skill's self-description, frontmatter, or docstring over the recorded observed_outcome / transcript.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "high"
     },
     {
       "id": "regression-cases-sacred",
       "rule": "Regression tests are sacred. A regression on a sacred/blocker case BLOCKS release regardless of average or aggregate improvement — it cannot be averaged out, weighted down, or overridden by a higher mean. Flag any acceptance/gate logic that collapses a sacred-case failure into an average, or that lets net improvement pass a candidate which regressed a protected case.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "high"
     },
     {
       "id": "one-atomic-change-per-experiment",
       "rule": "Exactly ONE atomic change per refiner experiment / proposal. The optimizer proposes a single bounded edit per experiment so cause and effect stay attributable. An EditProposal carries at most MAX_OPS_PER_PROPOSAL (8) bounded ops anchored to exact substrings, applied as one unit; flag proposers, experiment runners, or apply paths that batch multiple independent changes into a single attributed experiment.",
-      "scope": [
-        "packages/refiner-core/**",
-        "packages/refiner/**"
-      ],
+      "scope": ["packages/refiner-core/**", "packages/refiner/**"],
       "severity": "high"
     },
     {
       "id": "opus-lock",
       "rule": "OPUS-LOCK (AC-5 Huyen economics): opus must be unrepresentable and runtime-guarded at the score() and propose() entry points. The per-pass model tier is haiku|sonnet ONLY — opus is validation-only and reached through a separate path. Keep the modelTier type making opus unrepresentable AND the assertNotOpus runtime belt-and-suspenders. Flag any change that widens the tier type to admit opus, removes/weakens assertNotOpus, or routes a per-pass score/propose call to an opus-resolving model id.",
-      "scope": [
-        "packages/refiner/**"
-      ],
+      "scope": ["packages/refiner/**"],
       "severity": "high"
     },
     {
       "id": "refiner-core-purity",
       "rule": "refiner-core stays PURE: no I/O, no adapters, no SDK, no network, no fs, no process.exit. packages/refiner-core/** is value-oriented and deterministic given its inputs; the only non-pure input (wall-clock) is injected explicitly. All adapters (model client, fs, binary-eval shell-out, emit, cost meter) live in @intentsolutions/refiner behind the RefinerStrategy seam — never in core. Flag any import of a model SDK, node:fs, network client, or any side-effecting call added under packages/refiner-core/.",
-      "scope": [
-        "packages/refiner-core/**"
-      ],
+      "scope": ["packages/refiner-core/**"],
       "severity": "high"
     },
     {
       "id": "blockers-block-release",
       "rule": "Blockers block release. A blocker (gate) failure cannot be averaged out or overridden by aggregate improvement. Flag rollout-gate / launch-report logic that lets a passing average promote a candidate which failed a blocker criterion.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "high"
     },
     {
       "id": "baseline-value-flag",
       "rule": "Baseline value matters. If the naked/naive model matches the skill's behavior, the skill must be flagged for obsolete review — the eval must compute and surface the baseline delta. Flag baseline / null-hypothesis comparison logic that silently drops the baseline run or hides a no-lift result.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "medium"
     },
     {
       "id": "model-aware-testing",
       "rule": "Model-aware testing: Haiku / Sonnet / Opus are tested independently — a per-model result matrix, never a single blended score across models. Flag judgment or reporting logic that collapses distinct per-model results into one model-agnostic number.",
-      "scope": [
-        "packages/**"
-      ],
+      "scope": ["packages/**"],
       "severity": "medium"
     },
     {
       "id": "semantic-layer-only",
       "rule": "This is the SEMANTIC review layer ONLY. Do not re-report style/formatting/lint (deterministic L1 CI owns eslint, prettier, markdownlint, yamllint, actionlint, ruff, typos) or security (CodeQL owns that). State the problem, the file:line, and the concrete fix; flag logic errors, contract/invariant violations, missed edge cases, and correctness — no preamble, praise, or summaries.",
-      "scope": [
-        "**"
-      ],
+      "scope": ["**"],
       "severity": "low"
     }
   ]
