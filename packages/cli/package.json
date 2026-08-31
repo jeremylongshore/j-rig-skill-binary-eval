@@ -63,7 +63,7 @@
     "drizzle-orm": "^0.45.2",
     "gray-matter": "^4.0.3",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.1"
   },
   "devDependencies": {
     "@j-rig/core": "workspace:*",
