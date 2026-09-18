@@ -187,6 +187,11 @@ export async function evaluateWithModelJudge(
     { model: definition.model },
   );
   if (!judgment) throw new Error(`Model judge returned no result for ${definition.id}`);
+  if (judgment.judge_error !== undefined) {
+    // No judgment happened. Do not seal an infrastructure outage into an
+    // immutable quality Grade or prevent a later retry with a healthy judge.
+    throw new Error(`Model judge failed for ${definition.id}: ${judgment.judge_error}`);
+  }
 
   const sampleVerdicts = judgment.sample_verdicts ?? [judgment.verdict];
   const agreement = judgment.agreement ?? (judgment.verdict === "unsure" ? 0 : judgment.confidence);

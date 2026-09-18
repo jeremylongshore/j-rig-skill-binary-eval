@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Grader reuse and outage handling** — resolve saved snapshots and regrade
+  policy before provider selection or model calls. A failed judge leaves no
+  quality Grade, so recovery can retry without replacing evidence or rerunning
+  the task.
 - **Patched CLI YAML parser** — override `gray-matter`'s compatible `js-yaml`
   dependency to 3.15.2 or newer, clearing the quadratic-CPU advisories reported
   by the production dependency audit.
