@@ -75,6 +75,23 @@ const CREATE_TABLES = `
     FOREIGN KEY (run_id) REFERENCES raw_runs(id)
   );
 
+  CREATE TABLE IF NOT EXISTS grades (
+    id TEXT PRIMARY KEY,
+    raw_run_id TEXT NOT NULL,
+    grader_id TEXT NOT NULL,
+    grader_version TEXT NOT NULL,
+    grader_kind TEXT NOT NULL,
+    grader_snapshot_json TEXT NOT NULL,
+    grader_snapshot_sha256 TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    score REAL NOT NULL,
+    checks_json TEXT NOT NULL,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(raw_run_id, grader_id, grader_version, grader_snapshot_sha256),
+    FOREIGN KEY (raw_run_id) REFERENCES raw_runs(id)
+  );
+
   CREATE TABLE IF NOT EXISTS criterion_results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER NOT NULL,
@@ -146,6 +163,8 @@ const CREATE_TABLES = `
   CREATE INDEX IF NOT EXISTS idx_raw_runs_status ON raw_runs(status);
   CREATE INDEX IF NOT EXISTS idx_raw_runs_task_config ON raw_runs(task_id, config_id, model);
   CREATE INDEX IF NOT EXISTS idx_raw_run_artifacts_run ON raw_run_artifacts(run_id);
+  CREATE INDEX IF NOT EXISTS idx_grades_raw_run ON grades(raw_run_id);
+  CREATE INDEX IF NOT EXISTS idx_grades_grader ON grades(grader_id, grader_version);
   CREATE INDEX IF NOT EXISTS idx_criterion_results_run ON criterion_results(run_id);
   CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id);
   CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON skill_usage_events(skill_id);
@@ -167,6 +186,11 @@ const ADDITIVE_COLUMNS: ReadonlyArray<{ table: string; column: string; ddl: stri
     table: "artifacts",
     column: "sha256",
     ddl: "ALTER TABLE artifacts ADD COLUMN sha256 TEXT",
+  },
+  {
+    table: "grades",
+    column: "metadata_json",
+    ddl: "ALTER TABLE grades ADD COLUMN metadata_json TEXT",
   },
 ];
 

@@ -110,6 +110,42 @@ export const rawRunArtifacts = sqliteTable(
   }),
 );
 
+export type StoredGradeVerdict = "pass" | "fail";
+
+/**
+ * Immutable evaluation output over one sealed raw Run.
+ *
+ * The grader definition and its digest are stored with every Grade so a later
+ * regrade can coexist with, rather than overwrite, an earlier judgment.
+ */
+export const grades = sqliteTable(
+  "grades",
+  {
+    id: text("id").primaryKey(),
+    raw_run_id: text("raw_run_id")
+      .notNull()
+      .references(() => rawRuns.id),
+    grader_id: text("grader_id").notNull(),
+    grader_version: text("grader_version").notNull(),
+    grader_kind: text("grader_kind").notNull(),
+    grader_snapshot_json: text("grader_snapshot_json").notNull(),
+    grader_snapshot_sha256: text("grader_snapshot_sha256").notNull(),
+    verdict: text("verdict").notNull().$type<StoredGradeVerdict>(),
+    score: real("score").notNull(),
+    checks_json: text("checks_json").notNull(),
+    metadata_json: text("metadata_json"),
+    created_at: text("created_at").notNull().default("(datetime('now'))"),
+  },
+  (table) => ({
+    identity: uniqueIndex("uq_grades_identity").on(
+      table.raw_run_id,
+      table.grader_id,
+      table.grader_version,
+      table.grader_snapshot_sha256,
+    ),
+  }),
+);
+
 /**
  * Criterion results — one per criterion per run.
  */

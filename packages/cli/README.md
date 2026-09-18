@@ -39,6 +39,7 @@ j-rig check <skill-dir>              # deterministic package-integrity checks
 j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
 j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
+j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -56,6 +57,16 @@ any grading. It retains stdout/stderr for completed, runner-error, and timeout
 outcomes. See `000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`
 for the request and environment protocol.
 
+`j-rig grade` evaluates a completed raw Run with a validated, versioned
+deterministic or model-judge grader definition and stores an immutable snapshot.
+Pass `--regrade` to intentionally add a new version of an existing named
+Grader; runner errors and timeouts are not gradeable. Model-judge graders accept
+`--provider minimax` (or another configured provider), sample the shared judge
+engine when `samples > 1`, and persist every vote plus disagreement metadata.
+The grader's `model` remains pinned even when a provider preset has a default
+model. See
+`000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
+
 ## Providers
 
 The evaluator's judge layer talks to an LLM provider. The provider is
@@ -67,6 +78,7 @@ endpoint) or forced with `--provider`:
 | DeepSeek     | `deepseek`           | `DEEPSEEK_API_KEY`  | `deepseek-v4-flash` |
 | Kimi/Moonshot| `kimi` / `moonshot`  | `MOONSHOT_API_KEY`  | provider default    |
 | OpenRouter   | `openrouter`         | `OPENROUTER_API_KEY`| provider default    |
+| MiniMax      | `minimax`            | `MINIMAX_API_KEY`   | `MiniMax-M3`        |
 | Anthropic    | `anthropic`          | `ANTHROPIC_API_KEY` | Claude models       |
 
 **DeepSeek** is reached by setting `DEEPSEEK_API_KEY` in the environment and

@@ -228,6 +228,24 @@ allowed to evaluate the output. Repeating the same task/config/model/sample
 returns the existing sealed Run instead of duplicating it. The contract is
 documented in [`031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`](000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md).
 
+### Named Graders and regrade
+
+Completed raw Runs can be evaluated with a named, versioned deterministic
+Grader. Each Grade stores the exact definition snapshot and digest, so repeated
+grading is idempotent and a later version can coexist with the earlier result:
+
+```bash
+node packages/cli/dist/index.js grade \
+  --run-id raw_<sha256> \
+  --grader ./grader.yaml \
+  --db ./j-rig.db \
+  --json
+```
+
+Use `--regrade` when intentionally applying a different version of the same
+named Grader. Runner errors and timeouts remain ungraded observations. See
+[`032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`](000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md).
+
 ### ⚠️ Stub providers — output is NOT ground truth
 
 When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.

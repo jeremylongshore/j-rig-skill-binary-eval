@@ -88,6 +88,12 @@ not a grade. `runner_error` and `timed_out` remain distinct from a completed
 run whose model output later receives a poor Grade. See
 `000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`.
 
+The first downstream Grader is a named, versioned deterministic checker exposed
+as `j-rig grade`. It snapshots the definition and digest into an immutable
+`grades` row; `--regrade` creates a new Grade for an intentional version change,
+while the original judgment remains intact. See
+`000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

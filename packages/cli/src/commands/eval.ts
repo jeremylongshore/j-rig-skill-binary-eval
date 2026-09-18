@@ -142,7 +142,7 @@ interface ProviderExtras {
  * requested backend has no key — silently judging on a different vendor than
  * asked would corrupt the benchmark this exists for.
  */
-function selectJudgeOverride(
+export function selectJudgeOverride(
   targetModel: string,
   extras?: ProviderExtras,
 ): { judge: JudgeProvider; name: string; modelId: string } | null {

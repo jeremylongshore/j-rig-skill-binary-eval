@@ -30,8 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   named task/config/model/sample through a shell-free `ExecutableRunner`, stores
   an idempotent `raw_runs` record before execution, retains runner failures and
   timeouts distinctly from completed output, and records content-addressed raw
-  artifact references. Grading, regrade, balanced sampling, and reports remain
+  artifact references. Balanced sampling, suites, and reports remain
   downstream evolution slices.
+
+- **Named Graders and immutable Grade snapshots:** `j-rig grade` evaluates a
+  completed raw Run with a versioned deterministic or model-judge definition,
+  stores the exact definition and digest, and preserves prior judgments when
+  `--regrade` adds a new version. Model-judge sampling retains every vote,
+  latency, agreement fraction, raw verdict, reasoning, and disagreement flag;
+  `unsure` fails closed while remaining auditable. Runner errors and timeouts
+  cannot be graded.
 
 - **Marketplace-ready JRig evaluator skill** — document the real five-of-seven
   default, opt-in regression and naked-model checks, provider boundary, rollout
@@ -44,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Grader reuse and outage handling** — resolve saved snapshots and regrade
+  policy before provider selection or model calls. A failed judge leaves no
+  quality Grade, so recovery can retry without replacing evidence or rerunning
+  the task.
 - **Patched CLI YAML parser** — override `gray-matter`'s compatible `js-yaml`
   dependency to 3.15.2 or newer, clearing the quadratic-CPU advisories reported
   by the production dependency audit.
