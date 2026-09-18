@@ -28,6 +28,7 @@
 | 026 | [026-AT-SPEC-refiner-core-api-2026-06-20.md](026-AT-SPEC-refiner-core-api-2026-06-20.md)                                 | `@intentsolutions/refiner-core` API spec (value types, pure fns, RefinerStrategy) |
 | 029 | [029-AT-SPEC-refiner-core-api-2026-07-08.md](029-AT-SPEC-refiner-core-api-2026-07-08.md)                                 | `@intentsolutions/refiner-core` public API spec (documents the v0.2.0 surface)    |
 | 030 | [030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)   | `SkillEvalSpec` profile name, canonical-kernel adapter boundary, and 0.10.0 currency baseline |
+| 031 | [031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md](031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md)         | Generic task/config runner protocol, raw Run identity, lifecycle, and artifact manifest |
 
 ### OD — Operations & Deployment
 
@@ -50,7 +51,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `030`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `032`.
 
 ### AA — Audits & After-Action Reports
 
@@ -104,6 +105,7 @@
 | 028 | DR-FIND  | [jrig-eval-criteria-ids-and-deterministic-validation.md](028-DR-FIND-jrig-eval-criteria-ids-and-deterministic-validation-2026-06-28.md) |
 | 029 | AT-SPEC  | [refiner-core-api.md](029-AT-SPEC-refiner-core-api-2026-07-08.md)                                            |
 | 030 | AT-SPEC  | [eval-substrate-contract-identity.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)                |
+| 031 | AT-SPEC  | [generic-runner-config-raw-run.md](031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md)                         |
 
 ## Epics
 
@@ -147,7 +149,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 30 numbered docs (`001`–`029`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 31 numbered docs (`001`–`031`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 030
+- **Next sequence number:** 032
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

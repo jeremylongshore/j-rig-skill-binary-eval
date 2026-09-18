@@ -207,6 +207,27 @@ documented runtime path makes a real DeepSeek call.
 
 **Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
 
+### Generic task/config runs (active evaluation-platform evolution)
+
+The generic substrate is now available beneath the skill-specific evaluator.
+Define a task and a named model/harness configuration, then execute one
+shell-free sample with an immutable raw Run record:
+
+```bash
+node packages/cli/dist/index.js run \
+  --task ./task.yaml \
+  --config ./config.yaml \
+  --sample-index 0 \
+  --db ./j-rig.db \
+  --json
+```
+
+The runner captures stdout, stderr, exit status, timeout, timing, request
+lineage, and content-addressed artifact references before any future Grader is
+allowed to evaluate the output. Repeating the same task/config/model/sample
+returns the existing sealed Run instead of duplicating it. The contract is
+documented in [`031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`](000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md).
+
 ### ⚠️ Stub providers — output is NOT ground truth
 
 When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.

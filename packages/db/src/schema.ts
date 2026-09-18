@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Skill versions — tracks distinct versions of a skill.
@@ -23,6 +23,13 @@ export const skillVersions = sqliteTable("skill_versions", {
 export type RunStatus = "pending" | "running" | "completed" | "failed" | "timed_out" | "canceled";
 
 /**
+ * Raw runner outcomes. A completed row may still contain a poor model output;
+ * runner_error and timed_out mean the harness itself did not produce a normal
+ * observation and must remain distinct in reports.
+ */
+export type RawRunStatus = "pending" | "running" | "completed" | "runner_error" | "timed_out";
+
+/**
  * Evaluation runs — one per evaluation execution.
  */
 export const runs = sqliteTable("runs", {
@@ -37,6 +44,71 @@ export const runs = sqliteTable("runs", {
   created_at: text("created_at").notNull().default("(datetime('now'))"),
   error_message: text("error_message"),
 });
+
+/**
+ * Generic, ungraded execution ledger.
+ *
+ * This is intentionally separate from the historical skill-specific `runs`
+ * table. The old table remains the compatibility store for Evidence Bundle
+ * production; `raw_runs` is the substrate that arbitrary task/config/model
+ * executions and future Graders consume.
+ */
+export const rawRuns = sqliteTable(
+  "raw_runs",
+  {
+    id: text("id").primaryKey(),
+    task_id: text("task_id").notNull(),
+    task_version: text("task_version").notNull(),
+    config_id: text("config_id").notNull(),
+    config_version: text("config_version").notNull(),
+    model: text("model").notNull(),
+    sample_index: integer("sample_index").notNull(),
+    status: text("status").notNull().$type<RawRunStatus>(),
+    task_json: text("task_json").notNull(),
+    config_json: text("config_json").notNull(),
+    request_json: text("request_json").notNull(),
+    stdout: text("stdout"),
+    stderr: text("stderr"),
+    exit_code: integer("exit_code"),
+    signal: text("signal"),
+    started_at: text("started_at"),
+    completed_at: text("completed_at"),
+    duration_ms: integer("duration_ms"),
+    error_message: text("error_message"),
+    created_at: text("created_at").notNull().default("(datetime('now'))"),
+    sealed_at: text("sealed_at"),
+  },
+  (table) => ({
+    lineage: uniqueIndex("uq_raw_runs_lineage").on(
+      table.task_id,
+      table.task_version,
+      table.config_id,
+      table.config_version,
+      table.model,
+      table.sample_index,
+    ),
+  }),
+);
+
+/** Immutable artifact manifest entries attached to a sealed raw run. */
+export const rawRunArtifacts = sqliteTable(
+  "raw_run_artifacts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    run_id: text("run_id")
+      .notNull()
+      .references(() => rawRuns.id),
+    name: text("name").notNull(),
+    relative_path: text("relative_path").notNull(),
+    media_type: text("media_type"),
+    size_bytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    created_at: text("created_at").notNull().default("(datetime('now'))"),
+  },
+  (table) => ({
+    runPath: uniqueIndex("uq_raw_run_artifacts_path").on(table.run_id, table.relative_path),
+  }),
+);
 
 /**
  * Criterion results — one per criterion per run.

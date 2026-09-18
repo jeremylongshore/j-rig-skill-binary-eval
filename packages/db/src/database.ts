@@ -37,6 +37,44 @@ const CREATE_TABLES = `
     FOREIGN KEY (skill_version_id) REFERENCES skill_versions(id)
   );
 
+  CREATE TABLE IF NOT EXISTS raw_runs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    task_version TEXT NOT NULL,
+    config_id TEXT NOT NULL,
+    config_version TEXT NOT NULL,
+    model TEXT NOT NULL,
+    sample_index INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    task_json TEXT NOT NULL,
+    config_json TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    stdout TEXT,
+    stderr TEXT,
+    exit_code INTEGER,
+    signal TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    duration_ms INTEGER,
+    error_message TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sealed_at TEXT,
+    UNIQUE(task_id, task_version, config_id, config_version, model, sample_index)
+  );
+
+  CREATE TABLE IF NOT EXISTS raw_run_artifacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    relative_path TEXT NOT NULL,
+    media_type TEXT,
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(run_id, relative_path),
+    FOREIGN KEY (run_id) REFERENCES raw_runs(id)
+  );
+
   CREATE TABLE IF NOT EXISTS criterion_results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER NOT NULL,
@@ -105,6 +143,9 @@ const CREATE_TABLES = `
 
   CREATE INDEX IF NOT EXISTS idx_runs_skill_version ON runs(skill_version_id);
   CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+  CREATE INDEX IF NOT EXISTS idx_raw_runs_status ON raw_runs(status);
+  CREATE INDEX IF NOT EXISTS idx_raw_runs_task_config ON raw_runs(task_id, config_id, model);
+  CREATE INDEX IF NOT EXISTS idx_raw_run_artifacts_run ON raw_run_artifacts(run_id);
   CREATE INDEX IF NOT EXISTS idx_criterion_results_run ON criterion_results(run_id);
   CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id);
   CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON skill_usage_events(skill_id);

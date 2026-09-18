@@ -78,6 +78,16 @@ Consumes `@intentsolutions/core@^0.10.0` (the current kernel release; the `usage
 - **Intake verbs** (`@intentsolutions/jrig-cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
 - **Determinism fix**: `buildLaunchReport` now takes an injected clock (`opts.now`) so the launch-report artifact is replayable (DR-103 D5 B5.1) — the determinism the bandit-rejection rests on.
 
+### Generic evaluation substrate (IEP-EVAL-EVOLUTION-001)
+
+The active evolution adds `j-rig run --task <path> --config <path>` beneath the
+skill evaluator. `@j-rig/core` owns the shell-free `EvalTask`/`EvalConfig` and
+`ExecutableRunner` contracts; `@j-rig/db` owns the idempotent `raw_runs` ledger
+and content-addressed artifact manifest. A completed raw Run is an observation,
+not a grade. `runner_error` and `timed_out` remain distinct from a completed
+run whose model output later receives a poor Grade. See
+`000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

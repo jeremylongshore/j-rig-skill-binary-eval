@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Generic task/config runner and raw Run ledger:** `j-rig run` now executes a
+  named task/config/model/sample through a shell-free `ExecutableRunner`, stores
+  an idempotent `raw_runs` record before execution, retains runner failures and
+  timeouts distinctly from completed output, and records content-addressed raw
+  artifact references. Grading, regrade, balanced sampling, and reports remain
+  downstream evolution slices.
+
 - **Marketplace-ready JRig evaluator skill** — document the real five-of-seven
   default, opt-in regression and naked-model checks, provider boundary, rollout
   decisions, exit semantics, evidence bundle, and safe recovery workflow.

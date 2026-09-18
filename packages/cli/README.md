@@ -38,6 +38,7 @@ j-rig --help                         # list all commands
 j-rig check <skill-dir>              # deterministic package-integrity checks
 j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
 j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
+j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -48,6 +49,12 @@ j-rig refine                         # eval-guided SKILL.md improvement loop
 
 `j-rig eval <skill-dir>` expects an `eval-spec.yaml` (or `--spec <path>`) and
 writes evidence to a local SQLite DB (`--db <path>`, default `j-rig.db`).
+
+The generic `j-rig run` command accepts YAML task/config definitions, passes one
+JSON request to a shell-free harness, and persists an idempotent raw Run before
+any grading. It retains stdout/stderr for completed, runner-error, and timeout
+outcomes. See `000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`
+for the request and environment protocol.
 
 ## Providers
 
