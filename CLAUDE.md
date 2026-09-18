@@ -72,7 +72,7 @@ Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The An
 
 ### Skill-scoring layer (epic intent-eval-lab#206 / ISEDC DR-103)
 
-Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_events` + `human_reviews` entities). Three surfaces:
+Consumes `@intentsolutions/core@^0.10.0` (the current kernel release; the `usage_events` + `human_reviews` entities landed in the preceding 0.9.0 minor). Three surfaces:
 
 - **Adoption signal** (`@intentsolutions/refiner-core` `adoption.ts`): `computeAdoptionVerdict()` — a deterministic time-decay adoption rate joined with the baseline-value flag into an advisory 2×2 (`keep` / `watch` / `deprecate_review` / `obsolete_review` / `hold`). AND-combined never averaged (no rolled score — C3); `now`-injected; the Thompson bandit is **rejected** (DR-103 D5); advisory-and-deprecate-only via the additive `LaunchReport.adoptionVerdict?` field (the `RolloutDecision` union is **not** mutated); thresholds ship `provisional: true` until back-tested. `toAdoptionObservations()` re-applies the kernel anti-gaming invariant (`source_verified`) at ingestion.
 - **Intake verbs** (`@intentsolutions/jrig-cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.

@@ -56,7 +56,7 @@ import {
   recordArtifact,
 } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
-import { loadEvalSpec, loadSkillMd } from "../lib/loaders.js";
+import { loadSkillEvalSpec, loadSkillMd } from "../lib/loaders.js";
 import {
   printReport,
   header,
@@ -534,7 +534,7 @@ export function registerEvalCommand(program: Command): void {
         // ── Phase 1: Load ────────────────────────────────────────────────
         const absDir = resolve(skillDir);
         const { parsed: skill, raw: skillContent } = loadSkillMd(absDir);
-        const spec = loadEvalSpec(opts.spec, absDir);
+        const spec = loadSkillEvalSpec(opts.spec, absDir);
         // Honor the spec's declared `models` unless the operator EXPLICITLY passed
         // `--models`. The spec author knows which model the skill targets (e.g.
         // `deepseek-v4-flash`); silently defaulting to the CLI's "sonnet" tested the

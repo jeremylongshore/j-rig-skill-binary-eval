@@ -3,12 +3,27 @@ export { CriterionSchema, CriterionMethod, type Criterion } from "./criterion.js
 export { TestCaseSchema, TestCaseTier, TriggerExpectation, type TestCase } from "./test-case.js";
 
 export {
-  EvalSpecSchema,
+  SkillEvalSpecSchema,
   ModelTarget,
   SiblingSkillSchema,
-  type EvalSpec,
+  type SkillEvalSpec,
   type SiblingSkill,
-} from "./eval-spec.js";
+} from "./skill-eval-spec.js";
+
+export {
+  adaptSkillEvalSpec,
+  canonicalJson,
+  sha256,
+  SkillEvalSpecAdapterError,
+  SKILL_EVAL_SPEC_KERNEL_VERSION,
+  SKILL_EVAL_SPEC_MAPPING_REVISION,
+  type SkillEvalSpecAdapterOptions,
+  type SkillEvalSpecAdapterResult,
+  type SkillEvalSpecLineage,
+  type SkillEvalCriterionMapping,
+  type SkillEvalTestCaseCoverage,
+  type SkillEvalCoverage,
+} from "./skill-eval-spec-adapter.js";
 
 export { SelfTestSchema, SELF_TEST_CRITERION_ID, type SelfTest } from "./self-test.js";
 

@@ -217,7 +217,7 @@ Full discipline: [STUB-PROVIDERS.md](./STUB-PROVIDERS.md).
 
 ## Skill scoring — adoption signal + intake verbs
 
-The skill-scoring gap-fill layer (epic [intent-eval-lab#206](https://github.com/jeremylongshore/intent-eval-lab/issues/206), ratified by ISEDC DR-103) adds a **deterministic, time-decayed adoption signal** and the **intake verbs** that feed it. It answers a question the static rubric and the behavioral eval cannot: _is this skill still earning its keep versus the bare model, in the real world?_ It consumes the kernel `usage_events` + `human_reviews` entities (`@intentsolutions/core@0.9.0`).
+The skill-scoring gap-fill layer (epic [intent-eval-lab#206](https://github.com/jeremylongshore/intent-eval-lab/issues/206), ratified by ISEDC DR-103) adds a **deterministic, time-decayed adoption signal** and the **intake verbs** that feed it. It answers a question the static rubric and the behavioral eval cannot: _is this skill still earning its keep versus the bare model, in the real world?_ It consumes the kernel `usage_events` + `human_reviews` entities (`@intentsolutions/core@0.10.0`).
 
 ### Intake — `j-rig ingest-skill` and `j-rig review`
 

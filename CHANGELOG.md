@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **EvalSpec identity and kernel currency:** the skill-shaped J-Rig profile is
+  now named `SkillEvalSpec` throughout the runtime/CLI surface, while the
+  canonical kernel contract remains `EvalSpec`. All active package pins,
+  evidence tooling, and the refiner consumed-kernel constant move to
+  `@intentsolutions/core@0.10.0`. The explicit `adaptSkillEvalSpec` boundary
+  now emits a strict kernel `EvalSpec` plus a separate lineage envelope for
+  source-profile hashes, mapping revisions, blocker policy, and coverage.
+
 ### Added
 
 - **Marketplace-ready JRig evaluator skill** — document the real five-of-seven

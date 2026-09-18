@@ -2,7 +2,7 @@
 
 > Release-quality evaluation harness and rollout gate for Claude Skills
 
-**Last Updated:** 2026-07-10
+**Last Updated:** 2026-08-01
 
 ## By Category
 
@@ -27,6 +27,7 @@
 | 023 | [023-AT-SPEC-ciso-gate-failure-modes-2026-06-15.md](023-AT-SPEC-ciso-gate-failure-modes-2026-06-15.md)                   | CISO PASS/FAIL gate failure-mode reference                                        |
 | 026 | [026-AT-SPEC-refiner-core-api-2026-06-20.md](026-AT-SPEC-refiner-core-api-2026-06-20.md)                                 | `@intentsolutions/refiner-core` API spec (value types, pure fns, RefinerStrategy) |
 | 029 | [029-AT-SPEC-refiner-core-api-2026-07-08.md](029-AT-SPEC-refiner-core-api-2026-07-08.md)                                 | `@intentsolutions/refiner-core` public API spec (documents the v0.2.0 surface)    |
+| 030 | [030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)   | `SkillEvalSpec` profile name, canonical-kernel adapter boundary, and 0.10.0 currency baseline |
 
 ### OD — Operations & Deployment
 
@@ -102,6 +103,7 @@
 | 027 | AA-AACR  | [refiner-v0.1.0-release.md](027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md)                                |
 | 028 | DR-FIND  | [jrig-eval-criteria-ids-and-deterministic-validation.md](028-DR-FIND-jrig-eval-criteria-ids-and-deterministic-validation-2026-06-28.md) |
 | 029 | AT-SPEC  | [refiner-core-api.md](029-AT-SPEC-refiner-core-api-2026-07-08.md)                                            |
+| 030 | AT-SPEC  | [eval-substrate-contract-identity.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)                |
 
 ## Epics
 

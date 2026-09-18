@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { resolve, join, basename } from "node:path";
 import { writeFileSync } from "node:fs";
 import { stringify } from "yaml";
-import { EvalSpecSchema } from "@j-rig/core";
+import { SkillEvalSpecSchema } from "@j-rig/core";
 import { loadSkillMd } from "../lib/loaders.js";
 
 /**
@@ -24,7 +24,7 @@ import { loadSkillMd } from "../lib/loaders.js";
  *     fixed and generic (control prompts carry NO functional criteria, matching
  *     the false-blocker-avoiding pattern in hand specs).
  *
- * The generated object is validated against the kernel `EvalSpecSchema` before
+ * The generated object is validated against J-Rig's `SkillEvalSpecSchema` before
  * it is written, so a scaffolded spec is guaranteed loadable by `j-rig eval`.
  */
 export function registerScaffoldSpecCommand(program: Command): void {
@@ -51,7 +51,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
         const spec = buildBaselineSpec(skillName, description);
 
         // Fail-closed: never write a spec the kernel can't load.
-        const parsed = EvalSpecSchema.safeParse(spec);
+        const parsed = SkillEvalSpecSchema.safeParse(spec);
         if (!parsed.success) {
           console.error(
             chalk.red(
@@ -108,7 +108,7 @@ const HEADER = (skillName: string): string =>
   `# still needs hand-authored criteria — edit this file freely (and drop the\n` +
   `# 'generated' tag once you have).\n`;
 
-/** Build the baseline EvalSpec object (pre-validation). */
+/** Build the baseline SkillEvalSpec object (pre-validation). */
 export function buildBaselineSpec(
   skillName: string,
   description: string,

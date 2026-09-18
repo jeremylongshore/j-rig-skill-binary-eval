@@ -184,11 +184,11 @@ describe("makeSupersededBaselineRecord", () => {
   it("returns a record with the correct from→to kernel versions", () => {
     const record: SupersededBaselineRecord = makeSupersededBaselineRecord(
       "0.8.0",
-      "0.9.0",
+      "0.10.0",
       "2026-06-20T12:00:00Z",
     );
     expect(record.baselineKernelVersion).toBe("0.8.0");
-    expect(record.currentKernelVersion).toBe("0.9.0");
+    expect(record.currentKernelVersion).toBe("0.10.0");
     expect(record.supersededAt).toBe("2026-06-20T12:00:00Z");
   });
 
