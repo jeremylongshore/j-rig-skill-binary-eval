@@ -57,7 +57,7 @@
     "@intentsolutions/refiner": "workspace:^",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.3",
     "chalk": "^5.4.0",
     "commander": "^15.0.0",
     "drizzle-orm": "^0.45.2",
