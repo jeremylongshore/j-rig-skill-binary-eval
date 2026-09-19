@@ -1,5 +1,7 @@
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
+| Beads | `bd_000-projects-214c.5` |
+
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
 **Package:** `@intentsolutions/refiner-core` (published to npm, version `0.2.0`)

@@ -1,5 +1,8 @@
 # Skill Refiner npm Release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0
 
+| Beads | `bd_000-projects-3zol.8`, `bd_000-projects-214c` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81` |
+
 **Filing**: 027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md
 **Date**: 2026-06-21
 **Author**: Jeremy Longshore (release prep; executed by Claude)
