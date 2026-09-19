@@ -28,7 +28,7 @@ export interface GradeCommandResult {
   created: boolean;
 }
 
-function loadGrader(path: string): GraderDefinition {
+export function loadGraderDefinition(path: string): GraderDefinition {
   const content = readFileSync(path, "utf8");
   const parsed = parseAndValidateYaml(content, GraderDefinitionSchema);
   if (!parsed.success) {
@@ -42,7 +42,7 @@ function loadGrader(path: string): GraderDefinition {
 
 /** Grade one completed raw Run and persist an immutable Grade snapshot. */
 export async function runGrade(options: GradeCommandOptions): Promise<GradeCommandResult> {
-  const definition = loadGrader(options.graderPath);
+  const definition = loadGraderDefinition(options.graderPath);
   const database = openDb(options.db);
 
   try {

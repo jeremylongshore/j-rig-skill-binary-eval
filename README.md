@@ -265,7 +265,8 @@ The plan is inspectable JSON. Measurements select one exact Grader snapshot
 and expose pass rate, harness failures, ungraded completions, Wilson intervals,
 score standard error, and model-judge vote disagreement without heterogeneous
 rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
-to render them. See
+to render them. `j-rig suite` plans and executes these same jobs as one
+resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
 
 `j-rig batch` consumes a path-based suite manifest, executes these jobs in
@@ -325,6 +326,50 @@ relative skill lineage, model/provider summaries, and failures. Use
 `--write-specs` only when you intentionally want generated specs copied beside
 source skills. See
 [`035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`](000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md).
+
+### Generic suite lifecycle
+
+`j-rig suite` is the one-command lifecycle for arbitrary evaluation
+directories. A suite manifest names two or more Task YAML files, named Config
+YAML files, one deterministic Grader, and a positive `target_n`:
+
+```yaml
+schema: j-rig/eval-suite/v1
+id: answer-suite
+version: "1"
+tasks:
+  - tasks/task-a.yaml
+  - tasks/task-b.yaml
+configs:
+  - configs/model-a.yaml
+  - configs/model-b.yaml
+grader: graders/answer.yaml
+target_n: 3
+```
+
+Run it with one command:
+
+```bash
+node packages/cli/dist/index.js suite ./suite.yaml \
+  --db ./j-rig.db \
+  --output-dir ./.j-rig/suites/answer-suite \
+  --json
+```
+
+Paths resolve relative to `suite.yaml`. The command expands a deterministic
+Task × Config × Model matrix, persists every raw Run before grading, grades
+only completed observations, and writes an atomic audit manifest plus a
+suite-scoped JSON/Markdown report. Repeating the command reuses sealed raw
+Runs and adds only missing sample indices; runner failures remain visible and
+ungraded until a later top-up succeeds. The audit and report carry the suite
+id, manifest path, cell definitions, raw Run ids, and immutable Grader
+selector.
+
+The existing skill-specific `eval` and `eval-batch` commands remain supported.
+Use `j-rig migrate <dir>` for legacy v0.1.0-draft Evidence Bundle fixtures;
+generic suite manifests do not rewrite old evidence implicitly. See
+[`036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md`](000-docs/036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)
+and [`MIGRATION.md`](MIGRATION.md).
 
 ### ⚠️ Stub providers — output is NOT ground truth
 

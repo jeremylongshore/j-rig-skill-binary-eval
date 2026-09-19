@@ -39,6 +39,7 @@ j-rig check <skill-dir>              # deterministic package-integrity checks
 j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
 j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
 j-rig eval-batch <skills-root>        # scaffold missing baselines and evaluate a skills root
+j-rig suite <suite.yaml>              # balanced, resumable Task × Config target-N suite
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
@@ -85,8 +86,9 @@ model. See
 `j-rig sample-plan` reads a YAML manifest of explicit Task × Config × Model
 cells and reports the next balanced sample indices needed to reach `--target-n`.
 `j-rig batch` consumes a path-based suite manifest, executes those jobs in
-balanced passes, and resumes from the immutable raw-run ledger. Both surfaces
-retain runner failures instead of converting them into model grades. See
+balanced passes, and resumes from the immutable raw-run ledger; `j-rig suite`
+plans and executes the same jobs from one manifest. These surfaces retain
+runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
 `j-rig report --unified` requires `--grader-id`, `--grader-version`, and the
@@ -99,6 +101,19 @@ rollout decision. See
 For the cell-scoped projection, use `--sampling-manifest` with the same three
 Grader identity fields. The unified report is the versioned local projection;
 neither report surface is a signed dashboard ingest or rollout decision.
+
+`j-rig suite <suite.yaml>` is the one-command generic lifecycle. The manifest
+lists Task YAML files, Config YAML files, one named Grader, and `target_n`.
+Task/config paths resolve relative to the suite manifest, the Cartesian matrix
+is planned deterministically, and every raw Run is idempotent by its complete
+Task × Config × Model × sample identity. The command writes
+`.j-rig/suites/<suite-id>/manifest.json`, `report.json`, and `report.md`;
+rerunning the same command resumes planned/running jobs and adds only the
+fresh sample indices needed after harness failures. Existing `run`, `grade`,
+`sample-plan`, `report`, `eval`, and `eval-batch` commands remain valid
+compatibility seams. See
+`000-docs/036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md` for the manifest
+schema, validation diagnostics, and migration path.
 
 ## Providers
 

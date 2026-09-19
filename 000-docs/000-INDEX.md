@@ -33,6 +33,7 @@
 | 033 | [033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md](033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md)       | Balanced execution sampling, target-N planning, and uncertainty metrics                  |
 | 034 | [034-AT-SPEC-unified-report-json-markdown-2026-08-01.md](034-AT-SPEC-unified-report-json-markdown-2026-08-01.md)       | Unified selected-Grader JSON/Markdown report and publication boundary                     |
 | 035 | [035-AT-SPEC-eval-batch-skills-root-2026-08-01.md](035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)                     | Skills-root batch discovery, baseline scaffolding, Evidence Bundles, and lineage            |
+| 036 | [036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md](036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)                       | Generic Task × Config suite manifest, target-N execution, audit, report, and migration     |
 
 ### OD — Operations & Deployment
 
@@ -55,7 +56,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `035`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `037`.
 
 ### AA — Audits & After-Action Reports
 
@@ -114,6 +115,7 @@
 | 033 | AT-SPEC  | [balanced-sampling-uncertainty.md](033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md)                          |
 | 034 | AT-SPEC  | [unified-report-json-markdown.md](034-AT-SPEC-unified-report-json-markdown-2026-08-01.md)                          |
 | 035 | AT-SPEC  | [eval-batch-skills-root.md](035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)                                      |
+| 036 | AT-SPEC  | [eval-suite-lifecycle.md](036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)                                          |
 
 ## Epics
 
@@ -157,7 +159,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 35 numbered docs (`001`–`035`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 36 numbered docs (`001`–`036`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 036
+- **Next sequence number:** 037
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

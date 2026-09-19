@@ -55,7 +55,9 @@ export function getRawRunSampleObservations(database: JRigDatabase): SampleObser
 export function getGradeObservations(
   database: JRigDatabase,
   selector: GradeSelector,
+  rawRunIds?: readonly string[],
 ): GradeObservation[] {
+  const selectedRunIds = rawRunIds ? new Set(rawRunIds) : undefined;
   const runs = database.db
     .select()
     .from(rawRuns)
@@ -67,7 +69,8 @@ export function getGradeObservations(
       asc(rawRuns.model),
       asc(rawRuns.sample_index),
     )
-    .all();
+    .all()
+    .filter((run) => selectedRunIds === undefined || selectedRunIds.has(run.id));
   return runs.map((run) => {
     const observation = {
       ...cellFromRun(run),

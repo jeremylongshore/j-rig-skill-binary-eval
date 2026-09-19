@@ -31,6 +31,7 @@ export interface UnifiedReportOptions {
   graderId: string;
   graderVersion: string;
   graderSnapshotSha256: string;
+  runIds?: readonly string[];
   json?: boolean;
   output?: string;
 }
@@ -124,7 +125,7 @@ export function runUnifiedReport(options: UnifiedReportOptions): UnifiedReportRe
   });
   const database = openDb(options.db);
   try {
-    const report = getUnifiedReport(database, selector, new Date().toISOString());
+    const report = getUnifiedReport(database, selector, new Date().toISOString(), options.runIds);
     const rendered = options.json
       ? `${JSON.stringify(report, null, 2)}\n`
       : renderUnifiedReportMarkdown(report);

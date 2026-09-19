@@ -46,11 +46,11 @@ function loadYaml<T>(path: string, schema: z.ZodType<T>): T {
   return parsed.data;
 }
 
-function loadTask(path: string): EvalTask {
+export function loadTaskDefinition(path: string): EvalTask {
   return loadYaml(resolve(path), EvalTaskSchema);
 }
 
-function loadConfig(path: string): EvalConfig {
+export function loadConfigDefinition(path: string): EvalConfig {
   const absolutePath = resolve(path);
   const parsed = loadYaml(absolutePath, EvalConfigSchema);
   return {
@@ -72,7 +72,7 @@ export function loadGenericDefinitions(
   task: EvalTask;
   config: EvalConfig;
 } {
-  return { task: loadTask(taskPath), config: loadConfig(configPath) };
+  return { task: loadTaskDefinition(taskPath), config: loadConfigDefinition(configPath) };
 }
 
 function lineageFrom(request: RunnerRequest) {

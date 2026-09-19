@@ -191,6 +191,26 @@ the gate that produced it using the current `j-rig emit-evidence` with the new f
 
 Do not emit new bundles in the v1 container form — use the plain array.
 
+## Generic suite adoption path
+
+The generic evaluation substrate is additive to the skill-specific evaluator.
+Existing `j-rig eval`, `j-rig eval-batch`, `j-rig run`, `j-rig grade`,
+`j-rig sample-plan`, and `j-rig report` invocations remain valid. New arbitrary
+Task × Config work should use a `j-rig/eval-suite/v1` manifest and the
+`j-rig suite <suite.yaml>` command. A suite writes its own raw-run audit and
+suite-scoped report; it does not rewrite historical skill-eval rows or Evidence
+Bundles.
+
+Legacy Evidence Bundle fixtures still use the explicit migration command:
+
+```bash
+j-rig migrate ./legacy-fixtures --write
+```
+
+The migration is dry-run by default and is separate from suite execution.
+Keeping these boundaries explicit means old evidence can be read or migrated
+without making a generic suite silently reinterpret its provenance.
+
 ## Downstream consumers (e.g. intent-rollout-gate)
 
 Any consumer parsing the predicate body must update its parsing:
