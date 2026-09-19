@@ -261,10 +261,11 @@ node packages/cli/dist/index.js sample-plan \
   --json
 ```
 
-The plan is inspectable JSON; the later suite/batch surface will consume these
-jobs for execution. Measurements select one exact Grader snapshot and expose
-pass rate, harness failures, ungraded completions, Wilson intervals, and score
-standard error without heterogeneous rollups. See
+The plan is inspectable JSON. Measurements select one exact Grader snapshot
+and expose pass rate, harness failures, ungraded completions, Wilson intervals,
+score standard error, and model-judge vote disagreement without heterogeneous
+rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
+to render them. See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
 
 `j-rig batch` consumes a path-based suite manifest, executes these jobs in
