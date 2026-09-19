@@ -1,7 +1,8 @@
 import type { GradeMeasurement, SamplingGrade } from "../sampling/substrate.js";
 import type { UnifiedReport } from "./substrate.js";
 
-function escapeHtml(value: unknown): string {
+/** Escape a value before inserting it into a static HTML projection. */
+export function escapeHtml(value: unknown): string {
   return String(value ?? "—")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")

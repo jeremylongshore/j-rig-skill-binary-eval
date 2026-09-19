@@ -36,6 +36,9 @@ the batch artifact directory:
 ```text
 .j-rig/eval-batches/<batch-id>/
   manifest.json
+  report.json
+  report.md
+  report.html
   specs/<skill-slug>/eval-spec.yaml
   bundles/<skill-slug>.json
   results/<skill-slug>.json
@@ -75,7 +78,10 @@ manifest; it is never silently omitted.
 The manifest is `j-rig/eval-batch/v1` JSON and records the absolute skill path,
 relative skill path, spec provenance (`existing` or `generated`), bundle/result
 paths, exit status, signal, duration, provider/model summaries, and the
-completed/failed counts. Child Evidence Bundle metadata also carries:
+completed/failed counts. It also records additive paths for the versioned
+lineage/status report. `report.json`, `report.md`, and `report.html` preserve
+each entry and make failed children visible without inventing a heterogeneous
+quality rollup. Child Evidence Bundle metadata also carries:
 
 ```json
 {
@@ -105,5 +111,7 @@ existing specs once skill-specific criteria are added.
 - stub-provider output is not ground truth and must not be published as quality
   evidence;
 - the batch manifest is an audit projection, not a rollout authorization;
+- the batch report is a lineage/status projection, not an overall quality score
+  or rollout authorization;
 - generic Task × Config × Model target-N planning remains the separate
   `sample-plan`/raw-run evolution surface.

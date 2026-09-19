@@ -338,8 +338,12 @@ separate kernel-valid Evidence Bundle and links its digest into the shared
 SQLite store. The versioned batch manifest retains source/spec provenance,
 relative skill lineage, model/provider summaries, and failures. Use
 `--write-specs` only when you intentionally want generated specs copied beside
-source skills. See
-[`035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`](000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md).
+source skills. Each batch also writes `report.json`, `report.md`, and a
+self-contained `report.html` beside `manifest.json`; these preserve per-skill
+lineage and failures without inventing an overall quality score or rollout
+decision. See
+[`035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`](000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)
+and [`039-AT-SPEC-eval-batch-report-projection-2026-08-02.md`](000-docs/039-AT-SPEC-eval-batch-report-projection-2026-08-02.md).
 
 ### Generic suite lifecycle
 

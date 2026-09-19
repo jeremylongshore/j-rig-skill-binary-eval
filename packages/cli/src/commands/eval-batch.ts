@@ -4,7 +4,13 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { stringify } from "yaml";
-import { SkillEvalSpecSchema } from "@j-rig/core";
+import {
+  buildEvalBatchReport,
+  renderEvalBatchReportHtml,
+  renderEvalBatchReportMarkdown,
+  SkillEvalSpecSchema,
+  type EvalBatchReport,
+} from "@j-rig/core";
 import { loadSkillEvalSpec, loadSkillMd } from "../lib/loaders.js";
 import { buildBaselineSpec } from "./scaffold-spec.js";
 
@@ -90,6 +96,12 @@ export interface EvalBatchManifest {
     failed: number;
   };
   entries: EvalBatchEntry[];
+  report?: {
+    json_path: string;
+    markdown_path: string;
+    html_path: string;
+    entry_count: number;
+  };
 }
 
 interface DiscoveredSkill {
@@ -317,6 +329,38 @@ function writeManifest(path: string, manifest: EvalBatchManifest): void {
   writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
+function writeBatchReports(
+  outputDir: string,
+  manifestPath: string,
+  manifest: EvalBatchManifest,
+): {
+  report: EvalBatchReport;
+  paths: NonNullable<EvalBatchManifest["report"]>;
+} {
+  const paths = {
+    json_path: join(outputDir, "report.json"),
+    markdown_path: join(outputDir, "report.md"),
+    html_path: join(outputDir, "report.html"),
+    entry_count: manifest.entries.length,
+  };
+  const report = buildEvalBatchReport({
+    batch_id: manifest.batch_id,
+    skills_root: manifest.skills_root,
+    provider: manifest.provider,
+    models: manifest.models,
+    database: manifest.database,
+    manifest_path: manifestPath,
+    generated_at: new Date().toISOString(),
+    completed_at: manifest.completed_at,
+    summary: manifest.summary,
+    entries: manifest.entries,
+  });
+  writeFileSync(paths.json_path, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  writeFileSync(paths.markdown_path, renderEvalBatchReportMarkdown(report), "utf8");
+  writeFileSync(paths.html_path, renderEvalBatchReportHtml(report), "utf8");
+  return { report, paths };
+}
+
 /**
  * Scaffold missing specs and run every discovered skill through the existing
  * `j-rig eval` surface. Each child gets its own bundle path, while all runs
@@ -326,6 +370,8 @@ function writeManifest(path: string, manifest: EvalBatchManifest): void {
 export async function runEvalBatch(options: EvalBatchOptions): Promise<{
   manifest: EvalBatchManifest;
   manifestPath: string;
+  report: EvalBatchReport;
+  reportPaths: NonNullable<EvalBatchManifest["report"]>;
 }> {
   const skillsRoot = resolve(options.skillsRoot);
   if (!existsSync(skillsRoot)) throw new Error(`Skills root not found: ${skillsRoot}`);
@@ -442,8 +488,10 @@ export async function runEvalBatch(options: EvalBatchOptions): Promise<{
     },
     entries,
   };
+  const batchReports = writeBatchReports(outputDir, manifestPath, manifest);
+  manifest.report = batchReports.paths;
   writeManifest(manifestPath, manifest);
-  return { manifest, manifestPath };
+  return { manifest, manifestPath, report: batchReports.report, reportPaths: batchReports.paths };
 }
 
 function printManifest(result: Awaited<ReturnType<typeof runEvalBatch>>, json?: boolean): void {
@@ -459,6 +507,8 @@ function printManifest(result: Awaited<ReturnType<typeof runEvalBatch>>, json?: 
       `${result.manifest.summary.failed} failed`,
   );
   console.log(`  Manifest: ${result.manifestPath}`);
+  console.log(`  Reports: ${result.reportPaths.json_path}, ${result.reportPaths.markdown_path}`);
+  console.log(`  HTML: ${result.reportPaths.html_path}`);
   for (const entry of result.manifest.entries) {
     console.log(`  ${entry.status === "completed" ? "✓" : "✗"} ${entry.skill_relative_path}`);
     if (entry.error) console.log(`    ${entry.error}`);

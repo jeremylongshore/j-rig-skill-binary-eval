@@ -90,6 +90,31 @@ describe("j-rig eval-batch", () => {
       schema: "j-rig/eval-batch/v1",
       batch_id: "batch-test",
     });
+    expect(result.manifest.report).toEqual({
+      json_path: join(outputDir, "report.json"),
+      markdown_path: join(outputDir, "report.md"),
+      html_path: join(outputDir, "report.html"),
+      entry_count: 2,
+    });
+    const batchReport = JSON.parse(readFileSync(join(outputDir, "report.json"), "utf8")) as {
+      schema: string;
+      batch_id: string;
+      entries: Array<{ skill_relative_path: string }>;
+    };
+    expect(batchReport).toMatchObject({
+      schema: "j-rig/eval-batch-report/v1",
+      batch_id: "batch-test",
+    });
+    expect(batchReport.entries.map((entry) => entry.skill_relative_path)).toEqual([
+      "alpha-skill",
+      "beta-skill",
+    ]);
+    expect(readFileSync(join(outputDir, "report.md"), "utf8")).toContain(
+      "does not\ninvent an overall pass rate",
+    );
+    expect(readFileSync(join(outputDir, "report.html"), "utf8")).toContain(
+      "J-Rig Eval Batch Report",
+    );
   });
 
   it("retains one failed skill and continues the batch by default", async () => {
@@ -127,6 +152,9 @@ describe("j-rig eval-batch", () => {
     );
     expect(failed?.error).toBe("provider failed");
     expect(failed?.status).toBe("failed");
+    expect(readFileSync(join(root, "batch-output", "report.html"), "utf8")).toContain(
+      "provider failed",
+    );
   });
 
   it("keeps an already-generated spec byte-identical when the batch is rerun", async () => {

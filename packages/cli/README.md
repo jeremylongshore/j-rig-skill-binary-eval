@@ -61,11 +61,15 @@ reuses existing specs, generates missing baseline specs under a batch artifact
 directory, and invokes the existing evaluator once per skill. Each child emits
 its own `gate-result/v1` Evidence Bundle into the shared SQLite evidence store;
 the `j-rig/eval-batch/v1` manifest retains spec provenance, bundle paths,
-lineage, model/provider summaries, and failures. Source skills are unchanged by
-default; add `--write-specs` only when you explicitly want missing baseline
-specs written beside them. Generated baselines are trigger/safety scaffolds,
-not deep functional evidence. See
-`000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`.
+lineage, model/provider summaries, and failures. It also writes
+`manifest.json`, `report.json`, `report.md`, and self-contained `report.html`
+under the batch artifact directory. The report preserves per-skill lineage and
+failed/provider-outage rows; it does not synthesize an overall quality score or
+rollout decision. Source skills are unchanged by default; add `--write-specs`
+only when you explicitly want missing baseline specs written beside them.
+Generated baselines are trigger/safety scaffolds, not deep functional evidence.
+See `000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md` and
+`000-docs/039-AT-SPEC-eval-batch-report-projection-2026-08-02.md`.
 
 The generic `j-rig run` command accepts YAML task/config definitions, passes one
 JSON request to a shell-free harness, and persists an idempotent raw Run before

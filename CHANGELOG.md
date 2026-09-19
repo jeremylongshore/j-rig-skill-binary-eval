@@ -67,6 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshot, preserving per-cell uncertainty and raw Run lineage. It is local
   unsigned output; dashboard verification and publication remain downstream.
 
+- **Eval-batch lineage reports:** `j-rig eval-batch` now writes versioned JSON,
+  Markdown, and self-contained HTML projections beside its manifest. Reports
+  retain per-skill spec/provider/model/artifact lineage and explicit failures
+  without inventing a heterogeneous quality score or rollout decision.
+
 - **Nightly skill-eval roster 13→14** — pin CCPI merge `a9dd5c02` and add
   `skill-creator` after its hand-authored `eval-spec.yaml` landed
   ([#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).
