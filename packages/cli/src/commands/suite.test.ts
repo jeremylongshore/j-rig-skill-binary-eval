@@ -110,6 +110,10 @@ describe("j-rig suite", () => {
     expect(first.report?.schema).toBe("j-rig/suite-report/v1");
     expect(first.report?.report.summary.cell_count).toBe(4);
     expect(first.report?.report.runs).toHaveLength(8);
+    expect(first.audit.report?.html_path).toBe(join(paths.outputDir, "report.html"));
+    expect(readFileSync(join(paths.outputDir, "report.html"), "utf8")).toContain(
+      "J-Rig Suite Report",
+    );
 
     // A shared DB may contain unrelated generic runs. The suite report must
     // retain only the raw Run ids named by this suite's audit.

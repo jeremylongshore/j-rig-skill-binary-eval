@@ -35,6 +35,7 @@
 | 035 | [035-AT-SPEC-eval-batch-skills-root-2026-08-01.md](035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)                     | Skills-root batch discovery, baseline scaffolding, Evidence Bundles, and lineage            |
 | 036 | [036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md](036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)                       | Generic Task × Config suite manifest, target-N execution, audit, report, and migration     |
 | 037 | [037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)     | Any provider failure signs a `gate-result/v1` `error` row; no verdict, credential-free detail |
+| 038 | [038-AT-SPEC-unified-report-html-static-2026-08-02.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)             | Self-contained accessible HTML projection for unified and suite reports                    |
 
 ### OD — Operations & Deployment
 
@@ -57,7 +58,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `038`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `039`.
 
 ### AA — Audits & After-Action Reports
 
@@ -118,6 +119,7 @@
 | 035 | AT-SPEC  | [eval-batch-skills-root.md](035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)                                      |
 | 036 | AT-SPEC  | [eval-suite-lifecycle.md](036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)                                          |
 | 037 | AT-SPEC  | [real-provider-failure-boundary.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)                      |
+| 038 | AT-SPEC  | [unified-report-html-static.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)                              |
 
 ## Epics
 
@@ -161,7 +163,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 38 numbered docs (`001`–`037`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 39 numbered docs (`001`–`038`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 038
+- **Next sequence number:** 039
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

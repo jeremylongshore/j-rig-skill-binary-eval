@@ -77,14 +77,17 @@ database.
 
 ## Publication boundary
 
-The report projection is intentionally unsigned and local. A future adapter may
-turn an approved report into a kernel-valid Evidence Bundle, but it must apply
-the existing verify-before-render and visibility policy before any dashboard or
-public publication. The dashboard must not ingest a local SQLite file or treat
-this report as a signed rollout decision.
+The report projections are intentionally unsigned and local. JSON, Markdown,
+and the self-contained `--html` artifact are review surfaces, not signed
+Evidence Bundles. A future adapter may turn an approved report into a
+kernel-valid Evidence Bundle, but it must apply the existing verify-before-
+render and visibility policy before any dashboard or public publication. The
+dashboard must not ingest a local SQLite file or treat these reports as signed
+rollout decisions.
 
 ## Non-goals of this slice
 
-This contract does not yet implement a live server, static HTML publication,
-suite/batch execution, external-judge vote aggregation, or Evidence Bundle
-signing. Those remain downstream work under the same umbrella.
+This contract does not implement a live server, public hosting, external-judge
+vote aggregation, or Evidence Bundle signing. The local static HTML projection
+and generic suite/batch execution are now implemented downstream slices; live
+publication, dashboard ingestion, and signed promotion remain separate seams.

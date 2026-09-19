@@ -7,6 +7,8 @@ import {
   hashGraderSnapshot,
   parseAndValidateYaml,
   planBalancedSamples,
+  renderUnifiedReportHtml,
+  renderUnifiedReportMarkdown,
   type BalancedSamplingPlan,
   type EvalConfig,
   type EvalTask,
@@ -106,6 +108,7 @@ export interface SuiteAuditManifest {
   report?: {
     json_path: string;
     markdown_path: string;
+    html_path: string;
     raw_run_count: number;
   };
 }
@@ -548,6 +551,7 @@ function suiteReport(
   audit: SuiteAuditManifest,
   jsonPath: string,
   markdownPath: string,
+  htmlPath: string,
 ): SuiteReportDocument | undefined {
   const grade = audit.jobs.find((job) => job.grade)?.grade;
   if (!grade) return undefined;
@@ -579,12 +583,20 @@ function suiteReport(
     `- Manifest: \`${document.manifest_path}\``,
     `- Raw Runs: ${document.raw_run_ids.length}`,
     "",
-    unified.rendered,
+    renderUnifiedReportMarkdown(unified.report),
   ].join("\n");
   writeFileSync(markdownPath, markdown, "utf8");
+  writeFileSync(
+    htmlPath,
+    renderUnifiedReportHtml(unified.report, {
+      title: `J-Rig Suite Report — ${audit.suite_id}@${audit.suite_version}`,
+    }),
+    "utf8",
+  );
   audit.report = {
     json_path: jsonPath,
     markdown_path: markdownPath,
+    html_path: htmlPath,
     raw_run_count: rawRunIds.length,
   };
   return document;
@@ -603,6 +615,7 @@ export async function runSuite(options: SuiteOptions): Promise<SuiteResult> {
   const auditPath = join(outputDir, "manifest.json");
   const jsonReportPath = join(outputDir, "report.json");
   const markdownReportPath = join(outputDir, "report.md");
+  const htmlReportPath = join(outputDir, "report.html");
   let plan = planSuite(loaded, database, targetN);
   const audit =
     readExistingAudit(auditPath, loaded, targetN, database, outputDir) ??
@@ -637,7 +650,7 @@ export async function runSuite(options: SuiteOptions): Promise<SuiteResult> {
   plan = planSuite(loaded, database, targetN);
   summarizeAudit(audit, plan);
   audit.completed_at = new Date().toISOString();
-  const report = suiteReport(audit, jsonReportPath, markdownReportPath);
+  const report = suiteReport(audit, jsonReportPath, markdownReportPath, htmlReportPath);
   writeJsonAtomic(auditPath, audit);
   return { audit, auditPath, ...(report ? { report } : {}) };
 }
@@ -650,6 +663,7 @@ function printSuite(result: SuiteResult, json?: boolean): void {
           ...result.audit,
           audit_path: result.auditPath,
           report_path: result.audit.report?.json_path,
+          report_html_path: result.audit.report?.html_path,
         },
         null,
         2,
@@ -667,6 +681,7 @@ function printSuite(result: SuiteResult, json?: boolean): void {
   console.log(`  Audit: ${result.auditPath}`);
   if (result.audit.report) {
     console.log(`  Report: ${result.audit.report.markdown_path}`);
+    console.log(`  HTML: ${result.audit.report.html_path}`);
   }
 }
 

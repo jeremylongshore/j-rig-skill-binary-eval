@@ -82,6 +82,17 @@ describe("unified report command", () => {
     });
     expect(markdown.rendered).toContain("# J-Rig Unified Evaluation Report");
     expect(markdown.rendered).toContain("answer-checker@1.0.0");
+
+    const html = runUnifiedReport({
+      db: dbPath,
+      graderId: grader.id,
+      graderVersion: grader.version,
+      graderSnapshotSha256: evaluation.grader_snapshot_sha256,
+      html: true,
+    });
+    expect(html.rendered).toContain("<!doctype html>");
+    expect(html.rendered).toContain('aria-labelledby="cells-heading"');
+    expect(html.rendered).toContain("answer-checker@1.0.0");
   });
 });
 

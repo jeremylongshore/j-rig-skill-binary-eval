@@ -307,11 +307,14 @@ node packages/cli/dist/index.js report \
   --output ./report.json
 ```
 
-Omit `--json` for Markdown. Empty data is rendered explicitly; no global pass
-rate is inferred across heterogeneous cells. This is a local unsigned
-projection. The verified dashboard adapter and any Evidence Bundle/signing
-path remain downstream. See
-[`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md).
+Use `--html --output ./report.html` for a self-contained accessible HTML
+projection with inline CSS and no scripts, external assets, or network fetches.
+Omit `--json` and `--html` for Markdown. Empty data is rendered explicitly; no
+global pass rate is inferred across heterogeneous cells. These are local
+unsigned projections. The verified dashboard adapter and any Evidence
+Bundle/signing path remain downstream. See
+[`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md)
+and [`038-AT-SPEC-unified-report-html-static-2026-08-02.md`](000-docs/038-AT-SPEC-unified-report-html-static-2026-08-02.md).
 
 ### Skills-root batch dogfood
 
@@ -369,12 +372,13 @@ node packages/cli/dist/index.js suite ./suite.yaml \
 
 Paths resolve relative to `suite.yaml`. The command expands a deterministic
 Task × Config × Model matrix, persists every raw Run before grading, grades
-only completed observations, and writes an atomic audit manifest plus a
-suite-scoped JSON/Markdown report. Repeating the command reuses sealed raw
-Runs and adds only missing sample indices; runner failures remain visible and
-ungraded until a later top-up succeeds. The audit and report carry the suite
-id, manifest path, cell definitions, raw Run ids, and immutable Grader
-selector.
+only completed observations, and writes an atomic audit manifest plus
+suite-scoped JSON, Markdown, and self-contained HTML reports. Repeating the
+command reuses sealed raw Runs and adds only missing sample indices; runner
+failures remain visible and ungraded until a later top-up succeeds. The audit
+and report carry the suite id, manifest path, cell definitions, raw Run ids,
+immutable Grader selector, and report paths. The HTML projection is local and
+unsigned.
 
 The existing skill-specific `eval` and `eval-batch` commands remain supported.
 Use `j-rig migrate <dir>` for legacy v0.1.0-draft Evidence Bundle fixtures;

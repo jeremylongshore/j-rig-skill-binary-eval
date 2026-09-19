@@ -44,7 +44,7 @@ j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
 j-rig batch --manifest ...            # execute a resumable balanced batch
-j-rig report --unified ...            # selected-Grader JSON/Markdown report
+j-rig report --unified ...            # selected-Grader JSON/Markdown/HTML report
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -93,10 +93,12 @@ runner failures instead of converting them into model grades. See
 
 `j-rig report --unified` requires `--grader-id`, `--grader-version`, and the
 full `--grader-snapshot-sha256`. It emits `j-rig/unified-report/v1` JSON with
-`--json` or terminal-friendly Markdown otherwise; `--output` writes the exact
-projection to a file. This is unsigned local output, not a dashboard ingest or
-rollout decision. See
-`000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
+`--json`, a self-contained HTML document with `--html`, or terminal-friendly
+Markdown otherwise; `--output` writes the exact projection to a file. `--html`
+and `--json` are mutually exclusive. This is unsigned local output, not a
+dashboard ingest or rollout decision. See
+`000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md` and
+`000-docs/038-AT-SPEC-unified-report-html-static-2026-08-02.md`.
 
 For the cell-scoped projection, use `--sampling-manifest` with the same three
 Grader identity fields. The unified report is the versioned local projection;
@@ -107,7 +109,8 @@ lists Task YAML files, Config YAML files, one named Grader, and `target_n`.
 Task/config paths resolve relative to the suite manifest, the Cartesian matrix
 is planned deterministically, and every raw Run is idempotent by its complete
 Task × Config × Model × sample identity. The command writes
-`.j-rig/suites/<suite-id>/manifest.json`, `report.json`, and `report.md`;
+`.j-rig/suites/<suite-id>/manifest.json`, `report.json`, `report.md`, and
+`report.html`;
 rerunning the same command resumes planned/running jobs and adds only the
 fresh sample indices needed after harness failures. Existing `run`, `grade`,
 `sample-plan`, `report`, `eval`, and `eval-batch` commands remain valid

@@ -75,6 +75,7 @@ The default output directory is `.j-rig/suites/<suite-id>`:
   manifest.json
   report.json
   report.md
+  report.html
 ```
 
 `manifest.json` uses the `j-rig/eval-suite/v1` schema and records:
@@ -88,8 +89,10 @@ The default output directory is `.j-rig/suites/<suite-id>`:
 
 `report.json` is `j-rig/suite-report/v1`. It wraps the existing
 `j-rig/unified-report/v1` projection with suite id, manifest path, and the
-raw-run id list. `report.md` renders the same report for terminal/review use.
-The report is an unsigned local projection, not a rollout authorization.
+raw-run id list. `report.md` renders the same report for terminal/review use,
+and `report.html` renders the same selected-Grader data as a self-contained,
+accessible local document. The report projections are unsigned local output,
+not rollout authorization.
 
 ## Compatibility and migration
 
