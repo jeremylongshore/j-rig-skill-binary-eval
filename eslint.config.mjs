@@ -12,6 +12,7 @@ export default tseslint.config(
             "eslint.config.mjs",
             // Plain-JS CI driver — standalone, outside any tsconfig project.
             "eval-roster/*.mjs",
+            "examples/generic-run/*.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
@@ -21,7 +22,7 @@ export default tseslint.config(
   {
     // Plain-JS Node script (no build step) — give it the Node globals the
     // typed packages get from @types/node.
-    files: ["eval-roster/*.mjs"],
+    files: ["eval-roster/*.mjs", "examples/generic-run/*.mjs"],
     languageOptions: {
       globals: { process: "readonly", console: "readonly" },
     },

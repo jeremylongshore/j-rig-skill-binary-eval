@@ -1,5 +1,11 @@
 import { asc } from "drizzle-orm";
-import type { GradeObservation, GradeSelector, SampleObservation, SamplingCell } from "@j-rig/core";
+import type {
+  GradeMetadata,
+  GradeObservation,
+  GradeSelector,
+  SampleObservation,
+  SamplingCell,
+} from "@j-rig/core";
 import type { JRigDatabase } from "./database.js";
 import { getGradeByIdentity } from "./grades.js";
 import { rawRuns } from "./schema.js";
@@ -12,6 +18,16 @@ function cellFromRun(run: typeof rawRuns.$inferSelect): SamplingCell {
     config_version: run.config_version,
     model: run.model,
   };
+}
+
+function parseGradeMetadata(value: string | null): GradeMetadata | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? (parsed as GradeMetadata) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Return every generic Run in stable lineage/sample order for a sampler. */
@@ -74,6 +90,7 @@ export function getGradeObservations(
             grader_snapshot_sha256: grade.grader_snapshot_sha256,
             verdict: grade.verdict,
             score: grade.score,
+            metadata: parseGradeMetadata(grade.metadata_json),
           }
         : undefined,
     };

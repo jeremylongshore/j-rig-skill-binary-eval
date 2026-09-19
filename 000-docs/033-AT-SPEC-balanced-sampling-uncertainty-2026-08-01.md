@@ -49,10 +49,10 @@ The resulting plan reports attempted, completed, active, harness-failure, and
 planned counts per cell. A plan is resumable: after a worker seals another Run,
 the next plan only schedules the remaining top-up jobs.
 
-## CLI plan surface
+## CLI plan and batch surfaces
 
-The first CLI surface is deliberately plan-only. It makes the scheduler
-inspectable while the later suite/batch bead owns execution orchestration:
+`j-rig sample-plan` makes the scheduler inspectable. `j-rig batch` consumes a
+path-based suite manifest and executes the planned jobs in balanced passes:
 
 ```yaml
 # sampling-manifest.yaml
@@ -72,8 +72,27 @@ j-rig sample-plan \
   --json
 ```
 
-Each returned job can be executed by `j-rig run` with the corresponding task,
-config, and sample index. The plan does not execute a harness or call a judge.
+Each returned job can still be executed by `j-rig run` with the corresponding
+task, config, and sample index. A batch manifest provides those paths directly:
+
+```yaml
+target_n: 3
+jobs:
+  - task: ./tasks/answer-task.yaml
+    config: ./configs/local-harness.yaml
+```
+
+```bash
+j-rig batch \
+  --manifest ./batch.yaml \
+  --db ./j-rig.db \
+  --json
+```
+
+Batch execution re-plans after the pass completes. Sealed successful Runs are
+reused, active Runs reserve slots, and runner failures remain in the ledger but
+are replaced by a fresh sample index on the next invocation. A batch never
+calls a judge; grading remains a separate downstream command.
 
 ## Grade measurement
 
@@ -89,6 +108,8 @@ Grader. The summary exposes:
 - binary pass/fail counts and pass rate;
 - Bernoulli standard error and a 95% Wilson interval;
 - mean checker score and standard error where numeric scores exist.
+- model-judge vote count, sampled-run count, mean agreement, and disagreement
+  rate when the selected Grade carries judge metadata.
 
 Runner failures are not model failures. Ungraded completed Runs are not failed
 Grades. A changed Grader snapshot cannot be mixed with the selected snapshot;
@@ -102,8 +123,28 @@ heterogeneous predicate URIs, meters, tenants, or other dimensions that are not
 part of this generic cell. A future report may add an explicit cross-cell policy
 but cannot infer one from the renderer.
 
+## Report surface
+
+The generic report path selects one complete Grader identity and filters to the
+cells in a sampling manifest:
+
+```bash
+j-rig report \
+  --sampling-manifest ./sampling-manifest.yaml \
+  --grader-id quality-judge \
+  --grader-version "1" \
+  --grader-snapshot-sha256 sha256:<64-hex> \
+  --db ./j-rig.db \
+  --json
+```
+
+The JSON result includes the selected observations and per-cell measurements,
+including execution counts, uncertainty, and judge-vote disagreement. The
+explicit selector prevents a regrade from silently replacing the snapshot a
+report was intended to measure.
+
 ## Non-goals of this slice
 
-This contract does not yet define suite/batch manifests, concurrent execution,
-external-judge vote sampling, or the unified report/serve/static publication
-surface. Those remain dependent evolution slices.
+This contract does not yet define concurrent batch execution, cross-cell
+roll-up policy, or the serve/static publication surface. Those remain dependent
+evolution slices.

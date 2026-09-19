@@ -64,6 +64,17 @@ function loadConfig(path: string): EvalConfig {
   };
 }
 
+/** Load the task/config pair used by both one-shot and batch execution. */
+export function loadGenericDefinitions(
+  taskPath: string,
+  configPath: string,
+): {
+  task: EvalTask;
+  config: EvalConfig;
+} {
+  return { task: loadTask(taskPath), config: loadConfig(configPath) };
+}
+
 function lineageFrom(request: RunnerRequest) {
   return {
     task_id: request.task.id,
@@ -81,8 +92,7 @@ export async function runGenericEval(options: GenericRunOptions): Promise<Generi
     throw new Error(`sampleIndex must be a non-negative integer (got ${options.sampleIndex})`);
   }
 
-  const task = loadTask(options.taskPath);
-  const config = loadConfig(options.configPath);
+  const { task, config } = loadGenericDefinitions(options.taskPath, options.configPath);
   const requestWithoutId: Omit<RunnerRequest, "run_id"> = {
     task,
     config,

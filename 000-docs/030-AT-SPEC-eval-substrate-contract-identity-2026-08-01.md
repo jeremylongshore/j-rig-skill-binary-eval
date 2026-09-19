@@ -3,7 +3,8 @@
 **Status:** IMPLEMENTATION APPLICATION OF `IEP-EVAL-EVOLUTION-001`
 **Date:** 2026-08-01
 **Master bead:** `bd_000-projects-htjt`
-**Repo workstream:** `bd_000-projects-htjt.2`
+**Repo bead:** `bd_000-projects-htjt.2`
+**Implementation bead:** `bd_000-projects-htjt.10.2`
 
 ## Boundary
 
@@ -19,8 +20,8 @@ The rename is deliberate:
 - the kernel `EvalSpec` identifies a canonical declarative evaluation entity
   with its own version, assertions, composition DAG, runtime limits, and
   content hash;
-- a future J-Rig adapter will map a validated `SkillEvalSpec` to that canonical
-  identity before shared Evidence Bundle or rollout claims are made.
+- the J-Rig adapter maps a validated `SkillEvalSpec` to that canonical identity
+  before shared Evidence Bundle or rollout claims are made.
 
 J-Rig owns the skill profile because its criteria and test-case semantics are
 execution-product concerns. The kernel remains the source of truth for the
@@ -46,9 +47,21 @@ All active J-Rig package pins and the CI evidence emitter consume
 `CONSUMED_KERNEL_VERSION = "0.10.0"`; its baseline supersession logic uses
 that value as the current kernel surface.
 
-## Next implementation
+## Adapter implementation
 
-The rename and currency update are the compatibility seam. The next PR adds
-the explicit profile-to-kernel adapter and generic Config/Runner contracts;
-until that PR lands, skill-profile results must not be presented as generic
-kernel `EvalSpec` results.
+`adaptSkillEvalSpec` is the explicit profile-to-kernel boundary. It validates
+the profile first, emits a strict canonical `EvalSpec`, and returns a separate
+lineage envelope containing the source-profile hash, profile version, mapping
+revision, consumed kernel version, canonical content hash, criterion identity
+and blocker policy, plus evaluated/skipped test-case coverage. The canonical
+object uses the kernel's extension assertion slot for J-Rig criterion detail;
+the lineage envelope is required alongside it for shared evidence or rollout
+claims.
+
+The adapter hashes the normalized, validated profile rather than the raw YAML
+mapping so schema defaults are part of the recorded source identity. It
+requires the caller to provide canonical identity, timestamp,
+actor, runtime limits, and provider constraints. It uses a deterministic
+sorted-key JSON hash and rejects both invalid profiles and invalid canonical
+output without returning a partial result. `eval-spec.yaml` remains the
+user-facing profile filename; it is not itself a kernel `EvalSpec`.
