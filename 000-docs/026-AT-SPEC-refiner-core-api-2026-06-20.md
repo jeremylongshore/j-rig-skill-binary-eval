@@ -1,3 +1,11 @@
+<!-- BEGIN BD-SYNC:cross-ref:v1 -->
+
+Beads: `bd_000-projects-214c.6.1`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#270`
+Projection-SHA256: 2182b0c2f2ab8e51317021041d5735724091bbf9c07c35a5968dc81f099ed555
+
+<!-- END BD-SYNC:cross-ref:v1 -->
+
 # `@intentsolutions/refiner-core` API Specification
 
 **Date:** 2026-06-20
@@ -99,7 +107,7 @@ import {
 
 ---
 
-## 2. Data flow (diagram D4)
+## 2. D4 — Data flow (diagram D4)
 
 The end-to-end flow from rollouts to a signed Evidence Bundle row. The boxed `REFINER-CORE`
 region is what this package ships; the SkillVersion kernel entity, the promotion ladder, and
