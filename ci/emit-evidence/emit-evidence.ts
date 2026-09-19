@@ -65,6 +65,24 @@ interface RosterRow {
   readonly specSha256: string | null;
   readonly skillsCommit: string;
   readonly statementsFile: string | null;
+  /**
+   * gate_reasons[0] of the `error` row j-rig wrote before exiting 2
+   * (evaluator infrastructure failure, j-rig 000-docs/037). Absent on rows
+   * produced by an older run-roster.
+   */
+  readonly errorReason?: string | null;
+}
+
+/** First published reason for a roster row whose eval did not complete. */
+function evalFailedReasons(row: Pick<RosterRow, "key" | "errorReason">): string[] {
+  const generic = `nightly eval did not complete for ${row.key} (see ${row.key}.error.log in the run)`;
+  // Blueprint B § 7.4: for `error`, gate_reasons[0] MUST capture the error
+  // class. Prefer the CLI's own class-first reason; accept only that shape so
+  // no other text can enter signed evidence through this field.
+  const reason = row.errorReason;
+  return typeof reason === "string" && reason.startsWith("provider_failure/")
+    ? [reason, generic]
+    : [generic];
 }
 
 interface GateOutcome {
@@ -334,9 +352,7 @@ export function collectOutcomes(rosterDir: string): GateOutcome[] {
   return summary.map((row) => {
     const evalFailed = row.status !== "ok" || row.specSha256 === null;
     const decision = evalFailed ? "error" : aggregateDecision(row.decisions);
-    const reasons = evalFailed
-      ? [`nightly eval did not complete for ${row.key} (see ${row.key}.error.log in the run)`]
-      : statementReasons(rosterDir, row);
+    const reasons = evalFailed ? evalFailedReasons(row) : statementReasons(rosterDir, row);
     const outcome: GateOutcome = {
       gateName: row.key,
       gateVersion: "1.0.0",
@@ -398,6 +414,21 @@ function selfCheck(): void {
     aggregateDecision([]) === "error",
   ];
   if (!agg.every(Boolean)) throw new Error("aggregateDecision self-check failed");
+
+  // An eval that exited 2 publishes j-rig's class-first reason; anything that
+  // is not that exact shape falls back to the generic reason alone.
+  const infra =
+    "provider_failure/judge [minimax rate_limit]: judge provider failed on 1 of 3 judged criteria";
+  const failedReasonChecks = [
+    evalFailedReasons({ key: "k", errorReason: infra })[0] === infra,
+    evalFailedReasons({ key: "k", errorReason: infra }).length === 2,
+    evalFailedReasons({ key: "k", errorReason: "anything else" }).length === 1,
+    evalFailedReasons({ key: "k", errorReason: null })[0]?.startsWith(
+      "nightly eval did not complete",
+    ) === true,
+    evalFailedReasons({ key: "k" }).length === 1,
+  ];
+  if (!failedReasonChecks.every(Boolean)) throw new Error("evalFailedReasons self-check failed");
   console.log(`self-check OK: ${rows.length} kernel-valid, canonical-stable rows built`);
 }
 
