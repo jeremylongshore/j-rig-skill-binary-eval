@@ -1,3 +1,5 @@
+import type { ProviderFailure } from "../providers/errors.js";
+
 /**
  * Binary judgment: yes or no, with optional unsure.
  */
@@ -21,6 +23,8 @@ export interface JudgmentResult {
   confidence: number;
   reasoning: string;
   method: "deterministic" | "judge";
+  /** Present when the judge call failed as provider/infrastructure error. */
+  provider_failure?: ProviderFailure;
   judge_model?: string;
   /**
    * ADDITIVE: the test case this judgment row belongs to. A criterion judged

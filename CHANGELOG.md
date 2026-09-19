@@ -75,6 +75,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Any provider failure now signs `error`; one rule replaces two partial ones**
+  (`packages/cli/src/commands/eval-infrastructure-failure.ts`, `eval.ts`,
+  `000-docs/037`). The dead-judge override fired only when EVERY judged criterion
+  errored and ignored execution failures, so a judge that died on some criteria
+  still signed a normal verdict over the survivors and a failed provider call was
+  judged as if it were the skill's answer. Per Blueprint B § 7.4, any unrecovered
+  execution or judge failure (skill or naked-baseline pass, partial or total) now
+  yields no verdict and a signed `gate-result/v1` `error` row with the error class
+  first in `gate_reasons` and typed credential-free `metadata.error_detail`; the
+  run is stored `failed`, `--json` carries `gate_decision: "error"` plus
+  `evaluation_error`, exit is 2. Failed test cases are no longer sent to the
+  judge. Partial sample loss is unchanged (errored samples vote `unsure`), and
+  completed-but-empty responses remain boundary evidence. Provider failures carry
+  typed `provider_failure` metadata, HTTP 402 / `Insufficient Balance` is a
+  non-retryable `rate_limit`, and execution errors are now redacted where they
+  are captured, matching the judge path. Supersedes the emit-nothing design
+  originally proposed for this boundary.
+
 - **Generic runner resource bounds:** `ExecutableRunner` accumulated stdout and
   stderr without limit and signalled only the immediate child, so a flooding
   harness could exhaust host memory and an inherited-pipe descendant could keep
