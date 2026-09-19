@@ -261,11 +261,16 @@ node packages/cli/dist/index.js sample-plan \
   --json
 ```
 
-The plan is inspectable JSON. A path-based `j-rig batch` manifest can consume
-these jobs in balanced passes and resume after runner failures. Measurements
-select one exact Grader snapshot and expose pass rate, harness failures,
-ungraded completions, Wilson intervals, score standard error, and model-judge
-vote disagreement without heterogeneous rollups. For example:
+The plan is inspectable JSON. Measurements select one exact Grader snapshot
+and expose pass rate, harness failures, ungraded completions, Wilson intervals,
+score standard error, and model-judge vote disagreement without heterogeneous
+rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
+to render them. See
+[`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+
+`j-rig batch` consumes a path-based suite manifest, executes these jobs in
+balanced passes, and resumes from the immutable raw-run ledger. Runner
+failures remain diagnostic observations rather than model grades:
 
 ```bash
 node packages/cli/dist/index.js batch \
@@ -274,9 +279,27 @@ node packages/cli/dist/index.js batch \
   --json
 ```
 
-Use `j-rig report --sampling-manifest` with the full Grader identity to render
-the selected measurements. See
-[`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+### Unified report
+
+The new report projection selects one immutable Grader snapshot and preserves
+per-cell Task × Config × Model metrics plus raw Run lineage:
+
+```bash
+node packages/cli/dist/index.js report \
+  --unified \
+  --db ./j-rig.db \
+  --grader-id answer-checker \
+  --grader-version 1.0.0 \
+  --grader-snapshot-sha256 sha256:<64 lowercase hex> \
+  --json \
+  --output ./report.json
+```
+
+Omit `--json` for Markdown. Empty data is rendered explicitly; no global pass
+rate is inferred across heterogeneous cells. This is a local unsigned
+projection. The verified dashboard adapter and any Evidence Bundle/signing
+path remain downstream. See
+[`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md).
 
 ### ⚠️ Stub providers — output is NOT ground truth
 

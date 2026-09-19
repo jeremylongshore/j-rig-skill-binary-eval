@@ -101,6 +101,16 @@ indices. Grade measurements select the full grader snapshot and report Wilson
 uncertainty without heterogeneous rollups. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
+`j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
+runner failures in the raw-run ledger and never treats them as model grades.
+
+`j-rig report --unified` emits `j-rig/unified-report/v1` JSON or Markdown over
+one selected immutable Grader snapshot. It preserves per-cell uncertainty and
+raw Run lineage, renders no-data explicitly, and is unsigned local output. Do
+not treat it as a gate-result Evidence Bundle or publish it directly; the
+dashboard must re-verify through its own ingest boundary. See
+`000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

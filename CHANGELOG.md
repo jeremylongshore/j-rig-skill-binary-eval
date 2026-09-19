@@ -55,6 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completions, score standard error, judge vote counts, and disagreement rates
   without heterogeneous rollups.
 
+- **Balanced execution sampling and uncertainty:** `j-rig sample-plan` creates
+  round-robin target-N top-ups across explicit Task × Config × Model cells;
+  completed Runs count, active Runs reserve slots, and harness failures are
+  replaced without being misreported as model failures. Selected Grade
+  snapshots expose pass rate, Wilson intervals, harness failures, ungraded
+  completions, and score standard error without heterogeneous rollups.
+
+- **Unified report projection:** `j-rig report --unified` emits versioned
+  `j-rig/unified-report/v1` JSON or Markdown for one selected immutable Grader
+  snapshot, preserving per-cell uncertainty and raw Run lineage. It is local
+  unsigned output; dashboard verification and publication remain downstream.
+
 - **Nightly skill-eval roster 13→14** — pin CCPI merge `a9dd5c02` and add
   `skill-creator` after its hand-authored `eval-spec.yaml` landed
   ([#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).

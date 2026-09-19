@@ -1,9 +1,19 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { z } from "zod";
 import {
+  getGradeObservations,
+  getRun,
+  getRecentRuns,
+  getRunResults,
+  getRunArtifacts,
+  getUnifiedReport,
+} from "@j-rig/db";
+import {
+  GradeSelectorSchema,
   parseAndValidateYaml,
+  renderUnifiedReportMarkdown,
   samplingCellKey,
   SamplingCellSchema,
   summarizeGradeObservations,
@@ -11,16 +21,24 @@ import {
   type GradeObservation,
   type GradeSelector,
   type SamplingCell,
+  type UnifiedReport,
 } from "@j-rig/core";
-import {
-  getGradeObservations,
-  getRun,
-  getRecentRuns,
-  getRunResults,
-  getRunArtifacts,
-} from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { icon, formatDuration, formatScore, header } from "../lib/output.js";
+
+export interface UnifiedReportOptions {
+  db: string;
+  graderId: string;
+  graderVersion: string;
+  graderSnapshotSha256: string;
+  json?: boolean;
+  output?: string;
+}
+
+export interface UnifiedReportResult {
+  report: UnifiedReport;
+  rendered: string;
+}
 
 const SamplingManifestSchema = z.object({
   cells: z.array(SamplingCellSchema).min(1),
@@ -38,13 +56,13 @@ export interface SamplingReportResult {
   measurements: GradeMeasurement[];
 }
 
-function loadSamplingCells(path: string): SamplingCell[] {
-  const parsed = parseAndValidateYaml(readFileSync(path, "utf8"), SamplingManifestSchema);
+function loadSamplingCells(manifestPath: string): SamplingCell[] {
+  const parsed = parseAndValidateYaml(readFileSync(manifestPath, "utf8"), SamplingManifestSchema);
   if (!parsed.success) {
     const details = parsed.errors
       .map((error) => (error.path ? `${error.path}: ${error.message}` : error.message))
       .join("; ");
-    throw new Error(`Invalid sampling manifest at ${path}: ${details}`);
+    throw new Error(`Invalid sampling manifest at ${manifestPath}: ${details}`);
   }
   return parsed.data.cells;
 }
@@ -97,6 +115,26 @@ function printSamplingReport(result: SamplingReportResult, json: boolean | undef
   }
 }
 
+/** Build a terminal/file projection over generic Runs and one Grade snapshot. */
+export function runUnifiedReport(options: UnifiedReportOptions): UnifiedReportResult {
+  const selector = GradeSelectorSchema.parse({
+    grader_id: options.graderId,
+    grader_version: options.graderVersion,
+    grader_snapshot_sha256: options.graderSnapshotSha256,
+  });
+  const database = openDb(options.db);
+  try {
+    const report = getUnifiedReport(database, selector, new Date().toISOString());
+    const rendered = options.json
+      ? `${JSON.stringify(report, null, 2)}\n`
+      : renderUnifiedReportMarkdown(report);
+    if (options.output) writeFileSync(options.output, rendered, "utf8");
+    return { report, rendered };
+  } finally {
+    database.close();
+  }
+}
+
 /**
  * Register the `report` command on the given Commander program.
  *
@@ -112,13 +150,15 @@ export function registerReportCommand(program: Command): void {
     .option("--skill <name>", "Filter by skill name")
     .option("--run-id <id>", "Show detailed results for a specific run", parseInt)
     .option("--limit <n>", "Max runs to show", parseInt, 10)
+    .option("--unified", "Report generic raw Runs and one selected immutable Grader snapshot")
     .option("--sampling-manifest <path>", "Report generic sampling cells from a YAML manifest")
-    .option("--grader-id <id>", "Selected Grader id for a sampling report")
-    .option("--grader-version <version>", "Selected Grader version for a sampling report")
+    .option("--grader-id <id>", "Selected named Grader id (required with --unified)")
+    .option("--grader-version <version>", "Selected Grader version (required with --unified)")
     .option(
       "--grader-snapshot-sha256 <digest>",
-      "Selected Grader snapshot digest for a sampling report",
+      "Selected Grader snapshot digest (required with --unified)",
     )
+    .option("--output <path>", "Write unified JSON/Markdown to a file")
     .option("--json", "Output as JSON")
     .action(
       async (opts: {
@@ -126,14 +166,34 @@ export function registerReportCommand(program: Command): void {
         skill?: string;
         runId?: number;
         limit: number;
+        unified?: boolean;
         samplingManifest?: string;
         graderId?: string;
         graderVersion?: string;
         graderSnapshotSha256?: string;
+        output?: string;
         json?: boolean;
       }) => {
         let database: ReturnType<typeof openDb> | undefined;
         try {
+          if (opts.unified) {
+            if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
+              throw new Error(
+                "--unified requires --grader-id, --grader-version, and --grader-snapshot-sha256",
+              );
+            }
+            const result = runUnifiedReport({
+              db: opts.db,
+              graderId: opts.graderId,
+              graderVersion: opts.graderVersion,
+              graderSnapshotSha256: opts.graderSnapshotSha256,
+              json: opts.json,
+              output: opts.output,
+            });
+            if (!opts.output) process.stdout.write(result.rendered);
+            return;
+          }
+
           if (opts.samplingManifest) {
             if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
               throw new Error(

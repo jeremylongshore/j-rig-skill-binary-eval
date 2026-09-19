@@ -173,6 +173,12 @@ export interface GradeSelector {
   grader_snapshot_sha256: string;
 }
 
+export const GradeSelectorSchema = z.object({
+  grader_id: z.string().min(1),
+  grader_version: z.string().min(1),
+  grader_snapshot_sha256: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+});
+
 export interface SamplingGrade {
   grader_id: string;
   grader_version: string;

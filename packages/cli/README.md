@@ -42,6 +42,7 @@ j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
 j-rig batch --manifest ...            # execute a resumable balanced batch
+j-rig report --unified ...            # selected-Grader JSON/Markdown report
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -76,17 +77,16 @@ balanced passes, and resumes from the immutable raw-run ledger. Both surfaces
 retain runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
-To report one exact Grader snapshot over a sampling manifest, provide all three
-identity fields:
+`j-rig report --unified` requires `--grader-id`, `--grader-version`, and the
+full `--grader-snapshot-sha256`. It emits `j-rig/unified-report/v1` JSON with
+`--json` or terminal-friendly Markdown otherwise; `--output` writes the exact
+projection to a file. This is unsigned local output, not a dashboard ingest or
+rollout decision. See
+`000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
 
-```bash
-j-rig report \
-  --sampling-manifest ./sampling-manifest.yaml \
-  --grader-id quality-judge \
-  --grader-version "1" \
-  --grader-snapshot-sha256 sha256:<64-hex> \
-  --json
-```
+For the cell-scoped projection, use `--sampling-manifest` with the same three
+Grader identity fields. The unified report is the versioned local projection;
+neither report surface is a signed dashboard ingest or rollout decision.
 
 ## Providers
 
