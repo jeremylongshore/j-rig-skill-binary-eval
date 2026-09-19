@@ -133,6 +133,7 @@ export const grades = sqliteTable(
     verdict: text("verdict").notNull().$type<StoredGradeVerdict>(),
     score: real("score").notNull(),
     checks_json: text("checks_json").notNull(),
+    metadata_json: text("metadata_json"),
     created_at: text("created_at").notNull().default("(datetime('now'))"),
   },
   (table) => ({

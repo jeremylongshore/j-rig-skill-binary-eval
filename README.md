@@ -10,6 +10,8 @@ Binary evaluation harness that treats `SKILL.md` artifacts as production softwar
 [![CI](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-skill-binary-eval)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 **Links:** [Master Blueprint](000-docs/007-PP-PLAN-master-build-blueprint.md) · [Epic Index](000-docs/epics/README.md) · [Doc Index](000-docs/000-INDEX.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ---
@@ -213,13 +215,15 @@ makes a real provider call.
 
 **Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → OpenAI → MiniMax → Groq → NVIDIA, then generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|openai|minimax|groq|nvidia|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
 
-**Real-provider failures fail closed.** If execution or judging cannot obtain a
-real provider response, `j-rig eval` exits non-zero, marks the SQLite run
-`failed`, and emits an `evaluation_failed` diagnostic under `--json`. It does
-not turn an account outage or quota failure into a `ground_truth: true` warning
-or a gate-result bundle. HTTP 402 and messages such as `Insufficient Balance`
-are recorded as non-retryable quota failures; completed model responses with
-empty text remain valid boundary observations for tool-dependent skills. See
+**Provider failures sign `error`, never a grade.** If any execution or judge
+call the evaluation depends on fails, `j-rig eval` records no verdict for that
+model and still emits evidence: a `gate-result/v1` row with
+`gate_decision: "error"`, the error class first in `gate_reasons`, and typed
+credential-free `metadata.error_detail`. The run is stored `failed` and the
+process exits 2. A partial outage counts: a score over the surviving criteria is
+not a measurement. HTTP 402 and messages such as `Insufficient Balance` are
+non-retryable quota failures; completed responses with empty text remain valid
+boundary observations for tool-dependent skills. See
 [`037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
 
 **Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
@@ -278,11 +282,24 @@ node packages/cli/dist/index.js sample-plan \
   --json
 ```
 
-The plan is inspectable JSON; `j-rig suite` consumes these jobs for execution.
-Measurements select one exact Grader snapshot and expose pass rate, harness
-failures, ungraded completions, Wilson intervals, and score standard error
-without heterogeneous rollups. See
+The plan is inspectable JSON. Measurements select one exact Grader snapshot
+and expose pass rate, harness failures, ungraded completions, Wilson intervals,
+score standard error, and model-judge vote disagreement without heterogeneous
+rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
+to render them. `j-rig suite` plans and executes these same jobs as one
+resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+
+`j-rig batch` consumes a path-based suite manifest, executes these jobs in
+balanced passes, and resumes from the immutable raw-run ledger. Runner
+failures remain diagnostic observations rather than model grades:
+
+```bash
+node packages/cli/dist/index.js batch \
+  --manifest ./batch.yaml \
+  --db ./j-rig.db \
+  --json
+```
 
 ### Unified report
 

@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { evaluateWithGrader, GraderDefinitionSchema, type RunnerResult } from "@j-rig/core";
+import {
+  evaluateWithGrader,
+  evaluateWithModelJudge,
+  GraderDefinitionSchema,
+  type DeterministicGraderDefinition,
+  type ModelJudgeGraderDefinition,
+  type RunnerResult,
+} from "@j-rig/core";
 import {
   createDatabase,
   createGrade,
   createRawRun,
+  getGradeByIdentity,
   getGradesForRun,
   sealRawRun,
   startRawRun,
@@ -15,7 +23,7 @@ const graderV1 = GraderDefinitionSchema.parse({
   version: "1.0.0",
   kind: "deterministic",
   checks: [{ id: "has-answer", type: "output_contains", expected: "4" }],
-});
+}) as DeterministicGraderDefinition;
 
 const graderV2 = GraderDefinitionSchema.parse({
   ...graderV1,
@@ -24,7 +32,7 @@ const graderV2 = GraderDefinitionSchema.parse({
     { id: "has-answer", type: "output_contains", expected: "4" },
     { id: "has-explanation", type: "output_contains", expected: "because" },
   ],
-});
+}) as DeterministicGraderDefinition;
 
 const completed = (status: RunnerResult["status"] = "completed"): RunnerResult => ({
   status,
@@ -75,6 +83,14 @@ describe("immutable Grades", () => {
     expect(first.grade.id).toBe(repeat.grade.id);
     expect(first.grade.verdict).toBe("pass");
     expect(JSON.parse(first.grade.grader_snapshot_json).version).toBe("1.0.0");
+    expect(
+      getGradeByIdentity(database, {
+        raw_run_id: rawRunId,
+        grader_id: first.grade.grader_id,
+        grader_version: first.grade.grader_version,
+        grader_snapshot_sha256: first.grade.grader_snapshot_sha256,
+      })?.id,
+    ).toBe(first.grade.id);
   });
 
   it("regrades the same Run into a new immutable Grade snapshot", () => {
@@ -108,5 +124,39 @@ describe("immutable Grades", () => {
     expect(() =>
       createGrade(database, evaluateWithGrader(failedRun.id, "partial", graderV1)),
     ).toThrow("only completed Runs can be graded");
+  });
+
+  it("persists model-judge vote metadata alongside the immutable Grade", async () => {
+    const definition = GraderDefinitionSchema.parse({
+      id: "quality-judge",
+      version: "1.0.0",
+      kind: "model_judge",
+      model: "fixture-judge",
+      criterion_description: "The output is correct",
+      judge_prompt: "Answer yes only when the output is correct.",
+      samples: 3,
+    }) as ModelJudgeGraderDefinition;
+    const votes: Array<"yes" | "no" | "unsure"> = ["yes", "no", "yes"];
+    const evaluation = await evaluateWithModelJudge(rawRunId, completed().stdout, definition, {
+      async judge() {
+        return {
+          verdict: votes.shift() ?? "unsure",
+          confidence: 0.5,
+          reasoning: "fixture vote",
+        };
+      },
+    });
+
+    const stored = createGrade(database, evaluation);
+    const metadata = JSON.parse(stored.grade.metadata_json ?? "{}");
+
+    expect(stored.grade.grader_kind).toBe("model_judge");
+    expect(metadata.judge).toMatchObject({
+      raw_verdict: "yes",
+      samples: 3,
+      agreement: 2 / 3,
+      sample_verdicts: ["yes", "no", "yes"],
+      disagreement: true,
+    });
   });
 });

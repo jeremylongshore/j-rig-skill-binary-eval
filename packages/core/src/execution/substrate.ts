@@ -24,6 +24,9 @@ export const EvalTaskSchema = z.object({
 
 export type EvalTask = z.infer<typeof EvalTaskSchema>;
 
+/** Output ceiling per stream when a harness does not declare `max_output_bytes`. */
+export const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
 /**
  * The executable boundary for a configuration.
  *
@@ -34,6 +37,14 @@ export const RunnerHarnessSchema = z.object({
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
   timeout_ms: z.number().int().positive().max(86_400_000).default(60_000),
+  /**
+   * Per-stream ceiling, in bytes, on captured stdout and stderr. Deliberately
+   * optional with NO schema default: the parsed config is snapshotted into the
+   * raw-run ledger and compared byte-for-byte on reuse, so a defaulted field
+   * would invalidate every previously sealed Run. The runner applies
+   * `DEFAULT_MAX_OUTPUT_BYTES` when this is absent.
+   */
+  max_output_bytes: z.number().int().positive().max(1_073_741_824).optional(),
   cwd: z.string().min(1).optional(),
   env: z.record(z.string(), z.string()).default({}),
 });

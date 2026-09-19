@@ -46,7 +46,6 @@ import type {
   Criterion,
   Regression,
   BaselineComparison,
-  ProviderFailure,
 } from "@j-rig/core";
 import {
   getOrCreateSkillVersion,
@@ -86,6 +85,11 @@ import {
   resolveOpenAICompatConfig,
 } from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
+import {
+  detectInfrastructureFailure,
+  infrastructureFailureReason,
+  isFailedExecution,
+} from "./eval-infrastructure-failure.js";
 import {
   CostTrackingProvider,
   EvalCostMeter,
@@ -137,66 +141,13 @@ interface ProviderExtras {
   judgeModel?: string;
 }
 
-interface EvalProviderFailureDetails {
-  phase: "execution" | "judge";
-  model: string;
-  provider: string;
-  category: ProviderFailure["category"];
-  retryable: boolean;
-  message: string;
-}
-
-/** A real-provider failure is infrastructure evidence, never a skill grade. */
-class EvalProviderFailure extends Error {
-  readonly details: EvalProviderFailureDetails;
-
-  constructor(details: EvalProviderFailureDetails) {
-    super(
-      `real provider failure during ${details.phase}: ${details.provider}/${details.model} ` +
-        `${details.category} — ${details.message}`,
-    );
-    this.name = "EvalProviderFailure";
-    this.details = details;
-  }
-}
-
-/** Keep provider diagnostics useful without allowing credentials into output or DB. */
-function redactDiagnostic(raw: string): string {
-  let safe = raw;
-  for (const secret of Object.values(process.env)) {
-    if (secret && secret.length >= 12) safe = safe.split(secret).join("[REDACTED]");
-  }
-  return safe
-    .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
-    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)\S+/gi, "$1[REDACTED]");
-}
-
-function providerFailureDetails(
-  phase: EvalProviderFailureDetails["phase"],
-  model: string,
-  fallbackProvider: string,
-  outcome: ObservedOutcome,
-): EvalProviderFailureDetails {
-  const failure = outcome.provider_failure;
-  return {
-    phase,
-    model,
-    provider: failure?.providerName ?? fallbackProvider,
-    category: failure?.category ?? (outcome.status === "timed_out" ? "network_timeout" : "unknown"),
-    retryable: failure?.retryable ?? outcome.status === "timed_out",
-    message: redactDiagnostic(
-      outcome.output.error ?? `execution ended with status ${outcome.status}`,
-    ),
-  };
-}
-
 /**
  * Resolve an INDEPENDENT judge backend when `--judge-provider`/`--judge-model`
  * decouple the judge from the skill-under-test's provider. Fails LOUD when the
  * requested backend has no key — silently judging on a different vendor than
  * asked would corrupt the benchmark this exists for.
  */
-function selectJudgeOverride(
+export function selectJudgeOverride(
   targetModel: string,
   extras?: ProviderExtras,
 ): { judge: JudgeProvider; name: string; modelId: string } | null {
@@ -710,6 +661,11 @@ export function registerEvalCommand(program: Command): void {
           }
         }
 
+        // Set when the infrastructure-failure override fires for ANY model:
+        // that model was not (fully) evaluated, so the process must not exit 0
+        // (a CI step that trusts the exit status would otherwise pass a
+        // non-evaluation).
+        let infrastructureFailureSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
           const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
@@ -741,19 +697,6 @@ export function registerEvalCommand(program: Command): void {
           // Did any criterion or gate decision fail? Drives the terminal-state
           // enum on runtime.run.finished.
           let runHadFailure = false;
-
-          const failProviderRun = (details: EvalProviderFailureDetails): never => {
-            const safeDetails = {
-              type: "provider_failure",
-              ...details,
-            };
-            transitionRun(database, runId, "failed", JSON.stringify(safeDetails));
-            emitRuntimeRunFinished(correlation, {
-              terminalState: RuntimeTerminalState.ARCHIVED_FAILED,
-              durationMs: Date.now() - modelStart,
-            });
-            throw new EvalProviderFailure(details);
-          };
 
           if (!opts.json) {
             console.log(header(`--- Model: ${model} ---`));
@@ -859,23 +802,6 @@ export function registerEvalCommand(program: Command): void {
               );
             }
 
-            // A real-provider execution failure is infrastructure evidence,
-            // not an empty skill response. The old path fed these outcomes to
-            // the judge, which turned an account outage into an exit-0
-            // `ground_truth: true` warning. Preserve legitimate completed+empty
-            // stops for tool-dependent boundary analysis, but fail closed on
-            // any failed/timed-out/error outcome from a real backend.
-            if (providers.real) {
-              const failedOutcome = outcomes.find(
-                (o) => o.status !== "completed" || Boolean(o.output.error),
-              );
-              if (failedOutcome) {
-                failProviderRun(
-                  providerFailureDetails("execution", model, providers.providerName, failedOutcome),
-                );
-              }
-            }
-
             // Judge each outcome against the criteria that test case actually
             // exercises and flatten results. A test case may scope itself via
             // `criteria_ids` (schema default: ALL); honoring it stops an
@@ -886,6 +812,10 @@ export function registerEvalCommand(program: Command): void {
 
             costMeter.phase = "judge";
             for (const outcome of outcomes) {
+              // A failed provider call is not a model response. Judging it
+              // would spend judge tokens grading an error string as if it were
+              // skill behavior; the run is signed `error` below instead.
+              if (isFailedExecution(outcome)) continue;
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
               // iterates spec.test_cases), so a miss is an internal invariant
@@ -914,28 +844,6 @@ export function registerEvalCommand(program: Command): void {
                 judgeTimeoutMs: spec.judge_timeout_ms,
                 sampleConcurrency: spec.judge_sample_concurrency,
               });
-
-              // Judge errors are also provider failures. In particular, do
-              // not let the judgment engine's honest `unsure` fallback turn a
-              // depleted account or transport outage into a normal grade.
-              if (providers.real) {
-                const failedJudgment = judgments.find(
-                  (j) => j.provider_failure || j.reasoning.startsWith("Judge error:"),
-                );
-                if (failedJudgment) {
-                  const failure = failedJudgment.provider_failure;
-                  failProviderRun({
-                    phase: "judge",
-                    model,
-                    provider: failure?.providerName ?? providers.judgeProviderName,
-                    category: failure?.category ?? "unknown",
-                    retryable: failure?.retryable ?? false,
-                    message: redactDiagnostic(
-                      `criterion ${failedJudgment.criterion_id}: ${failedJudgment.reasoning}`,
-                    ),
-                  });
-                }
-              }
 
               // OTel per-criterion events (067 §§ 1.1, 1.2). For judge-method
               // criteria we emit judge.invoked + judge.verdict; for every
@@ -1052,6 +960,10 @@ export function registerEvalCommand(program: Command): void {
             let baselineComparisons: BaselineComparison[] = [];
             let isObsolete = false;
             let ranBaseline = false;
+            // Hoisted so a provider failure in the naked-baseline pass is held
+            // to the same infrastructure-failure rule as the skill pass.
+            let baselineOutcomes: ObservedOutcome[] = [];
+            let baselineJudgments: JudgmentResult[] = [];
             if (opts.baselineCheck) {
               ranBaseline = true;
               costMeter.phase = "execution";
@@ -1063,7 +975,10 @@ export function registerEvalCommand(program: Command): void {
               );
               costMeter.phase = "judge";
               const nakedJudgments: JudgmentResult[] = [];
+              baselineOutcomes = nakedOutcomes;
+              baselineJudgments = nakedJudgments;
               for (const outcome of nakedOutcomes) {
+                if (isFailedExecution(outcome)) continue;
                 const testCase = testCaseById.get(outcome.test_case_id);
                 if (!testCase) continue;
                 const nakedCriteria = selectCriteriaForTestCase(
@@ -1139,6 +1054,27 @@ export function registerEvalCommand(program: Command): void {
             // with a best-effort USD estimate. Stub runs record nothing.
             costReport = providers.real ? costMeter.report() : null;
 
+            // ── Infrastructure-failure rule (000-docs/037) ─────────────
+            // Blueprint B § 7.4: `error` is "a verdict on the gate's own
+            // ability to evaluate". ANY unrecovered provider failure — a test
+            // case that never executed, or a criterion whose every judge sample
+            // errored, in the skill or the naked-baseline pass — means the
+            // scorecard below was computed over an incomplete evaluation. It is
+            // kept for diagnosis but is not a verdict on the skill: the row is
+            // signed `error`, the run is stored `failed`, the exit is non-zero.
+            // This generalizes the 2026-09 dead-judge override (conference
+            // audit, "make it lie" #E), which fired only when EVERY judgment
+            // died and ignored execution failures entirely.
+            const infraFailure = detectInfrastructureFailure({
+              outcomes: [...outcomes, ...baselineOutcomes],
+              judgments: [...allJudgments, ...baselineJudgments],
+              executionProvider: providers.providerName,
+              judgeProvider: providers.judgeProviderName,
+            });
+            const infraFailureReason = infraFailure
+              ? infrastructureFailureReason(infraFailure)
+              : null;
+
             allResults[model] = {
               provider: providers.providerName,
               model,
@@ -1149,6 +1085,9 @@ export function registerEvalCommand(program: Command): void {
               scoreCard,
               decision,
               report,
+              // Present IFF the evaluation did not complete. Consumers MUST
+              // treat scoreCard/decision/report as diagnostic only when set.
+              ...(infraFailure ? { gate_decision: "error", evaluation_error: infraFailure } : {}),
               cost: costReport,
               ...batchLineage,
             };
@@ -1160,13 +1099,27 @@ export function registerEvalCommand(program: Command): void {
             // `advisory`. Spelling is identical to the audit-harness iah-E07
             // emitter so a ship-gate dashboard alerts on one event name across
             // both emitters.
-            const gateDecisionValue =
-              report.decision === "ship"
+            //
+            // Infrastructure failure wins over every rollout mapping: the
+            // kernel enum has `error` for exactly this, and gate_reasons[0]
+            // must name the error class (computed above).
+            const gateDecisionValue = infraFailure
+              ? GateDecision.ERROR
+              : report.decision === "ship"
                 ? GateDecision.PASS
                 : report.decision === "block"
                   ? GateDecision.FAIL
                   : GateDecision.ADVISORY;
-            if (gateDecisionValue === GateDecision.FAIL) runHadFailure = true;
+            if (
+              gateDecisionValue === GateDecision.FAIL ||
+              gateDecisionValue === GateDecision.ERROR
+            ) {
+              runHadFailure = true;
+            }
+            if (infraFailure) infrastructureFailureSeen = true;
+            if (infraFailureReason && !opts.json) {
+              console.log(`  ${icon("error")} ${infraFailureReason}`);
+            }
             emitGateDecisionEmitted(correlation, {
               gateName: "j-rig-rollout-gate",
               decision: gateDecisionValue,
@@ -1181,13 +1134,15 @@ export function registerEvalCommand(program: Command): void {
             // consumable by intent-rollout-gate. Reuses the same
             // ship|block|else → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision =
-                report.decision === "ship"
+              const gateDecision = infraFailure
+                ? "error"
+                : report.decision === "ship"
                   ? "pass"
                   : report.decision === "block"
                     ? "fail"
                     : "advisory";
               const gateReasons = [...report.blockers, ...report.warnings];
+              if (infraFailureReason) gateReasons.unshift(infraFailureReason);
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
@@ -1271,6 +1226,8 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
+                  // Blueprint B § 7.4 SHOULD: structured detail for `error`.
+                  ...(infraFailure ? { error_detail: infraFailure } : {}),
                   ...batchLineage,
                   ...voteEvidence,
                 },
@@ -1304,7 +1261,11 @@ export function registerEvalCommand(program: Command): void {
               console.log("");
             }
 
-            transitionRun(database, runId, "completed");
+            if (infraFailure) {
+              transitionRun(database, runId, "failed", JSON.stringify(infraFailure));
+            } else {
+              transitionRun(database, runId, "completed");
+            }
           } else {
             transitionRun(database, runId, "completed");
           }
@@ -1437,20 +1398,16 @@ export function registerEvalCommand(program: Command): void {
         } else {
           console.log(chalk.dim(`Duration: ${formatDuration(duration)} | DB: ${opts.db}`));
         }
+        // Exit contract: 0 = evaluated (pass/fail/advisory are VERDICTS and are
+        // reported in the bundle, not the exit status — the rollout gate
+        // decides); 2 = a provider the evaluation depends on failed for at least one
+        // model, so that model was not (fully) evaluated (bundle still written,
+        // signed `error`, 000-docs/037); 1 = crash (catch
+        // below). Set after every artifact is flushed so consumers still get
+        // the bundle + JSON.
+        if (infrastructureFailureSeen) process.exitCode = 2;
       } catch (err) {
-        const message = redactDiagnostic(err instanceof Error ? err.message : String(err));
-        if (opts.json) {
-          const payload: Record<string, unknown> = {
-            error: "evaluation_failed",
-            message,
-          };
-          if (err instanceof EvalProviderFailure) {
-            payload.provider_failure = err.details;
-          }
-          console.log(JSON.stringify(payload));
-        } else {
-          console.error(`Error: ${message}`);
-        }
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });
