@@ -86,6 +86,7 @@ const CREATE_TABLES = `
     verdict TEXT NOT NULL,
     score REAL NOT NULL,
     checks_json TEXT NOT NULL,
+    metadata_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(raw_run_id, grader_id, grader_version, grader_snapshot_sha256),
     FOREIGN KEY (raw_run_id) REFERENCES raw_runs(id)
@@ -185,6 +186,11 @@ const ADDITIVE_COLUMNS: ReadonlyArray<{ table: string; column: string; ddl: stri
     table: "artifacts",
     column: "sha256",
     ddl: "ALTER TABLE artifacts ADD COLUMN sha256 TEXT",
+  },
+  {
+    table: "grades",
+    column: "metadata_json",
+    ddl: "ALTER TABLE grades ADD COLUMN metadata_json TEXT",
   },
 ];
 

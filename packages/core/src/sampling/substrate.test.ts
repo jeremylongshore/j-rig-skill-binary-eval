@@ -99,7 +99,22 @@ describe("binary grade uncertainty", () => {
           raw_run_id: "raw-0",
           sample_index: 0,
           status: "completed",
-          grade: { ...selector, verdict: "pass", score: 1 },
+          grade: {
+            ...selector,
+            verdict: "pass",
+            score: 1,
+            metadata: {
+              judge: {
+                judge_model: "fixture-judge",
+                raw_verdict: "yes",
+                samples: 3,
+                agreement: 2 / 3,
+                sample_verdicts: ["yes", "no", "yes"],
+                disagreement: true,
+                reasoning: "fixture",
+              },
+            },
+          },
         },
         { ...cells[0]!, raw_run_id: "raw-1", sample_index: 1, status: "completed" },
         { ...cells[0]!, raw_run_id: "raw-2", sample_index: 2, status: "runner_error" },
@@ -126,6 +141,11 @@ describe("binary grade uncertainty", () => {
       fail_count: 0,
       pass_rate: 1,
       mean_score: 1,
+      judge_sampled_runs: 1,
+      judge_vote_count: 3,
+      judge_disagreement_count: 1,
+      judge_disagreement_rate: 1,
+      judge_agreement_mean: 2 / 3,
     });
     expect(measurements[1]).toMatchObject({
       task_id: "task-b",
@@ -134,6 +154,11 @@ describe("binary grade uncertainty", () => {
       fail_count: 1,
       pass_rate: 0,
       mean_score: 0,
+      judge_sampled_runs: 0,
+      judge_vote_count: 0,
+      judge_disagreement_count: 0,
+      judge_disagreement_rate: null,
+      judge_agreement_mean: null,
     });
   });
 

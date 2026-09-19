@@ -6,14 +6,21 @@ bump to v2.0.0 simultaneously.
 
 ## Real-provider outage handling
 
-New evaluations fail closed when a real provider cannot produce an execution or
-judge response. `j-rig eval --json` exits non-zero with an
-`evaluation_failed` diagnostic, marks the SQLite run `failed`, and does not
-emit a normal ground-truth scorecard or Evidence Bundle. Consumers must check
-the process exit code before ingesting stdout. HTTP 402 and explicit
+New evaluations fail closed when a provider the evaluation depends on does not
+respond, in either the execution or the judge phase, whether it affects one
+unit or all of them. `j-rig eval` records no verdict for that model and still
+emits evidence: a signed `gate-result/v1` row with `gate_decision: "error"`,
+the error class first in `gate_reasons`, and a typed credential-free
+`metadata.error_detail`. The SQLite run is marked `failed` and the process exits
+**2** after writing every artifact. Under `--json` the model's result carries
+`gate_decision: "error"` and `evaluation_error`; when present, its `scoreCard`,
+`decision`, and `report` are diagnostic only. Consumers must check the exit code
+and that field before ingesting a verdict. HTTP 402 and explicit
 `Insufficient Balance`/quota responses are recorded as non-retryable
-`rate_limit` provider failures. Completed empty responses remain valid
-tool-dependent boundary observations. See
+`rate_limit` failures. Completed empty responses remain valid tool-dependent
+boundary observations, and partial sample loss still degrades agreement rather
+than erroring; use `--samples` of 2 or more to absorb transient judge failures.
+See
 [`000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
 
 ## Breaking change: predicate body (the primary migration)
