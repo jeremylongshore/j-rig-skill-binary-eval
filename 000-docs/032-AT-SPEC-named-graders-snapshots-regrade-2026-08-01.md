@@ -64,6 +64,11 @@ Grade's `metadata_json`. The binary Grade maps `yes` to `pass` and maps `no` or
 cannot mistake an uncertain judgment for a confident failure. Regrading creates
 another immutable identity and never mutates prior evidence.
 
+If every judge call fails, no quality Grade is stored. The command reports an
+evaluation error, leaves the raw Run unchanged, and can be retried after the
+provider recovers. This is different from a judge that successfully returns
+`unsure`.
+
 ## Snapshot and identity
 
 Before persistence, J-Rig serializes the parsed definition and records a
@@ -75,6 +80,12 @@ The identity is content-addressed and unique. Repeating the same command is
 idempotent and returns the existing Grade. Changing the definition or version
 creates a new Grade row, preserving the earlier judgment for audit and
 comparison.
+
+The saved-Grade lookup happens before provider selection or model calls. An
+identical snapshot, even with `--regrade`, returns its saved evidence without
+new judge calls or credentials. A changed snapshot is rejected before any model
+spend unless `--regrade` is supplied. These are sequential retry guarantees,
+not a cross-process lock against simultaneous judge requests.
 
 ## Regrade policy
 

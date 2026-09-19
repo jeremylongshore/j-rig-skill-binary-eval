@@ -10,6 +10,8 @@ Binary evaluation harness that treats `SKILL.md` artifacts as production softwar
 [![CI](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-skill-binary-eval)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 **Links:** [Master Blueprint](000-docs/007-PP-PLAN-master-build-blueprint.md) · [Epic Index](000-docs/epics/README.md) · [Doc Index](000-docs/000-INDEX.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ---

@@ -275,6 +275,46 @@ describe("judgeCriteria — N-sample majority voting", () => {
     expect(r!.sample_verdicts).toEqual(["no", "unsure", "unsure", "unsure", "unsure"]);
   });
 
+  it("marks a judgment whose provider failed on every sample with judge_error (dead-judge flag)", async () => {
+    const dead: JudgeProvider = {
+      judge: async () => {
+        throw new Error("HTTP 401 authentication");
+      },
+    };
+    const criteria: Criterion[] = [criterion({ id: "c1", description: "d", method: "judge" })];
+    const single = await judgeCriteria(criteria, makeOutcome("x"), dead);
+    expect(single[0]!.verdict).toBe("unsure");
+    expect(single[0]!.judge_error).toContain("401");
+    // Credential boundary: a provider that echoes the failing request must not
+    // leak the key into the (soon signed) judge_error / reasoning.
+    const leaky: JudgeProvider = {
+      judge: async () => {
+        throw new Error("HTTP 401 Authorization: Bearer sk-ant-api03-LEAKEDKEYVALUE0123456789");
+      },
+    };
+    const [l] = await judgeCriteria(criteria, makeOutcome("x"), leaky);
+    expect(l!.judge_error).toContain("401");
+    expect(l!.judge_error).not.toContain("LEAKEDKEYVALUE");
+    expect(l!.reasoning).not.toContain("LEAKEDKEYVALUE");
+    const multi = await judgeCriteria(criteria, makeOutcome("x"), dead, { samples: 3 });
+    expect(multi[0]!.verdict).toBe("unsure");
+    expect(multi[0]!.judge_error).toContain("401");
+  });
+
+  it("does NOT set judge_error when at least one sample succeeded (partial outage is still a judgment)", async () => {
+    let n = 0;
+    const flaky: JudgeProvider = {
+      judge: async () => {
+        if (n++ === 0) return { verdict: "no", confidence: 0.9, reasoning: "ok" };
+        throw new Error("HTTP 503");
+      },
+    };
+    const criteria: Criterion[] = [criterion({ id: "c1", description: "d", method: "judge" })];
+    const r = await judgeCriteria(criteria, makeOutcome("x"), flaky, { samples: 3 });
+    expect(r[0]!.judge_error).toBeUndefined();
+    expect(r[0]!.reasoning).toContain("errored");
+  });
+
   it("degrades to the legacy error result when every sample fails", async () => {
     const provider = sequenceJudge([new Error("down"), new Error("down"), new Error("down")]);
     const [r] = await judgeCriteria([judgeCrit()], makeOutcome("t"), provider, { samples: 3 });
