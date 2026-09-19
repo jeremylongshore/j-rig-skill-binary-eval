@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { evaluateWithGrader, GraderDefinitionSchema, type RunnerResult } from "@j-rig/core";
+import {
+  evaluateWithGrader,
+  evaluateWithModelJudge,
+  GraderDefinitionSchema,
+  type DeterministicGraderDefinition,
+  type ModelJudgeGraderDefinition,
+  type RunnerResult,
+} from "@j-rig/core";
 import {
   createDatabase,
   createGrade,
@@ -16,7 +23,7 @@ const grader = GraderDefinitionSchema.parse({
   version: "1.0.0",
   kind: "deterministic",
   checks: [{ id: "has-answer", type: "output_contains", expected: "4" }],
-});
+}) as DeterministicGraderDefinition;
 
 function result(status: RunnerResult["status"], stdout = "4"): RunnerResult {
   return {
@@ -82,5 +89,55 @@ describe("sampling database joins", () => {
     expect(selected).toHaveLength(2);
     expect(selected[0]?.grade?.verdict).toBe("pass");
     expect(selected[1]?.grade).toBeUndefined();
+  });
+
+  it("keeps external judge vote sampling visible in selected observations", async () => {
+    const completed = createRawRun(database, {
+      task_id: "task-judge",
+      task_version: "1",
+      config_id: "config-judge",
+      config_version: "1",
+      model: "model-judge",
+      sample_index: 0,
+      task: { id: "task-judge" },
+      config: { id: "config-judge" },
+      request: {},
+    });
+    startRawRun(database, completed.id);
+    sealRawRun(database, completed.id, result("completed", "answer"));
+
+    const definition = GraderDefinitionSchema.parse({
+      id: "quality-judge",
+      version: "1.0.0",
+      kind: "model_judge",
+      model: "fixture-judge",
+      criterion_description: "The output is correct",
+      judge_prompt: "Answer yes only when the output is correct.",
+      samples: 3,
+    }) as ModelJudgeGraderDefinition;
+    const votes: Array<"yes" | "no" | "unsure"> = ["yes", "no", "yes"];
+    const evaluation = await evaluateWithModelJudge(completed.id, "answer", definition, {
+      async judge() {
+        return {
+          verdict: votes.shift() ?? "unsure",
+          confidence: 0.5,
+          reasoning: "fixture vote",
+        };
+      },
+    });
+    createGrade(database, evaluation);
+
+    const selected = getGradeObservations(database, {
+      grader_id: definition.id,
+      grader_version: definition.version,
+      grader_snapshot_sha256: evaluation.grader_snapshot_sha256,
+    });
+
+    expect(selected[0]?.grade?.metadata?.judge).toMatchObject({
+      samples: 3,
+      agreement: 2 / 3,
+      disagreement: true,
+      sample_verdicts: ["yes", "no", "yes"],
+    });
   });
 });

@@ -85,6 +85,7 @@ export function createGrade(database: JRigDatabase, evaluation: GradeEvaluation)
       verdict: evaluation.verdict as StoredGradeVerdict,
       score: evaluation.score,
       checks_json: JSON.stringify(evaluation.checks),
+      metadata_json: evaluation.metadata ? JSON.stringify(evaluation.metadata) : null,
     })
     .onConflictDoNothing()
     .run();

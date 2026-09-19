@@ -1,0 +1,9 @@
+spec_version: "1.0"
+skill_name: adapter-fixture
+description: This profile is invalid because it has no criteria.
+criteria: []
+test_cases:
+  - id: uncovered
+    description: The invalid profile must never be adapted.
+    tier: core
+    prompt: This should fail validation.
