@@ -246,6 +246,38 @@ Use `--regrade` when intentionally applying a different version of the same
 named Grader. Runner errors and timeouts remain ungraded observations. See
 [`032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`](000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md).
 
+### Balanced execution sampling
+
+The generic substrate can plan resumable, balanced top-ups for each complete
+Task × Config × Model cell. Completed Runs count toward target N, active Runs
+reserve a slot, and runner failures/timeouts are retained but replaced by a
+fresh sample index:
+
+```bash
+node packages/cli/dist/index.js sample-plan \
+  --manifest ./sampling-manifest.yaml \
+  --target-n 3 \
+  --db ./j-rig.db \
+  --json
+```
+
+The plan is inspectable JSON. A path-based `j-rig batch` manifest can consume
+these jobs in balanced passes and resume after runner failures. Measurements
+select one exact Grader snapshot and expose pass rate, harness failures,
+ungraded completions, Wilson intervals, score standard error, and model-judge
+vote disagreement without heterogeneous rollups. For example:
+
+```bash
+node packages/cli/dist/index.js batch \
+  --manifest ./batch.yaml \
+  --db ./j-rig.db \
+  --json
+```
+
+Use `j-rig report --sampling-manifest` with the full Grader identity to render
+the selected measurements. See
+[`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+
 ### ⚠️ Stub providers — output is NOT ground truth
 
 When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.

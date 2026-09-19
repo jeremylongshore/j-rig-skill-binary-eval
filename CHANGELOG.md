@@ -30,8 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   named task/config/model/sample through a shell-free `ExecutableRunner`, stores
   an idempotent `raw_runs` record before execution, retains runner failures and
   timeouts distinctly from completed output, and records content-addressed raw
-  artifact references. Balanced sampling, suites, and reports remain
-  downstream evolution slices.
+  artifact references. Balanced sampling and batch execution build on this
+  ledger without collapsing runner failures into model failures.
 
 - **Named Graders and immutable Grade snapshots:** `j-rig grade` evaluates a
   completed raw Run with a versioned deterministic or model-judge definition,
@@ -44,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Marketplace-ready JRig evaluator skill** — document the real five-of-seven
   default, opt-in regression and naked-model checks, provider boundary, rollout
   decisions, exit semantics, evidence bundle, and safe recovery workflow.
+
+- **Balanced execution sampling and uncertainty:** `j-rig sample-plan` creates
+  round-robin target-N top-ups across explicit Task × Config × Model cells;
+  completed Runs count, active Runs reserve slots, and harness failures are
+  replaced without being misreported as model failures. `j-rig batch` executes
+  path-based suite jobs in those balanced passes and resumes from the raw-run
+  ledger. `j-rig report --sampling-manifest` selects one immutable Grade
+  snapshot and exposes pass rate, Wilson intervals, harness failures, ungraded
+  completions, score standard error, judge vote counts, and disagreement rates
+  without heterogeneous rollups.
+
 - **Nightly skill-eval roster 13→14** — pin CCPI merge `a9dd5c02` and add
   `skill-creator` after its hand-authored `eval-spec.yaml` landed
   ([#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).

@@ -6,6 +6,7 @@ export * from "./checks/index.js";
 export * from "./trigger/index.js";
 export * from "./execution/index.js";
 export * from "./grading/index.js";
+export * from "./sampling/index.js";
 export * from "./judgment/index.js";
 export * from "./governance/index.js";
 export * from "./optimizer/index.js";

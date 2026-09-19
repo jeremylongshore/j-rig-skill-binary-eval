@@ -40,6 +40,8 @@ j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
 j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
+j-rig sample-plan --manifest ...      # balanced target-N top-up plan
+j-rig batch --manifest ...            # execute a resumable balanced batch
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -66,6 +68,25 @@ engine when `samples > 1`, and persist every vote plus disagreement metadata.
 The grader's `model` remains pinned even when a provider preset has a default
 model. See
 `000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
+
+`j-rig sample-plan` reads a YAML manifest of explicit Task × Config × Model
+cells and reports the next balanced sample indices needed to reach `--target-n`.
+`j-rig batch` consumes a path-based suite manifest, executes those jobs in
+balanced passes, and resumes from the immutable raw-run ledger. Both surfaces
+retain runner failures instead of converting them into model grades. See
+`000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
+
+To report one exact Grader snapshot over a sampling manifest, provide all three
+identity fields:
+
+```bash
+j-rig report \
+  --sampling-manifest ./sampling-manifest.yaml \
+  --grader-id quality-judge \
+  --grader-version "1" \
+  --grader-snapshot-sha256 sha256:<64-hex> \
+  --json
+```
 
 ## Providers
 

@@ -94,6 +94,13 @@ as `j-rig grade`. It snapshots the definition and digest into an immutable
 while the original judgment remains intact. See
 `000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
 
+`j-rig sample-plan` now builds round-robin target-N top-ups over explicit Task ×
+Config × Model cells. Completed Runs count; pending/running Runs reserve slots;
+runner errors/timeouts remain separate and are replaced by fresh sample
+indices. Grade measurements select the full grader snapshot and report Wilson
+uncertainty without heterogeneous rollups. See
+`000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

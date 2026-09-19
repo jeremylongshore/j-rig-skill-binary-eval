@@ -30,6 +30,7 @@
 | 030 | [030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)   | `SkillEvalSpec` profile name, canonical-kernel adapter boundary, and 0.10.0 currency baseline |
 | 031 | [031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md](031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md)         | Generic task/config runner protocol, raw Run identity, lifecycle, and artifact manifest |
 | 032 | [032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md](032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md)   | Named Graders, immutable Grade snapshots, deterministic checks, and regrade policy       |
+| 033 | [033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md](033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md)       | Balanced execution sampling, target-N planning, and uncertainty metrics                  |
 
 ### OD — Operations & Deployment
 
@@ -52,7 +53,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `033`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `034`.
 
 ### AA — Audits & After-Action Reports
 
@@ -108,6 +109,7 @@
 | 030 | AT-SPEC  | [eval-substrate-contract-identity.md](030-AT-SPEC-eval-substrate-contract-identity-2026-08-01.md)                |
 | 031 | AT-SPEC  | [generic-runner-config-raw-run.md](031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md)                         |
 | 032 | AT-SPEC  | [named-graders-snapshots-regrade.md](032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md)                      |
+| 033 | AT-SPEC  | [balanced-sampling-uncertainty.md](033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md)                          |
 
 ## Epics
 
@@ -151,7 +153,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 32 numbered docs (`001`–`032`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 33 numbered docs (`001`–`033`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 033
+- **Next sequence number:** 034
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.
