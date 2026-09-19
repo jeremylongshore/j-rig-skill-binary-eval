@@ -207,8 +207,9 @@ export function selectJudgeOverride(
  * Select real vs stub providers for a model.
  *
  * Provider precedence (output IS ground truth on any real path):
- *   1. An OpenAI-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, or a
- *      generic `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` triple. A `--provider`
+ *   1. An OpenAI-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, MiniMax,
+ *      OpenAI, Groq, NVIDIA, or a generic `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`
+ *      triple. A `--provider`
  *      flag forces a specific preset. This is the default real path because the
  *      Anthropic external-API credit is exhausted; DeepSeek credits are live.
  *   2. The real Anthropic Messages API when `ANTHROPIC_API_KEY` is set.

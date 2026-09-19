@@ -51,10 +51,10 @@ files beside the source skills; it never overwrites an existing spec.
 ## Command
 
 ```bash
-DEEPSEEK_API_KEY=sk-... \
+MINIMAX_API_KEY=sk-... \
   j-rig eval-batch ~/.claude/skills \
-  --provider deepseek \
-  --models deepseek-v4-flash \
+  --provider minimax \
+  --models MiniMax-M3 \
   --db ./j-rig.db \
   --batch-id skills-2026-08-01 \
   --json

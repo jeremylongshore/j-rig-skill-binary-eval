@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MiniMax M3 operational path and Phase 3 evidence:** provider tables,
+  roster examples, and batch commands now document the funded
+  `MINIMAX_API_KEY` / `MiniMax-M3` path. A pinned three-skill real-provider
+  spot-check is recorded with `ground_truth: true` and no provider failures
+  ([#261](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/261)).
+
 - **Generic task/config runner and raw Run ledger:** `j-rig run` now executes a
   named task/config/model/sample through a shell-free `ExecutableRunner`, stores
   an idempotent `raw_runs` record before execution, retains runner failures and

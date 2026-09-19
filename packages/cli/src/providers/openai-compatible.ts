@@ -7,7 +7,8 @@
  * (`POST {base}/chat/completions`, `Authorization: Bearer <key>`,
  * `choices[0].message.content` response) against ANY OpenAI-compatible endpoint.
  *
- * Why this matters: DeepSeek, Kimi/Moonshot, OpenRouter, and Together are all
+ * Why this matters: DeepSeek, Kimi/Moonshot, OpenRouter, MiniMax, OpenAI, Groq,
+ * NVIDIA NIM, and Together are all
  * Chat-Completions-compatible. The only things that differ between them are the
  * base URL, the model id, and which env var carries the key. So one adapter +
  * one config table covers all of them — no new SDK, no per-vendor adapter.
@@ -31,7 +32,8 @@
  *
  * To switch providers, set three env vars (or pick a per-provider preset):
  *   - LLM_BASE_URL / LLM_MODEL / LLM_API_KEY  (generic), OR
- *   - DEEPSEEK_API_KEY / MOONSHOT_API_KEY / OPENROUTER_API_KEY (presets).
+ *   - DEEPSEEK_API_KEY / MOONSHOT_API_KEY / OPENROUTER_API_KEY /
+ *     MINIMAX_API_KEY (presets).
  * See `resolveOpenAICompatConfig` for the precedence + defaults table.
  */
 

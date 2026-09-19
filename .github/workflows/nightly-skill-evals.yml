@@ -47,8 +47,8 @@ on:
       models:
         description: >-
           Model id override — REQUIRED whenever provider differs from the
-          roster default (the specs pin the DeepSeek model id, which other
-          backends 404 on). Example: MiniMax-M3.
+          roster default (the specs pin provider-specific model ids, which
+          other backends may reject). Example: MiniMax-M3.
         required: false
         default: ""
 

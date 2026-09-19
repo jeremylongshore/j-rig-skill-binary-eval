@@ -128,13 +128,16 @@ The evaluator's judge layer talks to an LLM provider. The provider is
 auto-detected from environment variables (preferring an OpenAI-compatible
 endpoint) or forced with `--provider`:
 
-| Provider     | `--provider`         | Env var             | Model id            |
-| ------------ | -------------------- | ------------------- | ------------------- |
-| DeepSeek     | `deepseek`           | `DEEPSEEK_API_KEY`  | `deepseek-v4-flash` |
-| Kimi/Moonshot| `kimi` / `moonshot`  | `MOONSHOT_API_KEY`  | provider default    |
-| OpenRouter   | `openrouter`         | `OPENROUTER_API_KEY`| provider default    |
-| MiniMax      | `minimax`            | `MINIMAX_API_KEY`   | `MiniMax-M3`        |
-| Anthropic    | `anthropic`          | `ANTHROPIC_API_KEY` | Claude models       |
+| Provider      | `--provider`         | Env var              | Model id                      |
+| ------------- | -------------------- | -------------------- | ----------------------------- |
+| DeepSeek      | `deepseek`           | `DEEPSEEK_API_KEY`   | `deepseek-v4-flash`           |
+| Kimi/Moonshot | `kimi` / `moonshot`  | `MOONSHOT_API_KEY`   | provider default              |
+| OpenRouter    | `openrouter`         | `OPENROUTER_API_KEY` | provider default              |
+| OpenAI        | `openai`             | `OPENAI_API_KEY`     | `gpt-4o-mini`                 |
+| MiniMax       | `minimax`            | `MINIMAX_API_KEY`    | `MiniMax-M3`                  |
+| Groq          | `groq`               | `GROQ_API_KEY`       | `llama-3.3-70b-versatile`     |
+| NVIDIA NIM    | `nvidia`             | `NVIDIA_API_KEY`     | `meta/llama-3.3-70b-instruct` |
+| Anthropic     | `anthropic`          | `ANTHROPIC_API_KEY`  | Claude models                 |
 
 **DeepSeek** is reached by setting `DEEPSEEK_API_KEY` in the environment and
 selecting it explicitly:
@@ -147,6 +150,20 @@ j-rig eval ./my-skill --spec ./eval-spec.yaml --provider deepseek
 The DeepSeek adapter is the shared OpenAI-Chat-Completions adapter pointed at the
 DeepSeek endpoint and the `deepseek-v4-flash` model — no DeepSeek-specific SDK is
 required.
+
+**MiniMax M3** uses the same adapter with `https://api.minimax.io/v1` and
+`MINIMAX_API_KEY`. Pin the model for reproducibility and for specs whose declared
+model belongs to another provider:
+
+```bash
+export MINIMAX_API_KEY=sk-...
+j-rig eval ./my-skill --spec ./eval-spec.yaml \
+  --provider minimax --models MiniMax-M3 --json
+```
+
+MiniMax M3 may inline reasoning in a leading `<think>…</think>` block. The
+adapter removes only that leading block before trigger/judge parsing; the
+credential remains in memory and is never written to evidence.
 
 ### Provider failure boundary
 

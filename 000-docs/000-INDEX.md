@@ -2,7 +2,7 @@
 
 > Release-quality evaluation harness and rollout gate for Claude Skills
 
-**Last Updated:** 2026-08-01
+**Last Updated:** 2026-08-02
 
 ## By Category
 
@@ -59,7 +59,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `040`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `041`.
 
 ### AA — Audits & After-Action Reports
 
@@ -71,6 +71,7 @@
 | 024 | [024-AA-AACR-real-provider-dogfood-2026-06-17.md](024-AA-AACR-real-provider-dogfood-2026-06-17.md)                                   | Real-provider behavioral dogfood AAR (iaj-E10)                                                                     |
 | 025 | [025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md](025-AA-AACR-configurable-openai-compatible-provider-2026-06-16.md) | Configurable OpenAI-compatible provider AAR (DeepSeek / Kimi / OpenRouter)                                        |
 | 027 | [027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md](027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md)                                 | Skill Refiner npm release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0 (SLSA provenance) |
+| 040 | [040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md](040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md)                 | Funded MiniMax M3 real-provider spot-check and operational activation evidence                                 |
 
 ### DR — Decision Records & Findings
 
@@ -122,6 +123,7 @@
 | 037 | AT-SPEC  | [real-provider-failure-boundary.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)                      |
 | 038 | AT-SPEC  | [unified-report-html-static.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)                              |
 | 039 | AT-SPEC  | [eval-batch-report-projection.md](039-AT-SPEC-eval-batch-report-projection-2026-08-02.md)                          |
+| 040 | AA-AACR  | [minimax-m3-phase3-dogfood.md](040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md)                           |
 
 ## Epics
 

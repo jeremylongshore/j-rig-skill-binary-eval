@@ -160,7 +160,7 @@ pnpm monorepo with nine workspace packages — four published to npm (`@intentso
 
 ### Choosing a provider
 
-`j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, Together — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).
+`j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, OpenAI, MiniMax, Groq, and NVIDIA — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).
 
 **Switch providers with at most three env vars.** Set a per-provider key for a built-in preset, or the generic `LLM_*` triple to point at any compatible gateway:
 
@@ -169,6 +169,10 @@ pnpm monorepo with nine workspace packages — four published to npm (`@intentso
 | **DeepSeek** | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-v4-flash` (V4 Lite; or `deepseek-reasoner`) |
 | **Kimi / Moonshot** | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` | `kimi-k2.6` |
 | **OpenRouter** | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-chat` or `moonshotai/kimi-k2` |
+| **OpenAI** | `OPENAI_API_KEY` | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| **MiniMax** | `MINIMAX_API_KEY` | `https://api.minimax.io/v1` | `MiniMax-M3` |
+| **Groq** | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| **NVIDIA NIM** | `NVIDIA_API_KEY` | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
 | **Anthropic** | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1/messages` | `sonnet` / `haiku` / `opus` |
 | **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
 
@@ -179,31 +183,37 @@ DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models
 # Kimi / Moonshot
 MOONSHOT_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --provider kimi --models kimi-k2-0711-preview
 
+# MiniMax M3 (funded real-provider path; keep the model pin explicit)
+MINIMAX_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill \
+  --provider minimax --models MiniMax-M3 --json
+
 # Any OpenAI-compatible gateway via the generic triple
 LLM_API_KEY=sk-... LLM_BASE_URL=https://my-gateway/v1 LLM_MODEL=some-model \
   node packages/cli/dist/index.js eval ./my-skill
 ```
 
-**Running a real DeepSeek eval (Intent Solutions internal).** The `DEEPSEEK_API_KEY` is
-SOPS-encrypted (age) in the lab repo at `intent-eval-lab/.env.sops` — never hardcoded,
-never committed in plaintext. Decrypt it into the process at runtime (only into
-`/dev/shm`, never to disk) and run a real behavioral model-matrix eval:
+**Running a real MiniMax M3 eval (Intent Solutions internal).** The
+`MINIMAX_API_KEY` is supplied from an encrypted secret store or a repository
+secret — never hardcoded, never committed in plaintext. Inject it into the
+process at runtime and pin the provider model explicitly:
 
 ```bash
-# from intent-eval-lab/ (where the SOPS file lives)
-eval "$(sops -d --input-type dotenv .env.sops \
-  | sed -nE 's/^(DEEPSEEK_API_KEY)=(.*)$/export \1=\2/p')"
+# from the operator's secret manager / CI environment:
+export MINIMAX_API_KEY='<injected at runtime; do not paste into source>'
 
 # then, from j-rig-binary-eval/:
-node packages/cli/dist/index.js eval ./path/to/skill --provider deepseek --models deepseek-v4-flash --json
+node packages/cli/dist/index.js eval ./path/to/skill \
+  --provider minimax --models MiniMax-M3 --json
 ```
 
 The unit tests never touch the network or a real key — the adapter's wire format +
 normalization are exercised through an injected **stub transport** that returns canned
-OpenAI Chat-Completions payloads (`providers/openai-compatible.test.ts`). Only this
-documented runtime path makes a real DeepSeek call.
+OpenAI Chat-Completions payloads (`providers/openai-compatible.test.ts`). The
+MiniMax preset strips only a leading `<think>…</think>` block before judge parsing;
+the raw credential is never logged. Only an explicitly configured runtime path
+makes a real provider call.
 
-**Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
+**Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → OpenAI → MiniMax → Groq → NVIDIA, then generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|openai|minimax|groq|nvidia|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
 
 **Provider failures sign `error`, never a grade.** If any execution or judge
 call the evaluation depends on fails, `j-rig eval` records no verdict for that
@@ -322,10 +332,10 @@ The skills-specific batch surface composes the existing scaffold and evaluator
 so a library can be exercised with one documented command:
 
 ```bash
-DEEPSEEK_API_KEY=sk-... \
+MINIMAX_API_KEY=sk-... \
   node packages/cli/dist/index.js eval-batch ~/.claude/skills \
-  --provider deepseek \
-  --models deepseek-v4-flash \
+  --provider minimax \
+  --models MiniMax-M3 \
   --db ./j-rig.db \
   --batch-id skills-2026-08-01 \
   --json
