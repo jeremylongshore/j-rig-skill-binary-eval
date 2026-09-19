@@ -319,6 +319,13 @@ node packages/cli/dist/index.js report \
 
 Use `--html --output ./report.html` for a self-contained accessible HTML
 projection with inline CSS and no scripts, external assets, or network fetches.
+Add `--serve` to run that HTML projection on loopback until `Ctrl-C`; the
+server exposes `/`, `/index.html`, and `/healthz`, refuses public bind
+addresses, and chooses an available port by default. `j-rig suite
+./suite.yaml --serve` serves its generated HTML report through the same local
+surface. This does not change the unsigned-local or dashboard publication
+boundary. See
+[`041-AT-SPEC-eval-report-live-serve-2026-08-02.md`](000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md).
 Omit `--json` and `--html` for Markdown. Empty data is rendered explicitly; no
 global pass rate is inferred across heterogeneous cells. These are local
 unsigned projections. The verified dashboard adapter and any Evidence

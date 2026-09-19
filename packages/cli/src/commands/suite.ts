@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import {
@@ -20,6 +21,7 @@ import { openDb } from "../lib/db.js";
 import { loadGraderDefinition, runGrade } from "./grade.js";
 import { runGenericEval, loadConfigDefinition, loadTaskDefinition } from "./run.js";
 import { runUnifiedReport } from "./report.js";
+import { startReportServer, waitForReportServer } from "../lib/report-server.js";
 
 /** The manifest contract for one generic Task × Config evaluation suite. */
 export const SuiteDefinitionSchema = z
@@ -119,6 +121,9 @@ export interface SuiteOptions {
   outputDir?: string;
   targetN?: number;
   regrade?: boolean;
+  serve?: boolean;
+  host?: string;
+  port?: number;
 }
 
 export interface SuiteResult {
@@ -695,6 +700,9 @@ export function registerSuiteCommand(program: Command): void {
     .option("--output-dir <path>", "Suite audit/report directory")
     .option("--target-n <n>", "Override manifest target_n", (value: string) => Number(value))
     .option("--regrade", "Allow a changed grader snapshot to coexist with an earlier Grade")
+    .option("--serve", "Serve the generated HTML report on loopback until interrupted")
+    .option("--host <host>", "Loopback bind address for --serve", "127.0.0.1")
+    .option("--port <n>", "TCP port for --serve (0 chooses an available port)", parseInt, 0)
     .option("--json", "Output the suite audit manifest as JSON")
     .action(
       async (
@@ -704,10 +712,16 @@ export function registerSuiteCommand(program: Command): void {
           outputDir?: string;
           targetN?: number;
           regrade?: boolean;
+          serve?: boolean;
+          host: string;
+          port: number;
           json?: boolean;
         },
       ) => {
         try {
+          if (opts.serve && opts.json) {
+            throw new Error("--serve and --json are mutually exclusive");
+          }
           const result = await runSuite({
             manifestPath: manifest,
             db: opts.db,
@@ -716,6 +730,19 @@ export function registerSuiteCommand(program: Command): void {
             regrade: opts.regrade === true,
           });
           printSuite(result, opts.json);
+          if (opts.serve) {
+            const htmlPath = result.audit.report?.html_path;
+            if (!result.report?.report || !htmlPath) {
+              throw new Error("--serve requires a generated suite HTML report");
+            }
+            const html = await readFile(htmlPath, "utf8");
+            const server = await startReportServer(html, {
+              host: opts.host,
+              port: opts.port,
+            });
+            console.error(`Serving report at ${server.url} (Ctrl-C to stop)`);
+            await waitForReportServer(server);
+          }
           if (result.audit.summary.pending > 0 || result.audit.summary.failed > 0) {
             process.exitCode = 1;
           }

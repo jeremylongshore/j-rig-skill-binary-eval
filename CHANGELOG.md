@@ -78,6 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retain per-skill spec/provider/model/artifact lineage and explicit failures
   without inventing a heterogeneous quality score or rollout decision.
 
+- **Loopback live reports:** `j-rig report --unified --html --serve` and
+  `j-rig suite --serve` serve self-contained HTML over loopback with a
+  deterministic `/healthz`, strict bind safety, 404 handling, and clean signal
+  shutdown. This remains unsigned local output; it does not publish to the
+  dashboard or public origin.
+
 - **Nightly skill-eval roster 13→14** — pin CCPI merge `a9dd5c02` and add
   `skill-creator` after its hand-authored `eval-spec.yaml` landed
   ([#234](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/234)).

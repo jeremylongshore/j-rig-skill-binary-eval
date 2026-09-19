@@ -45,6 +45,7 @@ j-rig grade --run-id ... --grader ... # named immutable Grade over a completed R
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
 j-rig batch --manifest ...            # execute a resumable balanced batch
 j-rig report --unified ...            # selected-Grader JSON/Markdown/HTML report
+j-rig report --unified ... --html --serve # serve a report on loopback
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
 j-rig drift                          # check whether a skill needs reevaluation
@@ -103,6 +104,14 @@ and `--json` are mutually exclusive. This is unsigned local output, not a
 dashboard ingest or rollout decision. See
 `000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md` and
 `000-docs/038-AT-SPEC-unified-report-html-static-2026-08-02.md`.
+
+Add `--serve` to the unified HTML command to serve the generated report on
+loopback until `Ctrl-C`; `--port 0` chooses an available port and `--host`
+accepts only `127.0.0.1` or `::1`. `j-rig suite <suite.yaml> --serve` serves
+the suite's generated `report.html` through the same loopback-only server.
+The server exposes `/`, `/index.html`, and `/healthz` only. It never binds a
+public address or changes the unsigned-local publication boundary. See
+`000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md`.
 
 For the cell-scoped projection, use `--sampling-manifest` with the same three
 Grader identity fields. The unified report is the versioned local projection;

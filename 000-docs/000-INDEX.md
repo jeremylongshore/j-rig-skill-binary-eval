@@ -37,6 +37,7 @@
 | 037 | [037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)     | Any provider failure signs a `gate-result/v1` `error` row; no verdict, credential-free detail |
 | 038 | [038-AT-SPEC-unified-report-html-static-2026-08-02.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)             | Self-contained accessible HTML projection for unified and suite reports                    |
 | 039 | [039-AT-SPEC-eval-batch-report-projection-2026-08-02.md](039-AT-SPEC-eval-batch-report-projection-2026-08-02.md)         | Batch lineage/status JSON, Markdown, and self-contained HTML report projection              |
+| 041 | [041-AT-SPEC-eval-report-live-serve-2026-08-02.md](041-AT-SPEC-eval-report-live-serve-2026-08-02.md)                     | Loopback live serving for unified and suite report HTML                                      |
 
 ### OD — Operations & Deployment
 
@@ -59,7 +60,7 @@
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 010 | [010-TQ-SOPS-audit-harness-baseline-2026-05-01.md](010-TQ-SOPS-audit-harness-baseline-2026-05-01.md)       | Audit-harness testing baseline (Intent Solutions Testing SOP) |
 
-> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Next new doc uses `041`.
+> **Numbering note:** two documents share sequence `010` (`010-AT-SPEC-…` and `010-TQ-SOPS-…`) — a filing collision predating this index. Both are retained as-is; renumbering would break inbound references. Sequence `040` is the MiniMax M3 dogfood AAR; next new doc uses `042`.
 
 ### AA — Audits & After-Action Reports
 
@@ -124,6 +125,7 @@
 | 038 | AT-SPEC  | [unified-report-html-static.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)                              |
 | 039 | AT-SPEC  | [eval-batch-report-projection.md](039-AT-SPEC-eval-batch-report-projection-2026-08-02.md)                          |
 | 040 | AA-AACR  | [minimax-m3-phase3-dogfood.md](040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md)                           |
+| 041 | AT-SPEC  | [eval-report-live-serve.md](041-AT-SPEC-eval-report-live-serve-2026-08-02.md)                                     |
 
 ## Epics
 
@@ -167,7 +169,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 40 numbered docs (`001`–`039`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 41 numbered docs (`001`–`041`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 040
+- **Next sequence number:** 042
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

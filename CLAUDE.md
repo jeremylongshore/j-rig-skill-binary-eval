@@ -111,6 +111,12 @@ not treat it as a gate-result Evidence Bundle or publish it directly; the
 dashboard must re-verify through its own ingest boundary. See
 `000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
 
+`j-rig report --unified --html --serve` and `j-rig suite --serve` provide the
+local operator path over loopback only. The server exposes the generated HTML
+and `/healthz`, refuses wildcard/public binds, and shuts down cleanly on
+SIGINT/SIGTERM. It does not alter the unsigned-local or dashboard publication
+boundary. See `000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md`.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

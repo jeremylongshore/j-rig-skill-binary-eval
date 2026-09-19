@@ -26,6 +26,7 @@ import {
 } from "@j-rig/core";
 import { openDb } from "../lib/db.js";
 import { icon, formatDuration, formatScore, header } from "../lib/output.js";
+import { startReportServer, waitForReportServer } from "../lib/report-server.js";
 
 export interface UnifiedReportOptions {
   db: string;
@@ -36,6 +37,9 @@ export interface UnifiedReportOptions {
   json?: boolean;
   html?: boolean;
   output?: string;
+  serve?: boolean;
+  host?: string;
+  port?: number;
 }
 
 export interface UnifiedReportResult {
@@ -165,6 +169,9 @@ export function registerReportCommand(program: Command): void {
     )
     .option("--output <path>", "Write the selected unified projection to a file")
     .option("--html", "Output a self-contained HTML report (with --unified)")
+    .option("--serve", "Serve the HTML report on loopback until interrupted (with --html)")
+    .option("--host <host>", "Loopback bind address for --serve", "127.0.0.1")
+    .option("--port <n>", "TCP port for --serve (0 chooses an available port)", parseInt, 0)
     .option("--json", "Output as JSON")
     .action(
       async (opts: {
@@ -180,11 +187,20 @@ export function registerReportCommand(program: Command): void {
         output?: string;
         html?: boolean;
         json?: boolean;
+        serve?: boolean;
+        host: string;
+        port: number;
       }) => {
         let database: ReturnType<typeof openDb> | undefined;
         try {
           if (opts.html && !opts.unified) {
             throw new Error("--html requires --unified");
+          }
+          if (opts.serve && !opts.unified) {
+            throw new Error("--serve requires --unified");
+          }
+          if (opts.serve && !opts.html) {
+            throw new Error("--serve requires --html");
           }
           if (opts.unified) {
             if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
@@ -195,6 +211,9 @@ export function registerReportCommand(program: Command): void {
             if (opts.html && opts.json) {
               throw new Error("--html and --json are mutually exclusive");
             }
+            if (opts.serve && opts.json) {
+              throw new Error("--serve and --json are mutually exclusive");
+            }
             const result = runUnifiedReport({
               db: opts.db,
               graderId: opts.graderId,
@@ -204,7 +223,16 @@ export function registerReportCommand(program: Command): void {
               html: opts.html,
               output: opts.output,
             });
-            if (!opts.output) process.stdout.write(result.rendered);
+            if (opts.serve) {
+              const server = await startReportServer(result.rendered, {
+                host: opts.host,
+                port: opts.port,
+              });
+              console.error(`Serving report at ${server.url} (Ctrl-C to stop)`);
+              await waitForReportServer(server);
+            } else if (!opts.output) {
+              process.stdout.write(result.rendered);
+            }
             return;
           }
 
