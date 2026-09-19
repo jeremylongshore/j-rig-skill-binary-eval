@@ -195,11 +195,16 @@ function prepareSpec(skill: DiscoveredSkill, outputDir: string, writeSpecs: bool
     ? join(skill.directory, "eval-spec.yaml")
     : join(outputDir, "specs", skill.slug, "eval-spec.yaml");
   mkdirSync(dirname(target), { recursive: true });
-  if (!existsSync(target)) {
+  try {
+    // Exclusive create: atomically refuses to replace a spec that already
+    // exists, with no window between the check and the write.
     writeFileSync(
       target,
       generatedSpecHeader(validated.data.skill_name) + stringify(validated.data),
+      { flag: "wx" },
     );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
   loadSkillEvalSpec(target, skill.directory);
   return { path: target, source: "generated" };

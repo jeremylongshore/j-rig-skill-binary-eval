@@ -128,4 +128,36 @@ describe("j-rig eval-batch", () => {
     expect(failed?.error).toBe("provider failed");
     expect(failed?.status).toBe("failed");
   });
+
+  it("keeps an already-generated spec byte-identical when the batch is rerun", async () => {
+    const root = mkdtempSync(join(tmpdir(), "jrig-eval-batch-rerun-"));
+    tempDirs.push(root);
+    skill(root, "gamma-skill");
+    const outputDir = join(root, "batch-output");
+
+    const invokeEval: EvalInvoker = async (args) => {
+      const bundlePath = args[args.indexOf("--emit-bundle") + 1];
+      if (!bundlePath) throw new Error("test invoker did not receive bundle path");
+      writeFileSync(bundlePath, "[]\n");
+      return { exitCode: 0, signal: null, stdout: "{}", stderr: "" };
+    };
+    const options = {
+      skillsRoot: root,
+      db: join(root, "evidence.db"),
+      outputDir,
+      batchId: "batch-rerun-test",
+      invokeEval,
+    };
+
+    const first = await runEvalBatch(options);
+    const specPath = first.manifest.entries[0]!.spec_path;
+    const reviewed = readFileSync(specPath, "utf8") + "# reviewed by an engineer\n";
+    writeFileSync(specPath, reviewed);
+
+    const second = await runEvalBatch(options);
+
+    expect(second.manifest.entries[0]!.spec_path).toBe(specPath);
+    expect(second.manifest.summary).toEqual({ discovered: 1, completed: 1, failed: 0 });
+    expect(readFileSync(specPath, "utf8")).toBe(reviewed);
+  });
 });
