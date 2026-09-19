@@ -196,8 +196,15 @@ is CI-only, deliberately.
 ## Task Tracking with Beads (bd)
 
 **Beads provides post-compaction recovery.** Run `/beads` at session start.
+This repository is one member of the six-repo Intent Eval Platform workspace;
+the tracked `.beads/redirect` resolves the supported workspace layout to
+`~/000-projects/.beads/`, the canonical umbrella Dolt store. The former member
+store's JSONL, backups, and Git history remain recovery artifacts, while the
+removed member metadata prevents accidental creation of a second database.
 
-**Workflow:** `bd update <id> --status in_progress` → work → `bd close <id> --reason "evidence"` → `bd sync`
+**Workflow:** `bd update <id> --status in_progress` → work → `bd-sync close` or
+`bd-sync note` with evidence → push the Git branch. Verify the store with
+`bd where` and `bd info`; do not run `bd init` here.
 
 Key commands: `bd prime` (LLM context), `bd ready`, `bd list --status in_progress`, `bd doctor`
 
