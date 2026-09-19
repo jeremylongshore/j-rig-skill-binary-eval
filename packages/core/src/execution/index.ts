@@ -1,6 +1,7 @@
 export { runFunctionalTests, checkOutputExpectations } from "./runner.js";
 export { ExecutableRunner } from "./executable-runner.js";
 export {
+  DEFAULT_MAX_OUTPUT_BYTES,
   EvalConfigSchema,
   EvalIdentifierSchema,
   EvalTaskSchema,

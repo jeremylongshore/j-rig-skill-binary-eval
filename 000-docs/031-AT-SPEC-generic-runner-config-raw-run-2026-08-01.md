@@ -38,6 +38,7 @@ harness:
   command: node
   args: [./fixtures/answer-harness.mjs]
   timeout_ms: 30000
+  max_output_bytes: 10485760 # optional; per stream, default 10 MiB
   cwd: .
 parameters:
   temperature: 0
@@ -71,8 +72,43 @@ Runner status is separate from quality:
 
 - `completed`: the harness exited zero; its stdout is still ungraded model or
   task output.
-- `runner_error`: the harness failed to start or exited non-zero.
+- `runner_error`: the harness failed to start, exited non-zero, or exceeded
+  its output ceiling.
 - `timed_out`: the configured timeout killed the harness.
+
+### Resource bounds
+
+These limits protect the host running J-Rig. They are **not a sandbox**: a
+harness is trusted local code that runs with the caller's privileges, and
+nothing here makes it safe to execute untrusted or hosted workloads.
+
+- **Output ceiling.** Stdout and stderr are each capped at
+  `harness.max_output_bytes` (positive integer, at most 1 GiB). When the field
+  is absent the runner applies a 10 MiB default per stream. The first stream to
+  exceed its ceiling terminates the harness immediately; the Run is sealed as
+  `runner_error` with the bytes captured up to the ceiling and an
+  `error_message` naming the stream and the limit. Truncation is by bytes, so
+  the final character of retained text may be a partial UTF-8 sequence.
+- **Why the field has no schema default.** The parsed config is snapshotted
+  into the raw-run ledger and compared byte-for-byte when a sealed Run is
+  reused. A defaulted field would change that snapshot for every existing
+  config and refuse reuse of every previously sealed Run. Configs that omit the
+  field therefore serialize exactly as before.
+- **Descendant cleanup (POSIX).** The harness is started as a process-group
+  leader. Timeout (`SIGTERM`, then `SIGKILL` after 250 ms) and output overflow
+  (`SIGKILL`) signal the whole group, so grandchildren are terminated instead
+  of orphaned. Because a separate group no longer receives the terminal's
+  interrupt, the runner forwards host `SIGINT`/`SIGTERM`/`SIGHUP` and host exit
+  to the group. On Windows only the immediate child is signalled.
+- **Bounded completion.** A descendant that deliberately leaves the group can
+  keep the stdio pipes open indefinitely. The runner does not wait for it: 500
+  ms after `SIGKILL` it closes its ends of the pipes and seals the Run. Such a
+  process is outside the runner's reach and is the harness author's
+  responsibility.
+
+Runs that end as `runner_error` or `timed_out` are infrastructure
+observations. They cannot be graded, so a resource-limit failure never becomes
+a quality verdict.
 
 ## Raw Run ledger
 
