@@ -4,6 +4,7 @@ import { runCalibration } from "./calibration.js";
 import type { JudgeProvider, GoldenCase } from "./types.js";
 import { CriterionSchema } from "../schemas/criterion.js";
 import type { Criterion } from "../schemas/criterion.js";
+import { ProviderError } from "../providers/errors.js";
 
 function criterion(partial: {
   id: string;
@@ -173,6 +174,29 @@ describe("judgeCriteria", () => {
     expect(results[0].verdict).toBe("unsure");
     expect(results[0].confidence).toBe(0);
     expect(results[0].reasoning).toContain("API down");
+  });
+
+  it("preserves typed provider failure metadata when a judge is unavailable", async () => {
+    const criteria: Criterion[] = [criterion({ id: "c5b", description: "Fails", method: "judge" })];
+
+    const provider: JudgeProvider = {
+      async judge() {
+        throw new ProviderError({
+          category: "rate_limit",
+          providerName: "deepseek",
+          message: "Insufficient Balance",
+          retryable: false,
+        });
+      },
+    };
+
+    const results = await judgeCriteria(criteria, makeOutcome("text"), provider);
+
+    expect(results[0].provider_failure).toEqual({
+      category: "rate_limit",
+      providerName: "deepseek",
+      retryable: false,
+    });
   });
 
   it("routes deterministic before judge in mixed criteria", async () => {

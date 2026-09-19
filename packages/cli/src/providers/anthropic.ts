@@ -144,6 +144,17 @@ export class StubExecutionProvider implements ExecutionProvider {
     const now = new Date().toISOString();
     const effectiveModel = options?.model ?? this.model;
 
+    // Test-only failure mode: simulate an execution provider outage for every
+    // prompt containing the given substring ("1" = every prompt), so the
+    // provider-failure → signed `error` path has an offline regression test.
+    // Never set in production.
+    const failOn = process.env.J_RIG_STUB_EXECUTION_FAIL;
+    if (failOn && (failOn === "1" || prompt.includes(failOn))) {
+      throw new Error(
+        "stub execution failure (J_RIG_STUB_EXECUTION_FAIL): HTTP 402 Insufficient Balance",
+      );
+    }
+
     return {
       text: `[stub] Would call ${effectiveModel} with skill body (${context.skill_body.length} chars) and prompt: "${prompt.slice(0, 50)}..."`,
       artifacts: [],
@@ -186,7 +197,10 @@ export class StubJudgeProvider implements JudgeProvider {
     // Test-only failure mode: simulate a judge provider that is down (401,
     // network, timeout) without a network call, so the dead-judge → `error`
     // path has an offline regression test. Never set in production.
-    if (process.env.J_RIG_STUB_JUDGE_FAIL === "1") {
+    // "1" fails every criterion; any other value fails only criteria whose
+    // description contains it, which is how the PARTIAL judge outage is tested.
+    const failJudge = process.env.J_RIG_STUB_JUDGE_FAIL;
+    if (failJudge && (failJudge === "1" || criterion_description.includes(failJudge))) {
       throw new Error("stub judge failure (J_RIG_STUB_JUDGE_FAIL=1): HTTP 401 authentication");
     }
     return {

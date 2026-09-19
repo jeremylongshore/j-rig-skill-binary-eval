@@ -205,6 +205,17 @@ documented runtime path makes a real DeepSeek call.
 
 **Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
 
+**Provider failures sign `error`, never a grade.** If any execution or judge
+call the evaluation depends on fails, `j-rig eval` records no verdict for that
+model and still emits evidence: a `gate-result/v1` row with
+`gate_decision: "error"`, the error class first in `gate_reasons`, and typed
+credential-free `metadata.error_detail`. The run is stored `failed` and the
+process exits 2. A partial outage counts: a score over the surviving criteria is
+not a measurement. HTTP 402 and messages such as `Insufficient Balance` are
+non-retryable quota failures; completed responses with empty text remain valid
+boundary observations for tool-dependent skills. See
+[`037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
+
 **Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
 
 ### Generic task/config runs (active evaluation-platform evolution)

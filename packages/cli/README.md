@@ -141,6 +141,20 @@ The DeepSeek adapter is the shared OpenAI-Chat-Completions adapter pointed at th
 DeepSeek endpoint and the `deepseek-v4-flash` model — no DeepSeek-specific SDK is
 required.
 
+### Provider failure boundary
+
+A provider failure is evidence about the evaluator, not a skill grade. If any
+functional or judge call fails, `j-rig eval` records no verdict for that model
+and still emits a `gate-result/v1` row with `gate_decision: "error"`, the error
+class first in `gate_reasons`, and credential-free `metadata.error_detail`. The
+SQLite run is marked `failed`, the `--json` result carries `gate_decision:
+"error"` plus `evaluation_error`, and the process exits 2 after writing every
+artifact. HTTP 402 and messages such as `Insufficient Balance` are classified as
+non-retryable quota failures. A completed response with empty text is still
+retained as a tool-dependent boundary observation, and `--samples` of 2 or more
+absorbs transient judge failures through the agreement vote. See
+[`000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](../../000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
+
 A built-in `stub` provider exists for pipeline plumbing only. It is gated behind
 `J_RIG_ALLOW_STUB=1` and its results are **not** ground truth.
 

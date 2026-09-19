@@ -354,6 +354,24 @@ function errorForStatus(name: string, status: number, body: unknown): ProviderEr
   if (status === 404) {
     return new ProviderError({ category: "model_not_found", providerName: name, message });
   }
+  // Some OpenAI-compatible vendors report depleted credits as HTTP 402 while
+  // others return the same condition under a non-standard 4xx status. Treat
+  // both forms as quota exhaustion, not an opaque unknown error, and mark the
+  // failure non-retryable until the account is funded. Authentication and
+  // model-not-found statuses take precedence over message text.
+  if (
+    status === 402 ||
+    /insufficient\s+(?:account\s+)?balance|insufficient\s+funds|quota\s+exhausted|billing|payment required/i.test(
+      message,
+    )
+  ) {
+    return new ProviderError({
+      category: "rate_limit",
+      providerName: name,
+      message,
+      retryable: false,
+    });
+  }
   if (status === 429) {
     return new ProviderError({ category: "rate_limit", providerName: name, message });
   }

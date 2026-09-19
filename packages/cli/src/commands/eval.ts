@@ -86,6 +86,11 @@ import {
 } from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
 import {
+  detectInfrastructureFailure,
+  infrastructureFailureReason,
+  isFailedExecution,
+} from "./eval-infrastructure-failure.js";
+import {
   CostTrackingProvider,
   EvalCostMeter,
   type EvalCostReport,
@@ -655,10 +660,11 @@ export function registerEvalCommand(program: Command): void {
           }
         }
 
-        // Set when the dead-judge override fires for ANY model: the run
-        // evaluated nothing, so the process must not exit 0 (a CI step that
-        // trusts the exit status would otherwise pass a non-evaluation).
-        let deadJudgeSeen = false;
+        // Set when the infrastructure-failure override fires for ANY model:
+        // that model was not (fully) evaluated, so the process must not exit 0
+        // (a CI step that trusts the exit status would otherwise pass a
+        // non-evaluation).
+        let infrastructureFailureSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
           const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
@@ -805,6 +811,10 @@ export function registerEvalCommand(program: Command): void {
 
             costMeter.phase = "judge";
             for (const outcome of outcomes) {
+              // A failed provider call is not a model response. Judging it
+              // would spend judge tokens grading an error string as if it were
+              // skill behavior; the run is signed `error` below instead.
+              if (isFailedExecution(outcome)) continue;
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
               // iterates spec.test_cases), so a miss is an internal invariant
@@ -949,6 +959,10 @@ export function registerEvalCommand(program: Command): void {
             let baselineComparisons: BaselineComparison[] = [];
             let isObsolete = false;
             let ranBaseline = false;
+            // Hoisted so a provider failure in the naked-baseline pass is held
+            // to the same infrastructure-failure rule as the skill pass.
+            let baselineOutcomes: ObservedOutcome[] = [];
+            let baselineJudgments: JudgmentResult[] = [];
             if (opts.baselineCheck) {
               ranBaseline = true;
               costMeter.phase = "execution";
@@ -960,7 +974,10 @@ export function registerEvalCommand(program: Command): void {
               );
               costMeter.phase = "judge";
               const nakedJudgments: JudgmentResult[] = [];
+              baselineOutcomes = nakedOutcomes;
+              baselineJudgments = nakedJudgments;
               for (const outcome of nakedOutcomes) {
+                if (isFailedExecution(outcome)) continue;
                 const testCase = testCaseById.get(outcome.test_case_id);
                 if (!testCase) continue;
                 const nakedCriteria = selectCriteriaForTestCase(
@@ -1036,6 +1053,27 @@ export function registerEvalCommand(program: Command): void {
             // with a best-effort USD estimate. Stub runs record nothing.
             costReport = providers.real ? costMeter.report() : null;
 
+            // ── Infrastructure-failure rule (000-docs/037) ─────────────
+            // Blueprint B § 7.4: `error` is "a verdict on the gate's own
+            // ability to evaluate". ANY unrecovered provider failure — a test
+            // case that never executed, or a criterion whose every judge sample
+            // errored, in the skill or the naked-baseline pass — means the
+            // scorecard below was computed over an incomplete evaluation. It is
+            // kept for diagnosis but is not a verdict on the skill: the row is
+            // signed `error`, the run is stored `failed`, the exit is non-zero.
+            // This generalizes the 2026-09 dead-judge override (conference
+            // audit, "make it lie" #E), which fired only when EVERY judgment
+            // died and ignored execution failures entirely.
+            const infraFailure = detectInfrastructureFailure({
+              outcomes: [...outcomes, ...baselineOutcomes],
+              judgments: [...allJudgments, ...baselineJudgments],
+              executionProvider: providers.providerName,
+              judgeProvider: providers.judgeProviderName,
+            });
+            const infraFailureReason = infraFailure
+              ? infrastructureFailureReason(infraFailure)
+              : null;
+
             allResults[model] = {
               provider: providers.providerName,
               model,
@@ -1046,6 +1084,9 @@ export function registerEvalCommand(program: Command): void {
               scoreCard,
               decision,
               report,
+              // Present IFF the evaluation did not complete. Consumers MUST
+              // treat scoreCard/decision/report as diagnostic only when set.
+              ...(infraFailure ? { gate_decision: "error", evaluation_error: infraFailure } : {}),
               cost: costReport,
               ...batchLineage,
             };
@@ -1058,25 +1099,10 @@ export function registerEvalCommand(program: Command): void {
             // emitter so a ship-gate dashboard alerts on one event name across
             // both emitters.
             //
-            // Dead-judge override (2026-09 conference audit, "make it lie" #E):
-            // when the judge provider failed for EVERY judged criterion, nothing
-            // was evaluated. The errored-sample semantics make each such
-            // criterion an `unsure` vote, the rollout decision degrades to
-            // `warn`, and the row would be signed as `advisory` — a shape a
-            // verifier cannot tell from genuine uncertainty, and one the
-            // rollout gate tolerates by default. The kernel enum has `error` for
-            // exactly this; use it, and put the provider's message first in
-            // gate_reasons as the kernel requires.
-            const judgedCriteria = allJudgments.filter((j) => j.method === "judge");
-            const deadJudgeErrors = judgedCriteria
-              .map((j) => j.judge_error)
-              .filter((e): e is string => typeof e === "string");
-            const judgeDead =
-              judgedCriteria.length > 0 && deadJudgeErrors.length === judgedCriteria.length;
-            const deadJudgeReason = judgeDead
-              ? `judge provider failed on every judged criterion (${deadJudgeErrors.length}/${judgedCriteria.length}); nothing was evaluated: ${deadJudgeErrors[0]}`
-              : null;
-            const gateDecisionValue = judgeDead
+            // Infrastructure failure wins over every rollout mapping: the
+            // kernel enum has `error` for exactly this, and gate_reasons[0]
+            // must name the error class (computed above).
+            const gateDecisionValue = infraFailure
               ? GateDecision.ERROR
               : report.decision === "ship"
                 ? GateDecision.PASS
@@ -1089,9 +1115,9 @@ export function registerEvalCommand(program: Command): void {
             ) {
               runHadFailure = true;
             }
-            if (judgeDead) deadJudgeSeen = true;
-            if (deadJudgeReason && !opts.json) {
-              console.log(`  ${icon("error")} ${deadJudgeReason}`);
+            if (infraFailure) infrastructureFailureSeen = true;
+            if (infraFailureReason && !opts.json) {
+              console.log(`  ${icon("error")} ${infraFailureReason}`);
             }
             emitGateDecisionEmitted(correlation, {
               gateName: "j-rig-rollout-gate",
@@ -1107,7 +1133,7 @@ export function registerEvalCommand(program: Command): void {
             // consumable by intent-rollout-gate. Reuses the same
             // ship|block|else → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision = judgeDead
+              const gateDecision = infraFailure
                 ? "error"
                 : report.decision === "ship"
                   ? "pass"
@@ -1115,7 +1141,7 @@ export function registerEvalCommand(program: Command): void {
                     ? "fail"
                     : "advisory";
               const gateReasons = [...report.blockers, ...report.warnings];
-              if (deadJudgeReason) gateReasons.unshift(deadJudgeReason);
+              if (infraFailureReason) gateReasons.unshift(infraFailureReason);
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
@@ -1199,6 +1225,8 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
+                  // Blueprint B § 7.4 SHOULD: structured detail for `error`.
+                  ...(infraFailure ? { error_detail: infraFailure } : {}),
                   ...batchLineage,
                   ...voteEvidence,
                 },
@@ -1232,7 +1260,11 @@ export function registerEvalCommand(program: Command): void {
               console.log("");
             }
 
-            transitionRun(database, runId, "completed");
+            if (infraFailure) {
+              transitionRun(database, runId, "failed", JSON.stringify(infraFailure));
+            } else {
+              transitionRun(database, runId, "completed");
+            }
           } else {
             transitionRun(database, runId, "completed");
           }
@@ -1367,11 +1399,12 @@ export function registerEvalCommand(program: Command): void {
         }
         // Exit contract: 0 = evaluated (pass/fail/advisory are VERDICTS and are
         // reported in the bundle, not the exit status — the rollout gate
-        // decides); 2 = the judge was dead for at least one model, nothing was
-        // evaluated (bundle still written, signed `error`); 1 = crash (catch
+        // decides); 2 = a provider the evaluation depends on failed for at least one
+        // model, so that model was not (fully) evaluated (bundle still written,
+        // signed `error`, 000-docs/037); 1 = crash (catch
         // below). Set after every artifact is flushed so consumers still get
         // the bundle + JSON.
-        if (deadJudgeSeen) process.exitCode = 2;
+        if (infrastructureFailureSeen) process.exitCode = 2;
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);

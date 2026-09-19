@@ -49,17 +49,22 @@ STUB-PROVIDERS.md for the full discipline.
 
 This refusal is enforced in `packages/cli/src/providers/anthropic.ts` (`assertStubAllowed`) and called from `packages/cli/src/commands/eval.ts` before any stub instantiates.
 
-### 1b. Test-only failure switch: `J_RIG_STUB_JUDGE_FAIL=1`
+### 1b. Test-only failure switches
 
-With the opt-in above in place, setting `J_RIG_STUB_JUDGE_FAIL=1` makes `StubJudgeProvider.judge`
-throw on every call (simulating a judge endpoint that is down: 401, network, timeout). It exists so
-the dead-judge path — every judged criterion errored → the emitted row is `error`, not
-`advisory` — has an offline regression test (`eval.e2e.test.ts`). It has no effect on real
-providers and must never be set outside a test.
+With the opt-in above in place, two switches simulate a provider outage without a network call so
+the infrastructure-failure rule (`000-docs/037`) has offline regression tests in `eval.e2e.test.ts`.
+They have no effect on real providers and must never be set outside a test.
 
-Exit contract when the switch trips: the CLI still writes `--emit-bundle` (signed `error`) and
-the `--json` result, then exits **2** (dead judge = non-evaluation). A healthy stub exits 0.
-The provider's message is redacted (`redactProviderError`) before it enters the signed reason.
+- `J_RIG_STUB_JUDGE_FAIL=1` makes `StubJudgeProvider.judge` throw on every call (a judge endpoint
+  that is down: 401, network, timeout). Any other value fails only criteria whose description
+  contains it, which is how a **partial** judge outage is tested.
+- `J_RIG_STUB_EXECUTION_FAIL=1` makes `StubExecutionProvider.execute` throw on every prompt (an
+  HTTP 402 quota failure). Any other value fails only prompts that contain it.
+
+Exit contract when a switch trips: the CLI still writes `--emit-bundle` (signed `error`) and the
+`--json` result, stores the run as `failed`, then exits **2** (non-evaluation). A healthy stub
+exits 0. The provider's message is redacted (`redactProviderError`) where it is captured, before it
+can enter the signed reason.
 
 ### 2. Loud banner on every stub invocation
 
