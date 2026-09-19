@@ -30,7 +30,9 @@ import {
   emitGateDecisionEmitted,
   emitCostRunRecorded,
   emitCostPhaseRecorded,
+  buildSkillPromotionEvidence,
   composeStatement,
+  hashCanonicalJson,
   writeBundle,
   RuntimeTerminalState,
   CriterionOutcome,
@@ -1017,9 +1019,13 @@ export function registerEvalCommand(program: Command): void {
             // a baseline the layer is honestly skipped (reported below).
             let regressions: Regression[] = [];
             let ranRegression = false;
+            let regressionBaselineSha256: string | null = null;
             if (opts.regressionBaseline) {
               ranRegression = true;
               const previousJudgments = loadRegressionBaseline(opts.regressionBaseline);
+              regressionBaselineSha256 =
+                "sha256:" +
+                createHash("sha256").update(readFileSync(opts.regressionBaseline)).digest("hex");
               regressions = detectRegressions(previousJudgments, allJudgments, scoringCriteria);
               if (!opts.json) {
                 const sacred = regressions.filter((r) => r.is_sacred).length;
@@ -1049,6 +1055,53 @@ export function registerEvalCommand(program: Command): void {
               { now: new Date(modelStart).toISOString() },
             );
 
+            // The legacy skill evaluator predates the generic Run/Grade
+            // substrate, so make its effective grader explicit and immutable
+            // in the promotion metadata. The snapshot covers every criterion
+            // plus the judge/stability settings that influence the fold.
+            const graderSnapshot = {
+              schema: "j-rig/binary-criteria-grader/v1",
+              criteria: scoringCriteria,
+              judge: {
+                provider: providers.judgeProviderName,
+                model: providers.judgeModelId,
+                samples: judgeSamples ?? 1,
+                temperature: spec.judge_temperature ?? 0,
+                timeout_ms: spec.judge_timeout_ms ?? 120000,
+                sample_concurrency: spec.judge_sample_concurrency ?? judgeSamples ?? 1,
+              },
+              stability: {
+                min_blocker_agreement: spec.min_blocker_agreement ?? null,
+              },
+            };
+            const promotionEvidence = buildSkillPromotionEvidence({
+              evalRunId: correlation.evalRunId,
+              storageRunId: runId,
+              skill: {
+                name: skillName,
+                version: skillVersion,
+                snapshotSha256: skillSnapshotSha,
+              },
+              evalSpec: {
+                id: `j-rig:skill-profile:${sanitizeSegment(skillName, "skill")}`,
+                version: spec.spec_version,
+                profileSha256: specContentHash,
+              },
+              selectedGrader: {
+                graderId: "j-rig-binary-criteria",
+                graderVersion: jrigVersion,
+                graderSnapshotSha256: hashCanonicalJson(graderSnapshot),
+              },
+              score: scoreCard,
+              minBlockerAgreement: spec.min_blocker_agreement ?? null,
+              regressions,
+              regressionEnabled: ranRegression,
+              regressionBaselineSha256,
+              baselineEnabled: ranBaseline,
+              baselineComparisons,
+              isObsolete,
+              rolloutDecision: report.decision,
+            });
             // ── Eval cost (Jeremy's ask: "what does it cost to eval this
             // skill, as-is?") — real token usage per phase, × N judge samples,
             // with a best-effort USD estimate. Stub runs record nothing.
@@ -1085,29 +1138,35 @@ export function registerEvalCommand(program: Command): void {
               scoreCard,
               decision,
               report,
-              // Present IFF the evaluation did not complete. Consumers MUST
-              // treat scoreCard/decision/report as diagnostic only when set.
-              ...(infraFailure ? { gate_decision: "error", evaluation_error: infraFailure } : {}),
+              // Exactly one of these is present. An incomplete evaluation
+              // carries `evaluation_error` and NO promotion evidence: a
+              // promotion claim over criteria that were never evaluated would
+              // be meaningless, and its own pass|fail|advisory field would
+              // contradict the `error` verdict.
+              ...(infraFailure
+                ? { gate_decision: "error", evaluation_error: infraFailure }
+                : { promotion: promotionEvidence }),
               cost: costReport,
               ...batchLineage,
             };
 
             // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
-            // RolloutDecision (ship|warn|block|obsolete_review) onto the closed
-            // gate-result/v1 verdict enum {pass,fail,advisory,error}: a clean
-            // ship is `pass`, a block is `fail`, warn/obsolete_review are
-            // `advisory`. Spelling is identical to the audit-harness iah-E07
-            // emitter so a ship-gate dashboard alerts on one event name across
-            // both emitters.
+            // RolloutDecision plus promotion evidence onto the closed
+            // gate-result/v1 verdict enum {pass,fail,advisory,error}. A `ship`
+            // decision without the required regression comparison is advisory
+            // until the evidence is complete; this prevents a skipped layer
+            // from becoming a false promotion pass. Spelling is identical to
+            // the audit-harness iah-E07 emitter so a ship-gate dashboard alerts
+            // on one event name across both emitters.
             //
-            // Infrastructure failure wins over every rollout mapping: the
-            // kernel enum has `error` for exactly this, and gate_reasons[0]
-            // must name the error class (computed above).
+            // Infrastructure failure wins over every other mapping, promotion
+            // included: the kernel enum has `error` for exactly this, and
+            // gate_reasons[0] must name the error class (computed above).
             const gateDecisionValue = infraFailure
               ? GateDecision.ERROR
-              : report.decision === "ship"
+              : promotionEvidence.gate_decision === "pass"
                 ? GateDecision.PASS
-                : report.decision === "block"
+                : promotionEvidence.gate_decision === "fail"
                   ? GateDecision.FAIL
                   : GateDecision.ADVISORY;
             if (
@@ -1132,16 +1191,17 @@ export function registerEvalCommand(program: Command): void {
             // (throws) on any invalid field, so a successfully written bundle is
             // proof-by-construction that every row is kernel-valid and directly
             // consumable by intent-rollout-gate. Reuses the same
-            // ship|block|else → pass|fail|advisory mapping as the OTel emit.
+            // promotion evidence → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision = infraFailure
-                ? "error"
-                : report.decision === "ship"
-                  ? "pass"
-                  : report.decision === "block"
-                    ? "fail"
-                    : "advisory";
-              const gateReasons = [...report.blockers, ...report.warnings];
+              const gateDecision = infraFailure ? "error" : promotionEvidence.gate_decision;
+              const gateReasons = [
+                ...new Set([
+                  ...report.blockers,
+                  ...report.warnings,
+                  // Promotion reasons describe a verdict; an `error` row has none.
+                  ...(infraFailure ? [] : promotionEvidence.promotion_reasons),
+                ]),
+              ];
               if (infraFailureReason) gateReasons.unshift(infraFailureReason);
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
@@ -1221,13 +1281,13 @@ export function registerEvalCommand(program: Command): void {
                   model,
                   provider: providers.providerName,
                   ground_truth: providers.real,
-                  rollout_decision: report.decision,
                   pass_rate: scoreCard.pass_rate,
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
                   // Blueprint B § 7.4 SHOULD: structured detail for `error`.
-                  ...(infraFailure ? { error_detail: infraFailure } : {}),
+                  // Mutually exclusive with promotion evidence (see above).
+                  ...(infraFailure ? { error_detail: infraFailure } : promotionEvidence),
                   ...batchLineage,
                   ...voteEvidence,
                 },
@@ -1238,7 +1298,12 @@ export function registerEvalCommand(program: Command): void {
                 // runs make no claim rather than guessing a higher level.
                 ...(hasJudgeCriteria ? { replayFidelityLevel: "RF-1" as const } : {}),
                 ...(gateDecision === "fail"
-                  ? { failureMode: report.blockers[0] ?? "blocker-criterion-failed" }
+                  ? {
+                      failureMode:
+                        report.blockers[0] ??
+                        promotionEvidence.promotion_reasons.at(-1) ??
+                        "promotion-evidence-failed",
+                    }
                   : {}),
                 ...(gateDecision === "advisory" ? { advisorySeverity: "warn" as const } : {}),
               });

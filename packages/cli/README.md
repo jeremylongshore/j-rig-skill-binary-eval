@@ -56,6 +56,11 @@ j-rig refine                         # eval-guided SKILL.md improvement loop
 
 `j-rig eval <skill-dir>` expects an `eval-spec.yaml` (or `--spec <path>`) and
 writes evidence to a local SQLite DB (`--db <path>`, default `j-rig.db`).
+When `--emit-bundle <path>` is used, each `j-rig:local:<skill>.<model>` row
+also carries the versioned `j-rig/skill-promotion/v1` identity, grader,
+threshold, and regression metadata. A row with no `--regression-baseline` is
+honestly advisory for promotion even when the legacy report says `ship`. See
+`000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`.
 
 `j-rig eval-batch <skills-root>` discovers `SKILL.md` leaves in sorted order,
 reuses existing specs, generates missing baseline specs under a batch artifact

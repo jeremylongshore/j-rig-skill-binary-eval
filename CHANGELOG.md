@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spot-check is recorded with `ground_truth: true` and no provider failures
   ([#261](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/261)).
 
+- **Skill promotion evidence contract:** `j-rig:local:<skill>.<model>` rows
+  now carry EvalRun/storage identities, skill and SkillEvalSpec profile
+  digests, the effective binary-criteria Grader snapshot, explicit threshold
+  outcomes, and hashed regression coverage. A skipped regression comparison
+  emits `advisory` rather than a false promotion `pass`; see
+  `000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`.
+
 - **Generic task/config runner and raw Run ledger:** `j-rig run` now executes a
   named task/config/model/sample through a shell-free `ExecutableRunner`, stores
   an idempotent `raw_runs` record before execution, retains runner failures and

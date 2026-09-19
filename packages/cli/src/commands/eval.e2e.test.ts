@@ -44,7 +44,28 @@ interface GateRow {
     gate_decision: string;
     input_hash: string;
     policy_hash: string;
-    metadata?: { rollout_decision?: string; ground_truth?: boolean };
+    metadata?: {
+      schema?: string;
+      rollout_decision?: string;
+      ground_truth?: boolean;
+      eval_run_id?: string;
+      run_ids?: string[];
+      skill?: { snapshot_sha256?: string };
+      eval_spec?: { profile_sha256?: string };
+      selected_grader?: {
+        grader_id?: string;
+        grader_version?: string;
+        grader_snapshot_sha256?: string;
+      };
+      thresholds?: { status?: string; required_pass_rate?: number };
+      regression?: {
+        required?: boolean;
+        enabled?: boolean;
+        result?: string;
+        baseline_sha256?: string | null;
+      };
+      promotion_eligible?: boolean;
+    };
   };
 }
 
@@ -195,6 +216,13 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
 
       const detail = predicate.metadata.error_detail;
       expect(detail).toMatchObject({ type: "provider_failure", phase: "judge" });
+
+      // Mutually exclusive with promotion evidence (000-docs/042): an `error`
+      // row must not also carry a promotion verdict of its own.
+      const metadata = predicate.metadata as Record<string, unknown>;
+      expect(metadata.gate_decision).toBeUndefined();
+      expect(metadata.promotion_reasons).toBeUndefined();
+      expect(predicate.gate_reasons.join("\n")).not.toMatch(/promotion/i);
       expect(detail!.affected).toBeGreaterThan(0);
       expect(detail!.affected).toBeLessThan(detail!.total);
 
@@ -206,6 +234,7 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
       >;
       expect(results.sonnet!.gate_decision).toBe("error");
       expect(results.sonnet!.evaluation_error?.phase).toBe("judge");
+      expect((results.sonnet as Record<string, unknown>).promotion).toBeUndefined();
 
       // The ledger records a failed run with the same credential-free detail.
       const database = createDatabase(dbPath);
@@ -312,6 +341,35 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
           row.predicate.metadata?.rollout_decision,
         );
         expect(row.predicate.metadata?.ground_truth).toBe(false);
+
+        // Promotion metadata is a separate, content-addressed contract. The
+        // default self-eval intentionally skips regression coverage, so its
+        // evidence must not claim a clean promotion pass.
+        expect(row.predicate.metadata?.schema).toBe("j-rig/skill-promotion/v1");
+        expect(row.predicate.metadata?.eval_run_id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        );
+        expect(row.predicate.metadata?.run_ids).toContain(row.predicate.metadata?.eval_run_id);
+        expect(row.predicate.metadata?.skill?.snapshot_sha256).toBe(row.predicate.input_hash);
+        expect(row.predicate.metadata?.eval_spec?.profile_sha256).toBe(row.predicate.policy_hash);
+        expect(row.predicate.metadata?.selected_grader).toMatchObject({
+          grader_id: "j-rig-binary-criteria",
+          grader_version: expect.any(String),
+        });
+        expect(row.predicate.metadata?.selected_grader?.grader_snapshot_sha256).toMatch(
+          /^sha256:[a-f0-9]{64}$/,
+        );
+        expect(row.predicate.metadata?.thresholds).toMatchObject({
+          required_pass_rate: 1,
+        });
+        expect(row.predicate.metadata?.regression).toMatchObject({
+          required: true,
+          enabled: false,
+          result: "not-run",
+          baseline_sha256: null,
+        });
+        expect(row.predicate.metadata?.promotion_eligible).toBe(false);
+        expect(["advisory", "fail"]).toContain(row.predicate.gate_decision);
       }
 
       // 4. The DB→bundle link is integrity-checked: every evidence-bundle
@@ -332,6 +390,79 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
       } finally {
         database.close();
       }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("promotes a deterministic skill row only after a regression baseline runs", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-promotion-e2e-"));
+    const specPath = join(work, "spec.yaml");
+    const baselinePath = join(work, "baseline.json");
+    const bundlePath = join(work, "bundle.json");
+    writeFileSync(
+      specPath,
+      [
+        'spec_version: "1.0"',
+        "skill_name: j-rig-eval",
+        "description: deterministic promotion fixture",
+        "criteria:",
+        "  - id: output-not-empty",
+        "    description: response is non-empty",
+        "    method: deterministic",
+        "    deterministic_check: not_empty",
+        "test_cases:",
+        "  - id: basic",
+        "    description: basic response",
+        "    tier: core",
+        "    prompt: evaluate a skill",
+        "    trigger_expectation: should_trigger",
+        "    criteria_ids:",
+        "      - output-not-empty",
+        "",
+      ].join("\n"),
+    );
+    // An empty baseline is valid evidence for this fixture: it proves the
+    // comparison executed and found no prior passing criterion to regress.
+    writeFileSync(baselinePath, "[]\n");
+
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          specPath,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--no-trigger",
+          "--db",
+          join(work, "promotion.db"),
+          "--regression-baseline",
+          baselinePath,
+          "--emit-bundle",
+          bundlePath,
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+
+      expect(r.status, `promotion fixture failed:\n${r.stderr}`).toBe(0);
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle).toHaveLength(1);
+      const metadata = bundle[0]?.predicate.metadata;
+      expect(bundle[0]?.predicate.gate_decision).toBe("pass");
+      expect(metadata?.promotion_eligible).toBe(true);
+      expect(metadata?.regression).toMatchObject({
+        required: true,
+        enabled: true,
+        result: "no-regressions",
+      });
+      expect(metadata?.regression?.baseline_sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+      expect(metadata?.thresholds?.status).toBe("pass");
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

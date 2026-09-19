@@ -117,6 +117,15 @@ and `/healthz`, refuses wildcard/public binds, and shuts down cleanly on
 SIGINT/SIGTERM. It does not alter the unsigned-local or dashboard publication
 boundary. See `000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md`.
 
+The legacy `j-rig eval --emit-bundle` path emits additive
+`j-rig/skill-promotion/v1` metadata on each real-skill gate row. It binds the
+OTel EvalRun UUID, SQLite run, skill/spec snapshots, effective binary-criteria
+Grader snapshot, thresholds, and regression comparison. A skipped regression
+layer is advisory for promotion, even if the legacy `LaunchReport` decision is
+`ship`; see `000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`. Promotion
+metadata is never emitted on an `error` row: an evaluator infrastructure failure
+(`000-docs/037`) wins over the promotion mapping and the two are mutually exclusive.
+
 ## Non-Negotiable Design Principles
 
 1. **Criteria must be binary** — yes or no, no gradients or fuzzy scores

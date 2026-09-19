@@ -42,6 +42,13 @@ evidence bundle's `coverage.dimensionsSkipped` (never a silent overclaim). The s
 > evidence bundle's `coverage.dimensionsSkipped` — the harness never claims a layer scored a skill
 > when it did not. A sacred (`regression_critical`) regression **blocks** release.
 
+When `--emit-bundle` is enabled, the real-skill row also carries
+`j-rig/skill-promotion/v1`: EvalRun and storage identities, skill/spec snapshot
+digests, the effective grader snapshot, threshold outcomes, and explicit
+regression coverage. A skipped regression comparison produces an advisory
+promotion row rather than a false clean pass. The contract is documented in
+[`042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`](000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md).
+
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
 
 ### W5

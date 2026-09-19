@@ -38,6 +38,7 @@
 | 038 | [038-AT-SPEC-unified-report-html-static-2026-08-02.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)             | Self-contained accessible HTML projection for unified and suite reports                    |
 | 039 | [039-AT-SPEC-eval-batch-report-projection-2026-08-02.md](039-AT-SPEC-eval-batch-report-projection-2026-08-02.md)         | Batch lineage/status JSON, Markdown, and self-contained HTML report projection              |
 | 041 | [041-AT-SPEC-eval-report-live-serve-2026-08-02.md](041-AT-SPEC-eval-report-live-serve-2026-08-02.md)                     | Loopback live serving for unified and suite report HTML                                      |
+| 042 | [042-AT-SPEC-skill-promotion-evidence-2026-08-02.md](042-AT-SPEC-skill-promotion-evidence-2026-08-02.md)                   | Skill Evidence Bundle identity, threshold, and regression promotion contract              |
 
 ### OD — Operations & Deployment
 
@@ -126,6 +127,7 @@
 | 039 | AT-SPEC  | [eval-batch-report-projection.md](039-AT-SPEC-eval-batch-report-projection-2026-08-02.md)                          |
 | 040 | AA-AACR  | [minimax-m3-phase3-dogfood.md](040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md)                           |
 | 041 | AT-SPEC  | [eval-report-live-serve.md](041-AT-SPEC-eval-report-live-serve-2026-08-02.md)                                     |
+| 042 | AT-SPEC  | [skill-promotion-evidence.md](042-AT-SPEC-skill-promotion-evidence-2026-08-02.md)                                  |
 
 ## Epics
 
@@ -169,7 +171,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 41 numbered docs (`001`–`041`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 43 numbered docs (`001`–`042`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 042
+- **Next sequence number:** 043
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.
