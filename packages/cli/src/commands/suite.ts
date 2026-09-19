@@ -486,7 +486,9 @@ function addPlannedJobs(
   return added;
 }
 
-function gradeSnapshot(result: ReturnType<typeof runGrade>): NonNullable<SuiteJob["grade"]> {
+function gradeSnapshot(
+  result: Awaited<ReturnType<typeof runGrade>>,
+): NonNullable<SuiteJob["grade"]> {
   return {
     id: result.grade.id,
     grader_id: result.grade.grader_id,
@@ -517,7 +519,7 @@ async function executeJob(
     job.raw_run_id = result.run.id;
     job.reused = result.reused;
     if (result.run.status === "completed") {
-      const grade = runGrade({
+      const grade = await runGrade({
         runId: result.run.id,
         graderPath: loaded.graderPath,
         db: audit.database,

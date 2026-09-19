@@ -10,6 +10,8 @@ Binary evaluation harness that treats `SKILL.md` artifacts as production softwar
 [![CI](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-skill-binary-eval)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 **Links:** [Master Blueprint](000-docs/007-PP-PLAN-master-build-blueprint.md) · [Epic Index](000-docs/epics/README.md) · [Doc Index](000-docs/000-INDEX.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ---
@@ -259,11 +261,24 @@ node packages/cli/dist/index.js sample-plan \
   --json
 ```
 
-The plan is inspectable JSON; `j-rig suite` consumes these jobs for execution.
-Measurements select one exact Grader snapshot and expose pass rate, harness
-failures, ungraded completions, Wilson intervals, and score standard error
-without heterogeneous rollups. See
+The plan is inspectable JSON. Measurements select one exact Grader snapshot
+and expose pass rate, harness failures, ungraded completions, Wilson intervals,
+score standard error, and model-judge vote disagreement without heterogeneous
+rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
+to render them. `j-rig suite` plans and executes these same jobs as one
+resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+
+`j-rig batch` consumes a path-based suite manifest, executes these jobs in
+balanced passes, and resumes from the immutable raw-run ledger. Runner
+failures remain diagnostic observations rather than model grades:
+
+```bash
+node packages/cli/dist/index.js batch \
+  --manifest ./batch.yaml \
+  --db ./j-rig.db \
+  --json
+```
 
 ### Unified report
 

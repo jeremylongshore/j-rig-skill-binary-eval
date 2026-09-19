@@ -41,8 +41,9 @@ j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by defau
 j-rig eval-batch <skills-root>        # scaffold missing baselines and evaluate a skills root
 j-rig suite <suite.yaml>              # balanced, resumable Task × Config target-N suite
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
-j-rig grade --run-id ... --grader ... # deterministic named Grade over a completed Run
+j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
+j-rig batch --manifest ...            # execute a resumable balanced batch
 j-rig report --unified ...            # selected-Grader JSON/Markdown report
 j-rig report                         # show results from the SQLite evidence DB
 j-rig optimize                       # cluster failures, propose one change
@@ -72,16 +73,22 @@ any grading. It retains stdout/stderr for completed, runner-error, and timeout
 outcomes. See `000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`
 for the request and environment protocol.
 
-`j-rig grade` evaluates a completed raw Run with a validated, versioned grader
-definition and stores an immutable snapshot. Pass `--regrade` to intentionally
-add a new version of an existing named Grader; runner errors and timeouts are
-not gradeable. See
+`j-rig grade` evaluates a completed raw Run with a validated, versioned
+deterministic or model-judge grader definition and stores an immutable snapshot.
+Pass `--regrade` to intentionally add a new version of an existing named
+Grader; runner errors and timeouts are not gradeable. Model-judge graders accept
+`--provider minimax` (or another configured provider), sample the shared judge
+engine when `samples > 1`, and persist every vote plus disagreement metadata.
+The grader's `model` remains pinned even when a provider preset has a default
+model. See
 `000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
 
 `j-rig sample-plan` reads a YAML manifest of explicit Task × Config × Model
 cells and reports the next balanced sample indices needed to reach `--target-n`.
-It does not execute the harness; `j-rig suite` consumes these same jobs while
-retaining an auditable manifest. See
+`j-rig batch` consumes a path-based suite manifest, executes those jobs in
+balanced passes, and resumes from the immutable raw-run ledger; `j-rig suite`
+plans and executes the same jobs from one manifest. These surfaces retain
+runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
 `j-rig report --unified` requires `--grader-id`, `--grader-version`, and the
@@ -90,6 +97,10 @@ full `--grader-snapshot-sha256`. It emits `j-rig/unified-report/v1` JSON with
 projection to a file. This is unsigned local output, not a dashboard ingest or
 rollout decision. See
 `000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
+
+For the cell-scoped projection, use `--sampling-manifest` with the same three
+Grader identity fields. The unified report is the versioned local projection;
+neither report surface is a signed dashboard ingest or rollout decision.
 
 `j-rig suite <suite.yaml>` is the one-command generic lifecycle. The manifest
 lists Task YAML files, Config YAML files, one named Grader, and `target_n`.
@@ -115,6 +126,7 @@ endpoint) or forced with `--provider`:
 | DeepSeek     | `deepseek`           | `DEEPSEEK_API_KEY`  | `deepseek-v4-flash` |
 | Kimi/Moonshot| `kimi` / `moonshot`  | `MOONSHOT_API_KEY`  | provider default    |
 | OpenRouter   | `openrouter`         | `OPENROUTER_API_KEY`| provider default    |
+| MiniMax      | `minimax`            | `MINIMAX_API_KEY`   | `MiniMax-M3`        |
 | Anthropic    | `anthropic`          | `ANTHROPIC_API_KEY` | Claude models       |
 
 **DeepSeek** is reached by setting `DEEPSEEK_API_KEY` in the environment and
