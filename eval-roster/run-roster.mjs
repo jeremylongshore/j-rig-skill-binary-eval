@@ -27,7 +27,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -55,6 +55,29 @@ function parseArgs(argv) {
 
 function sha256HexOfFile(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/**
+ * Read gate_reasons[0] from the `error` row j-rig wrote before exiting 2.
+ * Returns null unless EVERY row is an `error` verdict with a
+ * `provider_failure/` class-first reason, so nothing else can ride into the
+ * nightly's signed evidence through this path.
+ */
+export function infrastructureFailureReason(statementsPath) {
+  try {
+    if (!existsSync(statementsPath)) return null;
+    const statements = JSON.parse(readFileSync(statementsPath, "utf8"));
+    if (!Array.isArray(statements) || statements.length === 0) return null;
+    const reasons = statements.map((st) =>
+      st?.predicate?.gate_decision === "error" ? st?.predicate?.gate_reasons?.[0] : undefined,
+    );
+    if (!reasons.every((r) => typeof r === "string" && r.startsWith("provider_failure/"))) {
+      return null;
+    }
+    return reasons[0].slice(0, 400);
+  } catch {
+    return null;
+  }
 }
 
 function main() {
@@ -107,6 +130,7 @@ function main() {
       specSha256: null,
       skillsCommit: roster.source.ref,
       statementsFile: null,
+      errorReason: null,
     };
     try {
       if (!existsSync(join(skillDir, "SKILL.md"))) throw new Error(`no SKILL.md at ${skillDir}`);
@@ -146,6 +170,16 @@ function main() {
       console.log(`--- ${skill.key}: ${row.decisions.join(", ")}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      // Exit 2 is j-rig's evaluator-infrastructure-failure contract
+      // (000-docs/037): the CLI still wrote a kernel-valid `error` row whose
+      // gate_reasons[0] names the failure class. execFileSync throws on any
+      // non-zero exit, so without this the row was discarded and the nightly
+      // published a generic "did not complete" reason instead. Carry the
+      // CLI's own, already-redacted reason forward; the row stays an error.
+      if (err && typeof err === "object" && err.status === 2) {
+        row.errorReason = infrastructureFailureReason(statementsPath);
+        if (typeof err.stdout === "string") writeFileSync(resultPath, err.stdout, "utf8");
+      }
       writeFileSync(join(args.out, `${skill.key}.error.log`), msg, "utf8");
       console.error(`--- ${skill.key}: ERROR — ${msg.slice(0, 300)}`);
     }
@@ -161,4 +195,7 @@ function main() {
   return 0;
 }
 
-process.exit(main());
+// Run only as a script, so the helpers above can be imported by tests.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  process.exit(main());
+}
