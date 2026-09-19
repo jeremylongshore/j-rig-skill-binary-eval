@@ -51,6 +51,16 @@ The server sets `Content-Security-Policy`, `X-Content-Type-Options`, and
 `Cache-Control: no-store`. It serves no scripts, external assets, or network
 fetches. `Ctrl-C` and `SIGTERM` close the listener and remove signal handlers.
 
+### Host header check
+
+Binding to loopback keeps remote clients out but does not stop DNS rebinding: a
+hostile page can resolve its own domain to `127.0.0.1` and have the operator's
+browser request the report. That request still carries the attacker's domain
+in `Host`, so every route, including `/healthz`, answers `421 Misdirected
+Request` unless the `Host` hostname is `127.0.0.1`, `localhost`, or `[::1]`
+(any port). A request with no `Host` header is rejected by Node's HTTP/1.1
+parser with `400` before it reaches the handler.
+
 ## Trust and publication boundary
 
 The report remains an unsigned local projection. Loopback serving is a

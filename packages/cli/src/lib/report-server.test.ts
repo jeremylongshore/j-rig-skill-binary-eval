@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { request } from "node:http";
 import { startReportServer, waitForReportServer } from "./report-server.js";
 
 describe("local report server", () => {
@@ -54,5 +55,51 @@ describe("local report server", () => {
     listeners.get("SIGINT")?.();
     await stopped;
     await expect(fetch(server.url)).rejects.toThrow();
+  });
+
+  it("rejects a foreign Host header so a DNS-rebinding page cannot read the report", async () => {
+    const server = await startReportServer("<!doctype html><title>internal</title>");
+    // fetch() forbids overriding Host, so speak HTTP directly.
+    const get = (host: string | undefined, path = "/") =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = request(
+          {
+            host: server.host,
+            port: server.port,
+            path,
+            method: "GET",
+            setHost: false,
+            headers: host === undefined ? {} : { Host: host },
+          },
+          (res) => {
+            let body = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk: string) => (body += chunk));
+            res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+          },
+        );
+        req.on("error", reject);
+        req.end();
+      });
+    try {
+      for (const foreign of [`attacker.example:${server.port}`, "attacker.example"]) {
+        const denied = await get(foreign);
+        expect(denied.status).toBe(421);
+        expect(denied.body).not.toContain("internal");
+        expect((await get(foreign, "/healthz")).status).toBe(421);
+      }
+      // A request with no Host at all never reaches the handler: Node's HTTP/1.1
+      // parser rejects it first. Still denied, one layer earlier.
+      const hostless = await get(undefined);
+      expect(hostless.status).toBe(400);
+      expect(hostless.body).not.toContain("internal");
+      for (const local of [`127.0.0.1:${server.port}`, `localhost:${server.port}`, "[::1]"]) {
+        const allowed = await get(local);
+        expect(allowed.status).toBe(200);
+        expect(allowed.body).toContain("internal");
+      }
+    } finally {
+      await server.close();
+    }
   });
 });

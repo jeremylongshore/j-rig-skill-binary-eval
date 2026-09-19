@@ -55,6 +55,25 @@ function send(
   else response.end(body);
 }
 
+/**
+ * Hostnames a browser legitimately uses to reach a loopback server. Binding to
+ * loopback stops remote clients, but not DNS rebinding: a hostile page can
+ * point its own domain at 127.0.0.1 and have the operator's browser fetch the
+ * report. Such a request still carries the attacker's domain in `Host`, so
+ * rejecting any other hostname closes that path.
+ */
+const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+function hasLoopbackHostHeader(request: IncomingMessage): boolean {
+  const header = request.headers.host;
+  if (!header) return false;
+  try {
+    return LOOPBACK_HOSTNAMES.has(new URL(`http://${header}`).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function requestPath(request: IncomingMessage): string {
   try {
     return new URL(request.url ?? "/", "http://127.0.0.1").pathname;
@@ -69,6 +88,11 @@ export function createReportRequestHandler(html: string) {
     const headOnly = request.method === "HEAD";
     const readable = request.method === "GET" || headOnly;
     const path = requestPath(request);
+
+    if (!hasLoopbackHostHeader(request)) {
+      send(response, 421, "text/plain; charset=utf-8", "Misdirected Request\n", headOnly);
+      return;
+    }
 
     if (!readable) {
       send(response, 405, "text/plain; charset=utf-8", "Method Not Allowed\n", false);
