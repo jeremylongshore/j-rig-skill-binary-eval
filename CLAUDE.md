@@ -104,6 +104,23 @@ uncertainty without heterogeneous rollups. See
 `j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
 runner failures in the raw-run ledger and never treats them as model grades.
 
+Two commands have "batch" in the name and live in different files. `j-rig batch`
+(sampling manifest, `commands/batch.ts`) executes generic Task × Config cells.
+`j-rig eval-batch` (`commands/eval-batch.ts`) walks a skills root and runs
+`j-rig eval` per skill. Edit the one you mean. `j-rig suite` also executes
+balanced target-N jobs from a single manifest; whether it should subsume
+`j-rig batch` is an open design question, so do not merge them in passing.
+
+The generic `ExecutableRunner` is bounded: stdout and stderr are each capped at
+the optional `harness.max_output_bytes` (10 MiB default applied at runtime),
+timeout and overflow terminate the whole POSIX process group, and a Run is
+sealed shortly after SIGKILL even if an escaped descendant holds the pipes.
+Overflow is an ungradeable `runner_error`. **Never give a harness-config field a
+schema default:** the parsed config is snapshotted and compared byte-for-byte on
+sealed-run reuse, so a default would invalidate every existing sealed Run. These
+are host-protection limits, not a sandbox. See
+`000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`.
+
 `j-rig report --unified` emits `j-rig/unified-report/v1` JSON or Markdown over
 one selected immutable Grader snapshot. It preserves per-cell uncertainty and
 raw Run lineage, renders no-data explicitly, and is unsigned local output. Do
@@ -125,6 +142,33 @@ layer is advisory for promotion, even if the legacy `LaunchReport` decision is
 `ship`; see `000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`. Promotion
 metadata is never emitted on an `error` row: an evaluator infrastructure failure
 (`000-docs/037`) wins over the promotion mapping and the two are mutually exclusive.
+
+### Evaluator infrastructure failure (one rule)
+
+Any unrecovered provider failure in `j-rig eval`, execution or judge phase,
+skill or naked-baseline pass, partial or total, yields **no verdict** and a
+**signed `gate-result/v1` `error` row**: class-first `gate_reasons[0]`, typed
+credential-free `metadata.error_detail`, run stored `failed`, exit 2 after every
+artifact is flushed. This is Blueprint B § 7.4 applied consistently; it
+supersedes both the emit-nothing design and the all-criteria-only dead-judge
+override. The logic lives in `commands/eval-infrastructure-failure.ts`; do not
+re-derive it inline in `eval.ts`.
+
+- A failed test case is never sent to the judge.
+- Partial **sample** loss is not a failure: an errored sample votes `unsure`.
+  Only a criterion with zero surviving samples counts. There is deliberately no
+  provider retry layer; `--samples` of 2 or more is the supported mitigation
+  (the nightly roster runs 5).
+- A completed response with empty text is boundary evidence, not a failure.
+- Provider text is redacted by core's `redactProviderError` **where it is
+  captured** (functional runner and judgment engine). Do not add a second
+  redactor downstream.
+- `eval-roster/run-roster.mjs` and `ci/emit-evidence` carry the CLI's class-first
+  reason into the nightly's published `error` row, accepting only the
+  `provider_failure/` shape.
+
+Decision record and full contract:
+`000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`.
 
 ## Non-Negotiable Design Principles
 
