@@ -183,6 +183,12 @@ export class StubJudgeProvider implements JudgeProvider {
     void prompt;
     void output;
     void judge_prompt;
+    // Test-only failure mode: simulate a judge provider that is down (401,
+    // network, timeout) without a network call, so the dead-judge → `error`
+    // path has an offline regression test. Never set in production.
+    if (process.env.J_RIG_STUB_JUDGE_FAIL === "1") {
+      throw new Error("stub judge failure (J_RIG_STUB_JUDGE_FAIL=1): HTTP 401 authentication");
+    }
     return {
       verdict: "yes",
       confidence: 0.7,

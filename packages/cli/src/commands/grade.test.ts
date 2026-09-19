@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
+import { getGradesForRun, getRawRun } from "@j-rig/db";
+import { openDb } from "../lib/db.js";
 import { runGenericEval } from "./run.js";
 import { runGrade } from "./grade.js";
 
@@ -75,6 +77,110 @@ function fixture() {
 }
 
 describe("j-rig grade", () => {
+  it("reuses a saved model Grade before provider resolution or further judge calls", async () => {
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const judge = {
+      judge: vi.fn(async () => ({
+        verdict: "yes" as const,
+        confidence: 1,
+        reasoning: "fixture judgment",
+      })),
+    };
+    const options = {
+      runId: raw.run.id,
+      graderPath: paths.modelGraderPath,
+      db: paths.db,
+      regrade: false,
+    };
+    const first = await runGrade({ ...options, judge });
+    expect(judge.judge).toHaveBeenCalledTimes(3);
+
+    expect(await runGrade({ ...options, judge })).toEqual({ ...first, created: false });
+    expect(judge.judge).toHaveBeenCalledTimes(3);
+    // A cache hit must work even without a resolvable provider or credentials.
+    expect(await runGrade({ ...options, provider: "unavailable-fixture", regrade: true })).toEqual({
+      ...first,
+      created: false,
+    });
+  });
+
+  it("checks changed-snapshot policy before spending judge calls", async () => {
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const judge = {
+      judge: vi.fn(async () => ({
+        verdict: "yes" as const,
+        confidence: 1,
+        reasoning: "fixture judgment",
+      })),
+    };
+    const options = {
+      runId: raw.run.id,
+      graderPath: paths.modelGraderPath,
+      db: paths.db,
+      regrade: false,
+      judge,
+    };
+    const first = await runGrade(options);
+    const definition = parse(readFileSync(paths.modelGraderPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    writeFileSync(
+      paths.modelGraderPath,
+      stringify({ ...definition, judge_prompt: "Apply a different grading rule." }),
+    );
+
+    await expect(runGrade(options)).rejects.toThrow("pass --regrade");
+    expect(judge.judge).toHaveBeenCalledTimes(3);
+    const second = await runGrade({ ...options, regrade: true });
+    expect(judge.judge).toHaveBeenCalledTimes(6);
+    expect(second.created).toBe(true);
+    expect(second.grade.id).not.toBe(first.grade.id);
+    const database = openDb(paths.db);
+    try {
+      expect(getGradesForRun(database, raw.run.id)).toHaveLength(2);
+      expect(getRawRun(database, raw.run.id)).toEqual(raw.run);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not store a quality Grade for a dead judge and allows a healthy retry", async () => {
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const options = {
+      runId: raw.run.id,
+      graderPath: paths.modelGraderPath,
+      db: paths.db,
+      regrade: false,
+    };
+    await expect(
+      runGrade({
+        ...options,
+        judge: { judge: vi.fn().mockRejectedValue(new Error("fixture provider unavailable")) },
+      }),
+    ).rejects.toThrow("Model judge failed");
+    const database = openDb(paths.db);
+    try {
+      expect(getGradesForRun(database, raw.run.id)).toEqual([]);
+      expect(getRawRun(database, raw.run.id)).toEqual(raw.run);
+    } finally {
+      database.close();
+    }
+    const retry = await runGrade({
+      ...options,
+      judge: {
+        async judge() {
+          return { verdict: "yes", confidence: 1, reasoning: "fixture recovered" };
+        },
+      },
+    });
+    expect(retry.created).toBe(true);
+    expect(retry.grade.verdict).toBe("pass");
+  });
+
   it("grades a raw Run and keeps a regrade as a second immutable snapshot", async () => {
     const paths = fixture();
     const raw = await runGenericEval({ ...paths, sampleIndex: 0 });

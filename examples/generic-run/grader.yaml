@@ -1,0 +1,8 @@
+id: answer-contract
+version: "1"
+kind: deterministic
+description: Check the local fixture answer, not real model quality
+checks:
+  - id: answer-is-four
+    type: output_contains
+    expected: '"answer":"4"'

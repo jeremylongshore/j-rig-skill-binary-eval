@@ -639,6 +639,10 @@ export function registerEvalCommand(program: Command): void {
           }
         }
 
+        // Set when the dead-judge override fires for ANY model: the run
+        // evaluated nothing, so the process must not exit 0 (a CI step that
+        // trusts the exit status would otherwise pass a non-evaluation).
+        let deadJudgeSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
           const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
@@ -1036,13 +1040,42 @@ export function registerEvalCommand(program: Command): void {
             // `advisory`. Spelling is identical to the audit-harness iah-E07
             // emitter so a ship-gate dashboard alerts on one event name across
             // both emitters.
-            const gateDecisionValue =
-              report.decision === "ship"
+            //
+            // Dead-judge override (2026-09 conference audit, "make it lie" #E):
+            // when the judge provider failed for EVERY judged criterion, nothing
+            // was evaluated. The errored-sample semantics make each such
+            // criterion an `unsure` vote, the rollout decision degrades to
+            // `warn`, and the row would be signed as `advisory` — a shape a
+            // verifier cannot tell from genuine uncertainty, and one the
+            // rollout gate tolerates by default. The kernel enum has `error` for
+            // exactly this; use it, and put the provider's message first in
+            // gate_reasons as the kernel requires.
+            const judgedCriteria = allJudgments.filter((j) => j.method === "judge");
+            const deadJudgeErrors = judgedCriteria
+              .map((j) => j.judge_error)
+              .filter((e): e is string => typeof e === "string");
+            const judgeDead =
+              judgedCriteria.length > 0 && deadJudgeErrors.length === judgedCriteria.length;
+            const deadJudgeReason = judgeDead
+              ? `judge provider failed on every judged criterion (${deadJudgeErrors.length}/${judgedCriteria.length}); nothing was evaluated: ${deadJudgeErrors[0]}`
+              : null;
+            const gateDecisionValue = judgeDead
+              ? GateDecision.ERROR
+              : report.decision === "ship"
                 ? GateDecision.PASS
                 : report.decision === "block"
                   ? GateDecision.FAIL
                   : GateDecision.ADVISORY;
-            if (gateDecisionValue === GateDecision.FAIL) runHadFailure = true;
+            if (
+              gateDecisionValue === GateDecision.FAIL ||
+              gateDecisionValue === GateDecision.ERROR
+            ) {
+              runHadFailure = true;
+            }
+            if (judgeDead) deadJudgeSeen = true;
+            if (deadJudgeReason && !opts.json) {
+              console.log(`  ${icon("error")} ${deadJudgeReason}`);
+            }
             emitGateDecisionEmitted(correlation, {
               gateName: "j-rig-rollout-gate",
               decision: gateDecisionValue,
@@ -1057,13 +1090,15 @@ export function registerEvalCommand(program: Command): void {
             // consumable by intent-rollout-gate. Reuses the same
             // ship|block|else → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision =
-                report.decision === "ship"
+              const gateDecision = judgeDead
+                ? "error"
+                : report.decision === "ship"
                   ? "pass"
                   : report.decision === "block"
                     ? "fail"
                     : "advisory";
               const gateReasons = [...report.blockers, ...report.warnings];
+              if (deadJudgeReason) gateReasons.unshift(deadJudgeReason);
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
@@ -1311,6 +1346,13 @@ export function registerEvalCommand(program: Command): void {
         } else {
           console.log(chalk.dim(`Duration: ${formatDuration(duration)} | DB: ${opts.db}`));
         }
+        // Exit contract: 0 = evaluated (pass/fail/advisory are VERDICTS and are
+        // reported in the bundle, not the exit status — the rollout gate
+        // decides); 2 = the judge was dead for at least one model, nothing was
+        // evaluated (bundle still written, signed `error`); 1 = crash (catch
+        // below). Set after every artifact is flushed so consumers still get
+        // the bundle + JSON.
+        if (deadJudgeSeen) process.exitCode = 2;
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);

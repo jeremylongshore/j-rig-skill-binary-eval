@@ -4,6 +4,7 @@ import {
   evaluateWithGrader,
   evaluateWithModelJudge,
   GraderDefinitionSchema,
+  hashGraderSnapshot,
   parseAndValidateYaml,
   type GraderDefinition,
   type JudgeProvider,
@@ -53,6 +54,24 @@ export async function runGrade(options: GradeCommandOptions): Promise<GradeComma
       );
     }
 
+    // Resolve saved evidence and version policy before any provider selection
+    // or billable judge call. An unchanged snapshot is a read-only operation,
+    // including when --regrade is supplied.
+    const snapshotHash = hashGraderSnapshot(definition);
+    const existingGrades = getGradesForRun(database, rawRun.id);
+    const exactGrade = existingGrades.find(
+      (grade) =>
+        grade.grader_id === definition.id &&
+        grade.grader_version === definition.version &&
+        grade.grader_snapshot_sha256 === snapshotHash,
+    );
+    if (exactGrade) return { grade: exactGrade, created: false };
+    if (existingGrades.some((grade) => grade.grader_id === definition.id) && !options.regrade) {
+      throw new Error(
+        `Raw Run ${rawRun.id} already has ${definition.id}; pass --regrade to add ${definition.version} or a changed snapshot`,
+      );
+    }
+
     let evaluation: ReturnType<typeof evaluateWithGrader>;
     if (definition.kind === "deterministic") {
       evaluation = evaluateWithGrader(rawRun.id, rawRun.stdout ?? "", definition);
@@ -74,22 +93,6 @@ export async function runGrade(options: GradeCommandOptions): Promise<GradeComma
         selectedJudge.judge,
       );
     }
-    const existingGrades = getGradesForRun(database, rawRun.id);
-    const exactGrade = existingGrades.find(
-      (grade) =>
-        grade.grader_id === evaluation.grader_id &&
-        grade.grader_version === evaluation.grader_version &&
-        grade.grader_snapshot_sha256 === evaluation.grader_snapshot_sha256,
-    );
-    const existingNamedGrade = existingGrades.find(
-      (grade) => grade.grader_id === evaluation.grader_id,
-    );
-    if (existingNamedGrade && !exactGrade && !options.regrade) {
-      throw new Error(
-        `Raw Run ${rawRun.id} already has ${definition.id}; pass --regrade to add ${definition.version} or a changed snapshot`,
-      );
-    }
-
     return createGrade(database, evaluation);
   } finally {
     database.close();
