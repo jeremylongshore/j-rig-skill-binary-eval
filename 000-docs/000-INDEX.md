@@ -34,7 +34,7 @@
 | 034 | [034-AT-SPEC-unified-report-json-markdown-2026-08-01.md](034-AT-SPEC-unified-report-json-markdown-2026-08-01.md)       | Unified selected-Grader JSON/Markdown report and publication boundary                     |
 | 035 | [035-AT-SPEC-eval-batch-skills-root-2026-08-01.md](035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)                     | Skills-root batch discovery, baseline scaffolding, Evidence Bundles, and lineage            |
 | 036 | [036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md](036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)                       | Generic Task × Config suite manifest, target-N execution, audit, report, and migration     |
-| 037 | [037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)     | Fail-closed real-provider execution/judge failures and credential-free diagnostics          |
+| 037 | [037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md](037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md)     | Any provider failure signs a `gate-result/v1` `error` row; no verdict, credential-free detail |
 | 038 | [038-AT-SPEC-unified-report-html-static-2026-08-02.md](038-AT-SPEC-unified-report-html-static-2026-08-02.md)             | Self-contained accessible HTML projection for unified and suite reports                    |
 
 ### OD — Operations & Deployment

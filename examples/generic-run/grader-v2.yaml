@@ -1,0 +1,11 @@
+id: answer-contract
+version: "2"
+kind: deterministic
+description: Check the fixture answer and captured configuration metadata
+checks:
+  - id: answer-is-four
+    type: output_contains
+    expected: '"answer":"4"'
+  - id: has-prompt-style
+    type: output_contains
+    expected: '"prompt_style":'
