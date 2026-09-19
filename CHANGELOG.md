@@ -93,6 +93,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are captured, matching the judge path. Supersedes the emit-nothing design
   originally proposed for this boundary.
 
+- **Generic runner resource bounds:** `ExecutableRunner` accumulated stdout and
+  stderr without limit and signalled only the immediate child, so a flooding
+  harness could exhaust host memory and an inherited-pipe descendant could keep
+  a Run pending past its timeout. Each stream is now capped at the optional
+  `harness.max_output_bytes` (10 MiB default, applied at runtime so existing
+  config snapshots and sealed-run reuse are unchanged); timeout and overflow
+  terminate the whole POSIX process group; and a Run is sealed within a bounded
+  window even when an escaped descendant holds the pipes. Overflow is recorded
+  as an ungradeable `runner_error`. These are host-protection limits, not a
+  sandbox.
+
 - **Grader reuse and outage handling** — resolve saved snapshots and regrade
   policy before provider selection or model calls. A failed judge leaves no
   quality Grade, so recovery can retry without replacing evidence or rerunning
