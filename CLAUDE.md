@@ -101,6 +101,9 @@ indices. Grade measurements select the full grader snapshot and report Wilson
 uncertainty without heterogeneous rollups. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
+`j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
+runner failures in the raw-run ledger and never treats them as model grades.
+
 `j-rig report --unified` emits `j-rig/unified-report/v1` JSON or Markdown over
 one selected immutable Grader snapshot. It preserves per-cell uncertainty and
 raw Run lineage, renders no-data explicitly, and is unsigned local output. Do
@@ -108,12 +111,20 @@ not treat it as a gate-result Evidence Bundle or publish it directly; the
 dashboard must re-verify through its own ingest boundary. See
 `000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
 
+`j-rig report --unified --html --serve` and `j-rig suite --serve` provide the
+local operator path over loopback only. The server exposes the generated HTML
+and `/healthz`, refuses wildcard/public binds, and shuts down cleanly on
+SIGINT/SIGTERM. It does not alter the unsigned-local or dashboard publication
+boundary. See `000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md`.
+
 The legacy `j-rig eval --emit-bundle` path emits additive
 `j-rig/skill-promotion/v1` metadata on each real-skill gate row. It binds the
 OTel EvalRun UUID, SQLite run, skill/spec snapshots, effective binary-criteria
 Grader snapshot, thresholds, and regression comparison. A skipped regression
 layer is advisory for promotion, even if the legacy `LaunchReport` decision is
-`ship`; see `000-docs/035-AT-SPEC-skill-promotion-evidence-2026-08-02.md`.
+`ship`; see `000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`. Promotion
+metadata is never emitted on an `error` row: an evaluator infrastructure failure
+(`000-docs/037`) wins over the promotion mapping and the two are mutually exclusive.
 
 ## Non-Negotiable Design Principles
 

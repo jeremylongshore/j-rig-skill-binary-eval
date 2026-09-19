@@ -70,6 +70,219 @@ interface GateRow {
 }
 
 describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () => {
+  it("signs `error`, not `advisory`, when the judge provider fails on every criterion (dead judge)", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-dead-judge-"));
+    const bundlePath = join(work, "bundle.json");
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          join(work, "dead.db"),
+          "--emit-bundle",
+          bundlePath,
+          "--json",
+        ],
+        {
+          encoding: "utf-8",
+          env: { ...process.env, J_RIG_ALLOW_STUB: "1", J_RIG_STUB_JUDGE_FAIL: "1" },
+        },
+      );
+      expect(existsSync(bundlePath), `no bundle emitted:\n${r.stderr}`).toBe(true);
+      // Exit contract: a dead judge is a non-evaluation -> exit 2 (bundle still
+      // written). A CI step trusting the status must not see 0 here.
+      expect(r.status, `dead-judge run must exit 2:\n${r.stderr}`).toBe(2);
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle.length).toBeGreaterThanOrEqual(1);
+      for (const row of bundle) {
+        expect(EvidenceStatementSchema.safeParse(row).success).toBe(true);
+        expect(row.predicate.gate_decision).toBe("error");
+        const reasons = (row.predicate as { gate_reasons?: string[] }).gate_reasons ?? [];
+        expect(reasons[0]).toMatch(/judge provider failed on every judged criterion/);
+        expect(reasons[0]).toMatch(/401/);
+        // Credential boundary: the signed reason carries a status, never a key.
+        expect(reasons[0]).not.toMatch(/sk-|Bearer\s+\S{8,}|api[_-]?key=/i);
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("NEGATIVE: a healthy stub judge still signs `pass` (the override only fires on a provider failure)", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-live-judge-"));
+    const bundlePath = join(work, "bundle.json");
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          join(work, "ok.db"),
+          "--emit-bundle",
+          bundlePath,
+          "--json",
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle[0]!.predicate.gate_decision).not.toBe("error");
+      expect(r.status, `healthy stub run must exit 0:\n${r.stderr}`).toBe(0);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  /** Run the built CLI under the stub provider with extra failure switches. */
+  function evalWithFailure(env: Record<string, string>) {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-infra-"));
+    const bundlePath = join(work, "bundle.json");
+    const dbPath = join(work, "infra.db");
+    const r = spawnSync(
+      "node",
+      [
+        CLI_PATH,
+        "eval",
+        SKILL_DIR,
+        "--spec",
+        SPEC_PATH,
+        "--provider",
+        "stub",
+        "--models",
+        "sonnet",
+        "--db",
+        dbPath,
+        "--emit-bundle",
+        bundlePath,
+        "--json",
+      ],
+      { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1", ...env } },
+    );
+    return { r, work, bundlePath, dbPath };
+  }
+
+  interface ErrorDetail {
+    type: string;
+    phase: string;
+    category: string;
+    retryable: boolean;
+    affected: number;
+    total: number;
+    message: string;
+  }
+
+  function errorRow(bundlePath: string) {
+    const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+    expect(bundle).toHaveLength(1);
+    const row = bundle[0]!;
+    expect(EvidenceStatementSchema.safeParse(row).success).toBe(true);
+    const predicate = row.predicate as GateRow["predicate"] & {
+      gate_reasons: string[];
+      metadata: { error_detail?: ErrorDetail };
+    };
+    return predicate;
+  }
+
+  it("signs `error` for a PARTIAL judge outage: one dead criterion makes the evaluation incomplete", () => {
+    // Only `mentions-ship-decision` matches; the other judge criteria stay healthy.
+    const { r, work, bundlePath, dbPath } = evalWithFailure({
+      J_RIG_STUB_JUDGE_FAIL: "ship or no-ship rollout decision",
+    });
+    try {
+      expect(r.status, `partial judge outage must exit 2:\n${r.stderr}`).toBe(2);
+      const predicate = errorRow(bundlePath);
+      expect(predicate.gate_decision).toBe("error");
+      expect(predicate.gate_reasons[0]).toMatch(/^provider_failure\/judge /);
+      expect(predicate.gate_reasons[0]).toMatch(
+        /judge provider failed on \d+ of \d+ judged criteria/,
+      );
+      expect(predicate.gate_reasons[0]).not.toMatch(/every judged criterion/);
+
+      const detail = predicate.metadata.error_detail;
+      expect(detail).toMatchObject({ type: "provider_failure", phase: "judge" });
+
+      // Mutually exclusive with promotion evidence (000-docs/042): an `error`
+      // row must not also carry a promotion verdict of its own.
+      const metadata = predicate.metadata as Record<string, unknown>;
+      expect(metadata.gate_decision).toBeUndefined();
+      expect(metadata.promotion_reasons).toBeUndefined();
+      expect(predicate.gate_reasons.join("\n")).not.toMatch(/promotion/i);
+      expect(detail!.affected).toBeGreaterThan(0);
+      expect(detail!.affected).toBeLessThan(detail!.total);
+
+      // stdout stays a results object, flagged so a consumer cannot mistake
+      // the diagnostic scorecard for a verdict.
+      const results = JSON.parse(r.stdout) as Record<
+        string,
+        { gate_decision?: string; evaluation_error?: ErrorDetail }
+      >;
+      expect(results.sonnet!.gate_decision).toBe("error");
+      expect(results.sonnet!.evaluation_error?.phase).toBe("judge");
+      expect((results.sonnet as Record<string, unknown>).promotion).toBeUndefined();
+
+      // The ledger records a failed run with the same credential-free detail.
+      const database = createDatabase(dbPath);
+      try {
+        const row = database.sqlite
+          .prepare("SELECT status, error_message FROM runs ORDER BY id DESC LIMIT 1")
+          .get() as { status: string; error_message: string };
+        expect(row.status).toBe("failed");
+        expect(JSON.parse(row.error_message)).toMatchObject({
+          type: "provider_failure",
+          phase: "judge",
+        });
+      } finally {
+        database.close();
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("signs `error` when an execution call fails, and never judges the failed test case", () => {
+    const { r, work, bundlePath } = evalWithFailure({
+      J_RIG_STUB_EXECUTION_FAIL: "Gate this SKILL.md",
+    });
+    try {
+      expect(r.status, `execution outage must exit 2:\n${r.stderr}`).toBe(2);
+      const predicate = errorRow(bundlePath);
+      expect(predicate.gate_decision).toBe("error");
+      expect(predicate.gate_reasons[0]).toMatch(/^provider_failure\/execution /);
+      expect(predicate.gate_reasons[0]).toMatch(/execution provider failed on 1 of \d+ test case/);
+      expect(predicate.gate_reasons[0]).toMatch(/402/);
+      expect(predicate.metadata.error_detail).toMatchObject({
+        type: "provider_failure",
+        phase: "execution",
+        affected: 1,
+      });
+
+      // The failed test case produced no judgment rows at all.
+      const criteria = (
+        predicate.metadata as unknown as { criteria: Array<{ test_case_id?: string }> }
+      ).criteria;
+      expect(criteria.length).toBeGreaterThan(0);
+      expect(criteria.some((c) => c.test_case_id === "gate-in-ci")).toBe(false);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
   it("emits a kernel-valid gate-result/v1 Evidence Bundle for a real eval decision", () => {
     const work = mkdtempSync(join(tmpdir(), "jrig-eval-e2e-"));
     const dbPath = join(work, "e2e.db");

@@ -46,11 +46,11 @@ function loadYaml<T>(path: string, schema: z.ZodType<T>): T {
   return parsed.data;
 }
 
-function loadTask(path: string): EvalTask {
+export function loadTaskDefinition(path: string): EvalTask {
   return loadYaml(resolve(path), EvalTaskSchema);
 }
 
-function loadConfig(path: string): EvalConfig {
+export function loadConfigDefinition(path: string): EvalConfig {
   const absolutePath = resolve(path);
   const parsed = loadYaml(absolutePath, EvalConfigSchema);
   return {
@@ -62,6 +62,17 @@ function loadConfig(path: string): EvalConfig {
       cwd: resolve(dirname(absolutePath), parsed.harness.cwd ?? "."),
     },
   };
+}
+
+/** Load the task/config pair used by both one-shot and batch execution. */
+export function loadGenericDefinitions(
+  taskPath: string,
+  configPath: string,
+): {
+  task: EvalTask;
+  config: EvalConfig;
+} {
+  return { task: loadTaskDefinition(taskPath), config: loadConfigDefinition(configPath) };
 }
 
 function lineageFrom(request: RunnerRequest) {
@@ -81,8 +92,7 @@ export async function runGenericEval(options: GenericRunOptions): Promise<Generi
     throw new Error(`sampleIndex must be a non-negative integer (got ${options.sampleIndex})`);
   }
 
-  const task = loadTask(options.taskPath);
-  const config = loadConfig(options.configPath);
+  const { task, config } = loadGenericDefinitions(options.taskPath, options.configPath);
   const requestWithoutId: Omit<RunnerRequest, "run_id"> = {
     task,
     config,

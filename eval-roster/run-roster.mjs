@@ -21,7 +21,7 @@
  *
  * Usage:
  *   node eval-roster/run-roster.mjs --src <roster-source-checkout> [--out build/roster]
- *     [--skills key1,key2] [--provider deepseek]
+ *     [--skills key1,key2] [--provider minimax] [--models MiniMax-M3]
  */
 
 import { execFileSync } from "node:child_process";
@@ -47,7 +47,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--skills") args.skills = (argv[++i] ?? "").split(",").filter(Boolean);
     else if (argv[i] === "--provider") args.provider = argv[++i] ?? null;
     // Needed whenever --provider differs from the roster default: the specs pin
-    // the DeepSeek model id, which other backends would 404 on.
+    // provider-specific model ids, which other backends may reject.
     else if (argv[i] === "--models") args.models = argv[++i] ?? null;
   }
   return args;

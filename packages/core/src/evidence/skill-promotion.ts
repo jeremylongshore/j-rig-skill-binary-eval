@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+// One canonicalizer behind every content hash in core: reusing the adapter's
+// keeps grader-snapshot digests and SkillEvalSpec digests byte-compatible.
+import { canonicalJson } from "../schemas/skill-eval-spec-adapter.js";
 import type {
   BaselineComparison,
   Regression,
@@ -192,11 +195,6 @@ export interface SkillPromotionEvidenceInput {
   rolloutDecision: RolloutDecision;
 }
 
-/** Stable JSON used for content-addressing grader snapshots and other evidence. */
-export function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
 /** Return a platform-style, sha256-prefixed digest of a JSON value. */
 export function hashCanonicalJson(value: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalJson(value), "utf8").digest("hex")}`;
@@ -305,17 +303,4 @@ export function buildSkillPromotionEvidence(
     promotion_reasons: promotionReasons,
     gate_decision: gateDecision,
   });
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value !== null && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.keys(record)
-        .sort()
-        .map((key) => [key, sortKeys(record[key])]),
-    );
-  }
-  return value;
 }

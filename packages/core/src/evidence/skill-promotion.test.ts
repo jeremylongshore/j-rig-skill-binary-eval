@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSkillPromotionEvidence,
-  canonicalJson,
   hashCanonicalJson,
   type SkillPromotionEvidenceInput,
 } from "./skill-promotion.js";
+import { canonicalJson } from "../schemas/skill-eval-spec-adapter.js";
 
 const HASH = `sha256:${"a".repeat(64)}`;
 const RUN_ID = "0192cae6-0002-7000-8000-000000000000";

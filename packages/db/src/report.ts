@@ -8,9 +8,10 @@ export function getUnifiedReport(
   database: JRigDatabase,
   selector: GradeSelector,
   generatedAt: string,
+  rawRunIds?: readonly string[],
 ): UnifiedReport {
   return buildUnifiedReport({
-    observations: getGradeObservations(database, selector),
+    observations: getGradeObservations(database, selector, rawRunIds),
     selector,
     generated_at: generatedAt,
   });

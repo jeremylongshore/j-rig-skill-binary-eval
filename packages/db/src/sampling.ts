@@ -1,5 +1,11 @@
 import { asc } from "drizzle-orm";
-import type { GradeObservation, GradeSelector, SampleObservation, SamplingCell } from "@j-rig/core";
+import type {
+  GradeMetadata,
+  GradeObservation,
+  GradeSelector,
+  SampleObservation,
+  SamplingCell,
+} from "@j-rig/core";
 import type { JRigDatabase } from "./database.js";
 import { getGradeByIdentity } from "./grades.js";
 import { rawRuns } from "./schema.js";
@@ -12,6 +18,16 @@ function cellFromRun(run: typeof rawRuns.$inferSelect): SamplingCell {
     config_version: run.config_version,
     model: run.model,
   };
+}
+
+function parseGradeMetadata(value: string | null): GradeMetadata | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? (parsed as GradeMetadata) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Return every generic Run in stable lineage/sample order for a sampler. */
@@ -39,7 +55,9 @@ export function getRawRunSampleObservations(database: JRigDatabase): SampleObser
 export function getGradeObservations(
   database: JRigDatabase,
   selector: GradeSelector,
+  rawRunIds?: readonly string[],
 ): GradeObservation[] {
+  const selectedRunIds = rawRunIds ? new Set(rawRunIds) : undefined;
   const runs = database.db
     .select()
     .from(rawRuns)
@@ -51,7 +69,8 @@ export function getGradeObservations(
       asc(rawRuns.model),
       asc(rawRuns.sample_index),
     )
-    .all();
+    .all()
+    .filter((run) => selectedRunIds === undefined || selectedRunIds.has(run.id));
   return runs.map((run) => {
     const observation = {
       ...cellFromRun(run),
@@ -74,6 +93,7 @@ export function getGradeObservations(
             grader_snapshot_sha256: grade.grader_snapshot_sha256,
             verdict: grade.verdict,
             score: grade.score,
+            metadata: parseGradeMetadata(grade.metadata_json),
           }
         : undefined,
     };

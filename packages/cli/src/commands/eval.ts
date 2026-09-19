@@ -88,6 +88,11 @@ import {
 } from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
 import {
+  detectInfrastructureFailure,
+  infrastructureFailureReason,
+  isFailedExecution,
+} from "./eval-infrastructure-failure.js";
+import {
   CostTrackingProvider,
   EvalCostMeter,
   type EvalCostReport,
@@ -144,7 +149,7 @@ interface ProviderExtras {
  * requested backend has no key — silently judging on a different vendor than
  * asked would corrupt the benchmark this exists for.
  */
-function selectJudgeOverride(
+export function selectJudgeOverride(
   targetModel: string,
   extras?: ProviderExtras,
 ): { judge: JudgeProvider; name: string; modelId: string } | null {
@@ -204,8 +209,9 @@ function selectJudgeOverride(
  * Select real vs stub providers for a model.
  *
  * Provider precedence (output IS ground truth on any real path):
- *   1. An OpenAI-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, or a
- *      generic `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` triple. A `--provider`
+ *   1. An OpenAI-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, MiniMax,
+ *      OpenAI, Groq, NVIDIA, or a generic `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`
+ *      triple. A `--provider`
  *      flag forces a specific preset. This is the default real path because the
  *      Anthropic external-API credit is exhausted; DeepSeek credits are live.
  *   2. The real Anthropic Messages API when `ANTHROPIC_API_KEY` is set.
@@ -611,6 +617,22 @@ export function registerEvalCommand(program: Command): void {
         const bundleRunIds: number[] = [];
         const jrigVersion = __CLI_VERSION__ ?? "0.0.0";
         const commit = resolveCommitSha(absDir, skillSnapshotSha);
+        // `eval-batch` launches this command once per skill. Keep the batch
+        // lineage on both the machine-readable result and every emitted
+        // Evidence Bundle row so downstream reports can group without
+        // guessing from filenames.
+        const batchId = process.env.JRIG_BATCH_ID?.trim();
+        const batchLineage = batchId
+          ? {
+              batch_id: batchId,
+              ...(process.env.JRIG_BATCH_SKILL_RELATIVE_PATH?.trim()
+                ? { batch_skill: process.env.JRIG_BATCH_SKILL_RELATIVE_PATH.trim() }
+                : {}),
+              ...(process.env.JRIG_BATCH_MANIFEST?.trim()
+                ? { batch_manifest: process.env.JRIG_BATCH_MANIFEST.trim() }
+                : {}),
+            }
+          : {};
 
         // ── Deterministic self-test (opt-in) ─────────────────────────────
         // Run the skill's declared `self_test.command` ONCE (it is
@@ -641,6 +663,11 @@ export function registerEvalCommand(program: Command): void {
           }
         }
 
+        // Set when the infrastructure-failure override fires for ANY model:
+        // that model was not (fully) evaluated, so the process must not exit 0
+        // (a CI step that trusts the exit status would otherwise pass a
+        // non-evaluation).
+        let infrastructureFailureSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
           const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
@@ -787,6 +814,10 @@ export function registerEvalCommand(program: Command): void {
 
             costMeter.phase = "judge";
             for (const outcome of outcomes) {
+              // A failed provider call is not a model response. Judging it
+              // would spend judge tokens grading an error string as if it were
+              // skill behavior; the run is signed `error` below instead.
+              if (isFailedExecution(outcome)) continue;
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
               // iterates spec.test_cases), so a miss is an internal invariant
@@ -931,6 +962,10 @@ export function registerEvalCommand(program: Command): void {
             let baselineComparisons: BaselineComparison[] = [];
             let isObsolete = false;
             let ranBaseline = false;
+            // Hoisted so a provider failure in the naked-baseline pass is held
+            // to the same infrastructure-failure rule as the skill pass.
+            let baselineOutcomes: ObservedOutcome[] = [];
+            let baselineJudgments: JudgmentResult[] = [];
             if (opts.baselineCheck) {
               ranBaseline = true;
               costMeter.phase = "execution";
@@ -942,7 +977,10 @@ export function registerEvalCommand(program: Command): void {
               );
               costMeter.phase = "judge";
               const nakedJudgments: JudgmentResult[] = [];
+              baselineOutcomes = nakedOutcomes;
+              baselineJudgments = nakedJudgments;
               for (const outcome of nakedOutcomes) {
+                if (isFailedExecution(outcome)) continue;
                 const testCase = testCaseById.get(outcome.test_case_id);
                 if (!testCase) continue;
                 const nakedCriteria = selectCriteriaForTestCase(
@@ -1069,6 +1107,27 @@ export function registerEvalCommand(program: Command): void {
             // with a best-effort USD estimate. Stub runs record nothing.
             costReport = providers.real ? costMeter.report() : null;
 
+            // ── Infrastructure-failure rule (000-docs/037) ─────────────
+            // Blueprint B § 7.4: `error` is "a verdict on the gate's own
+            // ability to evaluate". ANY unrecovered provider failure — a test
+            // case that never executed, or a criterion whose every judge sample
+            // errored, in the skill or the naked-baseline pass — means the
+            // scorecard below was computed over an incomplete evaluation. It is
+            // kept for diagnosis but is not a verdict on the skill: the row is
+            // signed `error`, the run is stored `failed`, the exit is non-zero.
+            // This generalizes the 2026-09 dead-judge override (conference
+            // audit, "make it lie" #E), which fired only when EVERY judgment
+            // died and ignored execution failures entirely.
+            const infraFailure = detectInfrastructureFailure({
+              outcomes: [...outcomes, ...baselineOutcomes],
+              judgments: [...allJudgments, ...baselineJudgments],
+              executionProvider: providers.providerName,
+              judgeProvider: providers.judgeProviderName,
+            });
+            const infraFailureReason = infraFailure
+              ? infrastructureFailureReason(infraFailure)
+              : null;
+
             allResults[model] = {
               provider: providers.providerName,
               model,
@@ -1079,23 +1138,47 @@ export function registerEvalCommand(program: Command): void {
               scoreCard,
               decision,
               report,
-              promotion: promotionEvidence,
+              // Exactly one of these is present. An incomplete evaluation
+              // carries `evaluation_error` and NO promotion evidence: a
+              // promotion claim over criteria that were never evaluated would
+              // be meaningless, and its own pass|fail|advisory field would
+              // contradict the `error` verdict.
+              ...(infraFailure
+                ? { gate_decision: "error", evaluation_error: infraFailure }
+                : { promotion: promotionEvidence }),
               cost: costReport,
+              ...batchLineage,
             };
 
             // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
             // RolloutDecision plus promotion evidence onto the closed
-            // gate-result/v1 verdict enum. A `ship` decision without the
-            // required regression comparison is advisory until the evidence
-            // is complete; this prevents a skipped layer from becoming a
-            // false promotion pass.
-            const gateDecisionValue =
-              promotionEvidence.gate_decision === "pass"
+            // gate-result/v1 verdict enum {pass,fail,advisory,error}. A `ship`
+            // decision without the required regression comparison is advisory
+            // until the evidence is complete; this prevents a skipped layer
+            // from becoming a false promotion pass. Spelling is identical to
+            // the audit-harness iah-E07 emitter so a ship-gate dashboard alerts
+            // on one event name across both emitters.
+            //
+            // Infrastructure failure wins over every other mapping, promotion
+            // included: the kernel enum has `error` for exactly this, and
+            // gate_reasons[0] must name the error class (computed above).
+            const gateDecisionValue = infraFailure
+              ? GateDecision.ERROR
+              : promotionEvidence.gate_decision === "pass"
                 ? GateDecision.PASS
                 : promotionEvidence.gate_decision === "fail"
                   ? GateDecision.FAIL
                   : GateDecision.ADVISORY;
-            if (gateDecisionValue === GateDecision.FAIL) runHadFailure = true;
+            if (
+              gateDecisionValue === GateDecision.FAIL ||
+              gateDecisionValue === GateDecision.ERROR
+            ) {
+              runHadFailure = true;
+            }
+            if (infraFailure) infrastructureFailureSeen = true;
+            if (infraFailureReason && !opts.json) {
+              console.log(`  ${icon("error")} ${infraFailureReason}`);
+            }
             emitGateDecisionEmitted(correlation, {
               gateName: "j-rig-rollout-gate",
               decision: gateDecisionValue,
@@ -1110,14 +1193,16 @@ export function registerEvalCommand(program: Command): void {
             // consumable by intent-rollout-gate. Reuses the same
             // promotion evidence → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision = promotionEvidence.gate_decision;
+              const gateDecision = infraFailure ? "error" : promotionEvidence.gate_decision;
               const gateReasons = [
                 ...new Set([
                   ...report.blockers,
                   ...report.warnings,
-                  ...promotionEvidence.promotion_reasons,
+                  // Promotion reasons describe a verdict; an `error` row has none.
+                  ...(infraFailure ? [] : promotionEvidence.promotion_reasons),
                 ]),
               ];
+              if (infraFailureReason) gateReasons.unshift(infraFailureReason);
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
@@ -1200,7 +1285,10 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
-                  ...promotionEvidence,
+                  // Blueprint B § 7.4 SHOULD: structured detail for `error`.
+                  // Mutually exclusive with promotion evidence (see above).
+                  ...(infraFailure ? { error_detail: infraFailure } : promotionEvidence),
+                  ...batchLineage,
                   ...voteEvidence,
                 },
                 // Honest replay-fidelity claim: an un-seeded API judge caps the
@@ -1238,7 +1326,11 @@ export function registerEvalCommand(program: Command): void {
               console.log("");
             }
 
-            transitionRun(database, runId, "completed");
+            if (infraFailure) {
+              transitionRun(database, runId, "failed", JSON.stringify(infraFailure));
+            } else {
+              transitionRun(database, runId, "completed");
+            }
           } else {
             transitionRun(database, runId, "completed");
           }
@@ -1305,6 +1397,7 @@ export function registerEvalCommand(program: Command): void {
               pkgReport,
               functional_skipped: true,
               cost: costReport,
+              ...batchLineage,
             };
           }
 
@@ -1370,6 +1463,14 @@ export function registerEvalCommand(program: Command): void {
         } else {
           console.log(chalk.dim(`Duration: ${formatDuration(duration)} | DB: ${opts.db}`));
         }
+        // Exit contract: 0 = evaluated (pass/fail/advisory are VERDICTS and are
+        // reported in the bundle, not the exit status — the rollout gate
+        // decides); 2 = a provider the evaluation depends on failed for at least one
+        // model, so that model was not (fully) evaluated (bundle still written,
+        // signed `error`, 000-docs/037); 1 = crash (catch
+        // below). Set after every artifact is flushed so consumers still get
+        // the bundle + JSON.
+        if (infrastructureFailureSeen) process.exitCode = 2;
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);

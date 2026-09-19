@@ -1,3 +1,5 @@
+import type { ProviderFailure } from "../providers/errors.js";
+
 /**
  * Context provided to the skill during execution.
  */
@@ -51,6 +53,8 @@ export interface ObservedOutcome {
   output: ExecutionOutput;
   meta: ExecutionMeta;
   status: "completed" | "failed" | "timed_out";
+  /** Present when the harness caught a typed provider/infrastructure error. */
+  provider_failure?: ProviderFailure;
 }
 
 /**

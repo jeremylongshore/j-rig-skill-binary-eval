@@ -61,6 +61,25 @@ valid, inspectable evaluation artifact but cannot silently become a rollout
 approval. The baseline-value layer is also recorded explicitly as `not-run`,
 `adds-value`, `obsolete-review`, or `no-comparison`.
 
+## Interaction with evaluator infrastructure failure
+
+Promotion evidence describes a **verdict**. When the evaluation did not
+complete (any provider failure, per
+`037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`), there is no
+verdict to describe, so the two are mutually exclusive on a row:
+
+- The row is `gate_decision: "error"` and carries `metadata.error_detail`.
+- **No** `j-rig/skill-promotion/v1` fields are emitted in `metadata`, no
+  `promotion_reasons` are added to `gate_reasons`, and the `--json` result
+  carries `evaluation_error` instead of `promotion`.
+
+This is deliberate. The promotion object has its own
+`gate_decision: pass | fail | advisory`; emitting it beside an `error` verdict
+would put two contradictory decisions in one signed predicate, and a consumer
+reading only `metadata` could see a promotion `pass` for a skill that was never
+fully evaluated. Infrastructure failure therefore wins over the promotion
+mapping, exactly as it wins over the plain rollout mapping.
+
 ## Verification requirements
 
 Producers validate the metadata contract before composing the kernel statement.

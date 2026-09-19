@@ -47,8 +47,8 @@ on:
       models:
         description: >-
           Model id override — REQUIRED whenever provider differs from the
-          roster default (the specs pin the DeepSeek model id, which other
-          backends 404 on). Example: MiniMax-M3.
+          roster default (the specs pin provider-specific model ids, which
+          other backends may reject). Example: MiniMax-M3.
         required: false
         default: ""
 
@@ -89,7 +89,7 @@ jobs:
         uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Node >= 22.6 — the emit scripts run under --experimental-strip-types.
           node-version: "22"
@@ -268,7 +268,7 @@ jobs:
       # the signed manifest above.
       - name: Upload raw roster outputs (run artifact, 14-day retention)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: roster-outputs
           path: |

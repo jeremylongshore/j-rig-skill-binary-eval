@@ -2,6 +2,8 @@ import type { Criterion } from "../schemas/criterion.js";
 import type { ObservedOutcome } from "../execution/types.js";
 import { runCheck } from "../checks/deterministic-registry.js";
 import type { JudgeProvider, JudgmentResult, JudgmentVerdict } from "./types.js";
+import { redactProviderError } from "./redact.js";
+import { providerFailureFromError } from "../providers/errors.js";
 
 /**
  * Options for a judgment pass.
@@ -203,6 +205,10 @@ async function judgeWithLLM(
     return judgeError(criterion.id, model, firstErr);
   }
   const errored = settled.length - ok.length;
+  const providerFailure = settled
+    .filter((s): s is PromiseRejectedResult => s.status === "rejected")
+    .map((s) => providerFailureFromError(s.reason))
+    .find((failure) => failure !== undefined);
 
   const votes: Record<JudgmentVerdict, number> = { yes: 0, no: 0, unsure: errored };
   for (const s of ok) votes[s.value.verdict]++;
@@ -229,6 +235,7 @@ async function judgeWithLLM(
     agreement,
     sample_verdicts: settled.map((s) => (s.status === "fulfilled" ? s.value.verdict : "unsure")),
     sample_latencies_ms: latencies,
+    ...(providerFailure ? { provider_failure: providerFailure } : {}),
   };
 }
 
@@ -266,12 +273,19 @@ async function settleWithConcurrency<T>(
 }
 
 function judgeError(criterionId: string, model: string | undefined, err: unknown): JudgmentResult {
+  // Redact BEFORE the message becomes durable: `reasoning` lands in the run
+  // DB and `judge_error` is copied into the signed gate_reasons by the CLI's
+  // dead-judge override (credential boundary, 000-docs/021).
+  const safe = redactProviderError(err instanceof Error ? err.message : String(err));
+  const providerFailure = providerFailureFromError(err);
   return {
     criterion_id: criterionId,
     verdict: "unsure",
     confidence: 0,
-    reasoning: `Judge error: ${err instanceof Error ? err.message : String(err)}`,
+    reasoning: `Judge error: ${safe}`,
     method: "judge",
     judge_model: model,
+    judge_error: safe,
+    ...(providerFailure ? { provider_failure: providerFailure } : {}),
   };
 }

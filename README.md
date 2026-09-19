@@ -10,6 +10,8 @@ Binary evaluation harness that treats `SKILL.md` artifacts as production softwar
 [![CI](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jeremylongshore/j-rig-skill-binary-eval)](https://github.com/jeremylongshore/j-rig-skill-binary-eval/releases)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 **Links:** [Master Blueprint](000-docs/007-PP-PLAN-master-build-blueprint.md) · [Epic Index](000-docs/epics/README.md) · [Doc Index](000-docs/000-INDEX.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 ---
@@ -45,7 +47,7 @@ When `--emit-bundle` is enabled, the real-skill row also carries
 digests, the effective grader snapshot, threshold outcomes, and explicit
 regression coverage. A skipped regression comparison produces an advisory
 promotion row rather than a false clean pass. The contract is documented in
-[`035-AT-SPEC-skill-promotion-evidence-2026-08-02.md`](000-docs/035-AT-SPEC-skill-promotion-evidence-2026-08-02.md).
+[`042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`](000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md).
 
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
 
@@ -165,7 +167,7 @@ pnpm monorepo with nine workspace packages — four published to npm (`@intentso
 
 ### Choosing a provider
 
-`j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, Together — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).
+`j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, OpenAI, MiniMax, Groq, and NVIDIA — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).
 
 **Switch providers with at most three env vars.** Set a per-provider key for a built-in preset, or the generic `LLM_*` triple to point at any compatible gateway:
 
@@ -174,6 +176,10 @@ pnpm monorepo with nine workspace packages — four published to npm (`@intentso
 | **DeepSeek** | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-v4-flash` (V4 Lite; or `deepseek-reasoner`) |
 | **Kimi / Moonshot** | `MOONSHOT_API_KEY` | `https://api.moonshot.ai/v1` | `kimi-k2.6` |
 | **OpenRouter** | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-chat` or `moonshotai/kimi-k2` |
+| **OpenAI** | `OPENAI_API_KEY` | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| **MiniMax** | `MINIMAX_API_KEY` | `https://api.minimax.io/v1` | `MiniMax-M3` |
+| **Groq** | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| **NVIDIA NIM** | `NVIDIA_API_KEY` | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
 | **Anthropic** | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1/messages` | `sonnet` / `haiku` / `opus` |
 | **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
 
@@ -184,31 +190,48 @@ DEEPSEEK_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --models
 # Kimi / Moonshot
 MOONSHOT_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill --provider kimi --models kimi-k2-0711-preview
 
+# MiniMax M3 (funded real-provider path; keep the model pin explicit)
+MINIMAX_API_KEY=sk-... node packages/cli/dist/index.js eval ./my-skill \
+  --provider minimax --models MiniMax-M3 --json
+
 # Any OpenAI-compatible gateway via the generic triple
 LLM_API_KEY=sk-... LLM_BASE_URL=https://my-gateway/v1 LLM_MODEL=some-model \
   node packages/cli/dist/index.js eval ./my-skill
 ```
 
-**Running a real DeepSeek eval (Intent Solutions internal).** The `DEEPSEEK_API_KEY` is
-SOPS-encrypted (age) in the lab repo at `intent-eval-lab/.env.sops` — never hardcoded,
-never committed in plaintext. Decrypt it into the process at runtime (only into
-`/dev/shm`, never to disk) and run a real behavioral model-matrix eval:
+**Running a real MiniMax M3 eval (Intent Solutions internal).** The
+`MINIMAX_API_KEY` is supplied from an encrypted secret store or a repository
+secret — never hardcoded, never committed in plaintext. Inject it into the
+process at runtime and pin the provider model explicitly:
 
 ```bash
-# from intent-eval-lab/ (where the SOPS file lives)
-eval "$(sops -d --input-type dotenv .env.sops \
-  | sed -nE 's/^(DEEPSEEK_API_KEY)=(.*)$/export \1=\2/p')"
+# from the operator's secret manager / CI environment:
+export MINIMAX_API_KEY='<injected at runtime; do not paste into source>'
 
 # then, from j-rig-binary-eval/:
-node packages/cli/dist/index.js eval ./path/to/skill --provider deepseek --models deepseek-v4-flash --json
+node packages/cli/dist/index.js eval ./path/to/skill \
+  --provider minimax --models MiniMax-M3 --json
 ```
 
 The unit tests never touch the network or a real key — the adapter's wire format +
 normalization are exercised through an injected **stub transport** that returns canned
-OpenAI Chat-Completions payloads (`providers/openai-compatible.test.ts`). Only this
-documented runtime path makes a real DeepSeek call.
+OpenAI Chat-Completions payloads (`providers/openai-compatible.test.ts`). The
+MiniMax preset strips only a leading `<think>…</think>` block before judge parsing;
+the raw credential is never logged. Only an explicitly configured runtime path
+makes a real provider call.
 
-**Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
+**Model ids are overridable** (via `--models` or `LLM_MODEL`) because vendor model ids churn — pin a dated snapshot when you need reproducibility. **Auto-detection precedence** when no `--provider` flag is given: an OpenAI-compatible key (DeepSeek → Kimi → OpenRouter → OpenAI → MiniMax → Groq → NVIDIA, then generic `LLM_*`) wins first, then `ANTHROPIC_API_KEY`, then stub. A `--provider deepseek|kimi|moonshot|openrouter|openai|minimax|groq|nvidia|anthropic|stub` flag forces the choice. The chosen `provider` + `model` are recorded in `--json` output and in the OTel events.
+
+**Provider failures sign `error`, never a grade.** If any execution or judge
+call the evaluation depends on fails, `j-rig eval` records no verdict for that
+model and still emits evidence: a `gate-result/v1` row with
+`gate_decision: "error"`, the error class first in `gate_reasons`, and typed
+credential-free `metadata.error_detail`. The run is stored `failed` and the
+process exits 2. A partial outage counts: a score over the surviving criteria is
+not a measurement. HTTP 402 and messages such as `Insufficient Balance` are
+non-retryable quota failures; completed responses with empty text remain valid
+boundary observations for tool-dependent skills. See
+[`037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
 
 **Where to get Kimi (K2):** the Moonshot console at [platform.moonshot.ai](https://platform.moonshot.ai) / [platform.kimi.ai](https://platform.kimi.ai) (OpenAI-compatible API), routed through [OpenRouter](https://openrouter.ai) (`moonshotai/kimi-k2`), or the open weights on [Hugging Face](https://huggingface.co/moonshotai) for self-hosting behind any OpenAI-compatible server (vLLM / SGLang).
 
@@ -266,11 +289,24 @@ node packages/cli/dist/index.js sample-plan \
   --json
 ```
 
-The plan is inspectable JSON; the later suite/batch surface will consume these
-jobs for execution. Measurements select one exact Grader snapshot and expose
-pass rate, harness failures, ungraded completions, Wilson intervals, and score
-standard error without heterogeneous rollups. See
+The plan is inspectable JSON. Measurements select one exact Grader snapshot
+and expose pass rate, harness failures, ungraded completions, Wilson intervals,
+score standard error, and model-judge vote disagreement without heterogeneous
+rollups. Use `j-rig report --sampling-manifest` with the full Grader identity
+to render them. `j-rig suite` plans and executes these same jobs as one
+resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
+
+`j-rig batch` consumes a path-based suite manifest, executes these jobs in
+balanced passes, and resumes from the immutable raw-run ledger. Runner
+failures remain diagnostic observations rather than model grades:
+
+```bash
+node packages/cli/dist/index.js batch \
+  --manifest ./batch.yaml \
+  --db ./j-rig.db \
+  --json
+```
 
 ### Unified report
 
@@ -288,11 +324,95 @@ node packages/cli/dist/index.js report \
   --output ./report.json
 ```
 
-Omit `--json` for Markdown. Empty data is rendered explicitly; no global pass
-rate is inferred across heterogeneous cells. This is a local unsigned
-projection. The verified dashboard adapter and any Evidence Bundle/signing
-path remain downstream. See
-[`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md).
+Use `--html --output ./report.html` for a self-contained accessible HTML
+projection with inline CSS and no scripts, external assets, or network fetches.
+Add `--serve` to run that HTML projection on loopback until `Ctrl-C`; the
+server exposes `/`, `/index.html`, and `/healthz`, refuses public bind
+addresses, and chooses an available port by default. `j-rig suite
+./suite.yaml --serve` serves its generated HTML report through the same local
+surface. This does not change the unsigned-local or dashboard publication
+boundary. See
+[`041-AT-SPEC-eval-report-live-serve-2026-08-02.md`](000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md).
+Omit `--json` and `--html` for Markdown. Empty data is rendered explicitly; no
+global pass rate is inferred across heterogeneous cells. These are local
+unsigned projections. The verified dashboard adapter and any Evidence
+Bundle/signing path remain downstream. See
+[`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md)
+and [`038-AT-SPEC-unified-report-html-static-2026-08-02.md`](000-docs/038-AT-SPEC-unified-report-html-static-2026-08-02.md).
+
+### Skills-root batch dogfood
+
+The skills-specific batch surface composes the existing scaffold and evaluator
+so a library can be exercised with one documented command:
+
+```bash
+MINIMAX_API_KEY=sk-... \
+  node packages/cli/dist/index.js eval-batch ~/.claude/skills \
+  --provider minimax \
+  --models MiniMax-M3 \
+  --db ./j-rig.db \
+  --batch-id skills-2026-08-01 \
+  --json
+```
+
+Existing `eval-spec.yaml` files are reused. Missing specs are generated as
+validated trigger/safety baselines under `.j-rig/eval-batches/<batch-id>/`;
+they do not claim deep skill-specific functional quality. Each child writes a
+separate kernel-valid Evidence Bundle and links its digest into the shared
+SQLite store. The versioned batch manifest retains source/spec provenance,
+relative skill lineage, model/provider summaries, and failures. Use
+`--write-specs` only when you intentionally want generated specs copied beside
+source skills. Each batch also writes `report.json`, `report.md`, and a
+self-contained `report.html` beside `manifest.json`; these preserve per-skill
+lineage and failures without inventing an overall quality score or rollout
+decision. See
+[`035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`](000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md)
+and [`039-AT-SPEC-eval-batch-report-projection-2026-08-02.md`](000-docs/039-AT-SPEC-eval-batch-report-projection-2026-08-02.md).
+
+### Generic suite lifecycle
+
+`j-rig suite` is the one-command lifecycle for arbitrary evaluation
+directories. A suite manifest names two or more Task YAML files, named Config
+YAML files, one deterministic Grader, and a positive `target_n`:
+
+```yaml
+schema: j-rig/eval-suite/v1
+id: answer-suite
+version: "1"
+tasks:
+  - tasks/task-a.yaml
+  - tasks/task-b.yaml
+configs:
+  - configs/model-a.yaml
+  - configs/model-b.yaml
+grader: graders/answer.yaml
+target_n: 3
+```
+
+Run it with one command:
+
+```bash
+node packages/cli/dist/index.js suite ./suite.yaml \
+  --db ./j-rig.db \
+  --output-dir ./.j-rig/suites/answer-suite \
+  --json
+```
+
+Paths resolve relative to `suite.yaml`. The command expands a deterministic
+Task × Config × Model matrix, persists every raw Run before grading, grades
+only completed observations, and writes an atomic audit manifest plus
+suite-scoped JSON, Markdown, and self-contained HTML reports. Repeating the
+command reuses sealed raw Runs and adds only missing sample indices; runner
+failures remain visible and ungraded until a later top-up succeeds. The audit
+and report carry the suite id, manifest path, cell definitions, raw Run ids,
+immutable Grader selector, and report paths. The HTML projection is local and
+unsigned.
+
+The existing skill-specific `eval` and `eval-batch` commands remain supported.
+Use `j-rig migrate <dir>` for legacy v0.1.0-draft Evidence Bundle fixtures;
+generic suite manifests do not rewrite old evidence implicitly. See
+[`036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md`](000-docs/036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md)
+and [`MIGRATION.md`](MIGRATION.md).
 
 ### ⚠️ Stub providers — output is NOT ground truth
 

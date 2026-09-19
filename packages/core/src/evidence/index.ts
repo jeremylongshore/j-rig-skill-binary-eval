@@ -48,7 +48,6 @@ export {
   SKILL_PROMOTION_EVIDENCE_SCHEMA,
   SkillPromotionEvidenceSchema,
   buildSkillPromotionEvidence,
-  canonicalJson,
   hashCanonicalJson,
   type SkillPromotionEvidence,
   type SkillPromotionEvidenceInput,

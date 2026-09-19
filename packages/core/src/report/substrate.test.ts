@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildUnifiedReport, renderUnifiedReportMarkdown } from "./substrate.js";
+import { renderUnifiedReportHtml } from "./html.js";
 
 const selector = {
   grader_id: "answer-checker",
@@ -59,5 +60,50 @@ describe("unified report", () => {
     expect(markdown).toContain("j-rig/unified-report/v1");
     expect(markdown).toContain("| no data |");
     expect(markdown).not.toContain("overall pass rate");
+  });
+
+  it("renders escaped, self-contained accessible HTML for a populated report", () => {
+    const report = buildUnifiedReport({
+      generated_at: "2026-08-01T00:00:00.000Z",
+      selector,
+      observations: [
+        {
+          raw_run_id: "raw-<script>",
+          task_id: "task-a",
+          task_version: "1",
+          config_id: "config-a",
+          config_version: "1",
+          model: "model-<img>",
+          sample_index: 0,
+          status: "completed",
+          grade: { ...selector, verdict: "pass", score: 1 },
+        },
+      ],
+    });
+
+    const html = renderUnifiedReportHtml(report, { title: "Suite <demo>" });
+
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain('lang="en"');
+    expect(html).toContain('aria-labelledby="summary-heading"');
+    expect(html).toContain("Suite &lt;demo&gt;");
+    expect(html).toContain("raw-&lt;script&gt;");
+    expect(html).toContain("model-&lt;img&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<img>");
+    expect(html).not.toContain("fetch(");
+  });
+
+  it("renders an explicit no-data state in HTML", () => {
+    const report = buildUnifiedReport({
+      generated_at: "2026-08-01T00:00:00.000Z",
+      selector,
+      observations: [],
+    });
+
+    const html = renderUnifiedReportHtml(report);
+
+    expect(html).toContain("No cell measurements are available.");
+    expect(html).toContain("No run data is available.");
   });
 });

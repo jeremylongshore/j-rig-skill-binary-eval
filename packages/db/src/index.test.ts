@@ -117,6 +117,14 @@ describe("run lifecycle", () => {
     transitionRun(database, runId, "timed_out");
     expect(getRun(database, runId)?.status).toBe("timed_out");
   });
+
+  it("persists a safe error message when a run fails", () => {
+    const runId = createRun(database, svId);
+    transitionRun(database, runId, "running");
+    transitionRun(database, runId, "failed", '{"type":"provider_failure"}');
+    expect(getRun(database, runId)?.status).toBe("failed");
+    expect(getRun(database, runId)?.error_message).toBe('{"type":"provider_failure"}');
+  });
 });
 
 describe("lifecycle helpers", () => {
