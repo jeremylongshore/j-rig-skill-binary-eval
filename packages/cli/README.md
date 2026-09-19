@@ -38,6 +38,7 @@ j-rig --help                         # list all commands
 j-rig check <skill-dir>              # deterministic package-integrity checks
 j-rig validate <eval-spec.yaml>      # validate an eval spec / contract YAML
 j-rig eval <skill-dir> --spec ...    # binary evaluation (5 of 7 layers by default; regression + baseline are opt-in)
+j-rig eval-batch <skills-root>        # scaffold missing baselines and evaluate a skills root
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
@@ -53,6 +54,17 @@ j-rig refine                         # eval-guided SKILL.md improvement loop
 
 `j-rig eval <skill-dir>` expects an `eval-spec.yaml` (or `--spec <path>`) and
 writes evidence to a local SQLite DB (`--db <path>`, default `j-rig.db`).
+
+`j-rig eval-batch <skills-root>` discovers `SKILL.md` leaves in sorted order,
+reuses existing specs, generates missing baseline specs under a batch artifact
+directory, and invokes the existing evaluator once per skill. Each child emits
+its own `gate-result/v1` Evidence Bundle into the shared SQLite evidence store;
+the `j-rig/eval-batch/v1` manifest retains spec provenance, bundle paths,
+lineage, model/provider summaries, and failures. Source skills are unchanged by
+default; add `--write-specs` only when you explicitly want missing baseline
+specs written beside them. Generated baselines are trigger/safety scaffolds,
+not deep functional evidence. See
+`000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`.
 
 The generic `j-rig run` command accepts YAML task/config definitions, passes one
 JSON request to a shell-free harness, and persists an idempotent raw Run before

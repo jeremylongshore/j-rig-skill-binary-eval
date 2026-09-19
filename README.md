@@ -301,6 +301,31 @@ projection. The verified dashboard adapter and any Evidence Bundle/signing
 path remain downstream. See
 [`034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`](000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md).
 
+### Skills-root batch dogfood
+
+The skills-specific batch surface composes the existing scaffold and evaluator
+so a library can be exercised with one documented command:
+
+```bash
+DEEPSEEK_API_KEY=sk-... \
+  node packages/cli/dist/index.js eval-batch ~/.claude/skills \
+  --provider deepseek \
+  --models deepseek-v4-flash \
+  --db ./j-rig.db \
+  --batch-id skills-2026-08-01 \
+  --json
+```
+
+Existing `eval-spec.yaml` files are reused. Missing specs are generated as
+validated trigger/safety baselines under `.j-rig/eval-batches/<batch-id>/`;
+they do not claim deep skill-specific functional quality. Each child writes a
+separate kernel-valid Evidence Bundle and links its digest into the shared
+SQLite store. The versioned batch manifest retains source/spec provenance,
+relative skill lineage, model/provider summaries, and failures. Use
+`--write-specs` only when you intentionally want generated specs copied beside
+source skills. See
+[`035-AT-SPEC-eval-batch-skills-root-2026-08-01.md`](000-docs/035-AT-SPEC-eval-batch-skills-root-2026-08-01.md).
+
 ### ⚠️ Stub providers — output is NOT ground truth
 
 When **no** real provider key is present, `j-rig eval` falls back to stub providers that emit synthetic outputs, and the CLI **refuses to run** unless you explicitly opt in by setting `J_RIG_ALLOW_STUB=1`. When stub mode is active, a loud banner is emitted to stderr on every invocation. Do not consume stub-mode output as evidence of skill quality; CI gates that ingest j-rig artifacts must refuse rows produced under stub mode.

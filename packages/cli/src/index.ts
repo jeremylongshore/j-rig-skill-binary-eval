@@ -15,6 +15,7 @@ import { registerRunCommand } from "./commands/run.js";
 import { registerGradeCommand } from "./commands/grade.js";
 import { registerSamplePlanCommand } from "./commands/sample-plan.js";
 import { registerBatchCommand } from "./commands/batch.js";
+import { registerEvalBatchCommand } from "./commands/eval-batch.js";
 import { registerRefineCommand } from "@intentsolutions/refiner";
 
 // Report THIS package's own version (not @j-rig/core's "0.0.0" internal stub),
@@ -47,6 +48,7 @@ function createProgram(): Command {
   registerGradeCommand(program);
   registerSamplePlanCommand(program);
   registerBatchCommand(program);
+  registerEvalBatchCommand(program);
   registerRefineCommand(program);
 
   return program;

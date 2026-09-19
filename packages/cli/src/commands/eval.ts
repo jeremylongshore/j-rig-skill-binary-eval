@@ -609,6 +609,22 @@ export function registerEvalCommand(program: Command): void {
         const bundleRunIds: number[] = [];
         const jrigVersion = __CLI_VERSION__ ?? "0.0.0";
         const commit = resolveCommitSha(absDir, skillSnapshotSha);
+        // `eval-batch` launches this command once per skill. Keep the batch
+        // lineage on both the machine-readable result and every emitted
+        // Evidence Bundle row so downstream reports can group without
+        // guessing from filenames.
+        const batchId = process.env.JRIG_BATCH_ID?.trim();
+        const batchLineage = batchId
+          ? {
+              batch_id: batchId,
+              ...(process.env.JRIG_BATCH_SKILL_RELATIVE_PATH?.trim()
+                ? { batch_skill: process.env.JRIG_BATCH_SKILL_RELATIVE_PATH.trim() }
+                : {}),
+              ...(process.env.JRIG_BATCH_MANIFEST?.trim()
+                ? { batch_manifest: process.env.JRIG_BATCH_MANIFEST.trim() }
+                : {}),
+            }
+          : {};
 
         // ── Deterministic self-test (opt-in) ─────────────────────────────
         // Run the skill's declared `self_test.command` ONCE (it is
@@ -1031,6 +1047,7 @@ export function registerEvalCommand(program: Command): void {
               decision,
               report,
               cost: costReport,
+              ...batchLineage,
             };
 
             // OTel gate.decision.emitted (067 § 2.2). Map the j-rig
@@ -1182,6 +1199,7 @@ export function registerEvalCommand(program: Command): void {
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,
                   commit_sha_source: commit.source,
+                  ...batchLineage,
                   ...voteEvidence,
                 },
                 // Honest replay-fidelity claim: an un-seeded API judge caps the
@@ -1281,6 +1299,7 @@ export function registerEvalCommand(program: Command): void {
               pkgReport,
               functional_skipped: true,
               cost: costReport,
+              ...batchLineage,
             };
           }
 
