@@ -1,8 +1,11 @@
 name: Doc Quality
 
 on:
+  # No `branches:` filter on purpose. With `branches: [main]` a stacked PR whose
+  # base is another feature branch got NO checks at all, so a whole stack could
+  # only be validated after each predecessor merged and the next was retargeted.
+  # Push builds stay limited to main.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
     paths:
