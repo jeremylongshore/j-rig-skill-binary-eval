@@ -44,11 +44,245 @@ interface GateRow {
     gate_decision: string;
     input_hash: string;
     policy_hash: string;
-    metadata?: { rollout_decision?: string; ground_truth?: boolean };
+    metadata?: {
+      schema?: string;
+      rollout_decision?: string;
+      ground_truth?: boolean;
+      eval_run_id?: string;
+      run_ids?: string[];
+      skill?: { snapshot_sha256?: string };
+      eval_spec?: { profile_sha256?: string };
+      selected_grader?: {
+        grader_id?: string;
+        grader_version?: string;
+        grader_snapshot_sha256?: string;
+      };
+      thresholds?: { status?: string; required_pass_rate?: number };
+      regression?: {
+        required?: boolean;
+        enabled?: boolean;
+        result?: string;
+        baseline_sha256?: string | null;
+      };
+      promotion_eligible?: boolean;
+    };
   };
 }
 
 describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () => {
+  it("signs `error`, not `advisory`, when the judge provider fails on every criterion (dead judge)", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-dead-judge-"));
+    const bundlePath = join(work, "bundle.json");
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          join(work, "dead.db"),
+          "--emit-bundle",
+          bundlePath,
+          "--json",
+        ],
+        {
+          encoding: "utf-8",
+          env: { ...process.env, J_RIG_ALLOW_STUB: "1", J_RIG_STUB_JUDGE_FAIL: "1" },
+        },
+      );
+      expect(existsSync(bundlePath), `no bundle emitted:\n${r.stderr}`).toBe(true);
+      // Exit contract: a dead judge is a non-evaluation -> exit 2 (bundle still
+      // written). A CI step trusting the status must not see 0 here.
+      expect(r.status, `dead-judge run must exit 2:\n${r.stderr}`).toBe(2);
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle.length).toBeGreaterThanOrEqual(1);
+      for (const row of bundle) {
+        expect(EvidenceStatementSchema.safeParse(row).success).toBe(true);
+        expect(row.predicate.gate_decision).toBe("error");
+        const reasons = (row.predicate as { gate_reasons?: string[] }).gate_reasons ?? [];
+        expect(reasons[0]).toMatch(/judge provider failed on every judged criterion/);
+        expect(reasons[0]).toMatch(/401/);
+        // Credential boundary: the signed reason carries a status, never a key.
+        expect(reasons[0]).not.toMatch(/sk-|Bearer\s+\S{8,}|api[_-]?key=/i);
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("NEGATIVE: a healthy stub judge still signs `pass` (the override only fires on a provider failure)", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-live-judge-"));
+    const bundlePath = join(work, "bundle.json");
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          SPEC_PATH,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--db",
+          join(work, "ok.db"),
+          "--emit-bundle",
+          bundlePath,
+          "--json",
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle[0]!.predicate.gate_decision).not.toBe("error");
+      expect(r.status, `healthy stub run must exit 0:\n${r.stderr}`).toBe(0);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  /** Run the built CLI under the stub provider with extra failure switches. */
+  function evalWithFailure(env: Record<string, string>) {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-infra-"));
+    const bundlePath = join(work, "bundle.json");
+    const dbPath = join(work, "infra.db");
+    const r = spawnSync(
+      "node",
+      [
+        CLI_PATH,
+        "eval",
+        SKILL_DIR,
+        "--spec",
+        SPEC_PATH,
+        "--provider",
+        "stub",
+        "--models",
+        "sonnet",
+        "--db",
+        dbPath,
+        "--emit-bundle",
+        bundlePath,
+        "--json",
+      ],
+      { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1", ...env } },
+    );
+    return { r, work, bundlePath, dbPath };
+  }
+
+  interface ErrorDetail {
+    type: string;
+    phase: string;
+    category: string;
+    retryable: boolean;
+    affected: number;
+    total: number;
+    message: string;
+  }
+
+  function errorRow(bundlePath: string) {
+    const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+    expect(bundle).toHaveLength(1);
+    const row = bundle[0]!;
+    expect(EvidenceStatementSchema.safeParse(row).success).toBe(true);
+    const predicate = row.predicate as GateRow["predicate"] & {
+      gate_reasons: string[];
+      metadata: { error_detail?: ErrorDetail };
+    };
+    return predicate;
+  }
+
+  it("signs `error` for a PARTIAL judge outage: one dead criterion makes the evaluation incomplete", () => {
+    // Only `mentions-ship-decision` matches; the other judge criteria stay healthy.
+    const { r, work, bundlePath, dbPath } = evalWithFailure({
+      J_RIG_STUB_JUDGE_FAIL: "ship or no-ship rollout decision",
+    });
+    try {
+      expect(r.status, `partial judge outage must exit 2:\n${r.stderr}`).toBe(2);
+      const predicate = errorRow(bundlePath);
+      expect(predicate.gate_decision).toBe("error");
+      expect(predicate.gate_reasons[0]).toMatch(/^provider_failure\/judge /);
+      expect(predicate.gate_reasons[0]).toMatch(
+        /judge provider failed on \d+ of \d+ judged criteria/,
+      );
+      expect(predicate.gate_reasons[0]).not.toMatch(/every judged criterion/);
+
+      const detail = predicate.metadata.error_detail;
+      expect(detail).toMatchObject({ type: "provider_failure", phase: "judge" });
+
+      // Mutually exclusive with promotion evidence (000-docs/042): an `error`
+      // row must not also carry a promotion verdict of its own.
+      const metadata = predicate.metadata as Record<string, unknown>;
+      expect(metadata.gate_decision).toBeUndefined();
+      expect(metadata.promotion_reasons).toBeUndefined();
+      expect(predicate.gate_reasons.join("\n")).not.toMatch(/promotion/i);
+      expect(detail!.affected).toBeGreaterThan(0);
+      expect(detail!.affected).toBeLessThan(detail!.total);
+
+      // stdout stays a results object, flagged so a consumer cannot mistake
+      // the diagnostic scorecard for a verdict.
+      const results = JSON.parse(r.stdout) as Record<
+        string,
+        { gate_decision?: string; evaluation_error?: ErrorDetail }
+      >;
+      expect(results.sonnet!.gate_decision).toBe("error");
+      expect(results.sonnet!.evaluation_error?.phase).toBe("judge");
+      expect((results.sonnet as Record<string, unknown>).promotion).toBeUndefined();
+
+      // The ledger records a failed run with the same credential-free detail.
+      const database = createDatabase(dbPath);
+      try {
+        const row = database.sqlite
+          .prepare("SELECT status, error_message FROM runs ORDER BY id DESC LIMIT 1")
+          .get() as { status: string; error_message: string };
+        expect(row.status).toBe("failed");
+        expect(JSON.parse(row.error_message)).toMatchObject({
+          type: "provider_failure",
+          phase: "judge",
+        });
+      } finally {
+        database.close();
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("signs `error` when an execution call fails, and never judges the failed test case", () => {
+    const { r, work, bundlePath } = evalWithFailure({
+      J_RIG_STUB_EXECUTION_FAIL: "Gate this SKILL.md",
+    });
+    try {
+      expect(r.status, `execution outage must exit 2:\n${r.stderr}`).toBe(2);
+      const predicate = errorRow(bundlePath);
+      expect(predicate.gate_decision).toBe("error");
+      expect(predicate.gate_reasons[0]).toMatch(/^provider_failure\/execution /);
+      expect(predicate.gate_reasons[0]).toMatch(/execution provider failed on 1 of \d+ test case/);
+      expect(predicate.gate_reasons[0]).toMatch(/402/);
+      expect(predicate.metadata.error_detail).toMatchObject({
+        type: "provider_failure",
+        phase: "execution",
+        affected: 1,
+      });
+
+      // The failed test case produced no judgment rows at all.
+      const criteria = (
+        predicate.metadata as unknown as { criteria: Array<{ test_case_id?: string }> }
+      ).criteria;
+      expect(criteria.length).toBeGreaterThan(0);
+      expect(criteria.some((c) => c.test_case_id === "gate-in-ci")).toBe(false);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
   it("emits a kernel-valid gate-result/v1 Evidence Bundle for a real eval decision", () => {
     const work = mkdtempSync(join(tmpdir(), "jrig-eval-e2e-"));
     const dbPath = join(work, "e2e.db");
@@ -107,6 +341,35 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
           row.predicate.metadata?.rollout_decision,
         );
         expect(row.predicate.metadata?.ground_truth).toBe(false);
+
+        // Promotion metadata is a separate, content-addressed contract. The
+        // default self-eval intentionally skips regression coverage, so its
+        // evidence must not claim a clean promotion pass.
+        expect(row.predicate.metadata?.schema).toBe("j-rig/skill-promotion/v1");
+        expect(row.predicate.metadata?.eval_run_id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        );
+        expect(row.predicate.metadata?.run_ids).toContain(row.predicate.metadata?.eval_run_id);
+        expect(row.predicate.metadata?.skill?.snapshot_sha256).toBe(row.predicate.input_hash);
+        expect(row.predicate.metadata?.eval_spec?.profile_sha256).toBe(row.predicate.policy_hash);
+        expect(row.predicate.metadata?.selected_grader).toMatchObject({
+          grader_id: "j-rig-binary-criteria",
+          grader_version: expect.any(String),
+        });
+        expect(row.predicate.metadata?.selected_grader?.grader_snapshot_sha256).toMatch(
+          /^sha256:[a-f0-9]{64}$/,
+        );
+        expect(row.predicate.metadata?.thresholds).toMatchObject({
+          required_pass_rate: 1,
+        });
+        expect(row.predicate.metadata?.regression).toMatchObject({
+          required: true,
+          enabled: false,
+          result: "not-run",
+          baseline_sha256: null,
+        });
+        expect(row.predicate.metadata?.promotion_eligible).toBe(false);
+        expect(["advisory", "fail"]).toContain(row.predicate.gate_decision);
       }
 
       // 4. The DB→bundle link is integrity-checked: every evidence-bundle
@@ -127,6 +390,79 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
       } finally {
         database.close();
       }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  it("promotes a deterministic skill row only after a regression baseline runs", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-promotion-e2e-"));
+    const specPath = join(work, "spec.yaml");
+    const baselinePath = join(work, "baseline.json");
+    const bundlePath = join(work, "bundle.json");
+    writeFileSync(
+      specPath,
+      [
+        'spec_version: "1.0"',
+        "skill_name: j-rig-eval",
+        "description: deterministic promotion fixture",
+        "criteria:",
+        "  - id: output-not-empty",
+        "    description: response is non-empty",
+        "    method: deterministic",
+        "    deterministic_check: not_empty",
+        "test_cases:",
+        "  - id: basic",
+        "    description: basic response",
+        "    tier: core",
+        "    prompt: evaluate a skill",
+        "    trigger_expectation: should_trigger",
+        "    criteria_ids:",
+        "      - output-not-empty",
+        "",
+      ].join("\n"),
+    );
+    // An empty baseline is valid evidence for this fixture: it proves the
+    // comparison executed and found no prior passing criterion to regress.
+    writeFileSync(baselinePath, "[]\n");
+
+    try {
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          specPath,
+          "--provider",
+          "stub",
+          "--models",
+          "sonnet",
+          "--no-trigger",
+          "--db",
+          join(work, "promotion.db"),
+          "--regression-baseline",
+          baselinePath,
+          "--emit-bundle",
+          bundlePath,
+        ],
+        { encoding: "utf-8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+
+      expect(r.status, `promotion fixture failed:\n${r.stderr}`).toBe(0);
+      const bundle = JSON.parse(readFileSync(bundlePath, "utf-8")) as GateRow[];
+      expect(bundle).toHaveLength(1);
+      const metadata = bundle[0]?.predicate.metadata;
+      expect(bundle[0]?.predicate.gate_decision).toBe("pass");
+      expect(metadata?.promotion_eligible).toBe(true);
+      expect(metadata?.regression).toMatchObject({
+        required: true,
+        enabled: true,
+        result: "no-regressions",
+      });
+      expect(metadata?.regression?.baseline_sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+      expect(metadata?.thresholds?.status).toBe("pass");
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

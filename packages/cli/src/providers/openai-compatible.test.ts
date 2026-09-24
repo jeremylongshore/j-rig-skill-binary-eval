@@ -255,6 +255,17 @@ describe("RealOpenAICompatProvider.complete — error categorization", () => {
     ).rejects.toMatchObject({ category: "rate_limit" });
   });
 
+  it("categorizes depleted credits as non-retryable rate_limit", async () => {
+    const { transport } = fakeTransport({
+      status: 402,
+      json: { error: { message: "Insufficient Balance" } },
+    });
+    const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+    await expect(
+      provider.complete({ model: "m", messages: [{ role: "user", content: "x" }] }),
+    ).rejects.toMatchObject({ category: "rate_limit", retryable: false });
+  });
+
   it("throws auth before any network call when the key is too short", async () => {
     let called = false;
     const transport: Transport = async () => {

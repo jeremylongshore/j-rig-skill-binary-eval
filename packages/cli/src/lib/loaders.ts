@@ -2,11 +2,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   parseAndValidateYaml,
-  EvalSpecSchema,
+  SkillEvalSpecSchema,
   EvalContractSchema,
   parseSkillMd,
   parseSkillMdEnterprise,
-  type EvalSpec,
+  type SkillEvalSpec,
   type EvalContract,
   type ParsedSkill,
   type SkillFrontmatter,
@@ -21,7 +21,7 @@ import {
  *
  * Throws with a descriptive message on missing file or schema violation.
  */
-export function loadEvalSpec(specPath?: string, skillDir?: string): EvalSpec {
+export function loadSkillEvalSpec(specPath?: string, skillDir?: string): SkillEvalSpec {
   let filePath: string;
 
   if (specPath) {
@@ -40,7 +40,7 @@ export function loadEvalSpec(specPath?: string, skillDir?: string): EvalSpec {
   }
 
   const content = readFileSync(filePath, "utf-8");
-  const result = parseAndValidateYaml(content, EvalSpecSchema);
+  const result = parseAndValidateYaml(content, SkillEvalSpecSchema);
   if (!result.success) {
     const msgs = result.errors.map((e) => `  ${e.path}: ${e.message}`).join("\n");
     throw new Error(`Invalid eval spec:\n${msgs}`);
@@ -103,4 +103,4 @@ export function loadSkillMd(
 }
 
 // Re-export types so command files can import from a single location.
-export type { ParsedSkill, EvalSpec, EvalContract };
+export type { ParsedSkill, SkillEvalSpec, EvalContract };

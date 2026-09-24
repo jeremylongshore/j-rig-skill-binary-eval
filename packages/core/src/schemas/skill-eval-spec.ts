@@ -8,7 +8,7 @@ import { TestCaseSchema } from "./test-case.js";
  *
  * `haiku` / `sonnet` / `opus` are short aliases the Anthropic adapter resolves to
  * concrete Claude API ids. Any other non-empty identifier is accepted verbatim
- * so the same eval spec can target an OpenAI-compatible provider — DeepSeek
+ * so the same skill profile can target an OpenAI-compatible provider — DeepSeek
  * (`deepseek-chat`, `deepseek-reasoner`), Kimi/Moonshot (`kimi-k2-*`), or
  * OpenRouter (`<org>/<model>`). The chosen provider is selected at runtime from
  * the env key / `--provider` flag; this field only records WHICH model id the
@@ -43,12 +43,13 @@ export const SiblingSkillSchema = z.object({
 export type SiblingSkill = z.infer<typeof SiblingSkillSchema>;
 
 /**
- * The eval spec is the machine-readable evaluation definition.
+ * The SkillEvalSpec is J-Rig's machine-readable skill-profile definition.
  *
  * It defines what criteria to check, what test cases to run,
- * which models to test, and what sibling context exists.
+ * which models to test, and what sibling context exists. It is adapted to the
+ * canonical kernel EvalSpec before shared evidence or rollout use.
  */
-export const EvalSpecSchema = z
+export const SkillEvalSpecSchema = z
   .object({
     spec_version: z.literal("1.0").describe("Schema version for forward compatibility"),
     skill_name: z
@@ -172,4 +173,4 @@ export const EvalSpecSchema = z
     });
   });
 
-export type EvalSpec = z.infer<typeof EvalSpecSchema>;
+export type SkillEvalSpec = z.infer<typeof SkillEvalSpecSchema>;
