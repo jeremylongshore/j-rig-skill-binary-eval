@@ -4,6 +4,7 @@ import type { ExecutionProvider, ObservedOutcome } from "./types.js";
 import type { TestCase } from "../schemas/test-case.js";
 import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
+import { ProviderError } from "../providers/errors.js";
 
 function mockProvider(
   responses: Record<
@@ -95,6 +96,27 @@ describe("runFunctionalTests", () => {
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0].status).toBe("failed");
     expect(outcomes[0].output.error).toBeTruthy();
+  });
+
+  it("preserves typed provider failure metadata for fail-closed callers", async () => {
+    const provider: ExecutionProvider = {
+      async execute() {
+        throw new ProviderError({
+          category: "rate_limit",
+          providerName: "deepseek",
+          message: "Insufficient Balance",
+          retryable: false,
+        });
+      },
+    };
+
+    const outcomes = await runFunctionalTests([testCases[0]], skill, provider);
+
+    expect(outcomes[0].provider_failure).toEqual({
+      category: "rate_limit",
+      providerName: "deepseek",
+      retryable: false,
+    });
   });
 
   it("captures execution metadata", async () => {

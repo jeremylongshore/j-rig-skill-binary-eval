@@ -23,12 +23,23 @@
  */
 export type ProviderErrorCategory =
   | "authentication" // bad / missing / expired API key, OAuth failure
-  | "rate_limit" // provider returned 429 or quota-exhausted equivalent
+  | "rate_limit" // provider returned 429 or quota/billing-exhausted equivalent
   | "model_not_found" // requested model name unknown to the provider
   | "content_policy_refusal" // upstream provider blocked the request pre-completion
   | "network_timeout" // socket / connection / read timeout
   | "schema_violation" // provider returned response that did not match request schema
   | "unknown"; // last-resort; the adapter SHOULD avoid this
+
+/**
+ * Safe, serializable provider-failure metadata for evidence and diagnostics.
+ * The upstream error message is deliberately excluded because provider
+ * responses are not a safe place to persist arbitrary text or credentials.
+ */
+export interface ProviderFailure {
+  category: ProviderErrorCategory;
+  providerName: string;
+  retryable: boolean;
+}
 
 /**
  * Thrown by Provider implementations. Carries enough metadata for callers
@@ -77,4 +88,14 @@ function defaultRetryableFor(c: ProviderErrorCategory): boolean {
 /** Type guard. */
 export function isProviderError(e: unknown): e is ProviderError {
   return e instanceof ProviderError;
+}
+
+/** Convert a ProviderError into credential-free evidence metadata. */
+export function providerFailureFromError(e: unknown): ProviderFailure | undefined {
+  if (!isProviderError(e)) return undefined;
+  return {
+    category: e.category,
+    providerName: e.providerName,
+    retryable: e.retryable,
+  };
 }

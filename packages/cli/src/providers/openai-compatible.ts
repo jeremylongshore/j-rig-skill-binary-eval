@@ -7,7 +7,8 @@
  * (`POST {base}/chat/completions`, `Authorization: Bearer <key>`,
  * `choices[0].message.content` response) against ANY OpenAI-compatible endpoint.
  *
- * Why this matters: DeepSeek, Kimi/Moonshot, OpenRouter, and Together are all
+ * Why this matters: DeepSeek, Kimi/Moonshot, OpenRouter, MiniMax, OpenAI, Groq,
+ * NVIDIA NIM, and Together are all
  * Chat-Completions-compatible. The only things that differ between them are the
  * base URL, the model id, and which env var carries the key. So one adapter +
  * one config table covers all of them — no new SDK, no per-vendor adapter.
@@ -31,7 +32,8 @@
  *
  * To switch providers, set three env vars (or pick a per-provider preset):
  *   - LLM_BASE_URL / LLM_MODEL / LLM_API_KEY  (generic), OR
- *   - DEEPSEEK_API_KEY / MOONSHOT_API_KEY / OPENROUTER_API_KEY (presets).
+ *   - DEEPSEEK_API_KEY / MOONSHOT_API_KEY / OPENROUTER_API_KEY /
+ *     MINIMAX_API_KEY (presets).
  * See `resolveOpenAICompatConfig` for the precedence + defaults table.
  */
 
@@ -353,6 +355,24 @@ function errorForStatus(name: string, status: number, body: unknown): ProviderEr
   }
   if (status === 404) {
     return new ProviderError({ category: "model_not_found", providerName: name, message });
+  }
+  // Some OpenAI-compatible vendors report depleted credits as HTTP 402 while
+  // others return the same condition under a non-standard 4xx status. Treat
+  // both forms as quota exhaustion, not an opaque unknown error, and mark the
+  // failure non-retryable until the account is funded. Authentication and
+  // model-not-found statuses take precedence over message text.
+  if (
+    status === 402 ||
+    /insufficient\s+(?:account\s+)?balance|insufficient\s+funds|quota\s+exhausted|billing|payment required/i.test(
+      message,
+    )
+  ) {
+    return new ProviderError({
+      category: "rate_limit",
+      providerName: name,
+      message,
+      retryable: false,
+    });
   }
   if (status === 429) {
     return new ProviderError({ category: "rate_limit", providerName: name, message });

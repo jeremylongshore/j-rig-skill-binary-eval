@@ -183,7 +183,7 @@ MAJOR bumps to any of the above require a Class-2 pair Decision Record before th
 
 | Entity              | Direction | Blueprint B Ref     | Attributes implemented                                                                                  | Glossary ref                              |
 | ------------------- | --------- | ------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `EvalSpec`          | consumes  | `Blueprint B § 2.1` | required fields + criteria + test-cases (parsed from YAML; schema consumed from kernel)                  | `014-DR-GLOS-canonical-glossary.md` § 2.1 |
+| `SkillEvalSpec`     | consumes  | `Blueprint B § 2.1` | skill-profile fields + criteria + test-cases (parsed from YAML; adapted to the canonical kernel `EvalSpec`) | `014-DR-GLOS-canonical-glossary.md` § 10; core doc 012 |
 | `EvalRun`           | both      | `Blueprint B § 2.2` | required fields + UUID + lifecycle + content-hash (persisted in SQLite evidence store)                   | `014-DR-GLOS-canonical-glossary.md` § 2.2 |
 | `EvidenceBundle`    | produces  | `Blueprint B § 2.4` | required fields + content-hash + DSSE wrap + provenance (emitted via `emit-evidence`; schema from kernel) | `014-DR-GLOS-canonical-glossary.md` § 2.4 |
 | `JudgeDecision`     | produces  | `Blueprint B § 2.5` | required fields + binary verdict + evaluator-separation provenance                                       | `014-DR-GLOS-canonical-glossary.md` § 2.5 |
@@ -222,7 +222,7 @@ N/A — this repo ships no HTTP or gRPC server. It is a single-process CLI + lib
 
 | File                     | Schema                                                | Canonical example                  |
 | ------------------------ | ----------------------------------------------------- | ---------------------------------- |
-| eval spec (`*.eval.yaml`) | Zod-validated EvalSpec (schema consumed from kernel)  | `000-docs/templates/eval-schemas/` |
+| skill eval spec (`eval-spec.yaml`) | Zod-validated `SkillEvalSpec` profile; adapter target is canonical kernel `EvalSpec` | `000-docs/templates/eval-schemas/` |
 
 ### 6.4 Output formats
 
