@@ -44,7 +44,7 @@ export interface EvalInvocation {
   readonly modelTier: string;
   /**
    * Optional `--provider <name>` forwarded to `j-rig eval`. When set, eval
-   * resolves that backend (deepseek/groq/nvidia/anthropic/…) — the SAME provider
+   * resolves that backend (deepseek/groq/nvidia/openai/minimax/anthropic/…) — the SAME provider
    * names this package's registry uses — so `refine score` and `j-rig eval` agree.
    */
   readonly provider?: string;
@@ -74,7 +74,7 @@ export interface ScoreOptions {
   readonly modelTier?: string;
   /**
    * Optional `--provider <name>` forwarded to `j-rig eval` so scoring runs on the
-   * SAME backend propose() resolved (deepseek/groq/nvidia/anthropic/…).
+   * SAME backend propose() resolved (deepseek/groq/nvidia/openai/minimax/anthropic/…).
    */
   readonly provider?: string;
 }
@@ -208,7 +208,7 @@ export function createSubprocessEvalRunner(
       const baseArgs = opts.args ?? ["eval"];
       const args = [...baseArgs, invocation.skillDir, "--json", "--models", invocation.modelTier];
       // Forward the resolved provider so eval hits the same backend (deepseek/
-      // groq/nvidia/anthropic/…) propose() picked. `j-rig eval` already supports
+      // groq/nvidia/openai/minimax/anthropic/…) propose() picked. `j-rig eval` already supports
       // `--provider`; when the backend is OpenAI-compatible, eval uses its vendor
       // default model (a haiku/sonnet tier is not a valid vendor model id there).
       if (invocation.provider) {

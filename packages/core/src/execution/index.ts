@@ -1,4 +1,21 @@
 export { runFunctionalTests, checkOutputExpectations } from "./runner.js";
+export { ExecutableRunner } from "./executable-runner.js";
+export {
+  DEFAULT_MAX_OUTPUT_BYTES,
+  EvalConfigSchema,
+  EvalIdentifierSchema,
+  EvalTaskSchema,
+  RunnerHarnessSchema,
+  RunnerStatusSchema,
+  type EvalConfig,
+  type EvalRunner,
+  type EvalTask,
+  type RunnerArtifact,
+  type RunnerHarness,
+  type RunnerRequest,
+  type RunnerResult,
+  type RunnerStatus,
+} from "./substrate.js";
 export {
   runSelfTest,
   toSelfTestJudgment,
