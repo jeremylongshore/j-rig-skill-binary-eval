@@ -27,9 +27,10 @@ push-state.json
 # Local version tracking (prevents upgrade notification spam after git ops)
 .local_version
 
-# Worktree redirect file (contains relative path to main repo's .beads/)
-# Must not be committed as paths would be wrong in other clones
+# This member repo intentionally tracks a relative redirect to the canonical
+# umbrella workspace. The supported checkout layout is the source of truth.
 redirect
+!redirect
 
 # Sync state (local-only, per-machine)
 # These files are machine-specific and should not be shared across clones
