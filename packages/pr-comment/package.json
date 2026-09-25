@@ -31,9 +31,8 @@
     "directory": "packages/pr-comment"
   },
   "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
-  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "@intentsolutions/rollout-gate": "workspace:*"
+    "@intentsolutions/rollout-gate": "workspace:*",
+    "@types/node": "^26.6.2"
   }
 }
