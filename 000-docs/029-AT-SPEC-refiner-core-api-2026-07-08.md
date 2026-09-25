@@ -1,6 +1,15 @@
+<!-- BEGIN BD-SYNC:cross-ref:v1 -->
+
+Beads: `bd_000-projects-pu35.3`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#274`
+Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec96c
+
+<!-- END BD-SYNC:cross-ref:v1 -->
+
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -14,10 +23,10 @@ Per DR-028 T3 (`bd` is the canonical writer; GitHub and Plane are projections), 
 
 | Layer            | Identifier                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Bead (canonical) | `bd_000-projects-214c.5` (refiner-core public-API documentation)                                                    |
-| GitHub issue     | [`jeremylongshore/j-rig-skill-binary-eval#81`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/81) |
+| Bead (canonical) | `bd_000-projects-214c.5` (refiner-core public-API documentation); AC-12 backfill `bd_000-projects-pu35.3` |
+| GitHub issue     | [`jeremylongshore/j-rig-skill-binary-eval#81`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/81); backfill [`#274`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/274) |
 | Plane            | LAB module — Skill Refiner coordination (RC-IAJ)                                                                     |
-| Coordination     | parent epic `bd_000-projects-214c`; product epic `bd_000-projects-3zol`                                             |
+| Coordination     | parent epic `bd_000-projects-214c`; product epic `bd_000-projects-3zol`; Plane backfill `LAB-123`                  |
 
 ---
 

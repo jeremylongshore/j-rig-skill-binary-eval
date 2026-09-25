@@ -1,7 +1,15 @@
+<!-- BEGIN BD-SYNC:cross-ref:v1 -->
+
+Beads: `bd_000-projects-pu35.3`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#274`
+Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec96c
+
+<!-- END BD-SYNC:cross-ref:v1 -->
+
 # Skill Refiner npm Release — `@intentsolutions/refiner-core` + `@intentsolutions/refiner` v0.1.0
 
-| Beads | `bd_000-projects-3zol.8`, `bd_000-projects-214c` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81` |
+| Beads | `bd_000-projects-3zol.8`, `bd_000-projects-214c`, `bd_000-projects-pu35.3` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274` |
 
 **Filing**: 027-AA-AACR-refiner-v0.1.0-release-2026-06-21.md
 **Date**: 2026-06-21

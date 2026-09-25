@@ -1,14 +1,15 @@
 <!-- BEGIN BD-SYNC:cross-ref:v1 -->
 
-Beads: `bd_000-projects-214c.6.1, bd_000-projects-214c.7.1`
-GitHub: `jeremylongshore/j-rig-skill-binary-eval#270, jeremylongshore/j-rig-skill-binary-eval#272`
-Projection-SHA256: 69b4370a3e33fd4b535d251f435a7a1bdef1511a6b6a3b88f52d84ac7e9aa7d8
+Beads: `bd_000-projects-214c.6.1, bd_000-projects-214c.7.1, bd_000-projects-pu35.3`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#270, jeremylongshore/j-rig-skill-binary-eval#272, jeremylongshore/j-rig-skill-binary-eval#274`
+Projection-SHA256: 85addd868f497b266405716e5797524b14566bc373b540cc695d37ade68cbaa5
 
 <!-- END BD-SYNC:cross-ref:v1 -->
 
 # `@intentsolutions/refiner-core` API Specification
 
-| Beads | `bd_000-projects-214c.5` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274` |
 
 **Date:** 2026-06-20
 **Status:** NORMATIVE for the Phase A (wave 1) foundation surface
@@ -21,10 +22,10 @@ Per DR-028 T3 (`bd` is the canonical writer; GitHub and Plane are projections), 
 
 | Layer            | Identifier                                                                                                            |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Bead (canonical) | `bd_000-projects-214c.5` (folds in `bd_000-projects-214c.6` D4 + `bd_000-projects-214c.7` D8)                        |
-| GitHub issue     | [`jeremylongshore/j-rig-skill-binary-eval#81`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/81) |
+| Bead (canonical) | `bd_000-projects-214c.5` (folds in `bd_000-projects-214c.6` D4 + `bd_000-projects-214c.7` D8); AC-12 backfill `bd_000-projects-pu35.3` |
+| GitHub issue     | [`jeremylongshore/j-rig-skill-binary-eval#81`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/81); backfill [`#274`](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/274) |
 | Plane            | LAB module — Skill Refiner coordination (RC-IAJ)                                                                      |
-| Coordination     | parent epic `bd_000-projects-214c`; product epic `bd_000-projects-3zol`; cross-links `bd_000-projects-rqwk` (iel)    |
+| Coordination     | parent epic `bd_000-projects-214c`; product epic `bd_000-projects-3zol`; cross-links `bd_000-projects-rqwk` (iel); Plane backfill `LAB-123` |
 
 ---
 
