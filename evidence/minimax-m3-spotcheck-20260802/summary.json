@@ -1,0 +1,61 @@
+{
+  "schema": "j-rig/minimax-m3-spotcheck/v1",
+  "run_date": "2026-08-02",
+  "plan": "IEP-EVAL-EVOLUTION-001",
+  "bead": "bd_000-projects-htjt.4.1",
+  "github_issue": "https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/261",
+  "source": {
+    "repository": "jeremylongshore/claude-code-plugins-plus-skills",
+    "commit": "a9dd5c02a3793412ed35525efd460b399554be13"
+  },
+  "provider": {
+    "name": "minimax",
+    "base_url": "https://api.minimax.io/v1",
+    "model": "MiniMax-M3",
+    "judge_model": "MiniMax-M3",
+    "samples": 5
+  },
+  "credential_handling": "MINIMAX_API_KEY supplied process-only; value omitted",
+  "results": [
+    {
+      "skill": "audit-tests",
+      "spec_sha256": "903555ec7e0e7d80db9f18076b50b8b9184a2f0a2b438859d15c9f8757428220",
+      "statement_sha256": "c863caf1fba8f61b16221b6e6c87b4060fb4ba8b23e40585e74a6326a8510039",
+      "ground_truth": true,
+      "score": { "total": 5, "passed": 4, "failed": 1, "unsure": 0 },
+      "decision": "warn",
+      "provider_failure": false,
+      "calls": 29,
+      "input_tokens": 35729,
+      "output_tokens": 10231
+    },
+    {
+      "skill": "validate-skillmd",
+      "spec_sha256": "b91ee2d8ee323ac9591cdad232d31dbf639d7d4b2d32cc105dfa4bb05ab83ec8",
+      "statement_sha256": "e31c54a4e79d03180b4bb9d6f1c028dc28ba52e0148a3fdbdf631ddb379588ef",
+      "ground_truth": true,
+      "score": { "total": 5, "passed": 2, "failed": 3, "unsure": 0 },
+      "decision": "warn",
+      "provider_failure": false,
+      "calls": 29,
+      "input_tokens": 25414,
+      "output_tokens": 6993
+    },
+    {
+      "skill": "skill-creator",
+      "spec_sha256": "81eabecbc8b79a87d105d061bd0f3380e6d74648e412fa46f20885a1abf46160",
+      "statement_sha256": "9cbbbf377d8b1434c82163f1e73789153e660f7e608631c32d5383353ac12bcb",
+      "ground_truth": true,
+      "score": { "total": 10, "passed": 5, "failed": 5, "unsure": 0 },
+      "decision": "warn",
+      "provider_failure": false,
+      "calls": 56,
+      "input_tokens": 37514,
+      "output_tokens": 22696
+    }
+  ],
+  "doc_filing": {
+    "status": "baseline-only",
+    "reason": "doc-filing is not listed in the pinned roster manifest and has no pinned source path to evaluate"
+  }
+}

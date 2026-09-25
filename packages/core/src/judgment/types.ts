@@ -1,3 +1,5 @@
+import type { ProviderFailure } from "../providers/errors.js";
+
 /**
  * Binary judgment: yes or no, with optional unsure.
  */
@@ -21,6 +23,8 @@ export interface JudgmentResult {
   confidence: number;
   reasoning: string;
   method: "deterministic" | "judge";
+  /** Present when the judge call failed as provider/infrastructure error. */
+  provider_failure?: ProviderFailure;
   judge_model?: string;
   /**
    * ADDITIVE: the test case this judgment row belongs to. A criterion judged
@@ -42,6 +46,17 @@ export interface JudgmentResult {
    * its own ordering explicitly.
    */
   sample_verdicts?: JudgmentVerdict[];
+  /**
+   * Set ONLY when the judge provider failed for EVERY sample of this criterion
+   * (the `judgeError` shape): the verdict is `unsure` by the errored-sample
+   * semantics, but no judgment ever happened. Carries the provider's error
+   * message so a consumer can tell "the judge was unsure" from "the judge
+   * never ran" — the difference between an honest `advisory` and a dead
+   * evaluator that must surface as `error` (2026-09 conference audit: a
+   * garbage API key produced a signed `advisory` bundle indistinguishable
+   * from genuine uncertainty).
+   */
+  judge_error?: string;
   /**
    * Per-sample wall-clock latency in milliseconds, aligned index-for-index
    * with `sample_verdicts` (multi-sample only, absent on single-call). The

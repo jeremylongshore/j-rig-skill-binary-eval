@@ -1,5 +1,7 @@
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
+| Beads | `bd_000-projects-214c.5` |
+
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
 **Package:** `@intentsolutions/refiner-core` (published to npm, version `0.2.0`)
@@ -319,7 +321,7 @@ I/O-free per-attempt token accounting (bead `jqam`): record each `propose()` att
 ### 7.2 Kernel- and judge-version contracts
 
 ```ts
-const CONSUMED_KERNEL_VERSION = "0.9.0";
+const CONSUMED_KERNEL_VERSION = "0.10.0";
 function isBaselineSupersededByKernel(baseline: BaselineKernelRef, current?: string): boolean;
 function makeSupersededBaselineRecord(baseline: BaselineKernelRef, ...): SupersededBaselineRecord;
 

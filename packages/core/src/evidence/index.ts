@@ -43,3 +43,12 @@ export {
   type WriteBundleOptions,
   type CoverageInput,
 } from "./writer.js";
+
+export {
+  SKILL_PROMOTION_EVIDENCE_SCHEMA,
+  SkillPromotionEvidenceSchema,
+  buildSkillPromotionEvidence,
+  hashCanonicalJson,
+  type SkillPromotionEvidence,
+  type SkillPromotionEvidenceInput,
+} from "./skill-promotion.js";

@@ -60,7 +60,12 @@ export function createRun(
  * Transition a run to a new status.
  * Throws if the transition is invalid.
  */
-export function transitionRun({ db }: JRigDatabase, runId: number, newStatus: RunStatus): void {
+export function transitionRun(
+  { db }: JRigDatabase,
+  runId: number,
+  newStatus: RunStatus,
+  errorMessage?: string,
+): void {
   const run = db.select().from(runs).where(eq(runs.id, runId)).get();
   if (!run) throw new Error(`Run ${runId} not found`);
 
@@ -70,6 +75,10 @@ export function transitionRun({ db }: JRigDatabase, runId: number, newStatus: Ru
   }
 
   const updates: Record<string, unknown> = { status: newStatus };
+
+  if (newStatus === "failed" && errorMessage !== undefined) {
+    updates["error_message"] = errorMessage;
+  }
 
   if (newStatus === "running") {
     updates["started_at"] = new Date().toISOString();

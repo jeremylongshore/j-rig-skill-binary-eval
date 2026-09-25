@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EvalSpecSchema } from "@j-rig/core";
+import { SkillEvalSpecSchema } from "@j-rig/core";
 import { buildBaselineSpec, deriveTriggerPrompts, toKebab } from "./scaffold-spec.js";
 
 const SKILL_NAME_RE = /^[a-z][a-z0-9-]*[a-z0-9]$/;
@@ -49,9 +49,9 @@ describe("scaffold-spec — deriveTriggerPrompts", () => {
 });
 
 describe("scaffold-spec — buildBaselineSpec", () => {
-  it("produces a spec that validates against the kernel EvalSpecSchema", () => {
+  it("produces a spec that validates against J-Rig's SkillEvalSpecSchema", () => {
     const spec = buildBaselineSpec("my-skill", 'Does a useful thing. Trigger with "do the thing".');
-    const parsed = EvalSpecSchema.safeParse(spec);
+    const parsed = SkillEvalSpecSchema.safeParse(spec);
     expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
   });
 

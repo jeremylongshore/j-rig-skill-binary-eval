@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "server",
-  "dolt_database": "j_rig_binary_eval",
-  "project_id": "d3d5d4dc-0f2f-47d8-943a-c2fc21509962"
-}
