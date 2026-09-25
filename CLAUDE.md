@@ -72,11 +72,103 @@ Implementation stack: commander, chalk, zod, better-sqlite3, drizzle-orm. The An
 
 ### Skill-scoring layer (epic intent-eval-lab#206 / ISEDC DR-103)
 
-Consumes `@intentsolutions/core@^0.9.0` (the kernel minor that added the `usage_events` + `human_reviews` entities). Three surfaces:
+Consumes `@intentsolutions/core@^0.10.0` (the current kernel release; the `usage_events` + `human_reviews` entities landed in the preceding 0.9.0 minor). Three surfaces:
 
 - **Adoption signal** (`@intentsolutions/refiner-core` `adoption.ts`): `computeAdoptionVerdict()` — a deterministic time-decay adoption rate joined with the baseline-value flag into an advisory 2×2 (`keep` / `watch` / `deprecate_review` / `obsolete_review` / `hold`). AND-combined never averaged (no rolled score — C3); `now`-injected; the Thompson bandit is **rejected** (DR-103 D5); advisory-and-deprecate-only via the additive `LaunchReport.adoptionVerdict?` field (the `RolloutDecision` union is **not** mutated); thresholds ship `provisional: true` until back-tested. `toAdoptionObservations()` re-applies the kernel anti-gaming invariant (`source_verified`) at ingestion.
 - **Intake verbs** (`@intentsolutions/jrig-cli`): `j-rig ingest-skill <skill-id> --session-id … --source ci|plugin [CASS flags]` (CASS gate ≥0.30, persist-but-exclude — no force-count) and `j-rig review <skill-id> --verdict up|down [--rationale …]` (curated-signal, NOT a signed `human-review/v1` predicate). Both write local SQLite via `@j-rig/db`; no OTel events minted.
 - **Determinism fix**: `buildLaunchReport` now takes an injected clock (`opts.now`) so the launch-report artifact is replayable (DR-103 D5 B5.1) — the determinism the bandit-rejection rests on.
+
+### Generic evaluation substrate (IEP-EVAL-EVOLUTION-001)
+
+The active evolution adds `j-rig run --task <path> --config <path>` beneath the
+skill evaluator. `@j-rig/core` owns the shell-free `EvalTask`/`EvalConfig` and
+`ExecutableRunner` contracts; `@j-rig/db` owns the idempotent `raw_runs` ledger
+and content-addressed artifact manifest. A completed raw Run is an observation,
+not a grade. `runner_error` and `timed_out` remain distinct from a completed
+run whose model output later receives a poor Grade. See
+`000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`.
+
+The first downstream Grader is a named, versioned deterministic checker exposed
+as `j-rig grade`. It snapshots the definition and digest into an immutable
+`grades` row; `--regrade` creates a new Grade for an intentional version change,
+while the original judgment remains intact. See
+`000-docs/032-AT-SPEC-named-graders-snapshots-regrade-2026-08-01.md`.
+
+`j-rig sample-plan` now builds round-robin target-N top-ups over explicit Task ×
+Config × Model cells. Completed Runs count; pending/running Runs reserve slots;
+runner errors/timeouts remain separate and are replaced by fresh sample
+indices. Grade measurements select the full grader snapshot and report Wilson
+uncertainty without heterogeneous rollups. See
+`000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
+
+`j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
+runner failures in the raw-run ledger and never treats them as model grades.
+
+Two commands have "batch" in the name and live in different files. `j-rig batch`
+(sampling manifest, `commands/batch.ts`) executes generic Task × Config cells.
+`j-rig eval-batch` (`commands/eval-batch.ts`) walks a skills root and runs
+`j-rig eval` per skill. Edit the one you mean. `j-rig suite` also executes
+balanced target-N jobs from a single manifest; whether it should subsume
+`j-rig batch` is an open design question, so do not merge them in passing.
+
+The generic `ExecutableRunner` is bounded: stdout and stderr are each capped at
+the optional `harness.max_output_bytes` (10 MiB default applied at runtime),
+timeout and overflow terminate the whole POSIX process group, and a Run is
+sealed shortly after SIGKILL even if an escaped descendant holds the pipes.
+Overflow is an ungradeable `runner_error`. **Never give a harness-config field a
+schema default:** the parsed config is snapshotted and compared byte-for-byte on
+sealed-run reuse, so a default would invalidate every existing sealed Run. These
+are host-protection limits, not a sandbox. See
+`000-docs/031-AT-SPEC-generic-runner-config-raw-run-2026-08-01.md`.
+
+`j-rig report --unified` emits `j-rig/unified-report/v1` JSON or Markdown over
+one selected immutable Grader snapshot. It preserves per-cell uncertainty and
+raw Run lineage, renders no-data explicitly, and is unsigned local output. Do
+not treat it as a gate-result Evidence Bundle or publish it directly; the
+dashboard must re-verify through its own ingest boundary. See
+`000-docs/034-AT-SPEC-unified-report-json-markdown-2026-08-01.md`.
+
+`j-rig report --unified --html --serve` and `j-rig suite --serve` provide the
+local operator path over loopback only. The server exposes the generated HTML
+and `/healthz`, refuses wildcard/public binds, and shuts down cleanly on
+SIGINT/SIGTERM. It does not alter the unsigned-local or dashboard publication
+boundary. See `000-docs/041-AT-SPEC-eval-report-live-serve-2026-08-02.md`.
+
+The legacy `j-rig eval --emit-bundle` path emits additive
+`j-rig/skill-promotion/v1` metadata on each real-skill gate row. It binds the
+OTel EvalRun UUID, SQLite run, skill/spec snapshots, effective binary-criteria
+Grader snapshot, thresholds, and regression comparison. A skipped regression
+layer is advisory for promotion, even if the legacy `LaunchReport` decision is
+`ship`; see `000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`. Promotion
+metadata is never emitted on an `error` row: an evaluator infrastructure failure
+(`000-docs/037`) wins over the promotion mapping and the two are mutually exclusive.
+
+### Evaluator infrastructure failure (one rule)
+
+Any unrecovered provider failure in `j-rig eval`, execution or judge phase,
+skill or naked-baseline pass, partial or total, yields **no verdict** and a
+**signed `gate-result/v1` `error` row**: class-first `gate_reasons[0]`, typed
+credential-free `metadata.error_detail`, run stored `failed`, exit 2 after every
+artifact is flushed. This is Blueprint B § 7.4 applied consistently; it
+supersedes both the emit-nothing design and the all-criteria-only dead-judge
+override. The logic lives in `commands/eval-infrastructure-failure.ts`; do not
+re-derive it inline in `eval.ts`.
+
+- A failed test case is never sent to the judge.
+- Partial **sample** loss is not a failure: an errored sample votes `unsure`.
+  Only a criterion with zero surviving samples counts. There is deliberately no
+  provider retry layer; `--samples` of 2 or more is the supported mitigation
+  (the nightly roster runs 5).
+- A completed response with empty text is boundary evidence, not a failure.
+- Provider text is redacted by core's `redactProviderError` **where it is
+  captured** (functional runner and judgment engine). Do not add a second
+  redactor downstream.
+- `eval-roster/run-roster.mjs` and `ci/emit-evidence` carry the CLI's class-first
+  reason into the nightly's published `error` row, accepting only the
+  `provider_failure/` shape.
+
+Decision record and full contract:
+`000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`.
 
 ## Non-Negotiable Design Principles
 

@@ -1,0 +1,37 @@
+spec_version: "1.0"
+skill_name: adapter-fixture
+description: A small profile used to prove the profile-to-kernel adapter contract.
+
+criteria:
+  - id: blocker-response
+    description: The response addresses the requested task.
+    method: judge
+    blocker: true
+    judge_prompt: Answer yes when the response addresses the requested task.
+  - id: deterministic-format
+    description: The response contains the required deterministic marker.
+    method: deterministic
+    deterministic_check: contains
+    deterministic_check_params:
+      value: "format:"
+
+test_cases:
+  - id: covered-request
+    description: A request that evaluates the blocker criterion.
+    tier: core
+    prompt: Please answer the adapter fixture request.
+    criteria_ids:
+      - blocker-response
+  - id: control-request
+    description: A control prompt with no scoped criteria.
+    tier: edge
+    prompt: This control case intentionally evaluates no criteria.
+    trigger_expectation: should_not_trigger
+    criteria_ids: []
+
+models:
+  - sonnet
+samples: 3
+tags:
+  - adapter
+  - contract

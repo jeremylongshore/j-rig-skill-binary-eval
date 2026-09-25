@@ -12,3 +12,6 @@ packages/*/fixtures/invalid/**
 # Golden-file fixtures: their bytes are load-bearing — the renderer's output is
 # asserted byte-identical to these, so Prettier must not reformat them.
 packages/*/src/__fixtures__/**/*.golden.html
+
+# Vendored audit-harness distribution (upstream-formatted, hash-pinned)
+.audit-harness/

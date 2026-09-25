@@ -1,0 +1,12 @@
+id: explanatory-fixture
+version: "1"
+model: fixture-explanatory
+provider: local
+harness:
+  command: node
+  args:
+    - ./harness.mjs
+  timeout_ms: 30000
+  cwd: .
+parameters:
+  prompt_style: explanatory

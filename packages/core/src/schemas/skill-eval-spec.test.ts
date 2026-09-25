@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EvalSpecSchema } from "./eval-spec.js";
+import { SkillEvalSpecSchema } from "./skill-eval-spec.js";
 import { parseAndValidateYaml } from "../parsers/yaml-parser.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,10 +12,10 @@ function readFixture(path: string): string {
   return readFileSync(resolve(fixturesDir, path), "utf-8");
 }
 
-describe("EvalSpecSchema", () => {
+describe("SkillEvalSpecSchema", () => {
   it("parses a valid eval spec fixture", () => {
     const yaml = readFixture("valid/eval-spec.yaml");
-    const result = parseAndValidateYaml(yaml, EvalSpecSchema);
+    const result = parseAndValidateYaml(yaml, SkillEvalSpecSchema);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.skill_name).toBe("commit-message-writer");
@@ -26,7 +26,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("requires spec_version", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       skill_name: "test-skill",
       description: "test",
       criteria: [
@@ -43,7 +43,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("requires at least one criterion", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -54,7 +54,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("requires at least one test case", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -73,7 +73,7 @@ describe("EvalSpecSchema", () => {
 
   it("rejects non-kebab-case skill names", () => {
     const yaml = readFixture("invalid/eval-spec-bad-name.yaml");
-    const result = parseAndValidateYaml(yaml, EvalSpecSchema);
+    const result = parseAndValidateYaml(yaml, SkillEvalSpecSchema);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errors.some((e) => e.message.includes("kebab-case"))).toBe(true);
@@ -82,13 +82,13 @@ describe("EvalSpecSchema", () => {
 
   it("rejects invalid criterion method", () => {
     const yaml = readFixture("invalid/eval-spec-bad-method.yaml");
-    const result = parseAndValidateYaml(yaml, EvalSpecSchema);
+    const result = parseAndValidateYaml(yaml, SkillEvalSpecSchema);
     expect(result.success).toBe(false);
   });
 
   it("rejects missing required fields", () => {
     const yaml = readFixture("invalid/eval-spec-missing-fields.yaml");
-    const result = parseAndValidateYaml(yaml, EvalSpecSchema);
+    const result = parseAndValidateYaml(yaml, SkillEvalSpecSchema);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errors.length).toBeGreaterThan(0);
@@ -96,7 +96,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("defaults models to sonnet when not specified", () => {
-    const result = EvalSpecSchema.parse({
+    const result = SkillEvalSpecSchema.parse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -114,7 +114,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("accepts concrete OpenAI-compatible provider model ids (DeepSeek/Kimi/OpenRouter)", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -133,7 +133,7 @@ describe("EvalSpecSchema", () => {
     if (result.success) {
       expect(result.data.models).toContain("deepseek-chat");
       // The Claude aliases still pass through unchanged.
-      const claude = EvalSpecSchema.parse({
+      const claude = SkillEvalSpecSchema.parse({
         spec_version: "1.0",
         skill_name: "test-skill",
         description: "test",
@@ -153,7 +153,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("rejects an empty-string model id", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -172,7 +172,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("defaults criterion blocker to false", () => {
-    const result = EvalSpecSchema.parse({
+    const result = SkillEvalSpecSchema.parse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -183,7 +183,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("rejects a test case whose criteria_ids reference an unknown criterion", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -207,7 +207,7 @@ describe("EvalSpecSchema", () => {
   });
 
   it("accepts an empty criteria_ids list (a control prompt scopes to no criteria)", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       spec_version: "1.0",
       skill_name: "test-skill",
       description: "test",
@@ -227,7 +227,7 @@ describe("EvalSpecSchema", () => {
   });
 });
 
-describe("EvalSpecSchema self_test", () => {
+describe("SkillEvalSpecSchema self_test", () => {
   const baseSpec = {
     spec_version: "1.0" as const,
     skill_name: "test-skill",
@@ -237,7 +237,7 @@ describe("EvalSpecSchema self_test", () => {
   };
 
   it("accepts and RETAINS a self_test block (does not silently strip it)", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       ...baseSpec,
       self_test: {
         command: "python3 scripts/triage.py --self-test",
@@ -254,7 +254,10 @@ describe("EvalSpecSchema self_test", () => {
   });
 
   it("applies self_test defaults (expect_exit 0, blocker true)", () => {
-    const result = EvalSpecSchema.safeParse({ ...baseSpec, self_test: { command: "node x.js" } });
+    const result = SkillEvalSpecSchema.safeParse({
+      ...baseSpec,
+      self_test: { command: "node x.js" },
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.self_test).toEqual({
@@ -266,13 +269,13 @@ describe("EvalSpecSchema self_test", () => {
   });
 
   it("is undefined when absent", () => {
-    const result = EvalSpecSchema.safeParse(baseSpec);
+    const result = SkillEvalSpecSchema.safeParse(baseSpec);
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.self_test).toBeUndefined();
   });
 
   it("rejects an unknown key inside self_test (strict)", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       ...baseSpec,
       self_test: { command: "node x.js", bogus: 1 },
     });
@@ -280,7 +283,7 @@ describe("EvalSpecSchema self_test", () => {
   });
 
   it("rejects the reserved 'self-test' criterion id", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       ...baseSpec,
       criteria: [{ id: "self-test", description: "collides", method: "judge" }],
     });
@@ -288,7 +291,7 @@ describe("EvalSpecSchema self_test", () => {
   });
 });
 
-describe("EvalSpecSchema judge robustness fields", () => {
+describe("SkillEvalSpecSchema judge robustness fields", () => {
   const baseSpec = {
     spec_version: "1.0" as const,
     skill_name: "test-skill",
@@ -298,7 +301,7 @@ describe("EvalSpecSchema judge robustness fields", () => {
   };
 
   it("accepts and retains judge_timeout_ms and judge_sample_concurrency", () => {
-    const result = EvalSpecSchema.safeParse({
+    const result = SkillEvalSpecSchema.safeParse({
       ...baseSpec,
       judge_timeout_ms: 60000,
       judge_sample_concurrency: 4,
@@ -311,7 +314,7 @@ describe("EvalSpecSchema judge robustness fields", () => {
   });
 
   it("leaves both undefined when absent (engine applies the 120s default)", () => {
-    const result = EvalSpecSchema.safeParse(baseSpec);
+    const result = SkillEvalSpecSchema.safeParse(baseSpec);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.judge_timeout_ms).toBeUndefined();
@@ -320,28 +323,38 @@ describe("EvalSpecSchema judge robustness fields", () => {
   });
 
   it("rejects judge_timeout_ms outside 1000..600000 or non-integer", () => {
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 999 }).success).toBe(false);
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600001 }).success).toBe(false);
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1500.5 }).success).toBe(false);
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1000 }).success).toBe(true);
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600000 }).success).toBe(true);
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 999 }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600001 }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1500.5 }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 1000 }).success).toBe(
+      true,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_timeout_ms: 600000 }).success).toBe(
+      true,
+    );
   });
 
   it("rejects judge_sample_concurrency outside 1..25 or non-integer", () => {
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 0 }).success).toBe(
-      false,
-    );
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 26 }).success).toBe(
-      false,
-    );
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 2.5 }).success).toBe(
-      false,
-    );
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 1 }).success).toBe(
-      true,
-    );
-    expect(EvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 25 }).success).toBe(
-      true,
-    );
+    expect(
+      SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 0 }).success,
+    ).toBe(false);
+    expect(
+      SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 26 }).success,
+    ).toBe(false);
+    expect(
+      SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 2.5 }).success,
+    ).toBe(false);
+    expect(
+      SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 1 }).success,
+    ).toBe(true);
+    expect(
+      SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 25 }).success,
+    ).toBe(true);
   });
 });

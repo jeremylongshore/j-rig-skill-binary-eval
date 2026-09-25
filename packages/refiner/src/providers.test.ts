@@ -66,6 +66,15 @@ describe("resolveProvider — explicit --provider wins when its key is set", () 
     expect(r.defaultModel).toBe("deepseek-v4-flash");
   });
 
+  it("resolves the funded MiniMax M3 preset explicitly", () => {
+    const r = resolveProvider({ provider: "minimax", env: { MINIMAX_API_KEY: KEY } });
+    expect(r.name).toBe("minimax");
+    expect(r.format).toBe("openai");
+    expect(r.baseUrl).toBe("https://api.minimax.io/v1");
+    expect(r.defaultModel).toBe("MiniMax-M3");
+    expect(r.apiKey).toBe(KEY);
+  });
+
   it("resolves anthropic explicitly (anthropic format)", () => {
     const r = resolveProvider({ provider: "anthropic", env: { ANTHROPIC_API_KEY: KEY } });
     expect(r.name).toBe("anthropic");

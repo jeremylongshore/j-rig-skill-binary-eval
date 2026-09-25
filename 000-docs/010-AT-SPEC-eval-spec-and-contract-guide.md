@@ -1,10 +1,10 @@
-# Eval Spec and Contract Authoring Guide
+# Skill Eval Spec and Contract Authoring Guide
 
 ## Overview
 
-J-Rig Binary Eval uses two distinct configuration artifacts to define how a skill is evaluated:
+J-Rig Binary Eval uses two distinct configuration artifacts to define how a skill is evaluated. The skill-shaped machine-readable artifact is the `SkillEvalSpec` profile; the canonical kernel `EvalSpec` is a different contract and is reached through the explicit adapter described in the platform evolution blueprint.
 
-1. **Eval Spec** — the machine-readable evaluation definition
+1. **SkillEvalSpec** — the machine-readable skill-profile evaluation definition
 2. **Eval Contract** — the human-readable, pre-negotiated definition of done
 
 These are intentionally separate. The spec defines *what to check and how*. The contract defines *what success means and what is sacred*.
