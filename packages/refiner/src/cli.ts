@@ -131,7 +131,7 @@ export function registerRefineCommand(
     .option("--eval-set <hash>", "Eval-set hash to score against (defaults to bootstrap)")
     .option(
       "--provider <name>",
-      "LLM backend: nvidia | deepseek | groq | anthropic | kimi | openrouter " +
+      "LLM backend: nvidia | deepseek | groq | openai | minimax | anthropic | kimi | openrouter " +
         "(default: auto-pick the first present key, preferring free/cheap; Anthropic is NOT required)",
     )
     .option(
@@ -222,7 +222,7 @@ export function registerRefineCommand(
     .option("--strategy <id>", "Strategy: skill-opt-style | naive-in-context", "skill-opt-style")
     .option(
       "--provider <name>",
-      "LLM backend: nvidia | deepseek | groq | anthropic | kimi | openrouter " +
+      "LLM backend: nvidia | deepseek | groq | openai | minimax | anthropic | kimi | openrouter " +
         "(default: auto-pick the first present key, preferring free/cheap; Anthropic is NOT required)",
     )
     .option(
