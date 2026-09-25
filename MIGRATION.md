@@ -4,6 +4,25 @@ Driven by ISEDC DR-018 (iaj-E02). All 5 workspace packages (`@j-rig/core`,
 `@j-rig/cli`, `@j-rig/db`, `@j-rig/dashboard`, and the root private workspace)
 bump to v2.0.0 simultaneously.
 
+## Real-provider outage handling
+
+New evaluations fail closed when a provider the evaluation depends on does not
+respond, in either the execution or the judge phase, whether it affects one
+unit or all of them. `j-rig eval` records no verdict for that model and still
+emits evidence: a signed `gate-result/v1` row with `gate_decision: "error"`,
+the error class first in `gate_reasons`, and a typed credential-free
+`metadata.error_detail`. The SQLite run is marked `failed` and the process exits
+**2** after writing every artifact. Under `--json` the model's result carries
+`gate_decision: "error"` and `evaluation_error`; when present, its `scoreCard`,
+`decision`, and `report` are diagnostic only. Consumers must check the exit code
+and that field before ingesting a verdict. HTTP 402 and explicit
+`Insufficient Balance`/quota responses are recorded as non-retryable
+`rate_limit` failures. Completed empty responses remain valid tool-dependent
+boundary observations, and partial sample loss still degrades agreement rather
+than erroring; use `--samples` of 2 or more to absorb transient judge failures.
+See
+[`000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md`](000-docs/037-AT-SPEC-real-provider-failure-boundary-2026-08-02.md).
+
 ## Breaking change: predicate body (the primary migration)
 
 The gate-result predicate body moves from j-rig's local v0.1.0-draft shape to
@@ -190,6 +209,26 @@ silently accept v1-bodied rows. To consume a legacy v1 bundle, re-emit each row 
 the gate that produced it using the current `j-rig emit-evidence` with the new flags.
 
 Do not emit new bundles in the v1 container form — use the plain array.
+
+## Generic suite adoption path
+
+The generic evaluation substrate is additive to the skill-specific evaluator.
+Existing `j-rig eval`, `j-rig eval-batch`, `j-rig run`, `j-rig grade`,
+`j-rig sample-plan`, and `j-rig report` invocations remain valid. New arbitrary
+Task × Config work should use a `j-rig/eval-suite/v1` manifest and the
+`j-rig suite <suite.yaml>` command. A suite writes its own raw-run audit and
+suite-scoped report; it does not rewrite historical skill-eval rows or Evidence
+Bundles.
+
+Legacy Evidence Bundle fixtures still use the explicit migration command:
+
+```bash
+j-rig migrate ./legacy-fixtures --write
+```
+
+The migration is dry-run by default and is separate from suite execution.
+Keeping these boundaries explicit means old evidence can be read or migrated
+without making a generic suite silently reinterpret its provenance.
 
 ## Downstream consumers (e.g. intent-rollout-gate)
 

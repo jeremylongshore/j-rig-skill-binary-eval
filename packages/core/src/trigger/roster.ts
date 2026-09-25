@@ -1,5 +1,5 @@
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
-import type { SiblingSkill } from "../schemas/eval-spec.js";
+import type { SiblingSkill } from "../schemas/skill-eval-spec.js";
 
 /**
  * A skill entry in the available-skills roster.
