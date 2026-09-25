@@ -1,8 +1,8 @@
 <!-- BEGIN BD-SYNC:cross-ref:v1 -->
 
-Beads: `bd_000-projects-214c.6.1`
-GitHub: `jeremylongshore/j-rig-skill-binary-eval#270`
-Projection-SHA256: 2182b0c2f2ab8e51317021041d5735724091bbf9c07c35a5968dc81f099ed555
+Beads: `bd_000-projects-214c.6.1, bd_000-projects-214c.7.1`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#270, jeremylongshore/j-rig-skill-binary-eval#272`
+Projection-SHA256: 69b4370a3e33fd4b535d251f435a7a1bdef1511a6b6a3b88f52d84ac7e9aa7d8
 
 <!-- END BD-SYNC:cross-ref:v1 -->
 
@@ -162,7 +162,7 @@ synthesizes the held-out eval set that the rollouts run against.
 
 ---
 
-## 3. Library architecture (diagram D8)
+## 3. D8 — Library architecture (diagram D8)
 
 `@intentsolutions/refiner` is a thin orchestrator + CLI binding that depends on `@intentsolutions/refiner-core`.
 All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@intentsolutions/refiner`,
