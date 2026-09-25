@@ -1,4 +1,10 @@
-export { ProviderError, isProviderError, type ProviderErrorCategory } from "./errors.js";
+export {
+  ProviderError,
+  isProviderError,
+  providerFailureFromError,
+  type ProviderErrorCategory,
+  type ProviderFailure,
+} from "./errors.js";
 
 export type {
   ChatMessage,

@@ -51,6 +51,17 @@ j-rig refine apply <skill-dir> --proposal <hash>   # apply a stored proposal →
 j-rig refine status <skill-id>       # show the store + event log (offline)
 ```
 
+`j-rig refine score` and `j-rig refine propose` share the provider registry with
+`j-rig eval`. For the funded MiniMax path, use an injected `MINIMAX_API_KEY`
+and pin `MiniMax-M3` explicitly:
+
+```bash
+j-rig refine score ./my-skill --provider minimax --model MiniMax-M3
+```
+
+The registry resolves MiniMax through `https://api.minimax.io/v1`; credentials
+are runtime inputs and are never committed.
+
 ## Not in this wave (gated / later)
 
 The SkillVersion kernel entity, the `skill-refiner-pass/v1` predicate URI + signed

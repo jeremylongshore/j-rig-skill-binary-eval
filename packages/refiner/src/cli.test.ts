@@ -274,6 +274,8 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     "NVIDIA_API_KEY",
     "DEEPSEEK_API_KEY",
     "GROQ_API_KEY",
+    "OPENAI_API_KEY",
+    "MINIMAX_API_KEY",
     "MOONSHOT_API_KEY",
     "OPENROUTER_API_KEY",
     "LLM_API_KEY",

@@ -1,0 +1,5 @@
+id: answer-task
+version: "1"
+description: Answer a small question through a generic harness
+input:
+  question: What is two plus two?

@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import chalk from "chalk";
-import { parseAndValidateYaml, EvalSpecSchema, EvalContractSchema } from "@j-rig/core";
+import { parseAndValidateYaml, SkillEvalSpecSchema, EvalContractSchema } from "@j-rig/core";
 
 /**
  * Register the `validate` command on the given Commander program.
@@ -35,7 +35,7 @@ export function registerValidateCommand(program: Command): void {
         // concrete schema type in each call rather than receiving the union.
         const result = isContract
           ? parseAndValidateYaml(content, EvalContractSchema)
-          : parseAndValidateYaml(content, EvalSpecSchema);
+          : parseAndValidateYaml(content, SkillEvalSpecSchema);
 
         if (opts.json) {
           console.log(

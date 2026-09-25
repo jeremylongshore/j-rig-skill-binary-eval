@@ -21,7 +21,7 @@ import type { Criterion } from "../schemas/criterion.js";
  *
  * An id in `criteriaIds` with no matching criterion THROWS — a renamed or
  * misspelled id is a silent test gap (the very class of bug this scoping was
- * added to prevent), so we fail loud rather than under-evaluate. `EvalSpecSchema`
+ * added to prevent), so we fail loud rather than under-evaluate. `SkillEvalSpecSchema`
  * also cross-validates `criteria_ids` at spec-load, so a validated spec never
  * reaches here with an unknown id; this guard is the runtime defense-in-depth
  * for any criterion list that bypasses schema validation.

@@ -2,6 +2,8 @@ import type { TestCase } from "../schemas/test-case.js";
 import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
 import type { ExecutionContext, ExecutionProvider, ObservedOutcome } from "./types.js";
+import { providerFailureFromError } from "../providers/errors.js";
+import { redactProviderError } from "../judgment/redact.js";
 
 /**
  * Run functional execution tests for a skill against test cases.
@@ -58,6 +60,7 @@ export async function runFunctionalTests(
       });
     } catch (err) {
       const now = new Date().toISOString();
+      const providerFailure = providerFailureFromError(err);
       outcomes.push({
         test_case_id: tc.id,
         prompt: tc.prompt,
@@ -65,7 +68,10 @@ export async function runFunctionalTests(
           text: "",
           artifacts: [],
           tool_calls: 0,
-          error: err instanceof Error ? err.message : String(err),
+          // Redact at the boundary: this text is persisted and, on a provider
+          // failure, copied into the signed gate_reasons (credential boundary,
+          // 000-docs/021) — same rule the judge path already follows.
+          error: redactProviderError(err instanceof Error ? err.message : String(err)),
         },
         meta: {
           started_at: now,
@@ -74,6 +80,7 @@ export async function runFunctionalTests(
           timed_out: false,
         },
         status: "failed",
+        ...(providerFailure ? { provider_failure: providerFailure } : {}),
       });
     }
   }

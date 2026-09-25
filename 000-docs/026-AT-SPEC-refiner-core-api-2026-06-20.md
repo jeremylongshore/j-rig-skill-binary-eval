@@ -1,8 +1,8 @@
 <!-- BEGIN BD-SYNC:cross-ref:v1 -->
 
-Beads: `bd_000-projects-pu35.3`
-GitHub: `jeremylongshore/j-rig-skill-binary-eval#274`
-Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec96c
+Beads: `bd_000-projects-214c.6.1, bd_000-projects-214c.7.1, bd_000-projects-pu35.3`
+GitHub: `jeremylongshore/j-rig-skill-binary-eval#270, jeremylongshore/j-rig-skill-binary-eval#272, jeremylongshore/j-rig-skill-binary-eval#274`
+Projection-SHA256: 85addd868f497b266405716e5797524b14566bc373b540cc695d37ade68cbaa5
 
 <!-- END BD-SYNC:cross-ref:v1 -->
 
@@ -110,7 +110,7 @@ import {
 
 ---
 
-## 2. Data flow (diagram D4)
+## 2. D4 — Data flow (diagram D4)
 
 The end-to-end flow from rollouts to a signed Evidence Bundle row. The boxed `REFINER-CORE`
 region is what this package ships; the SkillVersion kernel entity, the promotion ladder, and
@@ -163,7 +163,7 @@ synthesizes the held-out eval set that the rollouts run against.
 
 ---
 
-## 3. Library architecture (diagram D8)
+## 3. D8 — Library architecture (diagram D8)
 
 `@intentsolutions/refiner` is a thin orchestrator + CLI binding that depends on `@intentsolutions/refiner-core`.
 All adapters (model, fs, binary-eval shell-out, emit, cost meter) live in `@intentsolutions/refiner`,
