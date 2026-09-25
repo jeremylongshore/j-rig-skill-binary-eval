@@ -1,5 +1,7 @@
 # `@intentsolutions/refiner-core` API Specification
 
+| Beads | `bd_000-projects-214c.5` |
+
 **Date:** 2026-06-20
 **Status:** NORMATIVE for the Phase A (wave 1) foundation surface
 **Package:** `@intentsolutions/refiner-core` (published to npm, version `0.1.0`)
