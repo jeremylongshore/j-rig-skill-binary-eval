@@ -35,6 +35,7 @@ export default tseslint.config(
       "node_modules/",
       "000-docs/",
       "eval-packs/",
+      ".audit-harness/",
     ],
   },
 );
