@@ -1,3 +1,5 @@
+import type { HeadroomAssessment } from "./headroom.js";
+
 /**
  * Rollout recommendation.
  */
@@ -93,4 +95,10 @@ export interface LaunchReport {
    * the authoritative rollout call.
    */
   adoptionVerdict?: AdoptionVerdictSummary;
+  /**
+   * OPTIONAL: whether this eval still has room to show improvement. A
+   * measurement of the eval, not of the skill; it never alters `decision`.
+   * Absent on an evaluator infrastructure failure, which has no verdict.
+   */
+  headroom?: HeadroomAssessment;
 }

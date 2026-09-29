@@ -357,4 +357,27 @@ describe("SkillEvalSpecSchema judge robustness fields", () => {
       SkillEvalSpecSchema.safeParse({ ...baseSpec, judge_sample_concurrency: 25 }).success,
     ).toBe(true);
   });
+
+  it("accepts headroom_ceiling in (0, 1] and leaves it undefined when absent", () => {
+    const declared = SkillEvalSpecSchema.safeParse({ ...baseSpec, headroom_ceiling: 0.9 });
+    expect(declared.success).toBe(true);
+    if (declared.success) expect(declared.data.headroom_ceiling).toBe(0.9);
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, headroom_ceiling: 1 }).success).toBe(true);
+
+    // No schema default: an absent ceiling must stay absent so existing spec
+    // snapshots are unchanged; the runtime default is applied at assessment.
+    const absent = SkillEvalSpecSchema.safeParse(baseSpec);
+    expect(absent.success).toBe(true);
+    if (absent.success) expect(absent.data.headroom_ceiling).toBeUndefined();
+  });
+
+  it("rejects headroom_ceiling at or below 0 or above 1", () => {
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, headroom_ceiling: 0 }).success).toBe(false);
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, headroom_ceiling: -0.1 }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, headroom_ceiling: 1.01 }).success).toBe(
+      false,
+    );
+  });
 });

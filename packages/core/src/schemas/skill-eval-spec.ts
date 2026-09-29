@@ -132,6 +132,17 @@ export const SkillEvalSpecSchema = z
           "too unstable to honestly BLOCK (or sign) on, and is downgraded to a warning. " +
           "Applies only to judge-method criteria that were actually multi-sampled.",
       ),
+    headroom_ceiling: z
+      .number()
+      .gt(0)
+      .max(1)
+      .optional()
+      .describe(
+        "Saturation ceiling for the headroom check: at or above this pass rate the eval " +
+          "is reported `saturated`, because it can no longer show that a change helped. " +
+          "Omitted = the runtime default (0.95). Reported beside the rollout decision, " +
+          "never inside it.",
+      ),
     siblings: z
       .array(SiblingSkillSchema)
       .optional()

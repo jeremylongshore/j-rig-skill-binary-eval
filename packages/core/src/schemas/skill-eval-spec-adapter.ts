@@ -261,6 +261,9 @@ export function adaptSkillEvalSpec(
           ...(source.min_blocker_agreement === undefined
             ? {}
             : { min_blocker_agreement: source.min_blocker_agreement }),
+          ...(source.headroom_ceiling === undefined
+            ? {}
+            : { headroom_ceiling: source.headroom_ceiling }),
           ...(source.self_test === undefined ? {} : { self_test: source.self_test }),
           ...(source.siblings === undefined ? {} : { siblings: source.siblings }),
           ...(source.tags === undefined ? {} : { tags: source.tags }),

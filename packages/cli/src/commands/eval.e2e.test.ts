@@ -65,6 +65,15 @@ interface GateRow {
         baseline_sha256?: string | null;
       };
       promotion_eligible?: boolean;
+      passed?: number;
+      total_criteria?: number;
+      headroom?: {
+        status?: string;
+        ceiling?: number;
+        ceiling_source?: string;
+        passed?: number;
+        trials?: number;
+      };
     };
   };
 }
@@ -222,6 +231,8 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
       const metadata = predicate.metadata as Record<string, unknown>;
       expect(metadata.gate_decision).toBeUndefined();
       expect(metadata.promotion_reasons).toBeUndefined();
+      // No verdict means no headroom claim either (000-docs/043).
+      expect(metadata.headroom).toBeUndefined();
       expect(predicate.gate_reasons.join("\n")).not.toMatch(/promotion/i);
       expect(detail!.affected).toBeGreaterThan(0);
       expect(detail!.affected).toBeLessThan(detail!.total);
@@ -370,6 +381,19 @@ describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () 
         });
         expect(row.predicate.metadata?.promotion_eligible).toBe(false);
         expect(["advisory", "fail"]).toContain(row.predicate.gate_decision);
+
+        // Headroom rides beside the verdict (000-docs/043), measured over the
+        // same criteria the scorecard counted, with the runtime default ceiling
+        // because the self-eval spec declares none.
+        expect(row.predicate.metadata?.headroom).toMatchObject({
+          ceiling: 0.95,
+          ceiling_source: "default",
+          passed: row.predicate.metadata?.passed,
+          trials: row.predicate.metadata?.total_criteria,
+        });
+        expect(["saturated", "near_ceiling", "headroom", "no_data"]).toContain(
+          row.predicate.metadata?.headroom?.status,
+        );
       }
 
       // 4. The DB→bundle link is integrity-checked: every evidence-bundle

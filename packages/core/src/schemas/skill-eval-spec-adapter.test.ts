@@ -104,6 +104,26 @@ describe("adaptSkillEvalSpec", () => {
     });
   });
 
+  it("carries headroom_ceiling into the extension only when the source declares it", () => {
+    const sourceDocument = parseYaml(readFixture("valid/adapter-source.yaml")) as Record<
+      string,
+      unknown
+    >;
+    const without = adaptSkillEvalSpec(sourceDocument, adapterOptions);
+    expect(without.canonical.scoring.extensions?.["j-rig-skill-eval"]).not.toHaveProperty(
+      "headroom_ceiling",
+    );
+
+    const withCeiling = adaptSkillEvalSpec(
+      { ...sourceDocument, headroom_ceiling: 0.9 },
+      adapterOptions,
+    );
+    expect(withCeiling.canonical.scoring.extensions?.["j-rig-skill-eval"]).toMatchObject({
+      headroom_ceiling: 0.9,
+    });
+    expect(withCeiling.lineage.source_profile_hash).not.toBe(without.lineage.source_profile_hash);
+  });
+
   it("is deterministic for equivalent object key order", () => {
     const first = { z: { b: 2, a: 1 }, a: [{ d: 4, c: 3 }] };
     const second = { a: [{ c: 3, d: 4 }], z: { a: 1, b: 2 } };

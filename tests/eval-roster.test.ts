@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-expect-error — plain .mjs script with no type declarations
-import { infrastructureFailureReason } from "../eval-roster/run-roster.mjs";
+import { headroomStatuses, infrastructureFailureReason } from "../eval-roster/run-roster.mjs";
 
 const REASON =
   "provider_failure/judge [minimax rate_limit, retryable]: judge provider failed on 1 of 3 judged criteria; the evaluation is incomplete: HTTP 429";
@@ -46,5 +46,29 @@ describe("nightly roster — evaluator infrastructure failure (exit 2)", () => {
     expect(infrastructureFailureReason(statements({ not: "an array" }))).toBeNull();
     expect(infrastructureFailureReason(statements("{ not json"))).toBeNull();
     expect(infrastructureFailureReason(join(tmpdir(), "jrig-roster-absent.json"))).toBeNull();
+  });
+});
+
+describe("nightly roster — headroom reporting (000-docs/043)", () => {
+  const withHeadroom = (status: string) => ({
+    predicate: { gate_decision: "pass", metadata: { headroom: { status } } },
+  });
+
+  it("reports one headroom status per model row", () => {
+    expect(headroomStatuses([withHeadroom("saturated"), withHeadroom("headroom")])).toEqual([
+      "saturated",
+      "headroom",
+    ]);
+  });
+
+  it("reports null for a row with no headroom claim, such as an `error` row", () => {
+    expect(headroomStatuses([row("error", REASON), withHeadroom("near_ceiling")])).toEqual([
+      null,
+      "near_ceiling",
+    ]);
+  });
+
+  it("returns an empty list for a malformed bundle", () => {
+    expect(headroomStatuses({ not: "an array" })).toEqual([]);
   });
 });
