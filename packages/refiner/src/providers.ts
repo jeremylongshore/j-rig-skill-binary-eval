@@ -63,13 +63,14 @@ export const PROVIDER_REGISTRY: Record<string, ProviderEntry> = {
     defaultModel: "claude-sonnet-4-6",
     format: "anthropic",
   },
-  // FREE tier (build.nvidia.com NIM). Listed FIRST in the auto-pick order —
-  // meta/llama-3.3-70b-instruct is $0. Base/key/model mirror eval's `nvidia`.
+  // FREE tier (build.nvidia.com NIM), last in the auto-pick order. Base/key/model
+  // mirror eval's `nvidia`. meta/llama-3.3-70b-instruct was retired (HTTP 410,
+  // 2026-09-29); openai/gpt-oss-20b answered a live call that day.
   nvidia: {
     name: "nvidia",
     baseUrl: "https://integrate.api.nvidia.com/v1",
     keyEnv: "NVIDIA_API_KEY",
-    defaultModel: "meta/llama-3.3-70b-instruct",
+    defaultModel: "openai/gpt-oss-20b",
     format: "openai",
   },
   // Cheap. Base/key/model mirror eval's `deepseek` preset.
@@ -81,10 +82,11 @@ export const PROVIDER_REGISTRY: Record<string, ProviderEntry> = {
     format: "openai",
   },
   // Free tier (~30 rpm). Base/key/model mirror eval's `groq` preset.
+  // llama-3.3-70b-versatile was retired (HTTP 404, 2026-09-29).
   groq: {
     name: "groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
     keyEnv: "GROQ_API_KEY",
     format: "openai",
   },

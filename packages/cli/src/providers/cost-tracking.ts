@@ -77,9 +77,11 @@ export const MODEL_RATES_USD_PER_MTOK: Record<
   "deepseek-chat": { input: 0.14, output: 0.28, note: "legacy alias of v4-flash" },
   "deepseek-reasoner": { input: 0.55, output: 2.19 },
   // Groq free tier (30 rpm cap)
-  "llama-3.3-70b-versatile": { input: 0, output: 0, note: "Groq free tier" },
+  "llama-3.3-70b-versatile": { input: 0, output: 0, note: "Groq free tier (retired)" },
+  "openai/gpt-oss-120b": { input: 0, output: 0, note: "Groq free tier" },
   // NVIDIA NIM free tier
-  "meta/llama-3.3-70b-instruct": { input: 0, output: 0, note: "NVIDIA NIM free tier" },
+  "meta/llama-3.3-70b-instruct": { input: 0, output: 0, note: "NVIDIA NIM free tier (retired)" },
+  "openai/gpt-oss-20b": { input: 0, output: 0, note: "NVIDIA NIM free tier" },
   "meta/llama-3.1-405b-instruct": { input: 0, output: 0, note: "NVIDIA NIM free tier" },
 };
 

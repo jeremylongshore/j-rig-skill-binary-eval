@@ -169,14 +169,14 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     baseUrl: "https://api.groq.com/openai/v1",
     // Groq free tier: ~30 requests/min — fine for single-skill evals; budget
     // for it when multi-sampling (N x criteria calls per test case).
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
     keyEnv: "GROQ_API_KEY",
   },
   nvidia: {
     id: "nvidia",
     // NVIDIA NIM (build.nvidia.com) OpenAI-compatible endpoint, free tier.
     baseUrl: "https://integrate.api.nvidia.com/v1",
-    defaultModel: "meta/llama-3.3-70b-instruct",
+    defaultModel: "openai/gpt-oss-20b",
     keyEnv: "NVIDIA_API_KEY",
   },
 };
