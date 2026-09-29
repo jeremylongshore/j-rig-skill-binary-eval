@@ -26,7 +26,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -80,6 +80,20 @@ export function infrastructureFailureReason(statementsPath) {
   }
 }
 
+/**
+ * Per-row headroom status from a skill's signed statements (000-docs/043):
+ * one entry per model row, `null` where a row carries no headroom (an `error`
+ * row has no verdict and so no headroom claim). Reported beside the decision,
+ * never folded into it.
+ */
+export function headroomStatuses(statements) {
+  if (!Array.isArray(statements)) return [];
+  return statements.map((st) => {
+    const status = st?.predicate?.metadata?.headroom?.status;
+    return typeof status === "string" ? status : null;
+  });
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.src) {
@@ -131,6 +145,7 @@ function main() {
       skillsCommit: roster.source.ref,
       statementsFile: null,
       errorReason: null,
+      headroom: [],
     };
     try {
       if (!existsSync(join(skillDir, "SKILL.md"))) throw new Error(`no SKILL.md at ${skillDir}`);
@@ -164,10 +179,13 @@ function main() {
       row.decisions = Array.isArray(statements)
         ? statements.map((st) => st?.predicate?.gate_decision ?? "error")
         : [];
+      row.headroom = headroomStatuses(statements);
       row.statementsFile = `${skill.key}.statements.json`;
       row.status = "ok";
       ok += 1;
-      console.log(`--- ${skill.key}: ${row.decisions.join(", ")}`);
+      console.log(
+        `--- ${skill.key}: ${row.decisions.join(", ")} (headroom: ${row.headroom.map((h) => h ?? "n/a").join(", ")})`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Exit 2 is j-rig's evaluator-infrastructure-failure contract
@@ -188,6 +206,15 @@ function main() {
 
   writeFileSync(join(args.out, "roster-summary.json"), JSON.stringify(summary, null, 2), "utf8");
   console.log(`\nroster complete: ${ok}/${skills.length} skills evaluated cleanly`);
+  const saturated = summary.filter((r) => r.headroom.includes("saturated")).map((r) => r.key);
+  const saturationLine =
+    saturated.length === 0
+      ? "saturated evals: none"
+      : `saturated evals (cannot show improvement): ${saturated.join(", ")}`;
+  console.log(saturationLine);
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n**Roster headroom:** ${saturationLine}\n`);
+  }
   if (ok === 0) {
     console.error("run-roster: every skill failed — nothing worth publishing (fail-closed)");
     return 1;

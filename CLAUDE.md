@@ -143,6 +143,15 @@ layer is advisory for promotion, even if the legacy `LaunchReport` decision is
 metadata is never emitted on an `error` row: an evaluator infrastructure failure
 (`000-docs/037`) wins over the promotion mapping and the two are mutually exclusive.
 
+### Eval headroom (saturation signal)
+
+Every non-`error` `j-rig eval` row carries `metadata.headroom`: `saturated`,
+`near_ceiling`, `headroom`, or `no_data`, from `assessHeadroom()` in core. It is a
+measurement of the eval, not the skill, and never changes the decision or
+`gate_reasons`. The ceiling is the spec's optional `headroom_ceiling` (no schema
+default; runtime default 0.95). The nightly roster prints which skills are
+saturated. See `000-docs/043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md`.
+
 ### Evaluator infrastructure failure (one rule)
 
 Any unrecovered provider failure in `j-rig eval`, execution or judge phase,

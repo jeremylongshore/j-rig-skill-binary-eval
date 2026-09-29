@@ -18,6 +18,7 @@ import {
   computeScoreCard,
   decideRollout,
   buildLaunchReport,
+  assessHeadroom,
   detectRegressions,
   compareBaseline,
   isObsoleteCandidate,
@@ -87,6 +88,7 @@ import {
   resolveOpenAICompatConfig,
 } from "../providers/openai-compatible.js";
 import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
+import type { HeadroomAssessment } from "@j-rig/core";
 import {
   detectInfrastructureFailure,
   infrastructureFailureReason,
@@ -445,6 +447,26 @@ export function loadRegressionBaseline(path: string): JudgmentResult[] {
       method: "judge" as const,
     };
   });
+}
+
+/**
+ * One console line for an eval that has lost (or may have lost) its headroom.
+ * `headroom` itself is the normal case and is not printed.
+ */
+export function formatHeadroom(h: HeadroomAssessment): string {
+  const pct = (x: number): string => `${Math.round(x * 100)}%`;
+  const rate = h.pass_rate === null ? "n/a" : pct(h.pass_rate);
+  const ceiling = `${pct(h.ceiling)} (${h.ceiling_source})`;
+  switch (h.status) {
+    case "saturated":
+      return `Eval saturated: ${h.passed}/${h.trials} criteria passed (${rate}) at or above the ${ceiling} ceiling; it cannot show that a change helped`;
+    case "near_ceiling":
+      return `Eval near ceiling: ${h.passed}/${h.trials} criteria passed (${rate}); the 95% interval reaches the ${ceiling} ceiling`;
+    case "no_data":
+      return "Eval headroom unknown: no criteria were scored";
+    default:
+      return `Eval has headroom: ${h.passed}/${h.trials} criteria passed (${rate}) below the ${ceiling} ceiling`;
+  }
 }
 
 export function registerEvalCommand(program: Command): void {
@@ -1128,6 +1150,25 @@ export function registerEvalCommand(program: Command): void {
               ? infrastructureFailureReason(infraFailure)
               : null;
 
+            // ── Headroom (000-docs/043) ────────────────────────────────
+            // Can this eval still show that a change helped? A measurement of
+            // the eval, not the skill: it rides beside the decision and never
+            // changes it. An infrastructure failure has no verdict, so it gets
+            // no headroom claim either.
+            const headroom = infraFailure
+              ? null
+              : assessHeadroom({
+                  passed: scoreCard.passed,
+                  trials: scoreCard.total_criteria,
+                  ceiling: spec.headroom_ceiling,
+                });
+            if (headroom) {
+              report.headroom = headroom;
+              if (!opts.json && headroom.status !== "headroom") {
+                console.log(`  ${icon("warning")} ${formatHeadroom(headroom)}`);
+              }
+            }
+
             allResults[model] = {
               provider: providers.providerName,
               model,
@@ -1288,6 +1329,7 @@ export function registerEvalCommand(program: Command): void {
                   // Blueprint B § 7.4 SHOULD: structured detail for `error`.
                   // Mutually exclusive with promotion evidence (see above).
                   ...(infraFailure ? { error_detail: infraFailure } : promotionEvidence),
+                  ...(headroom ? { headroom } : {}),
                   ...batchLineage,
                   ...voteEvidence,
                 },
