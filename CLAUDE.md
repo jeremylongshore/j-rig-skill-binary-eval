@@ -239,8 +239,8 @@ every kept criterion graded by a kept case); the rest are listed as dropped with
 The spec is tagged `draft` + `needs-review` and nothing is written when no criterion
 survives. Drafted criteria are always `blocker: false`; a model-suggested blocker is
 noted in the criterion description for the reviewer to apply. It is an authoring aid:
-a human reviews every `fn-*` item and removes the draft tags. `j-rig eval
---require-reviewed` refuses a spec still tagged `needs-review`, and the nightly roster
+a human reviews every `fn-*` item and removes the draft tags. The gate reads only the
+`needs-review` tag: `j-rig eval --require-reviewed` refuses a spec that still carries it, and the nightly roster
 passes that flag, so an unreviewed draft can never gate.
 
 ## Nightly skill-eval roster
