@@ -82,8 +82,11 @@ describe("spec-draft — normalizeDraft", () => {
     const d = normalizeDraft(GOOD, RESERVED, OUT);
     expect(d.criteria.map((c) => c.id)).toEqual(["fn-names-root-cause", "fn-gives-next-step"]);
     expect(d.criteria.every((c) => c.method === "judge")).toBe(true);
-    expect(d.criteria[0]?.blocker).toBe(true);
+    // A model-suggested blocker is never applied; the reviewer decides.
+    expect(d.criteria[0]?.blocker).toBe(false);
+    expect(d.criteria[0]?.description).toMatch(/suggested blocker/);
     expect(d.criteria[1]?.blocker).toBe(false);
+    expect(d.criteria[1]?.description).toBe("Gives a concrete next step");
     expect(d.test_cases[0]).toMatchObject({
       id: "fn-oom-crash",
       tier: "core",
@@ -281,6 +284,9 @@ describe("spec-draft — review hardening", () => {
     expect(judgePromptProblem("On a scale of 1-5, how complete is it?")).toMatch(/rating/);
     expect(judgePromptProblem("Rate the answer. Is it good?")).toMatch(/rating/);
     expect(judgePromptProblem("Does it follow SKILL.md step 3?")).toMatch(/SKILL\.md/);
+    expect(judgePromptProblem("On a 0–100 basis, is it complete?")).toMatch(/rating/);
+    expect(judgePromptProblem("Is it good on a scale where higher is better?")).toMatch(/rating/);
+    expect(judgePromptProblem("Does the response follow steps 1-2 in order?")).toBeNull();
 
     const d = normalizeDraft(
       {

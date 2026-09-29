@@ -237,8 +237,11 @@ test-case schemas and J-Rig's scoping rules are kept (judge method only; `core`/
 tiers; yes/no judge prompts that never cite SKILL.md, which the grader never sees;
 every kept criterion graded by a kept case); the rest are listed as dropped with the reason.
 The spec is tagged `draft` + `needs-review` and nothing is written when no criterion
-survives. It is an authoring aid: a human reviews every `fn-*` item before the spec
-is committed or joins the roster.
+survives. Drafted criteria are always `blocker: false`; a model-suggested blocker is
+noted in the criterion description for the reviewer to apply. It is an authoring aid:
+a human reviews every `fn-*` item and removes the draft tags. `j-rig eval
+--require-reviewed` refuses a spec still tagged `needs-review`, and the nightly roster
+passes that flag, so an unreviewed draft can never gate.
 
 ## Nightly skill-eval roster
 

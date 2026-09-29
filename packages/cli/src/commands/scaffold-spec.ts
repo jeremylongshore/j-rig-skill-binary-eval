@@ -75,10 +75,15 @@ export function registerScaffoldSpecCommand(program: Command): void {
           if (model.toLowerCase().includes("opus")) {
             throw new Error(`--draft may not run on opus ('${model}'); pick a cheaper model`);
           }
-          const outputNotEmpty = spec.criteria.find(
+          const presence = spec.criteria.filter(
             (c) => (c as { deterministic_check?: string }).deterministic_check === "not_empty",
-          ) as { id: string } | undefined;
-          if (!outputNotEmpty) throw new Error("baseline spec has no output-presence criterion");
+          ) as { id: string }[];
+          const outputNotEmpty = presence[0];
+          if (presence.length !== 1 || !outputNotEmpty) {
+            throw new Error(
+              `baseline spec must have exactly one output-presence criterion, found ${presence.length}`,
+            );
+          }
           const draft = await draftFunctionalItems({
             client: createCompletionClient(resolved),
             model,

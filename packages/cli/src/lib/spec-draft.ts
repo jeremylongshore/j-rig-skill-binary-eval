@@ -120,7 +120,7 @@ function firstBalancedObject(text: string): string | null {
  */
 export function judgePromptProblem(prompt: string): string | null {
   if (!prompt.includes("?")) return "judge_prompt is not a yes/no question";
-  if (/\b(rate|score)\b|\b(1|one)\s*(-|to)\s*(5|10|five|ten)\b/i.test(prompt)) {
+  if (/\b(rate|score|scale)\b|\b(0|1|one)\s*(-|–|to)\s*(3|4|5|7|10|five|ten|100)\b/i.test(prompt)) {
     return "judge_prompt asks for a rating, not a yes/no verdict";
   }
   if (/skill\.?md/i.test(prompt)) {
@@ -188,9 +188,14 @@ export function normalizeDraft(
     }
     const candidate = {
       id,
-      description: c.description,
+      description:
+        c.blocker === true && typeof c.description === "string"
+          ? `${c.description} (suggested blocker: set blocker: true after review if it should block release)`
+          : c.description,
       method: "judge",
-      blocker: c.blocker === true,
+      // Never trust a model with a release-blocking flag: drafted criteria are
+      // non-blocking, and a suggested blocker is left for the reviewer to accept.
+      blocker: false,
       judge_prompt: c.judge_prompt,
     };
     if (typeof c.judge_prompt !== "string" || !c.judge_prompt.trim()) {

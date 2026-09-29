@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { EvidenceStatementSchema, PREDICATE_URI } from "@j-rig/core";
 import { createDatabase } from "@j-rig/db";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 /**
  * End-to-end self-eval: the tool that evaluates skills, tested evaluating a
@@ -79,6 +80,37 @@ interface GateRow {
 }
 
 describe("j-rig eval — end-to-end self-eval (the tool evaluates a skill)", () => {
+  it("--require-reviewed refuses a spec still tagged needs-review, before any provider call", () => {
+    const work = mkdtempSync(join(tmpdir(), "jrig-eval-needs-review-"));
+    try {
+      const specPath = join(work, "eval.yaml");
+      const spec = parseYaml(readFileSync(SPEC_PATH, "utf8")) as Record<string, unknown>;
+      writeFileSync(
+        specPath,
+        stringifyYaml({ ...spec, tags: ["generated", "draft", "needs-review"] }),
+        "utf8",
+      );
+      const r = spawnSync(
+        "node",
+        [
+          CLI_PATH,
+          "eval",
+          SKILL_DIR,
+          "--spec",
+          specPath,
+          "--require-reviewed",
+          "--db",
+          join(work, "db.sqlite"),
+        ],
+        { encoding: "utf8", env: { ...process.env, J_RIG_ALLOW_STUB: "1" } },
+      );
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/tagged needs-review/);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
   it("signs `error`, not `advisory`, when the judge provider fails on every criterion (dead judge)", () => {
     const work = mkdtempSync(join(tmpdir(), "jrig-eval-dead-judge-"));
     const bundlePath = join(work, "bundle.json");

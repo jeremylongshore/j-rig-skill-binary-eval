@@ -111,6 +111,7 @@ interface EvalOptions {
   emitBundle?: string;
   traceBoundary?: boolean;
   runSelfTest?: boolean;
+  requireReviewed?: boolean;
   samples?: string;
   judgeProvider?: string;
   judgeModel?: string;
@@ -545,6 +546,11 @@ export function registerEvalCommand(program: Command): void {
         "only pass it for skills you trust. The command runs shell-free, in the skill dir, with " +
         "a scoped env (no inherited API keys) and a timeout.",
     )
+    .option(
+      "--require-reviewed",
+      "Refuse a spec still tagged `needs-review` (a `scaffold-spec --draft` output nobody has " +
+        "reviewed). The nightly roster passes this so unreviewed drafted criteria never gate.",
+    )
     .action(async (skillDir: string, opts: EvalOptions, command: Command) => {
       const startTime = Date.now();
 
@@ -565,6 +571,12 @@ export function registerEvalCommand(program: Command): void {
         const absDir = resolve(skillDir);
         const { parsed: skill, raw: skillContent } = loadSkillMd(absDir);
         const spec = loadSkillEvalSpec(opts.spec, absDir);
+        if (opts.requireReviewed && spec.tags?.includes("needs-review")) {
+          throw new Error(
+            "eval spec is tagged needs-review: review the drafted fn-* items and remove the " +
+              "'draft' and 'needs-review' tags before it can gate (--require-reviewed)",
+          );
+        }
         // Honor the spec's declared `models` unless the operator EXPLICITLY passed
         // `--models`. The spec author knows which model the skill targets (e.g.
         // `deepseek-v4-flash`); silently defaulting to the CLI's "sonnet" tested the
