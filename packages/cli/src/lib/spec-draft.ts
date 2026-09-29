@@ -74,22 +74,66 @@ export function buildDraftPrompt(skillName: string, skillMd: string): string {
   ].join("\n");
 }
 
-/** Pull the first JSON object out of a model response (fenced or bare). */
+/** Pull the first balanced JSON object out of a model response (fenced or bare). */
 export function extractJsonObject(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
   const candidate = fenced?.[1] ?? text;
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start === -1 || end <= start) {
+  const slice = firstBalancedObject(candidate);
+  if (slice === null) {
     throw new SpecDraftError("model response contained no JSON object");
   }
   try {
-    return JSON.parse(candidate.slice(start, end + 1));
+    return JSON.parse(slice);
   } catch (e) {
     throw new SpecDraftError(
       `model response JSON did not parse: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+}
+
+/** The first `{…}` whose braces balance, ignoring braces inside JSON strings. */
+function firstBalancedObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
+/**
+ * Why a drafted judge prompt cannot be graded as a binary claim, or null.
+ * The grader sees only the user prompt and the response, never SKILL.md, and
+ * a rating scale is not a yes/no verdict.
+ */
+export function judgePromptProblem(prompt: string): string | null {
+  if (!prompt.includes("?")) return "judge_prompt is not a yes/no question";
+  if (/\b(rate|score)\b|\b(1|one)\s*(-|to)\s*(5|10|five|ten)\b/i.test(prompt)) {
+    return "judge_prompt asks for a rating, not a yes/no verdict";
+  }
+  if (/skill\.?md/i.test(prompt)) {
+    return "judge_prompt refers to SKILL.md, which the grader never sees";
+  }
+  return null;
+}
+
+function schemaProblem(error: { issues: { path: PropertyKey[]; message: string }[] }): string {
+  const issue = error.issues[0];
+  if (!issue) return "failed schema validation";
+  const path = issue.path.map(String).join(".");
+  return path ? `${path}: ${issue.message}` : issue.message;
 }
 
 function kebab(raw: unknown): string {
@@ -112,14 +156,15 @@ function draftId(raw: unknown, fallback: string): string {
  * Kept: judge-method criteria that validate and are graded by at least one
  * kept test case; `core`/`edge` test cases that validate and reference at
  * least one kept criterion. Criteria are forced to `method: judge` (a drafted
- * deterministic check id could name a check that does not exist). Test cases
- * get no trigger expectation (trigger coverage stays with the baseline) and
- * always include the baseline's `output-not-empty` criterion.
+ * deterministic check id could name a check that does not exist), and their
+ * judge prompt must be a gradeable yes/no question. Test cases get no trigger
+ * expectation (trigger coverage stays with the baseline) and always include
+ * the baseline's output-presence criterion, `outputNotEmptyId`.
  */
 export function normalizeDraft(
   parsed: unknown,
   reservedIds: ReadonlySet<string>,
-  outputNotEmptyId = "output-not-empty",
+  outputNotEmptyId: string,
 ): DraftResult {
   const dropped: string[] = [];
   const obj = (parsed ?? {}) as { criteria?: unknown; test_cases?: unknown };
@@ -148,9 +193,18 @@ export function normalizeDraft(
       blocker: c.blocker === true,
       judge_prompt: c.judge_prompt,
     };
+    if (typeof c.judge_prompt !== "string" || !c.judge_prompt.trim()) {
+      dropped.push(`criterion ${label}: missing judge_prompt`);
+      return;
+    }
     const result = CriterionSchema.safeParse(candidate);
-    if (!result.success || typeof c.judge_prompt !== "string" || !c.judge_prompt.trim()) {
-      dropped.push(`criterion ${label}: missing description or judge_prompt`);
+    if (!result.success) {
+      dropped.push(`criterion ${label}: ${schemaProblem(result.error)}`);
+      return;
+    }
+    const problem = judgePromptProblem(c.judge_prompt);
+    if (problem) {
+      dropped.push(`criterion ${label}: ${problem}`);
       return;
     }
     used.add(id);
@@ -193,8 +247,9 @@ export function normalizeDraft(
       prompt: t.prompt,
       criteria_ids: [outputNotEmptyId, ...criteriaIds],
     };
-    if (!TestCaseSchema.safeParse(candidate).success) {
-      dropped.push(`test case ${label}: missing description or prompt`);
+    const caseResult = TestCaseSchema.safeParse(candidate);
+    if (!caseResult.success) {
+      dropped.push(`test case ${label}: ${schemaProblem(caseResult.error)}`);
       return;
     }
     used.add(id);
@@ -221,6 +276,8 @@ export async function draftFunctionalItems(opts: {
   skillName: string;
   skillMd: string;
   reservedIds: ReadonlySet<string>;
+  /** The baseline criterion every drafted case also checks. */
+  outputNotEmptyId: string;
   maxTokens?: number;
 }): Promise<DraftResult> {
   const text = await opts.client.complete({
@@ -228,7 +285,7 @@ export async function draftFunctionalItems(opts: {
     prompt: buildDraftPrompt(opts.skillName, opts.skillMd),
     maxTokens: opts.maxTokens ?? 4096,
   });
-  const draft = normalizeDraft(extractJsonObject(text), opts.reservedIds);
+  const draft = normalizeDraft(extractJsonObject(text), opts.reservedIds, opts.outputNotEmptyId);
   if (draft.criteria.length === 0) {
     const why = draft.dropped.length > 0 ? `: ${draft.dropped.join("; ")}` : "";
     throw new SpecDraftError(`the model's draft had no usable functional criteria${why}`);

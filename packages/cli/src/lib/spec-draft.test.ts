@@ -4,13 +4,16 @@ import {
   buildDraftPrompt,
   draftFunctionalItems,
   extractJsonObject,
+  judgePromptProblem,
   MAX_DRAFT_CRITERIA,
+  MAX_DRAFT_TEST_CASES,
   normalizeDraft,
   SpecDraftError,
   type DraftCompletionClient,
 } from "./spec-draft.js";
 import { applyDraft, buildBaselineSpec } from "../commands/scaffold-spec.js";
 
+const OUT = "output-not-empty";
 const RESERVED = new Set(["output-not-empty", "engages-with-stated-intent", "no-prompt-leakage"]);
 
 const GOOD = {
@@ -76,7 +79,7 @@ describe("spec-draft — extractJsonObject", () => {
 
 describe("spec-draft — normalizeDraft", () => {
   it("keeps valid items, prefixes ids, forces judge method, and remaps references", () => {
-    const d = normalizeDraft(GOOD, RESERVED);
+    const d = normalizeDraft(GOOD, RESERVED, OUT);
     expect(d.criteria.map((c) => c.id)).toEqual(["fn-names-root-cause", "fn-gives-next-step"]);
     expect(d.criteria.every((c) => c.method === "judge")).toBe(true);
     expect(d.criteria[0]?.blocker).toBe(true);
@@ -97,11 +100,12 @@ describe("spec-draft — normalizeDraft", () => {
         test_cases: [{ id: "t", description: "d", tier: "core", prompt: "p", criteria_ids: ["x"] }],
       },
       RESERVED,
+      OUT,
     );
     expect(d.criteria).toEqual([]);
     expect(d.test_cases).toEqual([]);
     expect(d.dropped).toEqual([
-      "criterion x: missing description or judge_prompt",
+      "criterion x: missing judge_prompt",
       "test case t: references no kept criterion",
     ]);
   });
@@ -113,6 +117,7 @@ describe("spec-draft — normalizeDraft", () => {
         test_cases: GOOD.test_cases,
       },
       RESERVED,
+      OUT,
     );
     expect(d.criteria.map((c) => c.id)).not.toContain("fn-orphan");
     expect(d.dropped).toContain("criterion fn-orphan: no kept test case grades it");
@@ -148,12 +153,13 @@ describe("spec-draft — normalizeDraft", () => {
         ],
       },
       RESERVED,
+      OUT,
     );
     expect(d.test_cases.map((t) => t.id)).toEqual(["fn-c"]);
     expect(d.dropped).toEqual([
       "criterion gives-next-step: duplicate id fn-gives-next-step",
       "test case a: tier must be core or edge",
-      "test case b: missing description or prompt",
+      "test case b: prompt: Invalid input: expected string, received undefined",
       "test case c: duplicate id fn-c",
     ]);
   });
@@ -165,6 +171,7 @@ describe("spec-draft — normalizeDraft", () => {
         test_cases: [],
       },
       new Set(["fn-output-not-empty"]),
+      OUT,
     );
     expect(d.criteria).toEqual([]);
     expect(d.dropped[0]).toMatch(/duplicate id/);
@@ -190,13 +197,18 @@ describe("spec-draft — normalizeDraft", () => {
         ],
       },
       RESERVED,
+      OUT,
     );
     expect(d.criteria).toHaveLength(MAX_DRAFT_CRITERIA);
     expect(d.dropped.filter((x) => x.includes("cap"))).toHaveLength(2);
   });
 
   it("treats a non-object response as empty", () => {
-    expect(normalizeDraft(null, RESERVED)).toEqual({ criteria: [], test_cases: [], dropped: [] });
+    expect(normalizeDraft(null, RESERVED, OUT)).toEqual({
+      criteria: [],
+      test_cases: [],
+      dropped: [],
+    });
   });
 });
 
@@ -209,6 +221,7 @@ describe("spec-draft — draftFunctionalItems", () => {
       skillName: "crash-medic",
       skillMd: "# Crash medic\nDiagnose job crashes.",
       reservedIds: RESERVED,
+      outputNotEmptyId: OUT,
     });
     expect(d.criteria).toHaveLength(2);
     expect(client.prompts[0]).toContain("Diagnose job crashes.");
@@ -223,8 +236,9 @@ describe("spec-draft — draftFunctionalItems", () => {
         skillName: "s",
         skillMd: "x",
         reservedIds: RESERVED,
+        outputNotEmptyId: OUT,
       }),
-    ).rejects.toThrow(/no usable functional criteria: criterion x/);
+    ).rejects.toThrow(/no usable functional criteria: criterion x: missing judge_prompt/);
   });
 
   it("produces a spec J-Rig can load once merged onto the baseline", async () => {
@@ -235,6 +249,7 @@ describe("spec-draft — draftFunctionalItems", () => {
       skillName: "crash-medic",
       skillMd: "x",
       reservedIds: RESERVED,
+      outputNotEmptyId: OUT,
     });
     applyDraft(spec, d);
     expect(spec.tags).toEqual(["generated", "draft", "needs-review"]);
@@ -248,5 +263,67 @@ describe("spec-draft — buildDraftPrompt", () => {
     const prompt = buildDraftPrompt("s", "x".repeat(20_000));
     expect(prompt).toContain("[... truncated ...]");
     expect(prompt.length).toBeLessThan(15_000);
+  });
+});
+
+describe("spec-draft — review hardening", () => {
+  it("reads only the first balanced object when the response holds several", () => {
+    expect(extractJsonObject('Here: {"a":{"b":"}"}} and also {"c":2}')).toEqual({ a: { b: "}" } });
+  });
+
+  it("fails closed on an unterminated object", () => {
+    expect(() => extractJsonObject('{"a":1')).toThrow(/no JSON object/);
+  });
+
+  it("drops judge prompts that are not gradeable yes/no questions", () => {
+    expect(judgePromptProblem("Does the response name the root cause?")).toBeNull();
+    expect(judgePromptProblem("The response names the root cause.")).toMatch(/not a yes\/no/);
+    expect(judgePromptProblem("On a scale of 1-5, how complete is it?")).toMatch(/rating/);
+    expect(judgePromptProblem("Rate the answer. Is it good?")).toMatch(/rating/);
+    expect(judgePromptProblem("Does it follow SKILL.md step 3?")).toMatch(/SKILL\.md/);
+
+    const d = normalizeDraft(
+      {
+        criteria: [{ id: "scale", description: "d", judge_prompt: "Score it from 1 to 10?" }],
+        test_cases: [],
+      },
+      RESERVED,
+      OUT,
+    );
+    expect(d.dropped).toEqual([
+      "criterion scale: judge_prompt asks for a rating, not a yes/no verdict",
+    ]);
+  });
+
+  it("uses the caller's output-presence criterion id", () => {
+    const d = normalizeDraft(GOOD, RESERVED, "custom-not-empty");
+    expect(d.test_cases[0]?.criteria_ids).toEqual([
+      "custom-not-empty",
+      "fn-names-root-cause",
+      "fn-gives-next-step",
+    ]);
+  });
+
+  it("caps the number of test cases", () => {
+    const cases = Array.from({ length: MAX_DRAFT_TEST_CASES + 3 }, (_, i) => ({
+      id: `t${i}`,
+      description: "d",
+      tier: "core",
+      prompt: "p",
+      criteria_ids: ["gives-next-step"],
+    }));
+    const d = normalizeDraft({ criteria: [GOOD.criteria[1]], test_cases: cases }, RESERVED, OUT);
+    expect(d.test_cases).toHaveLength(MAX_DRAFT_TEST_CASES);
+    expect(d.dropped.filter((x) => x.includes("case cap"))).toHaveLength(3);
+  });
+
+  it("states the caps, the tiers, and the exact JSON shape in the prompt", () => {
+    const prompt = buildDraftPrompt("s", "body");
+    expect(prompt).toContain(
+      `At most ${MAX_DRAFT_CRITERIA} criteria and ${MAX_DRAFT_TEST_CASES} test cases.`,
+    );
+    expect(prompt).toContain("tier 'core' for typical requests and 'edge' for hard ones");
+    expect(prompt).toContain('{"criteria":[{"id":"kebab-id"');
+    expect(prompt).toContain("ONE checkable binary claim");
   });
 });

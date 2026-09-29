@@ -70,6 +70,15 @@ export function registerScaffoldSpecCommand(program: Command): void {
           if (!model) {
             throw new Error(`provider '${resolved.name}' has no default model; pass --model <id>`);
           }
+          // Opus is final-validation-only across J-Rig (the same rule as the
+          // Refiner's assertNotOpus); drafting is a per-call path.
+          if (model.toLowerCase().includes("opus")) {
+            throw new Error(`--draft may not run on opus ('${model}'); pick a cheaper model`);
+          }
+          const outputNotEmpty = spec.criteria.find(
+            (c) => (c as { deterministic_check?: string }).deterministic_check === "not_empty",
+          ) as { id: string } | undefined;
+          if (!outputNotEmpty) throw new Error("baseline spec has no output-presence criterion");
           const draft = await draftFunctionalItems({
             client: createCompletionClient(resolved),
             model,
@@ -79,6 +88,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
               ...spec.criteria.map((c) => (c as { id: string }).id),
               ...spec.test_cases.map((t) => (t as { id: string }).id),
             ]),
+            outputNotEmptyId: outputNotEmpty.id,
           });
           applyDraft(spec, draft);
           dropped = draft.dropped;
