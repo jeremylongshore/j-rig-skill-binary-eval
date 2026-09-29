@@ -227,6 +227,18 @@ Decision record and full contract:
 - Doc filing: `000-docs/` with v4 naming convention (`NNN-CC-CODE-description.md`)
 - Releases: tag-triggered, no auto-bump. For a repo-level GitHub Release, an engineer opens a PR bumping the **root** `package.json#version` + CHANGELOG, merges to main, then tags from main HEAD; `.github/workflows/release.yml` builds the Release on a `v*.*.*` tag and **verifies the tag matches the root `package.json#version`** (the previous auto-bump-on-push-to-main logic was removed). The published **CLI** follows a separate flow: bump `packages/cli/package.json#version`, then tag `jrig-cli-v*.*.*` (`publish-jrig-cli.yml`; see "Cut a release" above).
 
+## Drafting eval specs
+
+`j-rig scaffold-spec <skill-dir>` writes a deterministic baseline (trigger, output
+presence, prompt-leakage). `--draft [--provider <name>] [--model <id>]` also asks a
+model, through the Refiner provider registry, for skill-specific `fn-*` functional
+criteria and test cases (`lib/spec-draft.ts`). Only items that pass the criterion and
+test-case schemas and J-Rig's scoping rules are kept (judge method only; `core`/`edge`
+tiers; every kept criterion graded by a kept case); the rest are listed as dropped.
+The spec is tagged `draft` + `needs-review` and nothing is written when no criterion
+survives. It is an authoring aid: a human reviews every `fn-*` item before the spec
+is committed or joins the roster.
+
 ## Nightly skill-eval roster
 
 Canonical roster: `eval-roster/roster.json` (14 skills as of 2026-07-23).
