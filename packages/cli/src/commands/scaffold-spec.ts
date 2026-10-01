@@ -4,7 +4,9 @@ import { resolve, join, basename } from "node:path";
 import { writeFileSync } from "node:fs";
 import { stringify } from "yaml";
 import { SkillEvalSpecSchema } from "@j-rig/core";
+import { createCompletionClient, resolveProvider } from "@intentsolutions/refiner";
 import { loadSkillMd } from "../lib/loaders.js";
+import { draftFunctionalItems } from "../lib/spec-draft.js";
 
 /**
  * `j-rig scaffold-spec <skill-dir>` — generate a BASELINE eval-spec.yaml from a
@@ -35,10 +37,20 @@ export function registerScaffoldSpecCommand(program: Command): void {
     .option("--out <path>", "Output path for the spec (default: <skill-dir>/eval-spec.yaml)")
     .option("--force", "Overwrite an existing spec file")
     .option("--stdout", "Print the spec to stdout instead of writing a file")
-    .action((skillDir: string, opts: { out?: string; force?: boolean; stdout?: boolean }) => {
+    .option(
+      "--draft",
+      "Also ask a model to draft skill-specific functional criteria and test cases " +
+        "(written as a draft for human review; needs a provider key)",
+    )
+    .option(
+      "--provider <name>",
+      "Provider for --draft (same registry as `refine`; omitted = auto-pick, non-Anthropic first)",
+    )
+    .option("--model <id>", "Model id for --draft (default: the provider's default model)")
+    .action(async (skillDir: string, opts: ScaffoldSpecOptions) => {
       try {
         const absDir = resolve(skillDir);
-        const { parsed: skill } = loadSkillMd(absDir);
+        const { parsed: skill, raw: skillMd } = loadSkillMd(absDir);
 
         const rawName = typeof skill.frontmatter.name === "string" ? skill.frontmatter.name : "";
         const skillName = toKebab(rawName) || toKebab(basename(absDir)) || "skill";
@@ -49,6 +61,44 @@ export function registerScaffoldSpecCommand(program: Command): void {
             : `the ${skillName} skill`;
 
         const spec = buildBaselineSpec(skillName, description);
+        let header = HEADER(skillName);
+        let dropped: string[] = [];
+
+        if (opts.draft) {
+          const resolved = resolveProvider(opts.provider ? { provider: opts.provider } : {});
+          const model = opts.model ?? resolved.defaultModel;
+          if (!model) {
+            throw new Error(`provider '${resolved.name}' has no default model; pass --model <id>`);
+          }
+          // Opus is final-validation-only across J-Rig (the same rule as the
+          // Refiner's assertNotOpus); drafting is a per-call path.
+          if (model.toLowerCase().includes("opus")) {
+            throw new Error(`--draft may not run on opus ('${model}'); pick a cheaper model`);
+          }
+          const presence = spec.criteria.filter(
+            (c) => (c as { deterministic_check?: string }).deterministic_check === "not_empty",
+          ) as { id: string }[];
+          const outputNotEmpty = presence[0];
+          if (presence.length !== 1 || !outputNotEmpty) {
+            throw new Error(
+              `baseline spec must have exactly one output-presence criterion, found ${presence.length}`,
+            );
+          }
+          const draft = await draftFunctionalItems({
+            client: createCompletionClient(resolved),
+            model,
+            skillName,
+            skillMd,
+            reservedIds: new Set([
+              ...spec.criteria.map((c) => (c as { id: string }).id),
+              ...spec.test_cases.map((t) => (t as { id: string }).id),
+            ]),
+            outputNotEmptyId: outputNotEmpty.id,
+          });
+          applyDraft(spec, draft);
+          dropped = draft.dropped;
+          header = DRAFT_HEADER(skillName, resolved.name, model);
+        }
 
         // Fail-closed: never write a spec the kernel can't load.
         const parsed = SkillEvalSpecSchema.safeParse(spec);
@@ -63,7 +113,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
           process.exit(1);
         }
 
-        const yamlBody = HEADER(skillName) + stringify(spec);
+        const yamlBody = header + stringify(spec);
 
         if (opts.stdout) {
           process.stdout.write(yamlBody);
@@ -87,13 +137,25 @@ export function registerScaffoldSpecCommand(program: Command): void {
           }
           throw e;
         }
-        console.log(chalk.green(`Wrote baseline eval spec: ${outPath}`));
-        console.log(
-          chalk.dim(
-            `  ${spec.criteria.length} criteria, ${spec.test_cases.length} test cases. ` +
-              `This is a trigger+safety baseline — add skill-specific functional criteria by hand.`,
-          ),
-        );
+        if (opts.draft) {
+          console.log(chalk.green(`Wrote DRAFT eval spec: ${outPath}`));
+          console.log(
+            chalk.dim(
+              `  ${spec.criteria.length} criteria, ${spec.test_cases.length} test cases. ` +
+                `Review every fn-* item before trusting results, then drop the draft tags.`,
+            ),
+          );
+          for (const d of dropped) console.log(chalk.yellow(`  dropped: ${d}`));
+        } else {
+          console.log(chalk.green(`Wrote baseline eval spec: ${outPath}`));
+          console.log(
+            chalk.dim(
+              `  ${spec.criteria.length} criteria, ${spec.test_cases.length} test cases. ` +
+                `This is a trigger+safety baseline — add skill-specific functional criteria by hand, ` +
+                `or rerun with --draft.`,
+            ),
+          );
+        }
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
@@ -107,6 +169,33 @@ const HEADER = (skillName: string): string =>
   `# prompt-leakage safety with generic-but-real criteria. Deep functional grading\n` +
   `# still needs hand-authored criteria — edit this file freely (and drop the\n` +
   `# 'generated' tag once you have).\n`;
+
+interface ScaffoldSpecOptions {
+  out?: string;
+  force?: boolean;
+  stdout?: boolean;
+  draft?: boolean;
+  provider?: string;
+  model?: string;
+}
+
+const DRAFT_HEADER = (skillName: string, provider: string, model: string): string =>
+  `# Generated by \`j-rig scaffold-spec --draft\` for "${skillName}".\n` +
+  `# DRAFT: the fn-* criteria and test cases were proposed by ${provider}/${model}\n` +
+  `# from SKILL.md and have NOT been reviewed. Read each one, fix or delete what is\n` +
+  `# wrong, then remove the 'draft' and 'needs-review' tags. The remaining items\n` +
+  `# are the deterministic trigger + safety baseline.\n`;
+
+/** Merge drafted items onto a baseline spec and retag it as a draft. */
+export function applyDraft(
+  spec: ReturnType<typeof buildBaselineSpec>,
+  draft: { criteria: unknown[]; test_cases: unknown[] },
+): void {
+  spec.criteria.push(...draft.criteria);
+  spec.test_cases.push(...draft.test_cases);
+  spec.description = `Draft generated eval for ${spec.skill_name}: trigger + safety baseline plus model-drafted functional criteria (needs review).`;
+  spec.tags = ["generated", "draft", "needs-review"];
+}
 
 /** Build the baseline SkillEvalSpec object (pre-validation). */
 export function buildBaselineSpec(

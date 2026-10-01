@@ -166,6 +166,8 @@ function main() {
           String(roster.samples),
           ...(models ? ["--models", models] : []),
           "--run-self-test",
+          // Unreviewed `scaffold-spec --draft` output must never gate a nightly.
+          "--require-reviewed",
           "--emit-bundle",
           statementsPath,
           "--db",
