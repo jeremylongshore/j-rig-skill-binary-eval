@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Package releases
+
+- **`@intentsolutions/refiner` + `@intentsolutions/refiner-core` 0.4.0** (tag
+  `refiner-v0.4.0`) and **`@intentsolutions/jrig-cli` 0.3.0** (tag
+  `jrig-cli-v0.3.0`). Minor bumps, not patches: both carry unreleased features
+  (MiniMax preset; the generic run/grade/report substrate, skill-promotion
+  evidence, headroom, spec drafting) and the CLI's evaluator-failure behavior
+  changed in #300 (signed `error` row, exit 2).
+
 ### Changed
 
 - **EvalSpec identity and kernel currency:** the skill-shaped J-Rig profile is
@@ -25,6 +34,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   source-profile hashes, mapping revisions, blocker policy, and coverage.
 
 ### Added
+
+- **Eval headroom signal:** every non-`error` `j-rig eval` row carries
+  `metadata.headroom` (`saturated` / `near_ceiling` / `headroom` / `no_data`,
+  95% Wilson) beside the verdict, never inside it; optional spec field
+  `headroom_ceiling` (runtime default 0.95); the nightly roster names saturated
+  skills. See `000-docs/043`
+  ([#321](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/321)).
+- **Drafted eval specs:** `j-rig scaffold-spec --draft [--provider] [--model]`
+  adds model-drafted `fn-*` functional criteria and test cases to the
+  deterministic baseline, keeps only schema-valid items, never applies a
+  model-suggested blocker, and tags the spec `draft` + `needs-review`.
+  `j-rig eval --require-reviewed` (passed by the nightly roster) refuses an
+  unreviewed draft
+  ([#322](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/322)).
 
 - **MiniMax M3 operational path and Phase 3 evidence:** provider tables,
   roster examples, and batch commands now document the funded
@@ -98,6 +121,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#230](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/230)).
 
 ### Fixed
+
+- **Retired provider defaults:** Groq `llama-3.3-70b-versatile` (HTTP 404) and
+  NVIDIA NIM `meta/llama-3.3-70b-instruct` (HTTP 410) were the defaults in both
+  the eval presets and the Refiner registry; Groq is first in auto-pick, so
+  `refine` / `eval` with only a Groq key failed by default. Defaults are now
+  `openai/gpt-oss-120b` (Groq) and `openai/gpt-oss-20b` (NVIDIA)
+  ([#323](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/323)).
 
 - **Any provider failure now signs `error`; one rule replaces two partial ones**
   (`packages/cli/src/commands/eval-infrastructure-failure.ts`, `eval.ts`,
