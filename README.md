@@ -178,8 +178,8 @@ pnpm monorepo with nine workspace packages — four published to npm (`@intentso
 | **OpenRouter** | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-chat` or `moonshotai/kimi-k2` |
 | **OpenAI** | `OPENAI_API_KEY` | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | **MiniMax** | `MINIMAX_API_KEY` | `https://api.minimax.io/v1` | `MiniMax-M3` |
-| **Groq** | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
-| **NVIDIA NIM** | `NVIDIA_API_KEY` | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
+| **Groq** | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` |
+| **NVIDIA NIM** | `NVIDIA_API_KEY` | `https://integrate.api.nvidia.com/v1` | `openai/gpt-oss-20b` |
 | **Anthropic** | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1/messages` | `sonnet` / `haiku` / `opus` |
 | **Generic** (any compatible) | `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` | — | — |
 

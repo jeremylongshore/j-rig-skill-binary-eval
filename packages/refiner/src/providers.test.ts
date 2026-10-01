@@ -22,7 +22,7 @@ describe("provider registry — shape mirrors the eval command", () => {
       name: "nvidia",
       baseUrl: "https://integrate.api.nvidia.com/v1",
       keyEnv: "NVIDIA_API_KEY",
-      defaultModel: "meta/llama-3.3-70b-instruct",
+      defaultModel: "openai/gpt-oss-20b",
       format: "openai",
     });
     expect(PROVIDER_REGISTRY.deepseek).toMatchObject({
@@ -34,7 +34,7 @@ describe("provider registry — shape mirrors the eval command", () => {
     expect(PROVIDER_REGISTRY.groq).toMatchObject({
       baseUrl: "https://api.groq.com/openai/v1",
       keyEnv: "GROQ_API_KEY",
-      defaultModel: "llama-3.3-70b-versatile",
+      defaultModel: "openai/gpt-oss-120b",
       format: "openai",
     });
     // Parity with eval's `minimax` preset (explicit-select only — reasoning

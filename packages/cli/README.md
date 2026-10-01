@@ -149,8 +149,8 @@ endpoint) or forced with `--provider`:
 | OpenRouter    | `openrouter`         | `OPENROUTER_API_KEY` | provider default              |
 | OpenAI        | `openai`             | `OPENAI_API_KEY`     | `gpt-4o-mini`                 |
 | MiniMax       | `minimax`            | `MINIMAX_API_KEY`    | `MiniMax-M3`                  |
-| Groq          | `groq`               | `GROQ_API_KEY`       | `llama-3.3-70b-versatile`     |
-| NVIDIA NIM    | `nvidia`             | `NVIDIA_API_KEY`     | `meta/llama-3.3-70b-instruct` |
+| Groq          | `groq`               | `GROQ_API_KEY`       | `openai/gpt-oss-120b`         |
+| NVIDIA NIM    | `nvidia`             | `NVIDIA_API_KEY`     | `openai/gpt-oss-20b`          |
 | Anthropic     | `anthropic`          | `ANTHROPIC_API_KEY`  | Claude models                 |
 
 **DeepSeek** is reached by setting `DEEPSEEK_API_KEY` in the environment and
