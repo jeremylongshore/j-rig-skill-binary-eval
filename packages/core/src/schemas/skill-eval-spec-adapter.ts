@@ -7,7 +7,7 @@ import { SkillEvalSpecSchema } from "./skill-eval-spec.js";
 import type { SkillEvalSpec } from "./skill-eval-spec.js";
 
 /** The kernel version this adapter emits and validates against. */
-export const SKILL_EVAL_SPEC_KERNEL_VERSION = "0.10.0" as const;
+export const SKILL_EVAL_SPEC_KERNEL_VERSION = "0.11.0" as const;
 
 /** Default mapping revision; change it whenever the projection semantics change. */
 export const SKILL_EVAL_SPEC_MAPPING_REVISION = "j-rig-skill-eval-to-eval-spec@1.0.0" as const;
