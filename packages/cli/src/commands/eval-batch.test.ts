@@ -1,14 +1,26 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Command } from "commander";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { stringify } from "yaml";
 import { buildBaselineSpec } from "./scaffold-spec.js";
-import { runEvalBatch, type EvalInvoker } from "./eval-batch.js";
+import {
+  registerEvalBatchCommand,
+  runEvalBatch,
+  type EvalInvocationResult,
+  type EvalInvoker,
+} from "./eval-batch.js";
+
+// The registered-command tests spawn a real child node process.
+vi.setConfig({ testTimeout: 30_000 });
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  process.exitCode = undefined;
   for (const directory of tempDirs.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
@@ -187,5 +199,433 @@ describe("j-rig eval-batch", () => {
     expect(second.manifest.entries[0]!.spec_path).toBe(specPath);
     expect(second.manifest.summary).toEqual({ discovered: 1, completed: 1, failed: 0 });
     expect(readFileSync(specPath, "utf8")).toBe(reviewed);
+  });
+});
+
+/** An invoker that writes the requested bundle and returns a fixed result. */
+function bundleWritingInvoker(result: Partial<EvalInvocationResult> = {}): {
+  invoker: EvalInvoker;
+  calls: string[][];
+} {
+  const calls: string[][] = [];
+  const invoker: EvalInvoker = async (args) => {
+    calls.push(args);
+    const bundlePath = args[args.indexOf("--emit-bundle") + 1];
+    if (!bundlePath) throw new Error("test invoker did not receive bundle path");
+    writeFileSync(bundlePath, "[]\n");
+    return { exitCode: 0, signal: null, stdout: "{}", stderr: "", ...result };
+  };
+  return { invoker, calls };
+}
+
+function scratchRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(root);
+  return root;
+}
+
+function flagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+describe("j-rig eval-batch — fail-closed inputs", () => {
+  it("refuses a skills root that does not exist", async () => {
+    const root = scratchRoot("jrig-eval-batch-missing-");
+    await expect(
+      runEvalBatch({ skillsRoot: join(root, "nope"), db: join(root, "e.db") }),
+    ).rejects.toThrow(/Skills root not found: .*nope/);
+  });
+
+  it("refuses a root with no SKILL.md and never discovers one inside an ignored directory", async () => {
+    const root = scratchRoot("jrig-eval-batch-empty-");
+    mkdirSync(join(root, "node_modules", "vendored"), { recursive: true });
+    writeFileSync(join(root, "node_modules", "vendored", "SKILL.md"), "---\nname: x\n---\n");
+    mkdirSync(join(root, "plain-dir"));
+    await expect(runEvalBatch({ skillsRoot: root, db: join(root, "e.db") })).rejects.toThrow(
+      /No SKILL.md files found under/,
+    );
+  });
+
+  it("rejects a batch id with path characters before invoking any eval or writing output", async () => {
+    const root = scratchRoot("jrig-eval-batch-badid-");
+    skill(root, "one-skill");
+    const { invoker, calls } = bundleWritingInvoker();
+    await expect(
+      runEvalBatch({
+        skillsRoot: root,
+        db: join(root, "e.db"),
+        outputDir: join(root, "out"),
+        batchId: "../escape",
+        invokeEval: invoker,
+      }),
+    ).rejects.toThrow(/batchId must contain only letters/);
+    expect(calls).toHaveLength(0);
+    expect(existsSync(join(root, "out"))).toBe(false);
+  });
+
+  it("derives a batch id when none is requested and accepts one skill directory as the root", async () => {
+    const root = scratchRoot("jrig-eval-batch-autoid-");
+    const single = skill(root, "solo-skill");
+    const { invoker } = bundleWritingInvoker();
+    const result = await runEvalBatch({
+      skillsRoot: single,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      invokeEval: invoker,
+    });
+    expect(result.manifest.batch_id).toMatch(/^batch-\d{14}-[0-9a-f]{10}$/);
+    expect(result.manifest.entries[0]!.skill_relative_path).toBe("solo-skill");
+    expect(result.manifest.provider).toBe("auto");
+    expect(result.manifest.models).toBeNull();
+  });
+});
+
+describe("j-rig eval-batch — spec preparation", () => {
+  it("writes a generated spec beside the source skill when writeSpecs is set", async () => {
+    const root = scratchRoot("jrig-eval-batch-write-");
+    const directory = skill(root, "beside-skill");
+    const { invoker } = bundleWritingInvoker();
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "write-specs",
+      writeSpecs: true,
+      invokeEval: invoker,
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("completed");
+    expect(entry.spec_source).toBe("generated");
+    expect(entry.spec_path).toBe(join(directory, "eval-spec.yaml"));
+    expect(readFileSync(entry.spec_path, "utf8")).toContain("Generated by j-rig eval-batch");
+    expect(existsSync(join(root, "out", "specs"))).toBe(false);
+  });
+
+  it("retains a SKILL.md that fails frontmatter validation as a failed entry with no spec written", async () => {
+    const root = scratchRoot("jrig-eval-batch-badskill-");
+    const directory = join(root, "invalid-skill");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "SKILL.md"), "---\nname: ''\n---\n\n# x\n");
+    const { invoker, calls } = bundleWritingInvoker();
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "bad-skill",
+      invokeEval: invoker,
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(calls).toHaveLength(0);
+    expect(entry.status).toBe("failed");
+    expect(entry.error).toMatch(/SKILL.md parse error/);
+    expect(entry.spec_source).toBe("generated");
+    expect(entry.spec_path).toBe("");
+  });
+
+  it("records a malformed existing spec as a failed entry and stops the batch on fail-fast", async () => {
+    const root = scratchRoot("jrig-eval-batch-badspec-");
+    const broken = skill(root, "a-broken-skill");
+    writeFileSync(join(broken, "eval-spec.yml"), "skill_name: 42\n");
+    skill(root, "b-good-skill");
+    const { invoker, calls } = bundleWritingInvoker();
+
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "fail-fast",
+      continueOnError: false,
+      invokeEval: invoker,
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(result.manifest.summary).toEqual({ discovered: 2, completed: 0, failed: 1 });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("failed");
+    expect(entry.spec_source).toBe("existing");
+    expect(entry.spec_path).toBe(join(broken, "eval-spec.yml"));
+    expect(entry.exit_code).toBeNull();
+    expect(entry.models).toEqual([]);
+    expect(entry.error).toMatch(/Invalid eval spec/);
+    expect(JSON.parse(readFileSync(entry.result_path, "utf8"))).toEqual({ error: entry.error });
+  });
+
+  it("records a non-Error throw from the invoker against the already-prepared spec", async () => {
+    const root = scratchRoot("jrig-eval-batch-throw-");
+    skill(root, "thrower-skill", true);
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "throws",
+      invokeEval: async () => {
+        throw "spawn exploded";
+      },
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("failed");
+    expect(entry.error).toBe("spawn exploded");
+    expect(entry.spec_source).toBe("existing");
+    expect(entry.spec_path).toBe(join(root, "thrower-skill", "eval-spec.yaml"));
+  });
+});
+
+describe("j-rig eval-batch — child outcome classification", () => {
+  it("fails a zero exit that wrote no Evidence Bundle and tolerates unparseable stdout", async () => {
+    const root = scratchRoot("jrig-eval-batch-nobundle-");
+    skill(root, "silent-skill");
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "no-bundle",
+      invokeEval: async () => ({ exitCode: 0, signal: null, stdout: "not json", stderr: "" }),
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("failed");
+    expect(entry.error).toBe("eval completed without writing an Evidence Bundle");
+    expect(entry.models).toEqual([]);
+  });
+
+  it("names the signal when the child was killed, and 'unknown' when none was reported", async () => {
+    const root = scratchRoot("jrig-eval-batch-signal-");
+    skill(root, "a-killed-skill");
+    skill(root, "b-vanished-skill");
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "signals",
+      invokeEval: async (args) => ({
+        exitCode: null,
+        signal: args.includes(join(root, "a-killed-skill")) ? "SIGKILL" : null,
+        stdout: "",
+        stderr: "",
+      }),
+    });
+    expect(result.manifest.entries.map((entry) => entry.error)).toEqual([
+      "eval exited with signal SIGKILL",
+      "eval exited with signal unknown",
+    ]);
+  });
+
+  it("reports the non-zero exit code when the child wrote only whitespace to stderr", async () => {
+    const root = scratchRoot("jrig-eval-batch-code-");
+    skill(root, "code-skill");
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "code",
+      invokeEval: async () => ({ exitCode: 2, signal: null, stdout: "", stderr: "  " }),
+    });
+    expect(result.manifest.entries[0]!.error).toBe("eval exited with code 2");
+  });
+
+  it("keeps stderr as diagnostics on success and parses every model row shape", async () => {
+    const root = scratchRoot("jrig-eval-batch-models-");
+    skill(root, "models-skill");
+    const { invoker } = bundleWritingInvoker({
+      stderr: "warning: slow provider\n",
+      stdout: JSON.stringify({
+        direct: { provider: "groq", decision: "ship", ground_truth: true },
+        nested: { report: { decision: "hold" } },
+        bare: { provider: 7, ground_truth: "yes" },
+        skipped: null,
+        scalar: "text",
+      }),
+    });
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "models",
+      invokeEval: invoker,
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("completed");
+    expect(entry.diagnostics).toBe("warning: slow provider");
+    expect(entry.error).toBeUndefined();
+    expect(entry.models).toEqual([
+      { model: "direct", provider: "groq", decision: "ship", ground_truth: true },
+      { model: "nested", decision: "hold" },
+      { model: "bare" },
+    ]);
+  });
+
+  it("forwards every optional eval flag to the child invocation", async () => {
+    const root = scratchRoot("jrig-eval-batch-flags-");
+    skill(root, "flags-skill");
+    const { invoker, calls } = bundleWritingInvoker();
+    await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "flags",
+      judgeProvider: "groq",
+      judgeModel: "judge-1",
+      samples: 3,
+      trigger: false,
+      functional: false,
+      baselineCheck: true,
+      runSelfTest: true,
+      traceBoundary: true,
+      invokeEval: invoker,
+    });
+    const args = calls[0]!;
+    expect(flagValue(args, "--judge-provider")).toBe("groq");
+    expect(flagValue(args, "--judge-model")).toBe("judge-1");
+    expect(flagValue(args, "--samples")).toBe("3");
+    for (const flag of [
+      "--no-trigger",
+      "--no-functional",
+      "--baseline-check",
+      "--run-self-test",
+      "--trace-boundary",
+    ]) {
+      expect(args).toContain(flag);
+    }
+    expect(args).not.toContain("--provider");
+    expect(args).not.toContain("--models");
+  });
+});
+
+/**
+ * A stand-in for the built CLI entrypoint: the default invoker spawns
+ * `node <entrypoint> eval <skill> ...`. This script writes the bundle for good
+ * skills and exits non-zero with stderr for any skill whose path contains "bad".
+ */
+const FAKE_ENTRYPOINT = `
+const args = process.argv.slice(2);
+const skillDir = args[1];
+if (skillDir.includes("bad")) {
+  process.stderr.write("fake eval refused " + process.env.JRIG_BATCH_SKILL_RELATIVE_PATH);
+  process.exit(3);
+}
+require("node:fs").writeFileSync(args[args.indexOf("--emit-bundle") + 1], "[]\\n");
+process.stdout.write(JSON.stringify({ m: { provider: "stub", decision: "ship" } }));
+`;
+
+function captureConsole(): { logs: string[]; errors: string[] } {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  vi.spyOn(console, "log").mockImplementation(((...parts: unknown[]) => {
+    logs.push(parts.join(" "));
+  }) as never);
+  vi.spyOn(console, "error").mockImplementation(((...parts: unknown[]) => {
+    errors.push(parts.join(" "));
+  }) as never);
+  return { logs, errors };
+}
+
+function program(): Command {
+  const command = new Command();
+  command.exitOverride();
+  registerEvalBatchCommand(command);
+  return command;
+}
+
+describe("j-rig eval-batch — registered command and default invoker", () => {
+  it("spawns the configured entrypoint per skill, prints a summary, and exits 1 on any failure", async () => {
+    const root = scratchRoot("jrig-eval-batch-cli-");
+    skill(root, "bad-skill");
+    skill(root, "good-skill");
+    const entrypoint = join(root, "fake-cli.cjs");
+    writeFileSync(entrypoint, FAKE_ENTRYPOINT);
+    vi.stubEnv("JRIG_CLI_ENTRYPOINT", entrypoint);
+    const { logs } = captureConsole();
+
+    await program().parseAsync(
+      [
+        "eval-batch",
+        root,
+        "--db",
+        join(root, "e.db"),
+        "--output-dir",
+        join(root, "out"),
+        "--batch-id",
+        "cli-run",
+        "--samples",
+        "2",
+      ],
+      { from: "user" },
+    );
+
+    expect(process.exitCode).toBe(1);
+    const text = logs.join("\n");
+    expect(text).toContain("Eval batch cli-run");
+    expect(text).toContain("1/2 completed; 1 failed");
+    expect(text).toContain("✗ bad-skill");
+    expect(text).toContain("fake eval refused bad-skill");
+    expect(text).toContain("✓ good-skill");
+    const manifest = JSON.parse(readFileSync(join(root, "out", "manifest.json"), "utf8")) as {
+      entries: Array<{ exit_code: number | null; models: unknown[] }>;
+    };
+    expect(manifest.entries.map((entry) => entry.exit_code)).toEqual([3, 0]);
+    expect(manifest.entries[1]!.models).toEqual([
+      { model: "m", provider: "stub", decision: "ship" },
+    ]);
+  });
+
+  it("prints the manifest as JSON with --json and leaves the exit code clean when all skills pass", async () => {
+    const root = scratchRoot("jrig-eval-batch-cli-json-");
+    skill(root, "good-skill");
+    const entrypoint = join(root, "fake-cli.cjs");
+    writeFileSync(entrypoint, FAKE_ENTRYPOINT);
+    vi.stubEnv("JRIG_CLI_ENTRYPOINT", entrypoint);
+    const { logs } = captureConsole();
+
+    await program().parseAsync(
+      [
+        "eval-batch",
+        root,
+        "--db",
+        join(root, "e.db"),
+        "--output-dir",
+        join(root, "out"),
+        "--batch-id",
+        "cli-json",
+        "--fail-fast",
+        "--json",
+      ],
+      { from: "user" },
+    );
+
+    expect(process.exitCode).toBeUndefined();
+    const printed = JSON.parse(logs.join("\n")) as {
+      batch_id: string;
+      manifest_path: string;
+      summary: unknown;
+    };
+    expect(printed.batch_id).toBe("cli-json");
+    expect(printed.manifest_path).toBe(join(root, "out", "manifest.json"));
+    expect(printed.summary).toEqual({ discovered: 1, completed: 1, failed: 0 });
+  });
+
+  it("records a failed child when the configured entrypoint does not exist", async () => {
+    const root = scratchRoot("jrig-eval-batch-cli-noentry-");
+    skill(root, "good-skill");
+    vi.stubEnv("JRIG_CLI_ENTRYPOINT", join(root, "missing-cli.cjs"));
+    const result = await runEvalBatch({
+      skillsRoot: root,
+      db: join(root, "e.db"),
+      outputDir: join(root, "out"),
+      batchId: "no-entry",
+    });
+    const entry = result.manifest.entries[0]!;
+    expect(entry.status).toBe("failed");
+    expect(entry.exit_code).not.toBe(0);
+    expect(entry.error).toMatch(/Cannot find module/);
+  });
+
+  it("prints the error and exits 1 when the batch cannot start", async () => {
+    const root = scratchRoot("jrig-eval-batch-cli-err-");
+    const { errors } = captureConsole();
+    await program().parseAsync(["eval-batch", join(root, "absent"), "--db", join(root, "e.db")], {
+      from: "user",
+    });
+    expect(process.exitCode).toBe(1);
+    expect(errors.join("\n")).toMatch(/^Error: Skills root not found/);
   });
 });

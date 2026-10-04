@@ -305,4 +305,109 @@ describe("j-rig suite — fail-closed manifest and resume guards", () => {
     expect(resumed.audit.jobs).toHaveLength(8);
     expect(resumed.audit.summary.pending).toBe(0);
   });
+
+  it("labels a manifest that is not a mapping at the suite root", async () => {
+    const paths = fixture();
+    writeFileSync(paths.manifestPath, "just a string\n", "utf8");
+    await expect(
+      runSuite({ manifestPath: paths.manifestPath, db: paths.dbPath, outputDir: paths.outputDir }),
+    ).rejects.toThrow(new RegExp(`^Invalid suite manifest at ${paths.manifestPath}: suite: `));
+  });
+});
+
+describe("j-rig suite — ungradeable outcomes never become grades", () => {
+  function singleCellSuite(harnessScript: string, timeoutMs: number) {
+    const dir = mkdtempSync(join(tmpdir(), "j-rig-suite-ungradeable-"));
+    tempDirs.push(dir);
+    const graderPath = join(dir, "grader.yaml");
+    writeFileSync(
+      join(dir, "task.yaml"),
+      stringify({ id: "task-x", version: "1", input: { value: "x" } }),
+    );
+    writeFileSync(
+      join(dir, "config.yaml"),
+      stringify({
+        id: "config-x",
+        version: "1",
+        model: "model-x",
+        harness: { command: process.execPath, args: ["-e", harnessScript], timeout_ms: timeoutMs },
+      }),
+    );
+    writeFileSync(
+      graderPath,
+      stringify({
+        id: "output-checker",
+        version: "1.0.0",
+        kind: "deterministic",
+        checks: [{ id: "has-ok", type: "output_contains", expected: "ok" }],
+      }),
+    );
+    const manifestPath = join(dir, "suite.yaml");
+    writeFileSync(
+      manifestPath,
+      stringify({
+        schema: "j-rig/eval-suite/v1",
+        id: "one-cell-suite",
+        version: "1",
+        tasks: ["task.yaml"],
+        configs: ["config.yaml"],
+        grader: "grader.yaml",
+        target_n: 1,
+      }),
+    );
+    return { manifestPath, graderPath, db: join(dir, "runs.db"), outputDir: join(dir, "out") };
+  }
+
+  it("records a timed-out Run as a harness failure and writes no report without a Grade", async () => {
+    const paths = singleCellSuite("setTimeout(() => {}, 20000);", 200);
+    const result = await runSuite({
+      manifestPath: paths.manifestPath,
+      db: paths.db,
+      outputDir: paths.outputDir,
+    });
+
+    // The timed-out sample is retained and one fresh top-up is attempted in the
+    // same pass (it times out too), so the cell stays one sample short.
+    expect(result.audit.jobs.map((job) => job.status)).toEqual(["timed_out", "timed_out"]);
+    expect(result.audit.jobs.every((job) => job.grade === undefined)).toBe(true);
+    expect(result.audit.summary.harness_failures).toBe(2);
+    expect(result.audit.summary.graded).toBe(0);
+    expect(result.audit.summary.pending).toBe(1);
+    expect(result.report).toBeUndefined();
+    expect(result.audit.report).toBeUndefined();
+    const persisted = JSON.parse(readFileSync(result.auditPath, "utf8")) as {
+      jobs: Array<{ status: string }>;
+    };
+    expect(persisted.jobs.map((entry) => entry.status)).toContain("timed_out");
+  });
+
+  it("marks a job failed, not graded, when its grader cannot be read during execution", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "j-rig-suite-grader-gone-"));
+    tempDirs.push(dir);
+    const graderPath = join(dir, "grader.yaml");
+    // The harness removes the grader after the suite loaded it, so the
+    // per-job grading step fails. The suite must retain that as `failed`.
+    const paths = singleCellSuite(
+      `require("node:fs").rmSync(${JSON.stringify(graderPath)}, { force: true }); process.stdout.write("ok");`,
+      5_000,
+    );
+    writeFileSync(graderPath, readFileSync(paths.graderPath, "utf8"));
+    rmSync(paths.graderPath);
+    const manifest = parse(readFileSync(paths.manifestPath, "utf8")) as Record<string, unknown>;
+    writeFileSync(paths.manifestPath, stringify({ ...manifest, grader: graderPath }));
+
+    const result = await runSuite({
+      manifestPath: paths.manifestPath,
+      db: paths.db,
+      outputDir: paths.outputDir,
+    });
+
+    const failed = result.audit.jobs.filter((job) => job.status === "failed");
+    expect(failed.length).toBeGreaterThan(0);
+    expect(failed.every((job) => job.grade === undefined)).toBe(true);
+    expect(failed[0]!.error).toMatch(/ENOENT/);
+    expect(result.audit.summary.failed).toBe(failed.length);
+    expect(result.audit.summary.graded).toBe(0);
+    expect(result.report).toBeUndefined();
+  });
 });

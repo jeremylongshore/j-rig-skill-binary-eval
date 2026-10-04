@@ -121,3 +121,95 @@ describe("raw run ledger", () => {
     expect(getRawRun(database, created.id)?.status).toBe("running");
   });
 });
+
+describe("raw run ledger — fail-closed identity and lifecycle guards", () => {
+  let database: JRigDatabase;
+
+  beforeEach(() => {
+    database = createDatabase(":memory:");
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  it("refuses a snapshot that cannot be serialized to JSON before writing anything", () => {
+    expect(() => createRawRun(database, { ...input, task: undefined })).toThrow(
+      "task snapshot must be JSON serializable",
+    );
+    expect(() => createRawRun(database, { ...input, config: () => "fn" })).toThrow(
+      "config snapshot must be JSON serializable",
+    );
+    expect(() => createRawRun(database, { ...input, request: Symbol("x") })).toThrow(
+      "request snapshot must be JSON serializable",
+    );
+    expect(getRawRunByLineage(database, lineage)).toBeNull();
+  });
+
+  it("refuses to reuse an id whose lineage or any snapshot differs", () => {
+    const created = createRawRun(database, input);
+    const variants: Array<Partial<typeof input>> = [
+      { task_id: "other-task" },
+      { task_version: "2" },
+      { config_id: "other-config" },
+      { config_version: "2" },
+      { model: "other-model" },
+      { sample_index: 9 },
+      { task: { ...input.task, input: { message: "changed" } } },
+      { config: { ...input.config, model: "changed" } },
+      { request: { run_id: "derived", task: "changed" } },
+    ];
+    for (const variant of variants) {
+      expect(() => createRawRun(database, { ...input, ...variant, run_id: created.id })).toThrow(
+        `Raw Run ${created.id} already exists with different lineage or snapshots`,
+      );
+    }
+    expect(getRawRun(database, created.id)).toEqual(created);
+  });
+
+  it("honors an explicit run id and returns null for unknown ids", () => {
+    const created = createRawRun(database, { ...input, run_id: "raw_explicit" });
+    expect(created.id).toBe("raw_explicit");
+    expect(getRawRun(database, "raw_missing")).toBeNull();
+  });
+
+  it("starts idempotently and refuses to restart a sealed or unknown run", () => {
+    const created = createRawRun(database, input);
+    const started = startRawRun(database, created.id);
+    expect(started.status).toBe("running");
+    expect(startRawRun(database, created.id)).toEqual(started);
+
+    sealRawRun(database, created.id, result("runner_error"));
+    expect(() => startRawRun(database, created.id)).toThrow(
+      `Raw Run ${created.id} is already sealed`,
+    );
+    expect(() => startRawRun(database, "raw_missing")).toThrow("Raw Run raw_missing not found");
+  });
+
+  it("refuses to seal an unknown or still-pending run", () => {
+    expect(() => sealRawRun(database, "raw_missing", result("completed"))).toThrow(
+      "Raw Run raw_missing not found",
+    );
+    const pending = createRawRun(database, input);
+    expect(() => sealRawRun(database, pending.id, result("completed"))).toThrow("not running");
+    expect(getRawRun(database, pending.id)?.status).toBe("pending");
+  });
+
+  it("stores a null media type and a null error message when the runner omits them", () => {
+    const created = createRawRun(database, input);
+    startRawRun(database, created.id);
+    const completed = result("completed");
+    delete completed.artifacts[0]!.media_type;
+    const sealed = sealRawRun(database, created.id, completed);
+    expect(sealed.error_message).toBeNull();
+    expect(getRawRunArtifacts(database, created.id)[0]!.media_type).toBeNull();
+  });
+
+  it("classifies only completed, runner_error, and timed_out as sealed", () => {
+    expect(isRawRunSealed("completed")).toBe(true);
+    expect(isRawRunSealed("runner_error")).toBe(true);
+    expect(isRawRunSealed("timed_out")).toBe(true);
+    expect(isRawRunSealed("pending")).toBe(false);
+    expect(isRawRunSealed("running")).toBe(false);
+  });
+});

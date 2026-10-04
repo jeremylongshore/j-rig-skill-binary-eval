@@ -1,16 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { Command } from "commander";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse, stringify } from "yaml";
 import { getGradesForRun, getRawRun } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { runGenericEval } from "./run.js";
-import { runGrade } from "./grade.js";
+import { registerGradeCommand, runGrade } from "./grade.js";
+
+// Fixtures spawn a real harness child process per Run.
+vi.setConfig({ testTimeout: 30_000 });
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  process.exitCode = undefined;
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -270,5 +277,154 @@ describe("j-rig grade", () => {
         disagreement: true,
       },
     });
+  });
+});
+
+describe("j-rig grade — fail-closed inputs", () => {
+  it("refuses an invalid grader definition before opening the database", async () => {
+    const paths = fixture();
+    const badGrader = join(paths.db, "..", "grader-bad.yaml");
+    writeFileSync(badGrader, stringify({ id: "broken", kind: "deterministic" }));
+    await expect(
+      runGrade({ runId: "any", graderPath: badGrader, db: paths.db, regrade: false }),
+    ).rejects.toThrow(/^Invalid grader definition at .*grader-bad\.yaml: /);
+    expect(existsSync(paths.db)).toBe(false);
+  });
+
+  it("refuses a run id that is not in the evidence store", async () => {
+    const paths = fixture();
+    await expect(
+      runGrade({
+        runId: "missing-run",
+        graderPath: paths.graderV1Path,
+        db: paths.db,
+        regrade: false,
+      }),
+    ).rejects.toThrow("Raw Run missing-run not found");
+  });
+
+  it("refuses to grade a Run that did not complete", async () => {
+    const paths = fixture();
+    const configPath = join(paths.db, "..", "broken-config.yaml");
+    writeFileSync(
+      configPath,
+      stringify({
+        id: "broken-config",
+        version: "1",
+        model: "fixture-model",
+        harness: { command: process.execPath, args: ["-e", "process.exit(7)"] },
+      }),
+    );
+    const raw = await runGenericEval({ ...paths, configPath, sampleIndex: 0 });
+    expect(raw.run.status).toBe("runner_error");
+    await expect(
+      runGrade({ runId: raw.run.id, graderPath: paths.graderV1Path, db: paths.db, regrade: false }),
+    ).rejects.toThrow(`Raw Run ${raw.run.id} is runner_error; only completed Runs can be graded`);
+    const database = openDb(paths.db);
+    try {
+      expect(getGradesForRun(database, raw.run.id)).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("resolves the stub judge by --provider when no judge seam is injected", async () => {
+    vi.stubEnv("J_RIG_ALLOW_STUB", "1");
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const result = await runGrade({
+      runId: raw.run.id,
+      graderPath: paths.modelGraderPath,
+      db: paths.db,
+      regrade: false,
+      provider: "stub",
+    });
+    expect(result.created).toBe(true);
+    expect(result.grade.grader_kind).toBe("model_judge");
+    expect(result.grade.grader_id).toBe("quality-judge");
+  });
+});
+
+describe("j-rig grade — registered command output", () => {
+  function program(): Command {
+    const command = new Command();
+    command.exitOverride();
+    registerGradeCommand(command);
+    return command;
+  }
+
+  function captureConsole(): { logs: string[]; errors: string[] } {
+    const logs: string[] = [];
+    const errors: string[] = [];
+    vi.spyOn(console, "log").mockImplementation(((...parts: unknown[]) => {
+      logs.push(parts.join(" "));
+    }) as never);
+    vi.spyOn(console, "error").mockImplementation(((...parts: unknown[]) => {
+      errors.push(parts.join(" "));
+    }) as never);
+    return { logs, errors };
+  }
+
+  it("prints a new Grade, then marks the identical rerun as existing", async () => {
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const { logs } = captureConsole();
+    const args = [
+      "grade",
+      "--run-id",
+      raw.run.id,
+      "--grader",
+      paths.graderV1Path,
+      "--db",
+      paths.db,
+    ];
+
+    await program().parseAsync(args, { from: "user" });
+    await program().parseAsync(args, { from: "user" });
+
+    expect(process.exitCode).toBeUndefined();
+    const headers = logs.filter((line) => line.startsWith("Grade "));
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).not.toContain("(existing)");
+    expect(headers[1]).toContain("(existing)");
+    expect(logs).toContain(`  Run: ${raw.run.id} | Grader: answer-checker@1.0.0`);
+    expect(logs.some((line) => line.startsWith("  Verdict: pass | Score: "))).toBe(true);
+  });
+
+  it("prints the Grade as JSON with --json", async () => {
+    const paths = fixture();
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    const { logs } = captureConsole();
+    await program().parseAsync(
+      [
+        "grade",
+        "--run-id",
+        raw.run.id,
+        "--grader",
+        paths.graderV1Path,
+        "--db",
+        paths.db,
+        "--regrade",
+        "--json",
+      ],
+      { from: "user" },
+    );
+    const printed = JSON.parse(logs.join("\n")) as {
+      created: boolean;
+      grade: { raw_run_id: string };
+    };
+    expect(printed.created).toBe(true);
+    expect(printed.grade.raw_run_id).toBe(raw.run.id);
+  });
+
+  it("prints the error and sets exit code 1 when grading fails", async () => {
+    const paths = fixture();
+    const { errors } = captureConsole();
+    await program().parseAsync(
+      ["grade", "--run-id", "missing-run", "--grader", paths.graderV1Path, "--db", paths.db],
+      { from: "user" },
+    );
+    expect(process.exitCode).toBe(1);
+    expect(errors).toEqual(["Error: Raw Run missing-run not found"]);
   });
 });
