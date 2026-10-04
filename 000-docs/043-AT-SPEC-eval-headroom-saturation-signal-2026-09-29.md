@@ -73,5 +73,7 @@ The assessment records `ceiling`, `ceiling_source` (`spec` or `default`),
   In practice a perfect baseline cannot be beaten today, so the gate already
   rejects; the change is a clearer reason code in a published package and
   ships separately.
-- **Unified report cells.** `j-rig report --unified` already shows per-cell
-  Wilson intervals; a per-cell headroom column is a follow-up.
+- **Unified report cells.** Done 2026-10 (bead htjt.28): each
+  `j-rig/unified-report/v1` cell carries an optional `headroom_status`, computed
+  from the cell's pass count over graded runs at the default ceiling, and the
+  Markdown and HTML renders show a Headroom column. Per cell only; never rolled up.

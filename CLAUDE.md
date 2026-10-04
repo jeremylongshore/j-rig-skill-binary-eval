@@ -150,7 +150,8 @@ Every non-`error` `j-rig eval` row carries `metadata.headroom`: `saturated`,
 measurement of the eval, not the skill, and never changes the decision or
 `gate_reasons`. The ceiling is the spec's optional `headroom_ceiling` (no schema
 default; runtime default 0.95). The nightly roster prints which skills are
-saturated. See `000-docs/043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md`.
+saturated, and each `j-rig report --unified` cell carries an optional
+`headroom_status` with a matching Headroom column. See `000-docs/043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md`.
 
 ### Evaluator infrastructure failure (one rule)
 
