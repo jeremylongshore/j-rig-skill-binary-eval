@@ -37,6 +37,17 @@ jobs:
       - name: Format check (Prettier)
         run: pnpm run format:check
 
+      # ci/emit-evidence is a standalone (non-workspace) package that only the
+      # nightly installs, after 10-50 minutes of evals. A package.json pin bump
+      # without a matching lockfile (#247) passed every PR check and broke the
+      # nightly for 16 nights. Install it frozen here, and run its kernel
+      # self-check, so that drift fails the PR instead.
+      - name: Emit-evidence standalone lockfile + kernel self-check
+        run: |
+          set -euo pipefail
+          (cd ci/emit-evidence && pnpm install --frozen-lockfile --ignore-workspace)
+          node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
