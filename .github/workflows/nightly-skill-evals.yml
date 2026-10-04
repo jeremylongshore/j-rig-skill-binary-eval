@@ -12,8 +12,9 @@
 #      2026-07-16), 5-sample majority voting to de-noise judge verdicts;
 #   3. shapes one kernel gate-result/v1 row per skill (honest: a crashed eval
 #      publishes gate_decision:"error"), wrapped in kernel EvidenceBundles
-#      validated against @intentsolutions/core@0.9.0 — the EXACT version the
-#      labs dashboard verifies with (ci/emit-evidence/);
+#      validated against @intentsolutions/core@0.10.0, the EXACT version the
+#      labs dashboard verifies with (ci/emit-evidence/; its lockfile is
+#      checked on every PR by ci.yml's lint job);
 #   4. keyless-signs each bundle's canonical bytes with cosign (Fulcio OIDC +
 #      production Rekor), then verifies every signature back in-repo;
 #   5. assembles report-manifest.json and uploads it onto the rolling
