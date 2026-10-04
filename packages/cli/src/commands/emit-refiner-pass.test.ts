@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { Command } from "commander";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -11,12 +11,12 @@ import {
 } from "./emit-refiner-pass.js";
 import { SKILL_REFINER_PASS_V1_URI } from "@intentsolutions/core/validators/v1/skill-refiner-pass-v1";
 
-// These tests spawn real child processes (the built CLI or a node harness).
-// Under host load a spawn alone can exceed vitest's 5 s default, which made the
-// suite fail with timeouts that were not regressions (htjt.19: 48 timeouts at
-// load average ~30 on 2026-10-04, all green on CI). 30 s is sized to the real
-// work, not to hide a hang: each test still bounds its own child process.
-vi.setConfig({ testTimeout: 30_000 });
+// Test groups that spawn real child processes (the built CLI or a node
+// harness) take SPAWN_TIMEOUT_MS instead of vitest's 5 s default: under host
+// load a spawn alone can exceed 5 s (htjt.19: 48 timeouts at load average ~30
+// on 2026-10-04, all green on CI). Applied per describe block, so tests that
+// spawn nothing keep the 5 s default and still fail fast.
+const SPAWN_TIMEOUT_MS = 30_000;
 
 /**
  * These tests exercise the commander-registered handler by spawning the built
@@ -113,7 +113,7 @@ describe("registerEmitRefinerPassCommand — registration", () => {
   });
 });
 
-describe("emit-refiner-pass — happy path (direct mode)", () => {
+describe("emit-refiner-pass — happy path (direct mode)", { timeout: SPAWN_TIMEOUT_MS }, () => {
   it("emits a full in-toto Statement carrying a kernel-valid skill-refiner-pass/v1 row", () => {
     const r = runCli(acceptDirectArgs);
     expect(r.code).toBe(0);
@@ -179,7 +179,7 @@ describe("emit-refiner-pass — happy path (direct mode)", () => {
   });
 });
 
-describe("emit-refiner-pass — happy path (pipeline mode)", () => {
+describe("emit-refiner-pass — happy path (pipeline mode)", { timeout: SPAWN_TIMEOUT_MS }, () => {
   it("emits a kernel-valid row from a JSON accept-record on stdin", () => {
     const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(validAcceptRecord()) });
     expect(r.code).toBe(0);
@@ -241,94 +241,102 @@ describe("emit-refiner-pass — happy path (pipeline mode)", () => {
   });
 });
 
-describe("emit-refiner-pass — fail-closed (never emit an invalid row)", () => {
-  it("rejects malformed JSON on stdin", () => {
-    const r = runCli(["emit-refiner-pass"], { input: "{not valid json" });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/not valid JSON/);
-  });
+describe(
+  "emit-refiner-pass — fail-closed (never emit an invalid row)",
+  { timeout: SPAWN_TIMEOUT_MS },
+  () => {
+    it("rejects malformed JSON on stdin", () => {
+      const r = runCli(["emit-refiner-pass"], { input: "{not valid json" });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/not valid JSON/);
+    });
 
-  it("rejects a JSON array (not an object)", () => {
-    const r = runCli(["emit-refiner-pass"], { input: "[]" });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/must be a JSON object/);
-  });
+    it("rejects a JSON array (not an object)", () => {
+      const r = runCli(["emit-refiner-pass"], { input: "[]" });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/must be a JSON object/);
+    });
 
-  it("rejects a record missing required determinants (kernel validation)", () => {
-    const partial = { verdict: "accept", reason: ["x"] };
-    const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(partial) });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/failed kernel validation/);
-  });
+    it("rejects a record missing required determinants (kernel validation)", () => {
+      const partial = { verdict: "accept", reason: ["x"] };
+      const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(partial) });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/failed kernel validation/);
+    });
 
-  it("rejects an accept whose named dimension regressed [DR-085 D5 invariant]", () => {
-    // accept + non_regressed:false must be refused by the kernel .superRefine —
-    // a signed accept that claims a regression is a forgeable falsehood.
-    const rec = validAcceptRecord();
-    rec.named_dimension_deltas = [{ id: "readability", delta: -0.3, non_regressed: false }];
-    const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/failed kernel validation/);
-    expect(r.stderr).toMatch(/non_regressed/);
-  });
+    it("rejects an accept whose named dimension regressed [DR-085 D5 invariant]", () => {
+      // accept + non_regressed:false must be refused by the kernel .superRefine —
+      // a signed accept that claims a regression is a forgeable falsehood.
+      const rec = validAcceptRecord();
+      rec.named_dimension_deltas = [{ id: "readability", delta: -0.3, non_regressed: false }];
+      const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/failed kernel validation/);
+      expect(r.stderr).toMatch(/non_regressed/);
+    });
 
-  it("rejects alpha outside (0, 1)", () => {
-    const rec = validAcceptRecord();
-    rec.alpha = 1.5;
-    const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/failed kernel validation/);
-  });
+    it("rejects alpha outside (0, 1)", () => {
+      const rec = validAcceptRecord();
+      rec.alpha = 1.5;
+      const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/failed kernel validation/);
+    });
 
-  it("rejects a malformed skill_version_id (not a UUIDv7)", () => {
-    const rec = validAcceptRecord();
-    rec.skill_version_id = "not-a-uuid";
-    const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/failed kernel validation/);
-  });
+    it("rejects a malformed skill_version_id (not a UUIDv7)", () => {
+      const rec = validAcceptRecord();
+      rec.skill_version_id = "not-a-uuid";
+      const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/failed kernel validation/);
+    });
 
-  it("refuses an unknown extra field rather than silently dropping it", () => {
-    // A typo'd/injected key must NOT be silently stripped — that could mask a
-    // mistyped required field. The command refuses it before kernel validation.
-    const rec = validAcceptRecord();
-    (rec as Record<string, unknown>).evil = "injected";
-    const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/unrecognized field/);
-    expect(r.stderr).toMatch(/evil/);
-  });
+    it("refuses an unknown extra field rather than silently dropping it", () => {
+      // A typo'd/injected key must NOT be silently stripped — that could mask a
+      // mistyped required field. The command refuses it before kernel validation.
+      const rec = validAcceptRecord();
+      (rec as Record<string, unknown>).evil = "injected";
+      const r = runCli(["emit-refiner-pass"], { input: JSON.stringify(rec) });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/unrecognized field/);
+      expect(r.stderr).toMatch(/evil/);
+    });
 
-  it("rejects a bad --named-dimension direct-mode format", () => {
-    const args = [...acceptDirectArgs];
-    args[args.indexOf("--named-dimension") + 1] = "readability-only-one-field";
-    const r = runCli(args);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--named-dimension must be/);
-  });
+    it("rejects a bad --named-dimension direct-mode format", () => {
+      const args = [...acceptDirectArgs];
+      args[args.indexOf("--named-dimension") + 1] = "readability-only-one-field";
+      const r = runCli(args);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--named-dimension must be/);
+    });
 
-  it("errors clearly on empty input (no stdin, no flags)", () => {
-    const r = runCli(["emit-refiner-pass"], { input: "" });
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/no input received/);
-  });
-});
+    it("errors clearly on empty input (no stdin, no flags)", () => {
+      const r = runCli(["emit-refiner-pass"], { input: "" });
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/no input received/);
+    });
+  },
+);
 
-describe("emit-refiner-pass — predicate-URI correctness (never labs.*)", () => {
-  it("emits the URI ONLY from the kernel constant, host evals.intentsolutions.io", () => {
-    const r = runCli(acceptDirectArgs);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    expect(stmt.predicateType).toBe(SKILL_REFINER_PASS_V1_URI);
-    // Host must be exactly evals.intentsolutions.io, never labs.* (ISEDC CISO
-    // binding DR-004 / DR-010). Parse the URL and assert on the exact host
-    // property — a substring/regex check on the whole URL string could be
-    // bypassed by a crafted path segment (js/regex/missing-regexp-anchor).
-    const host = new URL(stmt.predicateType).host;
-    expect(host).toBe("evals.intentsolutions.io");
-    expect(host).not.toBe("labs.intentsolutions.io");
-  });
-});
+describe(
+  "emit-refiner-pass — predicate-URI correctness (never labs.*)",
+  { timeout: SPAWN_TIMEOUT_MS },
+  () => {
+    it("emits the URI ONLY from the kernel constant, host evals.intentsolutions.io", () => {
+      const r = runCli(acceptDirectArgs);
+      expect(r.code).toBe(0);
+      const stmt = JSON.parse(r.stdout);
+      expect(stmt.predicateType).toBe(SKILL_REFINER_PASS_V1_URI);
+      // Host must be exactly evals.intentsolutions.io, never labs.* (ISEDC CISO
+      // binding DR-004 / DR-010). Parse the URL and assert on the exact host
+      // property — a substring/regex check on the whole URL string could be
+      // bypassed by a crafted path segment (js/regex/missing-regexp-anchor).
+      const host = new URL(stmt.predicateType).host;
+      expect(host).toBe("evals.intentsolutions.io");
+      expect(host).not.toBe("labs.intentsolutions.io");
+    });
+  },
+);
 
 describe("composeRefinerPassStatement (pure helper)", () => {
   it("uses the kernel URI constant and binds the subject to result_snapshot_hash", () => {

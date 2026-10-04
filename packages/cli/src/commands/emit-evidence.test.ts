@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { Command } from "commander";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -12,12 +12,12 @@ import {
   mapV1ResultToV2Decision,
 } from "./emit-evidence.js";
 
-// These tests spawn real child processes (the built CLI or a node harness).
-// Under host load a spawn alone can exceed vitest's 5 s default, which made the
-// suite fail with timeouts that were not regressions (htjt.19: 48 timeouts at
-// load average ~30 on 2026-10-04, all green on CI). 30 s is sized to the real
-// work, not to hide a hang: each test still bounds its own child process.
-vi.setConfig({ testTimeout: 30_000 });
+// Test groups that spawn real child processes (the built CLI or a node
+// harness) take SPAWN_TIMEOUT_MS instead of vitest's 5 s default: under host
+// load a spawn alone can exceed 5 s (htjt.19: 48 timeouts at load average ~30
+// on 2026-10-04, all green on CI). Applied per describe block, so tests that
+// spawn nothing keep the 5 s default and still fail fast.
+const SPAWN_TIMEOUT_MS = 30_000;
 
 /**
  * These tests exercise the commander-registered handler by spawning the built
@@ -123,358 +123,415 @@ describe("registerEmitEvidenceCommand — registration", () => {
   });
 });
 
-describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
-  it("emits a full Statement to stdout in plain mode (direct args)", () => {
-    const r = runCli(baseDirectArgs);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    expect(stmt._type).toBe("https://in-toto.io/Statement/v1");
-    expect(stmt.predicateType).toBe("https://evals.intentsolutions.io/gate-result/v1");
-    expect(stmt.predicate.gate_id).toBe("j-rig:server:MM-1");
-    // v2 fields
-    expect(stmt.predicate.gate_decision).toBe("pass");
-    expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
-    expect(stmt.predicate.gate_version).toBe("2.0.0");
-    expect(stmt.predicate.gate_reasons).toEqual(["all criteria met"]);
-    expect(stmt.predicate.coverage.dimensions_evaluated).toContain("async-race");
-    expect(stmt.predicate.evaluated_at).toBeDefined();
-    // v1 fields MUST NOT be present
-    expect(stmt.predicate.result).toBeUndefined();
-    expect(stmt.predicate.timestamp).toBeUndefined();
-  });
+describe(
+  "emit-evidence CLI integration (no cosign) — v2 body shape",
+  { timeout: SPAWN_TIMEOUT_MS },
+  () => {
+    it("emits a full Statement to stdout in plain mode (direct args)", () => {
+      const r = runCli(baseDirectArgs);
+      expect(r.code).toBe(0);
+      const stmt = JSON.parse(r.stdout);
+      expect(stmt._type).toBe("https://in-toto.io/Statement/v1");
+      expect(stmt.predicateType).toBe("https://evals.intentsolutions.io/gate-result/v1");
+      expect(stmt.predicate.gate_id).toBe("j-rig:server:MM-1");
+      // v2 fields
+      expect(stmt.predicate.gate_decision).toBe("pass");
+      expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
+      expect(stmt.predicate.gate_version).toBe("2.0.0");
+      expect(stmt.predicate.gate_reasons).toEqual(["all criteria met"]);
+      expect(stmt.predicate.coverage.dimensions_evaluated).toContain("async-race");
+      expect(stmt.predicate.evaluated_at).toBeDefined();
+      // v1 fields MUST NOT be present
+      expect(stmt.predicate.result).toBeUndefined();
+      expect(stmt.predicate.timestamp).toBeUndefined();
+    });
 
-  it("emits ONLY the predicate body when --predicate-body-only is set", () => {
-    const r = runCli([...baseDirectArgs, "--predicate-body-only"]);
-    expect(r.code).toBe(0);
-    const body = JSON.parse(r.stdout);
-    expect(body._type).toBeUndefined(); // not a full Statement
-    expect(body.predicateType).toBeUndefined();
-    expect(body.gate_id).toBe("j-rig:server:MM-1");
-    expect(body.gate_decision).toBe("pass"); // v2 field
-  });
+    it("emits ONLY the predicate body when --predicate-body-only is set", () => {
+      const r = runCli([...baseDirectArgs, "--predicate-body-only"]);
+      expect(r.code).toBe(0);
+      const body = JSON.parse(r.stdout);
+      expect(body._type).toBeUndefined(); // not a full Statement
+      expect(body.predicateType).toBeUndefined();
+      expect(body.gate_id).toBe("j-rig:server:MM-1");
+      expect(body.gate_decision).toBe("pass"); // v2 field
+    });
 
-  it("routes NOT_APPLICABLE to coverage.dimensions_skipped (not a gate_decision)", () => {
-    const r = runCli([
-      "emit-evidence",
-      "--gate-id",
-      "j-rig:server:MM-3",
-      "--gate-decision",
-      "NOT_APPLICABLE",
-      "--gate-name",
-      "mm-3-cooldown",
-      "--gate-version",
-      "2.0.0",
-      "--policy-ref",
-      `sha256:${SHA}:vitest.config.ts`,
-      "--input-hash",
-      `sha256:${SHA}`,
-      "--policy-hash",
-      `sha256:${SHA}`,
-      "--runner-version",
-      "j-rig@2.0.0",
-      "--commit-sha",
-      "abc1234",
-    ]);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    // NOT_APPLICABLE → gate_decision=pass, reserved token added to skipped (P1 fix)
-    expect(stmt.predicate.gate_decision).toBe("pass");
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
-  });
-
-  it("--coverage-skipped adds to dimensions_skipped", () => {
-    const r = runCli([
-      ...baseDirectArgs,
-      "--coverage-skipped",
-      "functions",
-      "--coverage-skipped",
-      "branches",
-    ]);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("functions");
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("branches");
-  });
-
-  it("--sign without --key OR --keyless exits 1 with a clear error", () => {
-    const r = runCli([...baseDirectArgs, "--sign"]);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--sign requires --key.*OR --keyless/);
-  });
-
-  it("--key implies --sign and attempts cosign (exits 2 if cosign not found)", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const artifactPath = join(tmpDir, "artifact.bin");
-      const content = "hello world\n";
-      writeFileSync(artifactPath, content);
-      const realHash = createHash("sha256").update(content).digest("hex");
-
+    it("routes NOT_APPLICABLE to coverage.dimensions_skipped (not a gate_decision)", () => {
       const r = runCli([
         "emit-evidence",
         "--gate-id",
-        "j-rig:server:MM-1",
+        "j-rig:server:MM-3",
         "--gate-decision",
-        "pass",
+        "NOT_APPLICABLE",
         "--gate-name",
-        "mm-1-async-race",
+        "mm-3-cooldown",
         "--gate-version",
         "2.0.0",
         "--policy-ref",
         `sha256:${SHA}:vitest.config.ts`,
         "--input-hash",
-        `sha256:${realHash}`,
+        `sha256:${SHA}`,
         "--policy-hash",
         `sha256:${SHA}`,
         "--runner-version",
         "j-rig@2.0.0",
         "--commit-sha",
         "abc1234",
-        "--key",
-        "/nonexistent.key",
-        "--cosign-bin",
-        "/nonexistent/cosign-binary",
-        "--artifact",
-        artifactPath,
-      ]);
-      // Exit 2 when cosign binary cannot be spawned.
-      expect(r.code).toBe(2);
-      expect(r.stderr).toMatch(/failed to spawn cosign/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("--sign without --artifact refuses with a clear error", () => {
-    const r = runCli([...baseDirectArgs, "--keyless"]);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--sign requires --artifact/);
-  });
-
-  it("--sign with --artifact whose hash mismatches predicate.input_hash refuses", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const artifactPath = join(tmpDir, "artifact.bin");
-      writeFileSync(artifactPath, "wrong content\n");
-      const r = runCli([...baseDirectArgs, "--keyless", "--artifact", artifactPath]);
-      expect(r.code).toBe(1);
-      expect(r.stderr).toMatch(/--artifact sha256 mismatch/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects malformed JSON on stdin in pipeline mode", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const inputFile = join(tmpDir, "bad.json");
-      writeFileSync(inputFile, "{not valid json");
-      const r = runCli(["emit-evidence", "--input", inputFile]);
-      expect(r.code).toBe(1);
-      expect(r.stderr).toMatch(/not valid JSON/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects pipeline input missing required keys", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const inputFile = join(tmpDir, "incomplete.json");
-      writeFileSync(inputFile, '{"gate_id": "j-rig:server:MM-1"}');
-      const r = runCli(["emit-evidence", "--input", inputFile]);
-      expect(r.code).toBe(1);
-      // Updated message per P0 fix: now "missing required v2 field(s)"
-      expect(r.stderr).toMatch(/missing required v2 field/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("signing path feeds cosign the PREDICATE BODY by default, not the full Statement [f-jrig-security-1]", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
-      const r = runCli([
-        ...signingBase(realHash),
-        "--key",
-        "/fake.key",
-        "--cosign-bin",
-        fakeCosign,
-        "--artifact",
-        artifactPath,
       ]);
       expect(r.code).toBe(0);
-      // The fake cosign echoes the --predicate file content back as the
-      // "signature". Before the fix the absent flag fed cosign the FULL
-      // Statement (double-wrap); the default must be the predicate body.
-      const fed = JSON.parse(r.stdout);
-      expect(fed._type).toBeUndefined();
-      expect(fed.predicateType).toBeUndefined();
-      expect(fed.gate_id).toBe("j-rig:server:MM-1");
-      expect(fed.gate_decision).toBe("pass");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("--full-statement opts the signing path into the pre-formed Statement (nested form) [f-jrig-security-1]", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
-      const r = runCli([
-        ...signingBase(realHash),
-        "--key",
-        "/fake.key",
-        "--cosign-bin",
-        fakeCosign,
-        "--artifact",
-        artifactPath,
-        "--full-statement",
-      ]);
-      expect(r.code).toBe(0);
-      const fed = JSON.parse(r.stdout);
-      expect(fed._type).toBe("https://in-toto.io/Statement/v1");
-      expect(fed.predicate.gate_id).toBe("j-rig:server:MM-1");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects --full-statement combined with --predicate-body-only in signing mode [f-jrig-security-1]", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
-      const r = runCli([
-        ...signingBase(realHash),
-        "--key",
-        "/fake.key",
-        "--cosign-bin",
-        fakeCosign,
-        "--artifact",
-        artifactPath,
-        "--full-statement",
-        "--predicate-body-only",
-      ]);
-      expect(r.code).toBe(1);
-      expect(r.stderr).toMatch(/mutually exclusive/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it("warns on stderr when commit_sha falls back to the '0000000' sentinel outside a git repo [f-jrig-core-6]", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      // No --commit-sha and cwd is NOT a git repository → safeGitHead falls
-      // back to the sentinel; it must do so LOUDLY, not silently.
-      const noShaArgs = baseDirectArgs.filter(
-        (a, i) => a !== "--commit-sha" && baseDirectArgs[i - 1] !== "--commit-sha",
-      );
-      const r = runCli(noShaArgs, { cwd: tmpDir });
-      expect(r.code).toBe(0);
-      expect(r.stderr).toMatch(/sentinel commit_sha '0000000'/);
       const stmt = JSON.parse(r.stdout);
-      expect(stmt.predicate.commit_sha).toBe("0000000");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+      // NOT_APPLICABLE → gate_decision=pass, reserved token added to skipped (P1 fix)
+      expect(stmt.predicate.gate_decision).toBe("pass");
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
+    });
 
-  it("--output writes to file and emits an info line on stderr", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const outFile = join(tmpDir, "stmt.json");
-      const r = runCli([...baseDirectArgs, "--output", outFile]);
+    it("--coverage-skipped adds to dimensions_skipped", () => {
+      const r = runCli([
+        ...baseDirectArgs,
+        "--coverage-skipped",
+        "functions",
+        "--coverage-skipped",
+        "branches",
+      ]);
       expect(r.code).toBe(0);
-      expect(r.stderr).toMatch(/wrote .*stmt.json/);
-      const written = JSON.parse(readFileSync(outFile, "utf-8"));
-      expect(written.predicate.gate_id).toBe("j-rig:server:MM-1");
-      expect(written.predicate.gate_decision).toBe("pass");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+      const stmt = JSON.parse(r.stdout);
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("functions");
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("branches");
+    });
 
-  it("direct mode requires --gate-name (v2 required field)", () => {
-    const argsWithoutGateName = baseDirectArgs.filter(
-      (a, i) => a !== "--gate-name" && baseDirectArgs[i - 1] !== "--gate-name",
-    );
-    const r = runCli(argsWithoutGateName);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--gate-name/);
-  });
+    it("--sign without --key OR --keyless exits 1 with a clear error", () => {
+      const r = runCli([...baseDirectArgs, "--sign"]);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--sign requires --key.*OR --keyless/);
+    });
 
-  it("direct mode requires --gate-version (v2 required field)", () => {
-    const argsWithoutGateVersion = baseDirectArgs.filter(
-      (a, i) => a !== "--gate-version" && baseDirectArgs[i - 1] !== "--gate-version",
-    );
-    const r = runCli(argsWithoutGateVersion);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--gate-version/);
-  });
+    it("--key implies --sign and attempts cosign (exits 2 if cosign not found)", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const artifactPath = join(tmpDir, "artifact.bin");
+        const content = "hello world\n";
+        writeFileSync(artifactPath, content);
+        const realHash = createHash("sha256").update(content).digest("hex");
 
-  it("direct mode requires --policy-ref (v2 required field)", () => {
-    const argsWithoutPolicyRef = baseDirectArgs.filter(
-      (a, i) => a !== "--policy-ref" && baseDirectArgs[i - 1] !== "--policy-ref",
-    );
-    const r = runCli(argsWithoutPolicyRef);
-    expect(r.code).toBe(1);
-    expect(r.stderr).toMatch(/--policy-ref/);
-  });
+        const r = runCli([
+          "emit-evidence",
+          "--gate-id",
+          "j-rig:server:MM-1",
+          "--gate-decision",
+          "pass",
+          "--gate-name",
+          "mm-1-async-race",
+          "--gate-version",
+          "2.0.0",
+          "--policy-ref",
+          `sha256:${SHA}:vitest.config.ts`,
+          "--input-hash",
+          `sha256:${realHash}`,
+          "--policy-hash",
+          `sha256:${SHA}`,
+          "--runner-version",
+          "j-rig@2.0.0",
+          "--commit-sha",
+          "abc1234",
+          "--key",
+          "/nonexistent.key",
+          "--cosign-bin",
+          "/nonexistent/cosign-binary",
+          "--artifact",
+          artifactPath,
+        ]);
+        // Exit 2 when cosign binary cannot be spawned.
+        expect(r.code).toBe(2);
+        expect(r.stderr).toMatch(/failed to spawn cosign/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
 
-  // ── P0 — pipeline mode rejects v1-shaped envelopes (fabricated-provenance fix) ──
+    it("--sign without --artifact refuses with a clear error", () => {
+      const r = runCli([...baseDirectArgs, "--keyless"]);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--sign requires --artifact/);
+    });
 
-  it("pipeline mode rejects a v1-shaped envelope missing all new v2 fields (P0 fix)", () => {
-    // A genuine v1 envelope has only: gate_id, result, policy_hash, input_hash, timestamp.
-    // Pipeline mode MUST reject it with a clear error listing the missing fields.
-    // It must NOT silently synthesize gate_name/gate_version/gate_reasons/policy_ref.
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const v1Envelope = {
-        gate_id: "j-rig:server:MM-1",
-        result: "PASS",
-        policy_hash: `sha256:${SHA}`,
-        input_hash: `sha256:${SHA}`,
-        timestamp: "2026-01-01T00:00:00Z",
-      };
-      const inputFile = join(tmpDir, "v1-envelope.json");
-      writeFileSync(inputFile, JSON.stringify(v1Envelope));
-      const r = runCli(["emit-evidence", "--input", inputFile]);
-      // Must reject — non-zero exit, never a silent emit
-      expect(r.code).not.toBe(0);
-      expect(r.stderr).toMatch(/missing required v2 field/);
-      // Must name the missing fields
-      expect(r.stderr).toMatch(/gate_name/);
-      expect(r.stderr).toMatch(/gate_version/);
-      expect(r.stderr).toMatch(/gate_reasons/);
-      expect(r.stderr).toMatch(/policy_ref/);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+    it("--sign with --artifact whose hash mismatches predicate.input_hash refuses", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const artifactPath = join(tmpDir, "artifact.bin");
+        writeFileSync(artifactPath, "wrong content\n");
+        const r = runCli([...baseDirectArgs, "--keyless", "--artifact", artifactPath]);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(/--artifact sha256 mismatch/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
 
-  it("pipeline mode accepts a fully v2-shaped envelope", () => {
-    // A v2 envelope with all required fields must succeed.
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const v2Envelope = {
-        gate_id: "j-rig:server:MM-1",
-        gate_decision: "pass",
-        gate_name: "mm-1-async-race",
-        gate_version: "2.0.0",
-        gate_reasons: ["all criteria met"],
-        coverage: { dimensions_evaluated: ["async-race"], dimensions_skipped: [] },
-        policy_ref: `sha256:${SHA}:vitest.config.ts`,
-        policy_hash: `sha256:${SHA}`,
-        input_hash: `sha256:${SHA}`,
-      };
-      const inputFile = join(tmpDir, "v2-envelope.json");
-      writeFileSync(inputFile, JSON.stringify(v2Envelope));
+    it("rejects malformed JSON on stdin in pipeline mode", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const inputFile = join(tmpDir, "bad.json");
+        writeFileSync(inputFile, "{not valid json");
+        const r = runCli(["emit-evidence", "--input", inputFile]);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(/not valid JSON/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects pipeline input missing required keys", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const inputFile = join(tmpDir, "incomplete.json");
+        writeFileSync(inputFile, '{"gate_id": "j-rig:server:MM-1"}');
+        const r = runCli(["emit-evidence", "--input", inputFile]);
+        expect(r.code).toBe(1);
+        // Updated message per P0 fix: now "missing required v2 field(s)"
+        expect(r.stderr).toMatch(/missing required v2 field/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("signing path feeds cosign the PREDICATE BODY by default, not the full Statement [f-jrig-security-1]", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
+        const r = runCli([
+          ...signingBase(realHash),
+          "--key",
+          "/fake.key",
+          "--cosign-bin",
+          fakeCosign,
+          "--artifact",
+          artifactPath,
+        ]);
+        expect(r.code).toBe(0);
+        // The fake cosign echoes the --predicate file content back as the
+        // "signature". Before the fix the absent flag fed cosign the FULL
+        // Statement (double-wrap); the default must be the predicate body.
+        const fed = JSON.parse(r.stdout);
+        expect(fed._type).toBeUndefined();
+        expect(fed.predicateType).toBeUndefined();
+        expect(fed.gate_id).toBe("j-rig:server:MM-1");
+        expect(fed.gate_decision).toBe("pass");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("--full-statement opts the signing path into the pre-formed Statement (nested form) [f-jrig-security-1]", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
+        const r = runCli([
+          ...signingBase(realHash),
+          "--key",
+          "/fake.key",
+          "--cosign-bin",
+          fakeCosign,
+          "--artifact",
+          artifactPath,
+          "--full-statement",
+        ]);
+        expect(r.code).toBe(0);
+        const fed = JSON.parse(r.stdout);
+        expect(fed._type).toBe("https://in-toto.io/Statement/v1");
+        expect(fed.predicate.gate_id).toBe("j-rig:server:MM-1");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects --full-statement combined with --predicate-body-only in signing mode [f-jrig-security-1]", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const { artifactPath, realHash, fakeCosign } = makeSigningFixture(tmpDir);
+        const r = runCli([
+          ...signingBase(realHash),
+          "--key",
+          "/fake.key",
+          "--cosign-bin",
+          fakeCosign,
+          "--artifact",
+          artifactPath,
+          "--full-statement",
+          "--predicate-body-only",
+        ]);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(/mutually exclusive/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("warns on stderr when commit_sha falls back to the '0000000' sentinel outside a git repo [f-jrig-core-6]", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        // No --commit-sha and cwd is NOT a git repository → safeGitHead falls
+        // back to the sentinel; it must do so LOUDLY, not silently.
+        const noShaArgs = baseDirectArgs.filter(
+          (a, i) => a !== "--commit-sha" && baseDirectArgs[i - 1] !== "--commit-sha",
+        );
+        const r = runCli(noShaArgs, { cwd: tmpDir });
+        expect(r.code).toBe(0);
+        expect(r.stderr).toMatch(/sentinel commit_sha '0000000'/);
+        const stmt = JSON.parse(r.stdout);
+        expect(stmt.predicate.commit_sha).toBe("0000000");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("--output writes to file and emits an info line on stderr", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const outFile = join(tmpDir, "stmt.json");
+        const r = runCli([...baseDirectArgs, "--output", outFile]);
+        expect(r.code).toBe(0);
+        expect(r.stderr).toMatch(/wrote .*stmt.json/);
+        const written = JSON.parse(readFileSync(outFile, "utf-8"));
+        expect(written.predicate.gate_id).toBe("j-rig:server:MM-1");
+        expect(written.predicate.gate_decision).toBe("pass");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("direct mode requires --gate-name (v2 required field)", () => {
+      const argsWithoutGateName = baseDirectArgs.filter(
+        (a, i) => a !== "--gate-name" && baseDirectArgs[i - 1] !== "--gate-name",
+      );
+      const r = runCli(argsWithoutGateName);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--gate-name/);
+    });
+
+    it("direct mode requires --gate-version (v2 required field)", () => {
+      const argsWithoutGateVersion = baseDirectArgs.filter(
+        (a, i) => a !== "--gate-version" && baseDirectArgs[i - 1] !== "--gate-version",
+      );
+      const r = runCli(argsWithoutGateVersion);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--gate-version/);
+    });
+
+    it("direct mode requires --policy-ref (v2 required field)", () => {
+      const argsWithoutPolicyRef = baseDirectArgs.filter(
+        (a, i) => a !== "--policy-ref" && baseDirectArgs[i - 1] !== "--policy-ref",
+      );
+      const r = runCli(argsWithoutPolicyRef);
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/--policy-ref/);
+    });
+
+    // ── P0 — pipeline mode rejects v1-shaped envelopes (fabricated-provenance fix) ──
+
+    it("pipeline mode rejects a v1-shaped envelope missing all new v2 fields (P0 fix)", () => {
+      // A genuine v1 envelope has only: gate_id, result, policy_hash, input_hash, timestamp.
+      // Pipeline mode MUST reject it with a clear error listing the missing fields.
+      // It must NOT silently synthesize gate_name/gate_version/gate_reasons/policy_ref.
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const v1Envelope = {
+          gate_id: "j-rig:server:MM-1",
+          result: "PASS",
+          policy_hash: `sha256:${SHA}`,
+          input_hash: `sha256:${SHA}`,
+          timestamp: "2026-01-01T00:00:00Z",
+        };
+        const inputFile = join(tmpDir, "v1-envelope.json");
+        writeFileSync(inputFile, JSON.stringify(v1Envelope));
+        const r = runCli(["emit-evidence", "--input", inputFile]);
+        // Must reject — non-zero exit, never a silent emit
+        expect(r.code).not.toBe(0);
+        expect(r.stderr).toMatch(/missing required v2 field/);
+        // Must name the missing fields
+        expect(r.stderr).toMatch(/gate_name/);
+        expect(r.stderr).toMatch(/gate_version/);
+        expect(r.stderr).toMatch(/gate_reasons/);
+        expect(r.stderr).toMatch(/policy_ref/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("pipeline mode accepts a fully v2-shaped envelope", () => {
+      // A v2 envelope with all required fields must succeed.
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const v2Envelope = {
+          gate_id: "j-rig:server:MM-1",
+          gate_decision: "pass",
+          gate_name: "mm-1-async-race",
+          gate_version: "2.0.0",
+          gate_reasons: ["all criteria met"],
+          coverage: { dimensions_evaluated: ["async-race"], dimensions_skipped: [] },
+          policy_ref: `sha256:${SHA}:vitest.config.ts`,
+          policy_hash: `sha256:${SHA}`,
+          input_hash: `sha256:${SHA}`,
+        };
+        const inputFile = join(tmpDir, "v2-envelope.json");
+        writeFileSync(inputFile, JSON.stringify(v2Envelope));
+        const r = runCli([
+          "emit-evidence",
+          "--input",
+          inputFile,
+          "--runner-version",
+          "j-rig@2.0.0",
+          "--commit-sha",
+          "abc1234",
+        ]);
+        expect(r.code).toBe(0);
+        const stmt = JSON.parse(r.stdout);
+        expect(stmt.predicate.gate_decision).toBe("pass");
+        expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
+        // v2 nests coverage at coverage.dimensions_evaluated — it must flow through to the
+        // signed statement, not be silently dropped to [] (regression guard for the
+        // flat-key-only read that ignored the nested v2 coverage object).
+        expect(stmt.predicate.coverage.dimensions_evaluated).toEqual(["async-race"]);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    // ── P1 exit-code — validation failure WITH --output must still exit 1 ──
+
+    it("invalid input WITH --output exits 1, not 2 (P1 exit-code fix)", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
+      try {
+        const inputFile = join(tmpDir, "bad.json");
+        const outFile = join(tmpDir, "output.json");
+        // Missing gate_decision and all new v2 fields
+        writeFileSync(inputFile, JSON.stringify({ gate_id: "j-rig:server:MM-1" }));
+        const r = runCli(["emit-evidence", "--input", inputFile, "--output", outFile]);
+        // Pre-write validation errors always exit 1, never 2 (2 is for write failures)
+        expect(r.code).toBe(1);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    // ── P1 NOT_APPLICABLE — reserved token and self-description ──
+
+    it("NOT_APPLICABLE uses __not_applicable__ reserved token (not a real dimension name)", () => {
       const r = runCli([
         "emit-evidence",
-        "--input",
-        inputFile,
+        "--gate-id",
+        "j-rig:server:MM-3",
+        "--gate-decision",
+        "NOT_APPLICABLE",
+        "--gate-name",
+        "mm-3-cooldown",
+        "--gate-version",
+        "2.0.0",
+        "--policy-ref",
+        `sha256:${SHA}:vitest.config.ts`,
+        "--input-hash",
+        `sha256:${SHA}`,
+        "--policy-hash",
+        `sha256:${SHA}`,
         "--runner-version",
         "j-rig@2.0.0",
         "--commit-sha",
@@ -482,84 +539,31 @@ describe("emit-evidence CLI integration (no cosign) — v2 body shape", () => {
       ]);
       expect(r.code).toBe(0);
       const stmt = JSON.parse(r.stdout);
-      expect(stmt.predicate.gate_decision).toBe("pass");
-      expect(stmt.predicate.gate_name).toBe("mm-1-async-race");
-      // v2 nests coverage at coverage.dimensions_evaluated — it must flow through to the
-      // signed statement, not be silently dropped to [] (regression guard for the
-      // flat-key-only read that ignored the nested v2 coverage object).
-      expect(stmt.predicate.coverage.dimensions_evaluated).toEqual(["async-race"]);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+      // Sentinel is the reserved non-colliding token
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
+      // Must NOT contain the bare literal "not-applicable" (old colliding value)
+      expect(stmt.predicate.coverage.dimensions_skipped).not.toContain("not-applicable");
+      // Self-describing reason added to gate_reasons
+      expect(stmt.predicate.gate_reasons.join(" ")).toMatch(/non-verdict/);
+      expect(stmt.predicate.gate_reasons.join(" ")).toMatch(/DR-018/);
+    });
 
-  // ── P1 exit-code — validation failure WITH --output must still exit 1 ──
-
-  it("invalid input WITH --output exits 1, not 2 (P1 exit-code fix)", () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "j-rig-emit-test-"));
-    try {
-      const inputFile = join(tmpDir, "bad.json");
-      const outFile = join(tmpDir, "output.json");
-      // Missing gate_decision and all new v2 fields
-      writeFileSync(inputFile, JSON.stringify({ gate_id: "j-rig:server:MM-1" }));
-      const r = runCli(["emit-evidence", "--input", inputFile, "--output", outFile]);
-      // Pre-write validation errors always exit 1, never 2 (2 is for write failures)
-      expect(r.code).toBe(1);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  // ── P1 NOT_APPLICABLE — reserved token and self-description ──
-
-  it("NOT_APPLICABLE uses __not_applicable__ reserved token (not a real dimension name)", () => {
-    const r = runCli([
-      "emit-evidence",
-      "--gate-id",
-      "j-rig:server:MM-3",
-      "--gate-decision",
-      "NOT_APPLICABLE",
-      "--gate-name",
-      "mm-3-cooldown",
-      "--gate-version",
-      "2.0.0",
-      "--policy-ref",
-      `sha256:${SHA}:vitest.config.ts`,
-      "--input-hash",
-      `sha256:${SHA}`,
-      "--policy-hash",
-      `sha256:${SHA}`,
-      "--runner-version",
-      "j-rig@2.0.0",
-      "--commit-sha",
-      "abc1234",
-    ]);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    // Sentinel is the reserved non-colliding token
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
-    // Must NOT contain the bare literal "not-applicable" (old colliding value)
-    expect(stmt.predicate.coverage.dimensions_skipped).not.toContain("not-applicable");
-    // Self-describing reason added to gate_reasons
-    expect(stmt.predicate.gate_reasons.join(" ")).toMatch(/non-verdict/);
-    expect(stmt.predicate.gate_reasons.join(" ")).toMatch(/DR-018/);
-  });
-
-  it("real dimension name via --coverage-skipped flows through unchanged (sentinel cannot shadow it)", () => {
-    const r = runCli([
-      ...baseDirectArgs,
-      "--coverage-skipped",
-      "real-dimension-name",
-      "--coverage-skipped",
-      "__not_applicable__", // reserved token itself
-    ]);
-    expect(r.code).toBe(0);
-    const stmt = JSON.parse(r.stdout);
-    // Both values present and unmodified
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("real-dimension-name");
-    expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
-  });
-});
+    it("real dimension name via --coverage-skipped flows through unchanged (sentinel cannot shadow it)", () => {
+      const r = runCli([
+        ...baseDirectArgs,
+        "--coverage-skipped",
+        "real-dimension-name",
+        "--coverage-skipped",
+        "__not_applicable__", // reserved token itself
+      ]);
+      expect(r.code).toBe(0);
+      const stmt = JSON.parse(r.stdout);
+      // Both values present and unmodified
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("real-dimension-name");
+      expect(stmt.predicate.coverage.dimensions_skipped).toContain("__not_applicable__");
+    });
+  },
+);
 
 // ── P2 — helper unit tests: resolveDecision and v1→v2 mapping ──
 
