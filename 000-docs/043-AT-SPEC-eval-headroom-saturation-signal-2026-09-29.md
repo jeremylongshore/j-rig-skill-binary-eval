@@ -68,11 +68,11 @@ The assessment records `ceiling`, `ceiling_source` (`spec` or `default`),
 
 ## Deferred
 
-- **Refiner refusal.** `accept()` in `@intentsolutions/refiner-core` should
-  refuse to claim improvement against a saturated set with a named reason.
-  In practice a perfect baseline cannot be beaten today, so the gate already
-  rejects; the change is a clearer reason code in a published package and
-  ships separately.
+- **Refiner refusal.** Done 2026-10 (bead htjt.27): `accept()` in
+  `@intentsolutions/refiner-core` returns `saturated-baseline` instead of
+  `no-behavioral-improvement` when nothing regressed and the baseline's
+  behavioral pass rate is already >= 0.95 (`SATURATION_CEILING`, mirroring this
+  record's default). A named-dimension regression still takes precedence.
 - **Unified report cells.** Done 2026-10 (bead htjt.28): each
   `j-rig/unified-report/v1` cell carries an optional `headroom_status`, computed
   from the cell's pass count over graded runs at the default ceiling, and the

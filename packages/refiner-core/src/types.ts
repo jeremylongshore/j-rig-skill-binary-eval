@@ -192,7 +192,14 @@ export type RejectionReason =
   /** Neither version Pareto-dominates the other (DR-028 tie-break). */
   | "pareto-incomparable"
   /** The two records were scored against different skills or eval sets. */
-  | "incomparable-records";
+  | "incomparable-records"
+  /**
+   * The baseline's behavioral pass rate is already at or above the saturation
+   * ceiling (j-rig 000-docs/043), so the eval set cannot show an improvement.
+   * Reported instead of "no-behavioral-improvement": the fix is harder eval
+   * cases, not a better edit.
+   */
+  | "saturated-baseline";
 
 /**
  * Result of the acceptance gate. A REJECT carries a machine-readable reason

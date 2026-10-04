@@ -58,7 +58,12 @@ export { sha256, canonicalJson, hashSkillDoc, hashValue } from "./hash.js";
 // Pure operations
 export { applyEdit, makeSkillDoc, EditApplicationError } from "./apply.js";
 export { bootstrap, type BootstrapOptions } from "./bootstrap.js";
-export { accept, isSignificantImprovement, isSignificantRegression } from "./accept.js";
+export {
+  accept,
+  isSignificantImprovement,
+  isSignificantRegression,
+  SATURATION_CEILING,
+} from "./accept.js";
 
 // Cost meter — per-attempt usage, per-accept rollup, hard-cap quarantine
 export type {

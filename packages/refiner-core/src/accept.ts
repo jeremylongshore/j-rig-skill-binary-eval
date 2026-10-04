@@ -19,7 +19,8 @@
  *         (a regression is a SIGNIFICANT decrease at α; noise within α is not a
  *         regression).
  *
- * If (1) fails: reject `no-behavioral-improvement`.
+ * If (1) fails: reject `no-behavioral-improvement`, or `saturated-baseline` when
+ * nothing regressed and the baseline behavioral pass rate is already >= 0.95.
  * If (1) holds but (2) fails on some dim: the two are Pareto-incomparable
  *   (candidate gained behavioral but lost something else) → reject
  *   `pareto-incomparable` per the DR-028 tie-break (with the regressed dim also
@@ -189,7 +190,30 @@ export function accept(
   if (!behavioralImproved && regressedDim !== null) {
     return reject("regressed-named-dimension");
   }
+  // Nothing regressed and behavioral did not move. If the baseline was already
+  // saturated, say so: the eval set has no room left to show an improvement, so
+  // the operator needs harder cases, not a different edit.
+  if (isSaturated(baseline.behavioral)) {
+    return reject("saturated-baseline");
+  }
   return reject("no-behavioral-improvement");
+}
+
+/**
+ * Behavioral pass rate at or above which the eval set can no longer show an
+ * improvement. Mirrors DEFAULT_HEADROOM_CEILING in @j-rig/core
+ * (governance/headroom.ts, 000-docs/043); duplicated because this package
+ * depends only on the kernel.
+ */
+export const SATURATION_CEILING = 0.95;
+
+/**
+ * Whether a behavioral dimension is saturated. Applies only to a proportion in
+ * [0, 1] (the behavioral dim is a pass rate when scored by the Refiner); any
+ * other scale is never treated as saturated.
+ */
+function isSaturated(dim: ScoreDimension): boolean {
+  return dim.value >= SATURATION_CEILING && dim.value <= 1;
 }
 
 /**
