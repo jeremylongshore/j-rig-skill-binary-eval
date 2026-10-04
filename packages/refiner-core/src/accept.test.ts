@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { accept, isSignificantImprovement, isSignificantRegression } from "./accept.js";
+import {
+  accept,
+  isSignificantImprovement,
+  isSignificantRegression,
+  SATURATION_CEILING,
+} from "./accept.js";
 import type { ScoreRecord, ScoreDimension } from "./types.js";
 import { DEFAULT_ALPHA } from "./types.js";
 
@@ -175,5 +180,38 @@ describe("isSignificantImprovement / isSignificantRegression", () => {
   it("a non-positive delta is never an improvement; a non-negative delta is never a regression", () => {
     expect(isSignificantImprovement(dim(0.7, 0.1, 10), dim(0.7, 0.1, 10))).toBe(false);
     expect(isSignificantRegression(dim(0.7, 0.1, 10), dim(0.7, 0.1, 10))).toBe(false);
+  });
+});
+
+describe("accept — saturated-baseline (000-docs/043, htjt.27)", () => {
+  it("names a saturated baseline instead of a generic no-improvement", () => {
+    const base = record(SKILL_V1, { behavioral: det(1) });
+    const cand = record(SKILL_V2, { behavioral: det(1) });
+    expect(accept(base, cand)).toEqual({ accepted: false, reason: "saturated-baseline" });
+  });
+
+  it("applies at the 0.95 ceiling when the gain is not significant", () => {
+    const base = record(SKILL_V1, { behavioral: dim(0.96, 0.04, 10) });
+    const cand = record(SKILL_V2, { behavioral: dim(0.97, 0.03, 10) });
+    expect(accept(base, cand)).toEqual({ accepted: false, reason: "saturated-baseline" });
+    expect(SATURATION_CEILING).toBe(0.95);
+  });
+
+  it("keeps no-behavioral-improvement below the ceiling", () => {
+    const base = record(SKILL_V1, { behavioral: det(0.5) });
+    const cand = record(SKILL_V2, { behavioral: det(0.5) });
+    expect(accept(base, cand)).toEqual({ accepted: false, reason: "no-behavioral-improvement" });
+  });
+
+  it("lets a named regression win over saturation", () => {
+    const base = record(SKILL_V1, { behavioral: det(1), latency: det(0.9) });
+    const cand = record(SKILL_V2, { behavioral: det(1), latency: det(0.5) });
+    expect(accept(base, cand)).toEqual({ accepted: false, reason: "regressed-named-dimension" });
+  });
+
+  it("never treats a non-proportion behavioral scale as saturated", () => {
+    const base = record(SKILL_V1, { behavioral: det(5) });
+    const cand = record(SKILL_V2, { behavioral: det(5) });
+    expect(accept(base, cand)).toEqual({ accepted: false, reason: "no-behavioral-improvement" });
   });
 });
