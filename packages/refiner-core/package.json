@@ -42,10 +42,10 @@
     "dist"
   ],
   "peerDependencies": {
-    "@intentsolutions/core": "^0.10.0"
+    "@intentsolutions/core": "^0.11.0"
   },
   "dependencies": {
-    "@intentsolutions/core": "0.10.0",
+    "@intentsolutions/core": "0.11.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
