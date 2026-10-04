@@ -6,6 +6,13 @@ import { parse, stringify } from "yaml";
 import { runGenericEval } from "./run.js";
 import { runSuite } from "./suite.js";
 
+// Test groups that spawn real child processes (the built CLI or a node
+// harness) take SPAWN_TIMEOUT_MS instead of vitest's 5 s default: under host
+// load a spawn alone can exceed 5 s (htjt.19: 48 timeouts at load average ~30
+// on 2026-10-04, all green on CI). Applied per describe block, so tests that
+// spawn nothing keep the 5 s default and still fail fast.
+const SPAWN_TIMEOUT_MS = 30_000;
+
 const tempDirs: string[] = [];
 
 afterEach(() => {
@@ -93,7 +100,7 @@ function fixture(failingCell = false) {
   return { manifestPath, dbPath, outputDir, taskA, configA };
 }
 
-describe("j-rig suite", () => {
+describe("j-rig suite", { timeout: SPAWN_TIMEOUT_MS }, () => {
   it("executes a balanced two-task/two-config target and resumes without duplicate work", async () => {
     const paths = fixture();
     const first = await runSuite({
@@ -181,128 +188,140 @@ describe("j-rig suite", () => {
   });
 });
 
-describe("j-rig suite — fail-closed manifest and resume guards", () => {
-  function rewriteManifest(path: string, patch: Record<string, unknown>): void {
-    const current = parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-    writeFileSync(path, stringify({ ...current, ...patch }), "utf8");
-  }
+describe(
+  "j-rig suite — fail-closed manifest and resume guards",
+  { timeout: SPAWN_TIMEOUT_MS },
+  () => {
+    function rewriteManifest(path: string, patch: Record<string, unknown>): void {
+      const current = parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      writeFileSync(path, stringify({ ...current, ...patch }), "utf8");
+    }
 
-  function rewriteAudit(outputDir: string, patch: Record<string, unknown>): void {
-    const auditPath = join(outputDir, "manifest.json");
-    const current = JSON.parse(readFileSync(auditPath, "utf8")) as Record<string, unknown>;
-    writeFileSync(auditPath, JSON.stringify({ ...current, ...patch }), "utf8");
-  }
+    function rewriteAudit(outputDir: string, patch: Record<string, unknown>): void {
+      const auditPath = join(outputDir, "manifest.json");
+      const current = JSON.parse(readFileSync(auditPath, "utf8")) as Record<string, unknown>;
+      writeFileSync(auditPath, JSON.stringify({ ...current, ...patch }), "utf8");
+    }
 
-  it("names the manifest path when the suite file is missing or fails its schema", async () => {
-    const paths = fixture();
-    const missing = join(paths.outputDir, "absent.yaml");
-    await expect(runSuite({ manifestPath: missing, db: paths.dbPath })).rejects.toThrow(
-      `Suite manifest not found or unreadable at ${missing}`,
-    );
+    it("names the manifest path when the suite file is missing or fails its schema", async () => {
+      const paths = fixture();
+      const missing = join(paths.outputDir, "absent.yaml");
+      await expect(runSuite({ manifestPath: missing, db: paths.dbPath })).rejects.toThrow(
+        `Suite manifest not found or unreadable at ${missing}`,
+      );
 
-    rewriteManifest(paths.manifestPath, { tasks: [] });
-    await expect(
-      runSuite({ manifestPath: paths.manifestPath, db: paths.dbPath, outputDir: paths.outputDir }),
-    ).rejects.toThrow(`Invalid suite manifest at ${paths.manifestPath}`);
-  });
-
-  it("rejects duplicate task and config identities with both manifest positions", async () => {
-    const tasks = fixture();
-    rewriteManifest(tasks.manifestPath, {
-      tasks: ["tasks/task-a.yaml", "tasks/task-b.yaml", "tasks/task-a.yaml"],
+      rewriteManifest(paths.manifestPath, { tasks: [] });
+      await expect(
+        runSuite({
+          manifestPath: paths.manifestPath,
+          db: paths.dbPath,
+          outputDir: paths.outputDir,
+        }),
+      ).rejects.toThrow(`Invalid suite manifest at ${paths.manifestPath}`);
     });
-    await expect(
-      runSuite({ manifestPath: tasks.manifestPath, db: tasks.dbPath, outputDir: tasks.outputDir }),
-    ).rejects.toThrow("Invalid suite.tasks.2: duplicates suite.tasks.0 identity");
 
-    const configs = fixture();
-    rewriteManifest(configs.manifestPath, {
-      configs: ["configs/config-a.yaml", "configs/config-a.yaml"],
+    it("rejects duplicate task and config identities with both manifest positions", async () => {
+      const tasks = fixture();
+      rewriteManifest(tasks.manifestPath, {
+        tasks: ["tasks/task-a.yaml", "tasks/task-b.yaml", "tasks/task-a.yaml"],
+      });
+      await expect(
+        runSuite({
+          manifestPath: tasks.manifestPath,
+          db: tasks.dbPath,
+          outputDir: tasks.outputDir,
+        }),
+      ).rejects.toThrow("Invalid suite.tasks.2: duplicates suite.tasks.0 identity");
+
+      const configs = fixture();
+      rewriteManifest(configs.manifestPath, {
+        configs: ["configs/config-a.yaml", "configs/config-a.yaml"],
+      });
+      await expect(
+        runSuite({
+          manifestPath: configs.manifestPath,
+          db: configs.dbPath,
+          outputDir: configs.outputDir,
+        }),
+      ).rejects.toThrow("Invalid suite.configs.1: duplicates suite.configs.0 identity");
     });
-    await expect(
-      runSuite({
-        manifestPath: configs.manifestPath,
-        db: configs.dbPath,
-        outputDir: configs.outputDir,
-      }),
-    ).rejects.toThrow("Invalid suite.configs.1: duplicates suite.configs.0 identity");
-  });
 
-  it("attributes an invalid config or grader file to its exact suite field", async () => {
-    const config = fixture();
-    writeFileSync(config.configA, stringify({ id: "config-a" }), "utf8");
-    await expect(
-      runSuite({
-        manifestPath: config.manifestPath,
-        db: config.dbPath,
-        outputDir: config.outputDir,
-      }),
-    ).rejects.toThrow(`Invalid suite.configs.0 (${config.configA})`);
+    it("attributes an invalid config or grader file to its exact suite field", async () => {
+      const config = fixture();
+      writeFileSync(config.configA, stringify({ id: "config-a" }), "utf8");
+      await expect(
+        runSuite({
+          manifestPath: config.manifestPath,
+          db: config.dbPath,
+          outputDir: config.outputDir,
+        }),
+      ).rejects.toThrow(`Invalid suite.configs.0 (${config.configA})`);
 
-    const grader = fixture();
-    const graderPath = join(dirname(grader.manifestPath), "grader.yaml");
-    writeFileSync(graderPath, stringify({ id: "output-checker" }), "utf8");
-    await expect(
-      runSuite({
-        manifestPath: grader.manifestPath,
-        db: grader.dbPath,
-        outputDir: grader.outputDir,
-      }),
-    ).rejects.toThrow(`Invalid suite.grader (${graderPath})`);
-  });
+      const grader = fixture();
+      const graderPath = join(dirname(grader.manifestPath), "grader.yaml");
+      writeFileSync(graderPath, stringify({ id: "output-checker" }), "utf8");
+      await expect(
+        runSuite({
+          manifestPath: grader.manifestPath,
+          db: grader.dbPath,
+          outputDir: grader.outputDir,
+        }),
+      ).rejects.toThrow(`Invalid suite.grader (${graderPath})`);
+    });
 
-  it("rejects a non-positive target before planning any work", async () => {
-    const paths = fixture();
-    await expect(
-      runSuite({
+    it("rejects a non-positive target before planning any work", async () => {
+      const paths = fixture();
+      await expect(
+        runSuite({
+          manifestPath: paths.manifestPath,
+          db: paths.dbPath,
+          outputDir: paths.outputDir,
+          targetN: 0,
+        }),
+      ).rejects.toThrow("suite.target_n must be a positive integer (got 0)");
+    });
+
+    it("refuses to resume into an audit that is corrupt or belongs to a different run", async () => {
+      const paths = fixture();
+      const options = {
         manifestPath: paths.manifestPath,
         db: paths.dbPath,
         outputDir: paths.outputDir,
-        targetN: 0,
-      }),
-    ).rejects.toThrow("suite.target_n must be a positive integer (got 0)");
-  });
+      };
+      const first = await runSuite(options);
+      const original = readFileSync(first.auditPath, "utf8");
+      const restore = (): void => writeFileSync(first.auditPath, original, "utf8");
 
-  it("refuses to resume into an audit that is corrupt or belongs to a different run", async () => {
-    const paths = fixture();
-    const options = {
-      manifestPath: paths.manifestPath,
-      db: paths.dbPath,
-      outputDir: paths.outputDir,
-    };
-    const first = await runSuite(options);
-    const original = readFileSync(first.auditPath, "utf8");
-    const restore = (): void => writeFileSync(first.auditPath, original, "utf8");
+      await expect(runSuite({ ...options, targetN: 3 })).rejects.toThrow(
+        "targets N=2; pass the same target or choose a new --output-dir",
+      );
+      await expect(runSuite({ ...options, db: join(paths.outputDir, "other.db") })).rejects.toThrow(
+        `uses database ${paths.dbPath}`,
+      );
 
-    await expect(runSuite({ ...options, targetN: 3 })).rejects.toThrow(
-      "targets N=2; pass the same target or choose a new --output-dir",
-    );
-    await expect(runSuite({ ...options, db: join(paths.outputDir, "other.db") })).rejects.toThrow(
-      `uses database ${paths.dbPath}`,
-    );
+      const mismatches: Array<[Record<string, unknown>, string]> = [
+        [{ schema: "j-rig/eval-suite/v0" }, "schema must be j-rig/eval-suite/v1"],
+        [{ suite_id: "another-suite" }, "belongs to suite another-suite; expected four-cell-suite"],
+        [{ suite_version: "9" }, "is version 9; expected 1"],
+        [{ manifest_path: "/elsewhere/suite.yaml" }, "belongs to manifest /elsewhere/suite.yaml"],
+        [{ output_dir: "/elsewhere/out" }, "uses output directory /elsewhere/out"],
+        [{ jobs: "not-an-array" }, "jobs and cells must be arrays"],
+      ];
+      for (const [patch, message] of mismatches) {
+        rewriteAudit(paths.outputDir, patch);
+        await expect(runSuite(options)).rejects.toThrow(message);
+        restore();
+      }
 
-    const mismatches: Array<[Record<string, unknown>, string]> = [
-      [{ schema: "j-rig/eval-suite/v0" }, "schema must be j-rig/eval-suite/v1"],
-      [{ suite_id: "another-suite" }, "belongs to suite another-suite; expected four-cell-suite"],
-      [{ suite_version: "9" }, "is version 9; expected 1"],
-      [{ manifest_path: "/elsewhere/suite.yaml" }, "belongs to manifest /elsewhere/suite.yaml"],
-      [{ output_dir: "/elsewhere/out" }, "uses output directory /elsewhere/out"],
-      [{ jobs: "not-an-array" }, "jobs and cells must be arrays"],
-    ];
-    for (const [patch, message] of mismatches) {
-      rewriteAudit(paths.outputDir, patch);
-      await expect(runSuite(options)).rejects.toThrow(message);
+      writeFileSync(first.auditPath, "{ not json", "utf8");
+      await expect(runSuite(options)).rejects.toThrow(`Invalid suite audit at ${first.auditPath}`);
+      writeFileSync(first.auditPath, "null", "utf8");
+      await expect(runSuite(options)).rejects.toThrow("expected a JSON object");
+
       restore();
-    }
-
-    writeFileSync(first.auditPath, "{ not json", "utf8");
-    await expect(runSuite(options)).rejects.toThrow(`Invalid suite audit at ${first.auditPath}`);
-    writeFileSync(first.auditPath, "null", "utf8");
-    await expect(runSuite(options)).rejects.toThrow("expected a JSON object");
-
-    restore();
-    const resumed = await runSuite(options);
-    expect(resumed.audit.jobs).toHaveLength(8);
-    expect(resumed.audit.summary.pending).toBe(0);
-  });
-});
+      const resumed = await runSuite(options);
+      expect(resumed.audit.jobs).toHaveLength(8);
+      expect(resumed.audit.summary.pending).toBe(0);
+    });
+  },
+);

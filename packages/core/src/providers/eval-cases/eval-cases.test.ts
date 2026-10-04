@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { runEC1, runEC2, runEC3, runEC4, runEC5, runFullECSuite } from "./index.js";
 import { CleanProvider } from "../test-fixtures/clean-provider.js";
 import type { Provider, CompletionRequest, CompletionResult } from "../types.js";
@@ -175,10 +175,57 @@ describe("EC-5 batching", () => {
         return Promise.all(reqs.map((r) => this.complete(r)));
       }
     }
-    const provider = new ConcurrentProvider({ apiKey: "sk-test-12345678" });
-    const result = await runEC5(provider, { models: MODELS });
-    expect(result.perModel.every((m) => m.pass)).toBe(true);
-    expect((result.perModel[0].metric?.ratio as number) ?? 99).toBeLessThan(0.5);
+    // Fake timers drive both the 20 ms latency and Date.now(), so the
+    // batch-to-serial ratio is exact instead of depending on host load
+    // (htjt.19). Ten concurrent 20 ms calls finish in 20 ms against a
+    // 200 ms serial baseline: ratio 0.1, under EC-5's 0.2 bound.
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"] });
+    try {
+      const provider = new ConcurrentProvider({ apiKey: "sk-test-12345678" });
+      const pending = runEC5(provider, { models: MODELS });
+      await vi.runAllTimersAsync();
+      const result = await pending;
+      expect(result.perModel.every((m) => m.pass)).toBe(true);
+      // EC-5's invariant is the 0.2 bound; 0.1 is what true concurrency yields.
+      expect(result.perModel[0].metric?.ratio as number).toBeLessThan(0.2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("FAILS when the provider serializes its batch (fake timers still see it)", async () => {
+    // The virtual clock accumulates sequential latency exactly like the real
+    // one: ten chained 20 ms calls advance it 200 ms, so a serializing batch
+    // has ratio 1.0 and fails EC-5. Fake timers remove host-load noise; they
+    // do not hide serialization.
+    class SerialProvider extends CleanProvider {
+      async complete(req: CompletionRequest): Promise<CompletionResult> {
+        await new Promise((r) => setTimeout(r, 20));
+        return {
+          text: "ok",
+          model: req.model,
+          usage: { inputTokens: 0, outputTokens: 1 },
+          finishReason: "stop",
+        };
+      }
+      async batch(reqs: CompletionRequest[]): Promise<Array<CompletionResult | ProviderError>> {
+        const out: Array<CompletionResult | ProviderError> = [];
+        for (const r of reqs) out.push(await this.complete(r));
+        return out;
+      }
+    }
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"] });
+    try {
+      const pending = runEC5(new SerialProvider({ apiKey: "sk-test-12345678" }), {
+        models: MODELS,
+      });
+      await vi.runAllTimersAsync();
+      const result = await pending;
+      expect(result.perModel.every((m) => !m.pass)).toBe(true);
+      expect(result.perModel[0].metric?.ratio as number).toBeGreaterThanOrEqual(0.2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
