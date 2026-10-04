@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,13 @@ import { createHash } from "node:crypto";
 import { EvidenceStatementSchema, PREDICATE_URI } from "@j-rig/core";
 import { createDatabase } from "@j-rig/db";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+
+// These tests spawn real child processes (the built CLI or a node harness).
+// Under host load a spawn alone can exceed vitest's 5 s default, which made the
+// suite fail with timeouts that were not regressions (htjt.19: 48 timeouts at
+// load average ~30 on 2026-10-04, all green on CI). 30 s is sized to the real
+// work, not to hide a hang: each test still bounds its own child process.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * End-to-end self-eval: the tool that evaluates skills, tested evaluating a

@@ -1,10 +1,17 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse, stringify } from "yaml";
 import { runGenericEval } from "./run.js";
 import { runSuite } from "./suite.js";
+
+// These tests spawn real child processes (the built CLI or a node harness).
+// Under host load a spawn alone can exceed vitest's 5 s default, which made the
+// suite fail with timeouts that were not regressions (htjt.19: 48 timeouts at
+// load average ~30 on 2026-10-04, all green on CI). 30 s is sized to the real
+// work, not to hide a hang: each test still bounds its own child process.
+vi.setConfig({ testTimeout: 30_000 });
 
 const tempDirs: string[] = [];
 
