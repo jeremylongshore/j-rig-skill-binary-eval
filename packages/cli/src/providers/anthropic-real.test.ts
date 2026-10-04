@@ -347,3 +347,350 @@ describe("AnthropicJudgeProvider", () => {
     }
   });
 });
+
+/** Await a promise expected to reject and return the rejection. */
+async function rejection(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the promise to reject");
+}
+
+function throwingTransport(err: unknown): Transport {
+  return async () => {
+    throw err;
+  };
+}
+
+const USER = [{ role: "user" as const, content: "q" }];
+
+describe("RealAnthropicProvider — fail-closed error categorization (all statuses)", () => {
+  it("maps every non-2xx status to its category and falls back to a generic message", async () => {
+    const cases: Array<[number, string]> = [
+      [403, "authentication"],
+      [404, "model_not_found"],
+      [408, "network_timeout"],
+      [504, "network_timeout"],
+      [529, "network_timeout"],
+      [500, "unknown"],
+      [302, "unknown"],
+    ];
+    for (const [status, category] of cases) {
+      const { transport } = fakeTransport({ status, json: null });
+      const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+      const err = await rejection(provider.complete({ model: "sonnet", messages: USER }));
+      expect(isProviderError(err)).toBe(true);
+      expect(err).toMatchObject({ category, providerName: "anthropic" });
+      expect((err as Error).message).toBe(`Anthropic API returned HTTP ${status}`);
+    }
+  });
+
+  it("classifies a thrown AbortError or timeout message as network_timeout", async () => {
+    const abort = Object.assign(new Error("the operation was cancelled"), { name: "AbortError" });
+    for (const thrown of [abort, new Error("socket timeout after 30s")]) {
+      const provider = new RealAnthropicProvider({
+        apiKey: KEY,
+        transport: throwingTransport(thrown),
+      });
+      const err = await rejection(provider.complete({ model: "sonnet", messages: USER }));
+      expect(err).toMatchObject({ category: "network_timeout", originalError: thrown });
+    }
+  });
+
+  it("classifies any other thrown value as unknown and keeps an already-categorized error", async () => {
+    const generic = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: throwingTransport("ECONNRESET"),
+    });
+    const err = await rejection(generic.complete({ model: "sonnet", messages: USER }));
+    expect(err).toMatchObject({ category: "unknown", message: "ECONNRESET" });
+
+    const refusal = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: throwingTransport(new Error("dns lookup failed")),
+    });
+    expect(await rejection(refusal.complete({ model: "sonnet", messages: USER }))).toMatchObject({
+      category: "unknown",
+      message: "dns lookup failed",
+    });
+
+    const original = await rejection(
+      new RealAnthropicProvider({
+        apiKey: KEY,
+        transport: async () => ({ status: 429, json: { error: { message: "slow down" } } }),
+      }).complete({ model: "sonnet", messages: USER }),
+    );
+    const passthrough = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: throwingTransport(original),
+    });
+    expect(await rejection(passthrough.complete({ model: "sonnet", messages: USER }))).toBe(
+      original,
+    );
+  });
+
+  it("refuses a too-short key on callTool before any network call", async () => {
+    let called = false;
+    const provider = new RealAnthropicProvider({
+      apiKey: "short",
+      transport: async () => {
+        called = true;
+        return textResponse("x");
+      },
+    });
+    const err = await rejection(provider.callTool({ model: "sonnet", messages: USER, tools: [] }));
+    expect(err).toMatchObject({ category: "authentication" });
+    expect(called).toBe(false);
+  });
+});
+
+describe("RealAnthropicProvider — response normalization edges", () => {
+  it("maps each stop_reason, defaulting an unknown one to stop", async () => {
+    const expected: Array<[unknown, string]> = [
+      ["stop_sequence", "stop"],
+      ["tool_use", "tool_use"],
+      ["refusal", "refusal"],
+      ["something_new", "stop"],
+      [undefined, "stop"],
+    ];
+    for (const [stopReason, finishReason] of expected) {
+      const { transport } = fakeTransport({
+        status: 200,
+        json: { content: [{ type: "text", text: "t" }], stop_reason: stopReason },
+      });
+      const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+      const result = await provider.complete({ model: "sonnet", messages: USER });
+      expect(result.finishReason).toBe(finishReason);
+    }
+  });
+
+  it("zeroes missing usage, keeps cached input tokens, and ignores non-text or malformed blocks", async () => {
+    const { transport } = fakeTransport({
+      status: 200,
+      json: {
+        content: [
+          null,
+          { type: "tool_use" },
+          { type: "text", text: 7 },
+          { type: "text", text: "ok" },
+        ],
+        usage: { input_tokens: "many", cache_read_input_tokens: 4 },
+      },
+    });
+    const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const result = await provider.complete({ model: "sonnet", messages: USER });
+    expect(result.text).toBe("ok");
+    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0, cachedInputTokens: 4 });
+
+    const { transport: noContent } = fakeTransport({ status: 200, json: { content: "none" } });
+    const empty = await new RealAnthropicProvider({ apiKey: KEY, transport: noContent }).complete({
+      model: "sonnet",
+      messages: USER,
+    });
+    expect(empty.text).toBe("");
+    expect(empty.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+  });
+
+  it("sends tool results as user tool_result blocks and forwards temperature and stop sequences", async () => {
+    const { transport, lastRequest } = fakeTransport(textResponse("done"));
+    const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    await provider.complete({
+      model: "claude-haiku-4-5-20251001",
+      messages: [
+        { role: "user", content: "call it" },
+        { role: "tool", content: "42", toolCallId: "tool-1" },
+        { role: "tool", content: "43" },
+      ],
+      temperature: 0.2,
+      stop: ["END"],
+    });
+    const body = lastRequest()!.body as Record<string, unknown>;
+    expect(body.system).toBeUndefined();
+    expect(body.temperature).toBe(0.2);
+    expect(body.stop_sequences).toEqual(["END"]);
+    expect(body.max_tokens).toBe(1024);
+    expect(body.messages).toEqual([
+      { role: "user", content: "call it" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "tool-1", content: "42" }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "", content: "43" }] },
+    ]);
+  });
+
+  it("parses structured output when a responseSchema is requested and refuses non-JSON text", async () => {
+    const ok = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport(textResponse('{"a":1}')).transport,
+    });
+    const parsed = await ok.complete({ model: "sonnet", messages: USER, responseSchema: {} });
+    expect(parsed.structuredOutput).toEqual({ a: 1 });
+
+    const bad = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport(textResponse("not json")).transport,
+    });
+    const err = await rejection(
+      bad.complete({ model: "sonnet", messages: USER, responseSchema: {} }),
+    );
+    expect(err).toMatchObject({ category: "schema_violation" });
+  });
+
+  it("streams a text delta then a finish chunk, and only a finish chunk for empty text", async () => {
+    const collect = async (text: string) => {
+      const provider = new RealAnthropicProvider({
+        apiKey: KEY,
+        transport: fakeTransport(textResponse(text)).transport,
+      });
+      const chunks: unknown[] = [];
+      for await (const chunk of provider.completeStream({ model: "sonnet", messages: USER })) {
+        chunks.push(chunk);
+      }
+      return chunks;
+    };
+    expect(await collect("hi")).toEqual([
+      { type: "text_delta", delta: "hi" },
+      { type: "finish", finishReason: "stop", usage: { inputTokens: 10, outputTokens: 5 } },
+    ]);
+    expect(await collect("")).toEqual([
+      { type: "finish", finishReason: "stop", usage: { inputTokens: 10, outputTokens: 5 } },
+    ]);
+  });
+
+  it("returns per-request errors from batch instead of rejecting the whole batch", async () => {
+    let call = 0;
+    const provider = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: async () => {
+        call += 1;
+        if (call === 2) return { status: 401, json: { error: { message: "bad key" } } };
+        return textResponse(`answer-${call}`);
+      },
+    });
+    const results = await provider.batch([
+      { model: "sonnet", messages: USER },
+      { model: "sonnet", messages: USER },
+    ]);
+    expect(results[0]).toMatchObject({ text: "answer-1" });
+    expect(isProviderError(results[1])).toBe(true);
+    expect(results[1]).toMatchObject({ category: "authentication", message: "bad key" });
+  });
+});
+
+describe("RealAnthropicProvider.callTool — degenerate responses", () => {
+  const tools = [{ name: "lookup", description: "d", inputSchema: { type: "object" } }];
+
+  it("throws a categorized error on a non-2xx tool call", async () => {
+    const provider = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport({ status: 404, json: {} }).transport,
+    });
+    const err = await rejection(
+      provider.callTool({
+        model: "sonnet",
+        messages: [{ role: "system", content: "s" }, ...USER],
+        tools,
+      }),
+    );
+    expect(err).toMatchObject({ category: "model_not_found" });
+  });
+
+  it("returns a null tool call with the text when the model answered without a tool", async () => {
+    const provider = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport(textResponse("no tool needed", "end_turn")).transport,
+    });
+    const result = await provider.callTool({ model: "sonnet", messages: USER, tools });
+    expect(result).toEqual({
+      toolName: null,
+      toolArguments: null,
+      toolCallId: null,
+      text: "no tool needed",
+      finishReason: "stop",
+      usage: { inputTokens: 10, outputTokens: 5 },
+    });
+  });
+
+  it("nulls malformed tool_use fields and tolerates a null body", async () => {
+    const malformed = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport({
+        status: 200,
+        json: { content: [{ type: "tool_use", name: 1, input: "args", id: 2 }] },
+      }).transport,
+    });
+    expect(await malformed.callTool({ model: "sonnet", messages: USER, tools })).toMatchObject({
+      toolName: null,
+      toolArguments: null,
+      toolCallId: null,
+      finishReason: "tool_use",
+    });
+
+    const empty = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport({ status: 200, json: null }).transport,
+    });
+    expect(await empty.callTool({ model: "sonnet", messages: USER, tools })).toMatchObject({
+      toolName: null,
+      text: "",
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+  });
+});
+
+describe("Anthropic eval bridges — unparseable model output", () => {
+  it("trigger: falls back to raw text reasoning and null selection when no JSON is returned", async () => {
+    const provider = new RealAnthropicProvider({
+      apiKey: KEY,
+      transport: fakeTransport(textResponse("I would not pick any skill here.")).transport,
+    });
+    const trigger = new AnthropicTriggerProvider("sonnet", provider);
+    expect(await trigger.selectSkill("p", [{ name: "a", description: "b" }])).toEqual({
+      selected: null,
+      reasoning: "I would not pick any skill here.",
+    });
+  });
+
+  it("trigger: treats the string 'null' and an empty name as no selection", async () => {
+    for (const selected of ['"null"', '""', "42"]) {
+      const provider = new RealAnthropicProvider({
+        apiKey: KEY,
+        transport: fakeTransport(textResponse(`{"selected": ${selected}, "reasoning": "r"}`))
+          .transport,
+      });
+      const trigger = new AnthropicTriggerProvider("sonnet", provider);
+      expect((await trigger.selectSkill("p", [])).selected).toBeNull();
+    }
+  });
+
+  it("judge: defaults confidence to 0.5 and uses raw text when fields are missing or a scalar parses", async () => {
+    for (const text of ['{"verdict": "no", "confidence": "high"}', "{} trailing } but [1]"]) {
+      const provider = new RealAnthropicProvider({
+        apiKey: KEY,
+        transport: fakeTransport(textResponse(text)).transport,
+      });
+      const judge = new AnthropicJudgeProvider("sonnet", provider);
+      const out = await judge.judge("c", "p", "o", "custom question?");
+      expect(out.confidence).toBe(0.5);
+      expect(out.reasoning).toBe(text.slice(0, 200));
+    }
+  });
+
+  it("execution: forwards a model override, temperature, and a timeout signal", async () => {
+    const { transport, lastRequest } = fakeTransport(textResponse("executed"));
+    const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
+    const execution = new AnthropicExecutionProvider("sonnet", provider);
+    const out = await execution.execute(
+      "prompt",
+      { skill_body: "body" } as Parameters<AnthropicExecutionProvider["execute"]>[1],
+      { model: "haiku", temperature: 0, timeout_ms: 5_000 },
+    );
+    expect(out.text).toBe("executed");
+    expect(out.meta.timed_out).toBe(false);
+    const request = lastRequest()!;
+    expect(request.signal).toBeInstanceOf(AbortSignal);
+    const body = request.body as Record<string, unknown>;
+    expect(body.model).toMatch(/^claude-haiku/);
+    expect(body.temperature).toBe(0);
+  });
+});

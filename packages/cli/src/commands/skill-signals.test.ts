@@ -257,4 +257,104 @@ describe("j-rig review", () => {
     expect(out.thumbsUp).toBe(false);
     expect(out.rationale).toBeNull();
   });
+
+  it("prints a human-readable thumb-up with rationale and the curated-signal disclaimer", async () => {
+    const db = scratchDb();
+    await program().parseAsync(
+      [
+        "review",
+        "commit-writer",
+        "--verdict",
+        " UP ",
+        "--rationale",
+        "clear output",
+        "--reviewer",
+        "rev-1",
+        "--tenant",
+        "tenant-b",
+        "--db",
+        db,
+      ],
+      { from: "user" },
+    );
+    const text = logs.join("\n");
+    expect(text).toContain("j-rig review: commit-writer");
+    expect(text).toContain("thumb up by rev-1 (curated-signal)");
+    expect(text).toContain("rationale: clear output");
+    expect(text).toContain("NOT a signed human-review/v1 predicate");
+    const verify = createDatabase(db);
+    expect(countReviews(verify, "commit-writer")).toEqual([
+      { skillId: "commit-writer", direction: "up", tenantId: "tenant-b", count: 1 },
+    ]);
+    verify.close();
+  });
+
+  it("prints a thumb-down without a rationale line when none was given", async () => {
+    const db = scratchDb();
+    await program().parseAsync(["review", "k", "--verdict", "down", "--db", db], {
+      from: "user",
+    });
+    const text = logs.join("\n");
+    expect(text).toContain("thumb down by unknown");
+    expect(text).not.toContain("rationale:");
+  });
+
+  it("closes the SQLite connection and exits 1 when the review write throws", async () => {
+    const db = scratchDb();
+    const close = vi.fn();
+    const real = createDatabase(db);
+    vi.spyOn(dbLib, "openDb").mockReturnValue({ ...real, close });
+    vi.spyOn(jrigDb, "recordSkillReview").mockImplementation(() => {
+      throw "review store offline";
+    });
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    await expect(
+      program().parseAsync(["review", "k", "--verdict", "up", "--db", db], { from: "user" }),
+    ).rejects.toThrow();
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(errs.join("\n")).toContain("Error: review store offline");
+    expect(exit).toHaveBeenCalledWith(1);
+    real.close();
+  });
+});
+
+describe("j-rig ingest-skill — human-readable output", () => {
+  it("prints a PASS line with the tenant bucket for a passing session", async () => {
+    const db = scratchDb();
+    await program().parseAsync(
+      [
+        "ingest-skill",
+        "commit-writer",
+        "--session-id",
+        "s-pass",
+        "--source",
+        " CI ",
+        "--tests-passed",
+        "--clear-resolution",
+        "--tenant",
+        "tenant-a",
+        "--db",
+        db,
+      ],
+      { from: "user" },
+    );
+    const text = logs.join("\n");
+    expect(text).toContain("j-rig ingest-skill: commit-writer");
+    expect(text).toContain("PASS — counts toward verified adoption");
+    expect(text).toContain("source: ci | tenant: tenant-a");
+    expect(text).not.toContain("never counted");
+  });
+
+  it("prints a FAIL line and the anti-gaming note for a failing session with no tenant", async () => {
+    const db = scratchDb();
+    await program().parseAsync(["ingest-skill", "k", "--session-id", "s-fail", "--db", db], {
+      from: "user",
+    });
+    const text = logs.join("\n");
+    expect(text).toContain("FAIL — persisted but EXCLUDED from adoption (anti-gaming)");
+    expect(text).toMatch(/source: plugin$/m);
+    expect(text).toContain("There is no force-count flag.");
+  });
 });
