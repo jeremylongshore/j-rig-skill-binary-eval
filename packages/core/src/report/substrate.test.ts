@@ -107,3 +107,87 @@ describe("unified report", () => {
     expect(html).toContain("No run data is available.");
   });
 });
+
+describe("unified report headroom (000-docs/043)", () => {
+  function observations(verdicts: Array<"pass" | "fail">) {
+    return verdicts.map((verdict, i) => ({
+      raw_run_id: `raw-${i}`,
+      task_id: "task-a",
+      task_version: "1",
+      config_id: "config-a",
+      config_version: "1",
+      model: "model-a",
+      sample_index: i,
+      status: "completed" as const,
+      grade: { ...selector, verdict, score: verdict === "pass" ? 1 : 0 },
+    }));
+  }
+  const at = "2026-10-04T00:00:00.000Z";
+
+  it("marks a cell that passes every graded run as saturated", () => {
+    const report = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: observations(Array(10).fill("pass")),
+    });
+    expect(report.cells[0]?.headroom_status).toBe("saturated");
+  });
+
+  it("distinguishes near_ceiling from headroom per cell, never rolled up", () => {
+    const near = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: observations([...Array(9).fill("pass"), "fail"]),
+    });
+    const room = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: observations([...Array(5).fill("pass"), ...Array(5).fill("fail")]),
+    });
+    expect(near.cells[0]?.headroom_status).toBe("near_ceiling");
+    expect(room.cells[0]?.headroom_status).toBe("headroom");
+    expect(Object.keys(near.summary)).not.toContain("headroom_status");
+  });
+
+  it("reports no_data for a cell with no graded runs", () => {
+    const report = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: [
+        { ...observations(["pass"])[0]!, status: "runner_error" as const, grade: undefined },
+      ],
+    });
+    expect(report.cells[0]?.headroom_status).toBe("no_data");
+  });
+
+  it("renders a Headroom column in Markdown and HTML", () => {
+    const report = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: observations(Array(10).fill("pass")),
+    });
+    const md = renderUnifiedReportMarkdown(report);
+    expect(md).toContain("| 95% Wilson | Headroom |");
+    expect(md).toContain("| saturated |");
+    const html = renderUnifiedReportHtml(report);
+    expect(html).toContain('<th scope="col">Headroom</th>');
+    expect(html).toContain("<td>saturated</td>");
+  });
+
+  it("renders a dash for a report built before headroom_status existed", () => {
+    const report = buildUnifiedReport({
+      generated_at: at,
+      selector,
+      observations: observations(["pass", "fail"]),
+    });
+    const legacy = {
+      ...report,
+      cells: report.cells.map((cell) => {
+        const copy = { ...cell };
+        delete copy.headroom_status;
+        return copy;
+      }),
+    };
+    expect(renderUnifiedReportMarkdown(legacy)).toMatch(/\| \[[0-9.]+, [0-9.]+\] \| — \|/);
+  });
+});

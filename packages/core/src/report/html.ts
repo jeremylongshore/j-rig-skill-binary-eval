@@ -1,5 +1,5 @@
 import type { GradeMeasurement, SamplingGrade } from "../sampling/substrate.js";
-import type { UnifiedReport } from "./substrate.js";
+import { headroomCell, type UnifiedReport } from "./substrate.js";
 
 /** Escape a value before inserting it into a static HTML projection. */
 export function escapeHtml(value: unknown): string {
@@ -60,6 +60,7 @@ export function renderUnifiedReportHtml(
         `<td class="numeric">${cell.graded_runs}</td>` +
         `<td class="numeric">${passRate(cell.pass_rate)}</td>` +
         `<td class="numeric">${escapeHtml(interval(cell))}</td>` +
+        `<td>${escapeHtml(headroomCell(rawCell.headroom_status))}</td>` +
         `<td class="numeric">${cell.harness_failure_count}</td>` +
         `<td class="numeric">${cell.ungraded_completed_runs}</td>` +
         `<td class="numeric">${metric(cell.mean_score?.toFixed(3) ?? null)}</td>` +
@@ -68,7 +69,7 @@ export function renderUnifiedReportHtml(
     })
     .join("");
   const cellBody =
-    cellRows || '<tr><td class="empty" colspan="11">No cell measurements are available.</td></tr>';
+    cellRows || '<tr><td class="empty" colspan="12">No cell measurements are available.</td></tr>';
 
   const runRows = report.runs
     .map((run) => {
@@ -146,7 +147,7 @@ export function renderUnifiedReportHtml(
     '      <div class="table-wrap">',
     "        <table>",
     "          <caption>Task/config/model measurements; no heterogeneous overall pass rate is inferred.</caption>",
-    '          <thead><tr><th scope="col">Task</th><th scope="col">Config</th><th scope="col">Model</th><th scope="col">Completed</th><th scope="col">Graded</th><th scope="col">Pass rate</th><th scope="col">95% Wilson</th><th scope="col">Harness failures</th><th scope="col">Ungraded</th><th scope="col">Mean score</th><th scope="col">Score SE</th></tr></thead>',
+    '          <thead><tr><th scope="col">Task</th><th scope="col">Config</th><th scope="col">Model</th><th scope="col">Completed</th><th scope="col">Graded</th><th scope="col">Pass rate</th><th scope="col">95% Wilson</th><th scope="col">Headroom</th><th scope="col">Harness failures</th><th scope="col">Ungraded</th><th scope="col">Mean score</th><th scope="col">Score SE</th></tr></thead>',
     `          <tbody>${cellBody}</tbody>`,
     "        </table>",
     "      </div>",
