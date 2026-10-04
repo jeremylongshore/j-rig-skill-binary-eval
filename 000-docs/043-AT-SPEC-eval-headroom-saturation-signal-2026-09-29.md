@@ -73,5 +73,7 @@ The assessment records `ceiling`, `ceiling_source` (`spec` or `default`),
   `no-behavioral-improvement` when nothing regressed and the baseline's
   behavioral pass rate is already >= 0.95 (`SATURATION_CEILING`, mirroring this
   record's default). A named-dimension regression still takes precedence.
-- **Unified report cells.** `j-rig report --unified` already shows per-cell
-  Wilson intervals; a per-cell headroom column is a follow-up.
+- **Unified report cells.** Done 2026-10 (bead htjt.28): each
+  `j-rig/unified-report/v1` cell carries an optional `headroom_status`, computed
+  from the cell's pass count over graded runs at the default ceiling, and the
+  Markdown and HTML renders show a Headroom column. Per cell only; never rolled up.

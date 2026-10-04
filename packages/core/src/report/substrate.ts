@@ -7,6 +7,7 @@ import {
   type GradeSelector,
   type SamplingGrade,
 } from "../sampling/substrate.js";
+import { assessHeadroom, type HeadroomStatus } from "../governance/headroom.js";
 
 const GradeMeasurementSchema = z.object({
   task_id: z.string().min(1),
@@ -36,6 +37,10 @@ const GradeMeasurementSchema = z.object({
     .nullable(),
   mean_score: z.number().nullable(),
   score_standard_error: z.number().nonnegative().nullable(),
+  // OPTIONAL and additive to j-rig/unified-report/v1: whether this cell can
+  // still show improvement (000-docs/043), from its pass count over graded runs
+  // at the default 0.95 ceiling. Per cell only; never rolled up (C3).
+  headroom_status: z.enum(["saturated", "near_ceiling", "headroom", "no_data"]).optional(),
 });
 
 const SamplingGradeSchema = z.object({
@@ -113,6 +118,11 @@ function measurementSummary(measurements: GradeMeasurement[]) {
   );
 }
 
+/** Headroom for one cell: pass count over graded runs, default ceiling. */
+function cellHeadroom(measurement: GradeMeasurement): HeadroomStatus {
+  return assessHeadroom({ passed: measurement.pass_count, trials: measurement.graded_runs }).status;
+}
+
 /** Build a versioned report while preserving cell-level, non-rolled-up metrics. */
 export function buildUnifiedReport(input: UnifiedReportInput): UnifiedReport {
   const measurements = summarizeGradeObservations(input.observations, input.selector);
@@ -121,7 +131,10 @@ export function buildUnifiedReport(input: UnifiedReportInput): UnifiedReport {
     generated_at: input.generated_at,
     grader: input.selector,
     summary: measurementSummary(measurements),
-    cells: measurements,
+    cells: measurements.map((measurement) => ({
+      ...measurement,
+      headroom_status: cellHeadroom(measurement),
+    })),
     runs: input.observations.map((observation) => ({
       raw_run_id: observation.raw_run_id,
       task_id: observation.task_id,
@@ -141,6 +154,11 @@ function markdownCell(value: unknown): string {
   return String(value ?? "—")
     .replaceAll("|", "\\|")
     .replaceAll("\n", " ");
+}
+
+/** Render a cell's headroom status; absent on reports built before the field existed. */
+export function headroomCell(status: HeadroomStatus | undefined): string {
+  return status ? status.replace("_", " ") : "—";
 }
 
 function interval(measurement: GradeMeasurement): string {
@@ -166,17 +184,17 @@ export function renderUnifiedReportMarkdown(report: UnifiedReport): string {
     "",
     "## Cells",
     "",
-    "| Task | Config | Model | Completed | Graded | Pass rate | 95% Wilson | Harness failures | Ungraded | Mean score | Score SE |",
-    "|---|---|---|---:|---:|---:|---|---:|---:|---:|---:|",
+    "| Task | Config | Model | Completed | Graded | Pass rate | 95% Wilson | Headroom | Harness failures | Ungraded | Mean score | Score SE |",
+    "|---|---|---|---:|---:|---:|---|---|---:|---:|---:|---:|",
   ];
 
   for (const rawCell of report.cells) {
     const cell = rawCell as unknown as GradeMeasurement;
     lines.push(
-      `| ${markdownCell(`${cell.task_id}@${cell.task_version}`)} | ${markdownCell(`${cell.config_id}@${cell.config_version}`)} | ${markdownCell(cell.model)} | ${cell.completed_runs} | ${cell.graded_runs} | ${cell.pass_rate === null ? "—" : cell.pass_rate.toFixed(3)} | ${interval(cell)} | ${cell.harness_failure_count} | ${cell.ungraded_completed_runs} | ${cell.mean_score === null ? "—" : cell.mean_score.toFixed(3)} | ${cell.score_standard_error === null ? "—" : cell.score_standard_error.toFixed(3)} |`,
+      `| ${markdownCell(`${cell.task_id}@${cell.task_version}`)} | ${markdownCell(`${cell.config_id}@${cell.config_version}`)} | ${markdownCell(cell.model)} | ${cell.completed_runs} | ${cell.graded_runs} | ${cell.pass_rate === null ? "—" : cell.pass_rate.toFixed(3)} | ${interval(cell)} | ${headroomCell(rawCell.headroom_status)} | ${cell.harness_failure_count} | ${cell.ungraded_completed_runs} | ${cell.mean_score === null ? "—" : cell.mean_score.toFixed(3)} | ${cell.score_standard_error === null ? "—" : cell.score_standard_error.toFixed(3)} |`,
     );
   }
-  if (report.cells.length === 0) lines.push("| — | — | — | 0 | 0 | — | — | 0 | 0 | — | — |");
+  if (report.cells.length === 0) lines.push("| — | — | — | 0 | 0 | — | — | — | 0 | 0 | — | — |");
 
   lines.push(
     "",

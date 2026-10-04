@@ -53,6 +53,9 @@ The machine-readable shape is `j-rig/unified-report/v1`:
 ```
 
 `cells` contains the full per-cell uncertainty records from document 033.
+Since 2026-10 each cell may also carry an optional `headroom_status`
+(`saturated` / `near_ceiling` / `headroom` / `no_data`; document 043), additive to
+`j-rig/unified-report/v1` and computed per cell only.
 `runs` preserves raw Run lineage, sample index, status, and the selected Grade
 or `null` when the completed Run is still ungraded. Empty `cells` and `runs`
 are valid and render as explicit no-data, not as a pass.
