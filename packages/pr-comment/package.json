@@ -33,6 +33,6 @@
   "author": "Jeremy Longshore <jeremy@jeremylongshore.com>",
   "devDependencies": {
     "@intentsolutions/rollout-gate": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.3"
   }
 }
