@@ -14,6 +14,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Package releases (2026-10-04)
+
+- **`@intentsolutions/refiner` + `@intentsolutions/refiner-core` 0.5.0** (tag
+  `refiner-v0.5.0`) and **`@intentsolutions/jrig-cli` 0.4.0** (tag `jrig-cli-v0.4.0`).
+  Minor bumps: a new rejection reason, a new report field, and the move to
+  `@intentsolutions/core` 0.11.0.
+
+### Added (2026-10)
+
+- **Unified report headroom:** each `j-rig/unified-report/v1` cell carries an optional
+  `headroom_status`, shown as a Headroom column in the Markdown and HTML renders; per
+  cell only, never rolled up ([#327](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/327)).
+- **`saturated-baseline` rejection reason:** `accept()` names a saturated baseline
+  (behavioral pass rate >= `SATURATION_CEILING` 0.95, nothing regressed, no
+  significant gain) instead of `no-behavioral-improvement` ([#328](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/328)).
+
+### Changed (2026-10)
+
+- **Kernel `@intentsolutions/core` 0.10.0 → 0.11.0** across the workspace; the
+  refiner-core peer range moves to `^0.11.0`. 0.11.0 makes `skill-refiner-pass/v1`
+  stricter (subject binding, unique dimension ids); `emit-refiner-pass` already
+  complies ([#326](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/326)).
+
+### Fixed (2026-10)
+
+- **Wall-clock flakes:** EC-5 runs on fake timers (with a test proving a serializing
+  batch still fails), and only test groups that spawn processes get a 30 s timeout
+  ([#329](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/329)).
+- **Branch coverage headroom:** 84.41% → 86.90% with fail-closed and error-path tests;
+  test files only ([#330](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/330)).
+
 ### Package releases
 
 - **`@intentsolutions/refiner` + `@intentsolutions/refiner-core` 0.4.0** (tag
