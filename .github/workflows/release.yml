@@ -194,12 +194,14 @@ jobs:
           fi
           echo "✓ report-manifest.json published to release $tag"
 
-  # ── Fire a tailnet-only ntfy alert when the tag-release fails (bead 59tx) ──
+  # ── Alert on a failed tag-release: post to Buzz (sys-automation) ──
   #
-  # Tag-triggered only — this never runs on a PR. It fires solely on a future
-  # FAILED tag-release of release/emit-evidence, joins the tailnet via Tailscale
-  # OIDC, and POSTs a high-priority ntfy alert to the tailnet-only prod-deploys
-  # topic so an operator is paged the moment a release CI run goes red.
+  # Fires ONLY when a release job above fails (`if: failure()`). The workflow
+  # is tag-triggered, so this never runs on a PR. It posts to the Buzz
+  # `ci-failure-alerts` webhook, which lands in the sys-automation channel.
+  # Buzz is public HTTPS, so no tailnet join is needed. The JSON key must be
+  # `alert`: Buzz reserves `text` as a built-in trigger field and it arrives
+  # empty. This replaced the retired tailnet ntfy (bead u8kx.47).
   alert-on-failure:
     name: alert-on-failure
     needs: [release, emit-evidence]
@@ -207,40 +209,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # Tailscale OIDC
 
     steps:
-      - name: Join tailnet via Tailscale OIDC
-        uses: tailscale/github-action@v4.1.3
-        with:
-          oauth-client-id: ${{ secrets.TS_OIDC_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:ci
-
-      - name: Wait for tailnet
-        run: |
-          for i in $(seq 1 20); do
-            if sudo tailscale ping --c 1 --timeout 2s 100.88.144.55; then
-              echo "✓ tailnet reachable"
-              exit 0
-            fi
-            echo "tailnet not ready yet (attempt $i/20)…"
-            sleep 2
-          done
-          echo "::error::tailnet never became reachable (100.88.144.55)"
-          exit 1
-
-      - name: Notify ntfy
+      - name: Post failure alert to Buzz
         env:
-          NTFY_AUTH_TOKEN: ${{ secrets.NTFY_AUTH_TOKEN }}
+          BUZZ_CI_WEBHOOK_URL: ${{ secrets.BUZZ_CI_WEBHOOK_URL }}
+          BUZZ_CI_WEBHOOK_SECRET: ${{ secrets.BUZZ_CI_WEBHOOK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -s -m 10 -X POST http://intentsolutions:8080/prod-deploys \
-            -H "Title: [j-rig-skill-binary-eval] Release CI FAILED" \
-            -H "Priority: high" \
-            -H "Tags: prod-deploys,rotating_light" \
-            -H "Authorization: Bearer ${NTFY_AUTH_TOKEN}" \
-            --data "Release CI failed on ref ${{ github.ref_name }} (sha ${{ github.sha }}). Run: ${run_url}"
+          set -euo pipefail
+          if [[ -z "${BUZZ_CI_WEBHOOK_URL:-}" || -z "${BUZZ_CI_WEBHOOK_SECRET:-}" ]]; then
+            echo "::warning::BUZZ_CI_WEBHOOK_URL or BUZZ_CI_WEBHOOK_SECRET not set; skipping Buzz alert."
+            exit 0
+          fi
+          msg="🚨 [j-rig-skill-binary-eval] Release CI FAILED on ${GITHUB_REF_NAME} (sha ${GITHUB_SHA}). Run: ${RUN_URL}"
+          jq -n --arg a "$msg" '{alert:$a}' > "$RUNNER_TEMP/buzz-alert.json"
+          code=$(curl -sS -m 15 -o /dev/null -w '%{http_code}' -X POST "$BUZZ_CI_WEBHOOK_URL" \
+            -H "x-webhook-secret: ${BUZZ_CI_WEBHOOK_SECRET}" \
+            -H 'Content-Type: application/json' \
+            --data @"$RUNNER_TEMP/buzz-alert.json") || code=000
+          if [[ "$code" != "202" ]]; then
+            echo "::error::Buzz alert not accepted (HTTP $code)"
+            exit 1
+          fi
+          echo "Buzz alert accepted (HTTP 202)"
 
   # ── Notify the platform umbrella to regenerate its aggregate changelog ──
   #
