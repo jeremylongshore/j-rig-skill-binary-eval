@@ -67,3 +67,30 @@ describe("j-rig batch", () => {
     expect(second.remaining_plan.jobs).toHaveLength(0);
   });
 });
+
+describe("j-rig batch deprecation", () => {
+  it("prints the deprecation notice on stderr before doing anything", async () => {
+    const { Command } = await import("commander");
+    const { registerBatchCommand, BATCH_DEPRECATION_NOTICE } = await import("./batch.js");
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args.map(String).join(" "));
+    };
+    const previousExitCode = process.exitCode;
+    try {
+      const program = new Command();
+      program.exitOverride();
+      registerBatchCommand(program);
+      await program.parseAsync(["node", "j-rig", "batch", "--manifest", "/nonexistent/batch.yaml"]);
+    } finally {
+      console.error = original;
+      process.exitCode = previousExitCode;
+    }
+    expect(errors[0]).toBe(BATCH_DEPRECATION_NOTICE);
+    expect(BATCH_DEPRECATION_NOTICE).toContain("j-rig suite");
+    // Must match the removal plan in 000-docs/044 and the CHANGELOG.
+    expect(BATCH_DEPRECATION_NOTICE).toContain("removed in the release after this one");
+    expect(errors.some((line) => line.startsWith("Error:"))).toBe(true);
+  });
+});
