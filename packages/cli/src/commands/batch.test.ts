@@ -89,6 +89,8 @@ describe("j-rig batch deprecation", () => {
     }
     expect(errors[0]).toBe(BATCH_DEPRECATION_NOTICE);
     expect(BATCH_DEPRECATION_NOTICE).toContain("j-rig suite");
+    // Must match the removal plan in 000-docs/044 and the CHANGELOG.
+    expect(BATCH_DEPRECATION_NOTICE).toContain("removed in the release after this one");
     expect(errors.some((line) => line.startsWith("Error:"))).toBe(true);
   });
 });

@@ -20,7 +20,7 @@ import { loadGenericDefinitions, runGenericEval, type GenericRunResult } from ".
  * first prints this notice.
  */
 export const BATCH_DEPRECATION_NOTICE =
-  "Warning: `j-rig batch` is deprecated and will be removed in the next release. " +
+  "Warning: `j-rig batch` is deprecated and will be removed in the release after this one. " +
   "Use `j-rig suite <manifest>`, which grades every run and writes an audit file and report. " +
   "See 000-docs/044-AT-DECR-suite-replaces-batch-2026-10-05.md.";
 

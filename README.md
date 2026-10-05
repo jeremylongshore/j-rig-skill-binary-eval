@@ -299,7 +299,8 @@ resumable command (below). See
 
 `j-rig batch` is **deprecated**: use `j-rig suite` (below), which runs the same
 balanced passes and also grades every run and writes an audit file and report.
-`batch` still works and prints a notice; it is removed in the next release. See
+`batch` still works and prints a notice; it is removed in the release after the
+one that first ships the notice. See
 [`044-AT-DECR-suite-replaces-batch-2026-10-05.md`](000-docs/044-AT-DECR-suite-replaces-batch-2026-10-05.md).
 
 ### Unified report

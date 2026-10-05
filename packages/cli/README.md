@@ -97,8 +97,8 @@ model. See
 cells and reports the next balanced sample indices needed to reach `--target-n`.
 `j-rig suite` plans, executes, grades and reports these jobs from one manifest
 and resumes from the immutable raw-run ledger. `j-rig batch` is deprecated in
-favour of `suite`; it still works, prints a notice, and is removed in the next
-release. These surfaces retain
+favour of `suite`; it still works, prints a notice, and is removed in the release
+after the one that first ships the notice. These surfaces retain
 runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
