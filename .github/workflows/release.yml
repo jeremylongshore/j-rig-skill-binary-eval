@@ -194,11 +194,11 @@ jobs:
           fi
           echo "✓ report-manifest.json published to release $tag"
 
-  # ── Alert on a failed tag-release: post to Buzz (sys-automation) ──
+  # ── Alert on a failed tag-release: post to Buzz (sys-deploys) ──
   #
   # Fires ONLY when a release job above fails (`if: failure()`). The workflow
   # is tag-triggered, so this never runs on a PR. It posts to the Buzz
-  # `ci-failure-alerts` webhook, which lands in the sys-automation channel.
+  # `iep-release-failures` webhook, which lands in the sys-deploys channel.
   # Buzz is public HTTPS, so no tailnet join is needed. The JSON key must be
   # `alert`: Buzz reserves `text` as a built-in trigger field and it arrives
   # empty. This replaced the retired tailnet ntfy (bead u8kx.47).
@@ -213,19 +213,19 @@ jobs:
     steps:
       - name: Post failure alert to Buzz
         env:
-          BUZZ_CI_WEBHOOK_URL: ${{ secrets.BUZZ_CI_WEBHOOK_URL }}
-          BUZZ_CI_WEBHOOK_SECRET: ${{ secrets.BUZZ_CI_WEBHOOK_SECRET }}
+          BUZZ_DEPLOYS_WEBHOOK_URL: ${{ secrets.BUZZ_DEPLOYS_WEBHOOK_URL }}
+          BUZZ_DEPLOYS_WEBHOOK_SECRET: ${{ secrets.BUZZ_DEPLOYS_WEBHOOK_SECRET }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          if [[ -z "${BUZZ_CI_WEBHOOK_URL:-}" || -z "${BUZZ_CI_WEBHOOK_SECRET:-}" ]]; then
-            echo "::warning::BUZZ_CI_WEBHOOK_URL or BUZZ_CI_WEBHOOK_SECRET not set; skipping Buzz alert."
+          if [[ -z "${BUZZ_DEPLOYS_WEBHOOK_URL:-}" || -z "${BUZZ_DEPLOYS_WEBHOOK_SECRET:-}" ]]; then
+            echo "::warning::BUZZ_DEPLOYS_WEBHOOK_URL or BUZZ_DEPLOYS_WEBHOOK_SECRET not set; skipping Buzz alert."
             exit 0
           fi
           msg="🚨 [j-rig-skill-binary-eval] Release CI FAILED on ${GITHUB_REF_NAME} (sha ${GITHUB_SHA}). Run: ${RUN_URL}"
           jq -n --arg a "$msg" '{alert:$a}' > "$RUNNER_TEMP/buzz-alert.json"
-          code=$(curl -sS -m 15 -o /dev/null -w '%{http_code}' -X POST "$BUZZ_CI_WEBHOOK_URL" \
-            -H "x-webhook-secret: ${BUZZ_CI_WEBHOOK_SECRET}" \
+          code=$(curl -sS -m 15 -o /dev/null -w '%{http_code}' -X POST "$BUZZ_DEPLOYS_WEBHOOK_URL" \
+            -H "x-webhook-secret: ${BUZZ_DEPLOYS_WEBHOOK_SECRET}" \
             -H 'Content-Type: application/json' \
             --data @"$RUNNER_TEMP/buzz-alert.json") || code=000
           if [[ "$code" != "202" ]]; then
