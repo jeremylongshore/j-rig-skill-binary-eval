@@ -43,7 +43,7 @@ j-rig suite <suite.yaml>              # balanced, resumable Task × Config targe
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
-j-rig batch --manifest ...            # execute a resumable balanced batch
+j-rig batch --manifest ...            # deprecated: use j-rig suite
 j-rig report --unified ...            # selected-Grader JSON/Markdown/HTML report
 j-rig report --unified ... --html --serve # serve a report on loopback
 j-rig report                         # show results from the SQLite evidence DB
@@ -95,9 +95,10 @@ model. See
 
 `j-rig sample-plan` reads a YAML manifest of explicit Task × Config × Model
 cells and reports the next balanced sample indices needed to reach `--target-n`.
-`j-rig batch` consumes a path-based suite manifest, executes those jobs in
-balanced passes, and resumes from the immutable raw-run ledger; `j-rig suite`
-plans and executes the same jobs from one manifest. These surfaces retain
+`j-rig suite` plans, executes, grades and reports these jobs from one manifest
+and resumes from the immutable raw-run ledger. `j-rig batch` is deprecated in
+favour of `suite`; it still works, prints a notice, and is removed in the next
+release. These surfaces retain
 runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 

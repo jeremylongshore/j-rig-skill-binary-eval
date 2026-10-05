@@ -101,15 +101,16 @@ indices. Grade measurements select the full grader snapshot and report Wilson
 uncertainty without heterogeneous rollups. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
-`j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
-runner failures in the raw-run ledger and never treats them as model grades.
+`j-rig suite` is the one supported way to run a Task × Config evaluation set:
+it executes balanced target-N passes, grades every run with the named grader,
+resumes from the raw-run ledger, and writes an audit file and report. Runner
+failures stay in the ledger and are never treated as model grades.
 
-Two commands have "batch" in the name and live in different files. `j-rig batch`
-(sampling manifest, `commands/batch.ts`) executes generic Task × Config cells.
-`j-rig eval-batch` (`commands/eval-batch.ts`) walks a skills root and runs
-`j-rig eval` per skill. Edit the one you mean. `j-rig suite` also executes
-balanced target-N jobs from a single manifest; whether it should subsume
-`j-rig batch` is an open design question, so do not merge them in passing.
+**`j-rig batch` is deprecated** (decided 2026-10-05, `000-docs/044`): it still
+works unchanged but prints a notice pointing to `suite`, and it is removed in the
+release after the one that first ships the notice. Do not add features to it.
+`j-rig eval-batch` (`commands/eval-batch.ts`) is a different, supported command:
+it walks a skills root and runs `j-rig eval` per skill.
 
 The generic `ExecutableRunner` is bounded: stdout and stderr are each capped at
 the optional `harness.max_output_bytes` (10 MiB default applied at runtime),

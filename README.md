@@ -297,16 +297,10 @@ to render them. `j-rig suite` plans and executes these same jobs as one
 resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
 
-`j-rig batch` consumes a path-based suite manifest, executes these jobs in
-balanced passes, and resumes from the immutable raw-run ledger. Runner
-failures remain diagnostic observations rather than model grades:
-
-```bash
-node packages/cli/dist/index.js batch \
-  --manifest ./batch.yaml \
-  --db ./j-rig.db \
-  --json
-```
+`j-rig batch` is **deprecated**: use `j-rig suite` (below), which runs the same
+balanced passes and also grades every run and writes an audit file and report.
+`batch` still works and prints a notice; it is removed in the next release. See
+[`044-AT-DECR-suite-replaces-batch-2026-10-05.md`](000-docs/044-AT-DECR-suite-replaces-batch-2026-10-05.md).
 
 ### Unified report
 

@@ -14,6 +14,16 @@ import { getRawRunSampleObservations } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { loadGenericDefinitions, runGenericEval, type GenericRunResult } from "./run.js";
 
+/**
+ * `j-rig batch` is deprecated in favour of `j-rig suite` (000-docs/044). It
+ * keeps working unchanged until its removal in the release after the one that
+ * first prints this notice.
+ */
+export const BATCH_DEPRECATION_NOTICE =
+  "Warning: `j-rig batch` is deprecated and will be removed in the next release. " +
+  "Use `j-rig suite <manifest>`, which grades every run and writes an audit file and report. " +
+  "See 000-docs/044-AT-DECR-suite-replaces-batch-2026-10-05.md.";
+
 const BatchEntrySchema = z.object({
   task: z.string().min(1),
   config: z.string().min(1),
@@ -156,7 +166,7 @@ function printBatch(result: BatchRunResult, json: boolean | undefined): void {
 export function registerBatchCommand(program: Command): void {
   program
     .command("batch")
-    .description("Execute a resumable balanced task/config batch")
+    .description("Deprecated: use `j-rig suite`. Execute a resumable balanced task/config batch")
     .requiredOption("--manifest <path>", "Path-based batch manifest YAML")
     .option(
       "--target-n <n>",
@@ -166,6 +176,8 @@ export function registerBatchCommand(program: Command): void {
     .option("--db <path>", "SQLite DB path", "j-rig.db")
     .option("--json", "Output plans and Run results as JSON")
     .action(async (opts: { manifest: string; targetN?: number; db: string; json?: boolean }) => {
+      // stderr, so --json output on stdout stays machine-readable.
+      console.error(BATCH_DEPRECATION_NOTICE);
       try {
         const result = await runBatch({
           manifestPath: opts.manifest,

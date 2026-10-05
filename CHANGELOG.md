@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated (2026-10-05)
+
+- **`j-rig batch` is deprecated in favour of `j-rig suite`.** It still works
+  unchanged and now prints a one-line notice on stderr (so `--json` stdout stays
+  clean). It is removed in the release after the one that first ships this
+  notice. `suite` runs the same balanced passes and also grades every run and
+  writes an audit file and report. Decision: `000-docs/044`.
+
 ### Package releases (2026-10-04)
 
 - **`@intentsolutions/refiner` + `@intentsolutions/refiner-core` 0.5.0** (tag
