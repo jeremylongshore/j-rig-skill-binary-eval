@@ -56,6 +56,72 @@ j-rig refine                         # eval-guided SKILL.md improvement loop
 
 `j-rig eval <skill-dir>` expects an `eval-spec.yaml` (or `--spec <path>`) and
 writes evidence to a local SQLite DB (`--db <path>`, default `j-rig.db`).
+
+### Execute MCP tools during skill evaluation
+
+Pass `--mcp-config ./eval-mcp.json` to let the execution model call explicitly
+configured stdio MCP servers. Without this option, execution stays a single
+text completion. This option requires a real provider and functional evaluation;
+it does not discover commands from a skill or ambient MCP configuration.
+
+```json
+{
+  "servers": {
+    "outreach": {
+      "command": "/absolute/path/to/server",
+      "args": ["--stdio"],
+      "cwd": "./fixture-workspace",
+      "env": ["OUTREACH_FIXTURE_PATH"],
+      "tools": ["search_properties", "get_property"]
+    }
+  },
+  "limits": {
+    "maxTurns": 8,
+    "maxCalls": 32,
+    "maxResultBytes": 65536,
+    "maxTotalBytes": 1048576,
+    "timeoutMs": 60000
+  }
+}
+```
+
+Replace the example command and tool names with those your server supports.
+`cwd` is relative to the configuration file. `env` lists names to copy from the
+CLI environment, in addition to the MCP SDK's small default environment (such
+as `PATH` and `HOME`); it never contains literal secret values. Missing listed
+variables or tools refuse execution. The model sees names such as
+`outreach__search_properties`. Only the listed tools are exposed. Commands run
+without a shell, with the user's filesystem/network permissions: this is not a
+sandbox. Use disposable fixtures for tools with effects.
+
+Each test case gets fresh server processes, including each `--baseline-check`
+case with the same capabilities and no skill body. Fresh processes do not reset
+databases or other external state; the operator must isolate that state.
+Trigger and judge calls remain separate and receive no tools. All model turns
+are metered; provider billing and the extra baseline cost still apply.
+
+The displayed limits are the defaults. Limits bound model turns, attempted
+calls, individual tool results, accumulated model/tool text and arguments, and
+execution time. Tool definitions and transport messages have separate size
+bounds. Calls in a turn are validated before any of them runs. Unknown tools,
+malformed protocol data, exceeded limits, and transport failures produce failed
+execution evidence, not a model-quality verdict. An MCP `isError` tool result
+is returned to the model for correction. Server processes are closed after
+each case; cleanup cannot undo effects or guarantee termination of detached
+descendants created by a server.
+
+Private files next to the DB (`<db>.execution-*/skill.json` or `baseline.json`)
+retain final text, status, attempted-call counts and tool event receipts. The
+DB records each file's hash; `--emit-bundle` includes matching hashes/counts in
+`metadata.tool_execution`. Receipts omit prompts, raw tool arguments/results,
+environment values and server stderr. Final model text can still contain tool
+data, so treat the local files as private. These are observations, not proof
+that a tool's claims or real-world effects were correct; task-specific checks
+must verify those outcomes. The configuration hash does not pin server code,
+environment values or external state.
+
+### Evaluation evidence
+
 When `--emit-bundle <path>` is used, each `j-rig:local:<skill>.<model>` row
 also carries the versioned `j-rig/skill-promotion/v1` identity, grader,
 threshold, and regression metadata. A row with no `--regression-baseline` is

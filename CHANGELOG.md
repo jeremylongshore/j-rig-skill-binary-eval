@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-10-07)
+
+- Opt-in `j-rig eval --mcp-config` executes explicitly allowlisted stdio MCP
+  tools with bounded OpenAI-compatible and Anthropic continuation. Each case
+  and naked baseline gets fresh processes; judges remain tool-free. Private
+  execution receipts retain actual/partial call counts and final output, with
+  content hashes linked from SQLite and evidence bundles. Failures preserve
+  the existing infrastructure-error/no-verdict behavior. This adds harness
+  capability; it does not establish any downstream skill's behavioral pass.
+
 ### Deprecated (2026-10-05)
 
 - **`j-rig batch` is deprecated in favour of `j-rig suite`.** It still works

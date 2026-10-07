@@ -611,7 +611,7 @@ describe("RealAnthropicProvider.callTool — degenerate responses", () => {
     });
   });
 
-  it("nulls malformed tool_use fields and tolerates a null body", async () => {
+  it("refuses malformed tool_use fields and tolerates a null body", async () => {
     const malformed = new RealAnthropicProvider({
       apiKey: KEY,
       transport: fakeTransport({
@@ -619,11 +619,11 @@ describe("RealAnthropicProvider.callTool — degenerate responses", () => {
         json: { content: [{ type: "tool_use", name: 1, input: "args", id: 2 }] },
       }).transport,
     });
-    expect(await malformed.callTool({ model: "sonnet", messages: USER, tools })).toMatchObject({
-      toolName: null,
-      toolArguments: null,
-      toolCallId: null,
-      finishReason: "tool_use",
+    await expect(
+      malformed.callTool({ model: "sonnet", messages: USER, tools }),
+    ).rejects.toMatchObject({
+      category: "schema_violation",
+      message: "invalid_tool_call",
     });
 
     const empty = new RealAnthropicProvider({

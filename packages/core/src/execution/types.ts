@@ -1,3 +1,4 @@
+import type { ToolDefinition } from "../providers/types.js";
 import type { ProviderFailure } from "../providers/errors.js";
 
 /**
@@ -8,6 +9,26 @@ export interface ExecutionContext {
   base_path?: string;
   file_contents?: Record<string, string>;
   context_hints?: Record<string, unknown>;
+  /** Explicit host-owned capability, never inferred from skill text. */
+  tool_runtime?: ExecutionToolRuntime;
+}
+
+/** One fresh, bounded tool session for one execution (including a naked baseline). */
+export interface ExecutionToolSession {
+  tools: ToolDefinition[];
+  call(name: string, arguments_: Record<string, unknown>, signal: AbortSignal): Promise<string>;
+  close(): Promise<void>;
+}
+
+export interface ExecutionToolRuntime {
+  open(signal: AbortSignal): Promise<ExecutionToolSession>;
+  limits: {
+    maxTurns: number;
+    maxCalls: number;
+    maxResultBytes: number;
+    maxTotalBytes: number;
+    timeoutMs: number;
+  };
 }
 
 /**

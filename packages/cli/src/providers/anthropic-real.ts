@@ -1,3 +1,4 @@
+import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
  * Real Anthropic provider adapters (iaj-E10 dogfood).
  *
@@ -136,7 +137,21 @@ function toAnthropicPayload(messages: ChatMessage[]): {
       });
       continue;
     }
-    out.push({ role: m.role, content: m.content });
+    out.push({
+      role: m.role,
+      content:
+        m.role === "assistant" && m.toolCalls
+          ? [
+              ...(m.content ? [{ type: "text", text: m.content }] : []),
+              ...m.toolCalls.map((call) => ({
+                type: "tool_use",
+                id: call.id,
+                name: call.name,
+                input: call.arguments,
+              })),
+            ]
+          : m.content,
+    });
   }
   return {
     system: systemParts.length > 0 ? systemParts.join("\n\n") : undefined,
@@ -279,6 +294,7 @@ export class RealAnthropicProvider implements Provider {
       model: resolveAnthropicModel(req.model),
       max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
       messages,
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(system !== undefined ? { system } : {}),
       tools: req.tools.map((t) => ({
         name: t.name,
@@ -296,11 +312,11 @@ export class RealAnthropicProvider implements Provider {
     const text = extractText(json);
     const usage = mapUsage(json.usage);
     const blocks = Array.isArray(json.content) ? json.content : [];
-    const toolUse = blocks.find(
+    const toolUses = blocks.filter(
       (b): b is Record<string, unknown> =>
         typeof b === "object" && b !== null && (b as Record<string, unknown>).type === "tool_use",
     );
-    if (!toolUse) {
+    if (!toolUses.length) {
       return {
         toolName: null,
         toolArguments: null,
@@ -310,15 +326,14 @@ export class RealAnthropicProvider implements Provider {
         usage,
       };
     }
+    const calls = toolUses.map((call) => modelToolCall(this.name, call.id, call.name, call.input));
     return {
-      toolName: typeof toolUse.name === "string" ? toolUse.name : null,
-      toolArguments:
-        typeof toolUse.input === "object" && toolUse.input !== null
-          ? (toolUse.input as Record<string, unknown>)
-          : null,
-      toolCallId: typeof toolUse.id === "string" ? toolUse.id : null,
+      toolName: calls[0]!.name,
+      toolArguments: calls[0]!.arguments,
+      toolCallId: calls[0]!.id,
+      ...(calls.length > 1 ? { toolCalls: calls } : {}),
       text,
-      finishReason: "tool_use",
+      finishReason: mapFinishReason(json.stop_reason),
       usage,
     };
   }
@@ -444,6 +459,40 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
+    if (context.tool_runtime) {
+      const result = await executeWithTools(
+        this.#provider,
+        {
+          model,
+          messages: [
+            { role: "system", content: context.skill_body },
+            { role: "user", content: prompt },
+          ],
+          maxTokens: 1024,
+          ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        },
+        {
+          open: (signal) => context.tool_runtime!.open(signal),
+          limits: {
+            ...context.tool_runtime.limits,
+            timeoutMs: Math.min(
+              options?.timeout_ms ?? context.tool_runtime.limits.timeoutMs,
+              context.tool_runtime.limits.timeoutMs,
+            ),
+          },
+        },
+      );
+      const completed = new Date();
+      return {
+        ...result,
+        meta: {
+          started_at: started.toISOString(),
+          completed_at: completed.toISOString(),
+          duration_ms: completed.getTime() - started.getTime(),
+          timed_out: false,
+        },
+      };
+    }
     const hasTimeout =
       options?.timeout_ms !== undefined &&
       Number.isFinite(options.timeout_ms) &&

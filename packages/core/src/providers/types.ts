@@ -38,6 +38,8 @@ export interface ChatMessage {
   toolName?: string;
   /** For role="tool" or role="assistant": correlation id from a prior tool call. */
   toolCallId?: string;
+  /** Assistant tool requests retained verbatim for the next model turn. */
+  toolCalls?: ModelToolCall[];
 }
 
 export interface CompletionRequest {
@@ -122,7 +124,15 @@ export interface ToolDefinition {
   inputSchema: object;
 }
 
+export interface ModelToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
 export interface ToolCallResult {
+  /** All calls when the provider returned more than one in the same turn. */
+  toolCalls?: ModelToolCall[];
   /** Null when the model declined to call any tool. */
   toolName: string | null;
   /** Null when toolName is null OR when the call had no arguments. */

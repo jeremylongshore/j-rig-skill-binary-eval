@@ -1,3 +1,4 @@
+export { ToolExecutionError } from "./tool-error.js";
 export { runFunctionalTests, checkOutputExpectations } from "./runner.js";
 export { ExecutableRunner } from "./executable-runner.js";
 export {
@@ -26,6 +27,8 @@ export {
 } from "./self-test.js";
 export type {
   ExecutionContext,
+  ExecutionToolRuntime,
+  ExecutionToolSession,
   ExecutionOutput,
   ExecutionMeta,
   ArtifactRecord,

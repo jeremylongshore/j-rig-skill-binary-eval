@@ -1,3 +1,4 @@
+import { ToolExecutionError } from "./tool-error.js";
 import type { TestCase } from "../schemas/test-case.js";
 import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
@@ -16,6 +17,7 @@ export async function runFunctionalTests(
   skill: ParsedSkill<SkillFrontmatter>,
   provider: ExecutionProvider,
   options?: {
+    tool_runtime?: ExecutionContext["tool_runtime"];
     base_path?: string;
     file_contents?: Record<string, string>;
     timeout_ms?: number;
@@ -37,6 +39,7 @@ export async function runFunctionalTests(
       base_path: options?.base_path,
       file_contents: options?.file_contents,
       context_hints: tc.context_hints,
+      ...(options?.tool_runtime ? { tool_runtime: options.tool_runtime } : {}),
     };
 
     try {
@@ -66,8 +69,8 @@ export async function runFunctionalTests(
         prompt: tc.prompt,
         output: {
           text: "",
-          artifacts: [],
-          tool_calls: 0,
+          artifacts: err instanceof ToolExecutionError ? err.artifacts : [],
+          tool_calls: err instanceof ToolExecutionError ? err.toolCalls : 0,
           // Redact at the boundary: this text is persisted and, on a provider
           // failure, copied into the signed gate_reasons (credential boundary,
           // 000-docs/021) — same rule the judge path already follows.

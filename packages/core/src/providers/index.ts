@@ -15,6 +15,7 @@ export type {
   StreamChunk,
   TokenUsage,
   ToolCallResult,
+  ModelToolCall,
   ToolDefinition,
 } from "./types.js";
 
