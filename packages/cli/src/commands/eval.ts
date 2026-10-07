@@ -1,3 +1,5 @@
+import { loadMcpRuntime } from "../execution/mcp-runtime.js";
+import { storeToolExecutionEvidence } from "../execution/evidence.js";
 import type { Command } from "commander";
 import chalk from "chalk";
 import { basename, resolve } from "node:path";
@@ -110,6 +112,7 @@ interface EvalOptions {
   provider?: string;
   emitBundle?: string;
   traceBoundary?: boolean;
+  mcpConfig?: string;
   runSelfTest?: boolean;
   requireReviewed?: boolean;
   samples?: string;
@@ -500,6 +503,11 @@ export function registerEvalCommand(program: Command): void {
         "linked to each run as an artifact. Consumable directly by intent-rollout-gate.",
     )
     .option(
+      "--mcp-config <path>",
+      "Explicit JSON stdio MCP server/tool allowlist for bounded functional execution. " +
+        "Starts fresh configured server processes per case; judges receive no tools.",
+    )
+    .option(
       "--trace-boundary",
       "Log per-test-case execution boundary (text length, tool_calls, status, timed_out, " +
         "empty-output) for the functional pass. Characterizes tool/script-dependent skills a " +
@@ -566,6 +574,13 @@ export function registerEvalCommand(program: Command): void {
         // dogfood run is never gated behind J_RIG_ALLOW_STUB.
         const hasRealKey = hasAnyRealKey(opts.provider);
         if (!hasRealKey) assertStubAllowed();
+        if (
+          opts.mcpConfig &&
+          (!hasRealKey || opts.provider === "stub" || opts.functional === false)
+        ) {
+          throw new Error("--mcp-config requires real functional execution");
+        }
+        const toolConfig = opts.mcpConfig ? await loadMcpRuntime(opts.mcpConfig) : undefined;
 
         // ── Phase 1: Load ────────────────────────────────────────────────
         const absDir = resolve(skillDir);
@@ -787,8 +802,21 @@ export function registerEvalCommand(program: Command): void {
                 // is a fresh random draw every run — verdict variance that no
                 // amount of judge stabilization can absorb.
                 temperature: spec.execution_temperature ?? 0,
+                ...(toolConfig ? { tool_runtime: toolConfig.runtime } : {}),
               },
             );
+            const toolReceipts = toolConfig
+              ? [
+                  storeToolExecutionEvidence(
+                    database,
+                    opts.db,
+                    runId,
+                    "skill",
+                    toolConfig.fingerprint,
+                    outcomes,
+                  ),
+                ]
+              : [];
 
             if (!opts.json) {
               console.log(
@@ -797,7 +825,7 @@ export function registerEvalCommand(program: Command): void {
             }
 
             // ── Empty-output boundary instrumentation (bd_000-projects-0xttn) ──
-            // A single-turn completion eval captures `output.text` but cannot
+            // Without --mcp-config, a single-turn completion captures text but cannot
             // actually run a skill's tools/scripts, so tool/script-dependent
             // skills surface here as empty/short text with zero tool calls, a
             // `timed_out` meta, a captured `output.error`, or a non-`completed`
@@ -1007,11 +1035,27 @@ export function registerEvalCommand(program: Command): void {
                 spec.test_cases,
                 { ...skill, body: "" },
                 providers.execution,
-                { model, temperature: spec.execution_temperature ?? 0 },
+                {
+                  model,
+                  temperature: spec.execution_temperature ?? 0,
+                  ...(toolConfig ? { tool_runtime: toolConfig.runtime } : {}),
+                },
               );
               costMeter.phase = "judge";
               const nakedJudgments: JudgmentResult[] = [];
               baselineOutcomes = nakedOutcomes;
+              if (toolConfig) {
+                toolReceipts.push(
+                  storeToolExecutionEvidence(
+                    database,
+                    opts.db,
+                    runId,
+                    "baseline",
+                    toolConfig.fingerprint,
+                    nakedOutcomes,
+                  ),
+                );
+              }
               baselineJudgments = nakedJudgments;
               for (const outcome of nakedOutcomes) {
                 if (isFailedExecution(outcome)) continue;
@@ -1334,6 +1378,17 @@ export function registerEvalCommand(program: Command): void {
                   model,
                   provider: providers.providerName,
                   ground_truth: providers.real,
+                  ...(toolConfig
+                    ? {
+                        tool_execution: {
+                          transport: "mcp-stdio",
+                          configuration_sha256: toolConfig.fingerprint,
+                          session_scope: "fresh_process_per_case",
+                          baseline_same_capabilities: true,
+                          receipts: toolReceipts,
+                        },
+                      }
+                    : {}),
                   pass_rate: scoreCard.pass_rate,
                   passed: scoreCard.passed,
                   total_criteria: scoreCard.total_criteria,

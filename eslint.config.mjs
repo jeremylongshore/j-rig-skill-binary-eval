@@ -13,6 +13,7 @@ export default tseslint.config(
             // Plain-JS CI driver — standalone, outside any tsconfig project.
             "eval-roster/*.mjs",
             "examples/generic-run/*.mjs",
+            "packages/cli/src/execution/__fixtures__/mcp-server.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
@@ -22,7 +23,11 @@ export default tseslint.config(
   {
     // Plain-JS Node script (no build step) — give it the Node globals the
     // typed packages get from @types/node.
-    files: ["eval-roster/*.mjs", "examples/generic-run/*.mjs"],
+    files: [
+      "eval-roster/*.mjs",
+      "examples/generic-run/*.mjs",
+      "packages/cli/src/execution/__fixtures__/mcp-server.mjs",
+    ],
     languageOptions: {
       globals: { process: "readonly", console: "readonly" },
     },

@@ -1,3 +1,4 @@
+import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
  * Configurable OpenAI-compatible provider (iaj-E10 follow-on).
  *
@@ -341,7 +342,19 @@ function toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>>
         ...(m.toolName ? { name: m.toolName } : {}),
       };
     }
-    return { role: m.role, content: m.content };
+    return {
+      role: m.role,
+      content: m.content,
+      ...(m.role === "assistant" && m.toolCalls
+        ? {
+            tool_calls: m.toolCalls.map((call) => ({
+              id: call.id,
+              type: "function",
+              function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+            })),
+          }
+        : {}),
+    };
   });
 }
 
@@ -501,6 +514,7 @@ export class RealOpenAICompatProvider implements Provider {
         function: { name: t.name, description: t.description, parameters: t.inputSchema },
       })),
       ...(req.maxTokens !== undefined ? { max_tokens: req.maxTokens } : {}),
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     };
 
     const res = await this.#send(body, req.signal);
@@ -526,13 +540,18 @@ export class RealOpenAICompatProvider implements Provider {
       };
     }
 
-    const fn = (first.function ?? {}) as Record<string, unknown>;
+    const calls = toolCalls.map((raw) => {
+      const call = (raw ?? {}) as Record<string, unknown>;
+      const fn = (call.function ?? {}) as Record<string, unknown>;
+      return modelToolCall(this.name, call.id, fn.name, this.#parseToolArgs(fn.arguments));
+    });
     return {
-      toolName: typeof fn.name === "string" ? fn.name : null,
-      toolArguments: this.#parseToolArgs(fn.arguments),
-      toolCallId: typeof first.id === "string" ? first.id : null,
+      toolName: calls[0]!.name,
+      toolArguments: calls[0]!.arguments,
+      toolCallId: calls[0]!.id,
+      ...(calls.length > 1 ? { toolCalls: calls } : {}),
       text,
-      finishReason: "tool_use",
+      finishReason: mapFinishReason(choice.finish_reason),
       usage,
     };
   }
@@ -597,20 +616,20 @@ export class RealOpenAICompatProvider implements Provider {
     }
   }
 
-  #parseToolArgs(raw: unknown): Record<string, unknown> | null {
-    if (raw == null) return null;
-    if (typeof raw === "object") return raw as Record<string, unknown>;
-    if (typeof raw === "string") {
-      try {
-        const parsed = JSON.parse(raw);
-        return typeof parsed === "object" && parsed !== null
-          ? (parsed as Record<string, unknown>)
-          : {};
-      } catch {
-        return {};
+  #parseToolArgs(raw: unknown): Record<string, unknown> {
+    try {
+      const parsed: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
       }
+    } catch {
+      /* Refuse malformed arguments without disclosing their content. */
     }
-    return null;
+    throw new ProviderError({
+      category: "schema_violation",
+      providerName: this.name,
+      message: "invalid_tool_arguments",
+    });
   }
 }
 
@@ -703,6 +722,40 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
+    if (context.tool_runtime) {
+      const result = await executeWithTools(
+        this.#provider,
+        {
+          model,
+          messages: [
+            { role: "system", content: context.skill_body },
+            { role: "user", content: prompt },
+          ],
+          maxTokens: EXECUTION_MAX_TOKENS,
+          ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        },
+        {
+          open: (signal) => context.tool_runtime!.open(signal),
+          limits: {
+            ...context.tool_runtime.limits,
+            timeoutMs: Math.min(
+              options?.timeout_ms ?? context.tool_runtime.limits.timeoutMs,
+              context.tool_runtime.limits.timeoutMs,
+            ),
+          },
+        },
+      );
+      const completed = new Date();
+      return {
+        ...result,
+        meta: {
+          started_at: started.toISOString(),
+          completed_at: completed.toISOString(),
+          duration_ms: completed.getTime() - started.getTime(),
+          timed_out: false,
+        },
+      };
+    }
     const hasTimeout =
       options?.timeout_ms !== undefined &&
       Number.isFinite(options.timeout_ms) &&

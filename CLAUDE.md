@@ -254,6 +254,16 @@ Canonical roster: `eval-roster/roster.json` (14 skills as of 2026-07-23).
 - **Rule:** a skill joins the roster only when `SKILL.md` + `eval-spec.yaml` both exist at the pinned path.
 - Runner: `eval-roster/run-roster.mjs` + `.github/workflows/nightly-skill-evals.yml`.
 
+## Tool-enabled skill execution
+
+`j-rig eval --mcp-config` opts functional execution into a bounded stdio MCP
+loop; see `packages/cli/README.md` for its explicit command/tool/environment
+allowlists. Execution and naked-baseline cases use fresh processes with the
+same capabilities. Judges and triggers never receive tools. Private execution
+receipts are linked by hash from SQLite and bundle metadata; attempted calls
+on failure are retained, and infrastructure failures remain no-verdict errors.
+Fresh processes are not an external-state reset or a security sandbox.
+
 ## AI code review — BOTH REVIEWERS ARE DARK (do not wait for one)
 
 **As of 2026-07-22 no AI reviewer runs on this repo.** Verified by surveying the

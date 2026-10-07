@@ -770,16 +770,16 @@ describe("RealOpenAICompatProvider.callTool — variants", () => {
     expect(r.toolArguments).toEqual({ a: 1 });
   });
 
-  it("returns {} for unparseable string tool arguments", async () => {
-    const { transport } = fakeTransport(toolResponse("not-json"));
-    const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
-    const r = await p.callTool({
-      model: "m",
-      messages: [{ role: "user", content: "x" }],
-      tools: [tool],
-    });
-    expect(r.toolArguments).toEqual({});
-  });
+  it.each(["not-json", null, undefined, [], 12])(
+    "refuses malformed tool arguments (%j) instead of invoking an empty-argument call",
+    async (args) => {
+      const { transport } = fakeTransport(toolResponse(args));
+      const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+      await expect(
+        p.callTool({ model: "m", messages: [{ role: "user", content: "x" }], tools: [tool] }),
+      ).rejects.toMatchObject({ category: "schema_violation", message: "invalid_tool_arguments" });
+    },
+  );
 
   it("returns a no-tool result when the model called no tool", async () => {
     const { transport } = fakeTransport(textResponse("just text", "stop"));
