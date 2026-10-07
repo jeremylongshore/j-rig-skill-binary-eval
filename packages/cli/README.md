@@ -203,6 +203,18 @@ compatibility seams. See
 `000-docs/036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md` for the manifest
 schema, validation diagnostics, and migration path.
 
+Each fresh MCP execution generates a correlation ID. The runtime passes it to
+configured children as `JRIG_EXECUTION_SESSION_ID`, overriding any ambient value,
+and retains it in a `tool-session.json` output artifact inside the private
+execution receipt. Skill and naked-baseline sessions get different IDs. A
+scenario host can record that value in its own private trace and join on exact
+identity; do not infer association from call counts or file creation times.
+The ID remains available after a partial tool failure once session initialization
+succeeds. It is correlation metadata, not authentication, attestation of a child
+process, or evidence that the skill's behavior passed. It adds no model-visible
+tool or judge capability. Runtimes without an identity keep their existing
+artifact behavior.
+
 ## Providers
 
 The evaluator's judge layer talks to an LLM provider. The provider is

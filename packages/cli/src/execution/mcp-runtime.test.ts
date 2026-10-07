@@ -83,6 +83,35 @@ async function assertStopped(directory: string) {
 }
 
 describe("explicit stdio MCP execution", () => {
+  it("generates a fresh correlation identity per session and overrides ambient substitution", async () => {
+    const { directory } = await setup();
+    vi.stubEnv("JRIG_EXECUTION_SESSION_ID", "ambient-value-must-not-win");
+    const configPath = join(directory, "config.json");
+    const config = JSON.parse(await readFile(configPath, "utf8"));
+    config.servers.fixture.env.push("JRIG_EXECUTION_SESSION_ID");
+    await writeFile(configPath, JSON.stringify(config));
+    const { runtime } = await loadMcpRuntime(configPath);
+    const first = await runtime.open(new AbortController().signal);
+    const firstId = first.sessionId;
+    const firstTools = first.tools;
+    await first.close();
+    const second = await runtime.open(new AbortController().signal);
+    try {
+      expect(firstId).toMatch(/^[a-f0-9-]{36}$/);
+      expect(second.sessionId).toMatch(/^[a-f0-9-]{36}$/);
+      expect(firstId).not.toBe(second.sessionId);
+      expect(second.tools).toEqual(firstTools);
+      const observed = (await readFile(join(directory, "session-identities"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(observed.map((entry) => entry.session_id)).toEqual([firstId, second.sessionId]);
+      expect(JSON.stringify(observed)).not.toContain("ambient-value-must-not-win");
+    } finally {
+      await second.close();
+    }
+    await assertStopped(directory);
+  });
   it("refuses a truncated model turn even when its tool arguments parse", async () => {
     const { runtime, directory } = await setup();
     const provider = execution(async () => {

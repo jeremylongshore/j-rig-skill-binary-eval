@@ -15,6 +15,8 @@ export interface ExecutionContext {
 
 /** One fresh, bounded tool session for one execution (including a naked baseline). */
 export interface ExecutionToolSession {
+  /** Host-generated correlation only; never an authorization token. */
+  readonly sessionId?: string;
   tools: ToolDefinition[];
   call(name: string, arguments_: Record<string, unknown>, signal: AbortSignal): Promise<string>;
   close(): Promise<void>;

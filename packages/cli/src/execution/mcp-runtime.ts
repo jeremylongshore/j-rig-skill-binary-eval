@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -99,6 +99,7 @@ export async function loadMcpRuntime(path: string): Promise<{
   const runtime: ExecutionToolRuntime = {
     limits,
     async open(signal): Promise<ExecutionToolSession> {
+      const sessionId = randomUUID();
       const clients: Client[] = [];
       const transports: StdioClientTransport[] = [];
       const aliases = new Map<string, { client: Client; tool: string }>();
@@ -118,7 +119,9 @@ export async function loadMcpRuntime(path: string): Promise<{
           const transport = new StdioClientTransport({
             command: server.command,
             args: server.args ?? [],
-            env,
+            // This reserved correlation value is runtime-owned, even if the
+            // explicit environment allowlist contains an ambient value for it.
+            env: { ...env, JRIG_EXECUTION_SESSION_ID: sessionId },
             cwd,
             stderr: "ignore",
             maxBufferSize: 1048576,
@@ -162,6 +165,7 @@ export async function loadMcpRuntime(path: string): Promise<{
         throw failure(signal.aborted ? "initialization_cancelled" : "initialization_failed");
       }
       return {
+        sessionId,
         tools,
         async call(name, args, callSignal): Promise<string> {
           const target = aliases.get(name);
