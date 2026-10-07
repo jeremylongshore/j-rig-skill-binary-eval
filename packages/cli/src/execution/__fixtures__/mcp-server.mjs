@@ -7,6 +7,13 @@ import { z } from "zod";
 const directory = process.env.MCP_FIXTURE_DIR;
 writeFileSync(join(directory, "pid"), String(process.pid));
 appendFileSync(join(directory, "pids"), `${process.pid}\n`);
+appendFileSync(
+  join(directory, "session-identities"),
+  JSON.stringify({
+    pid: process.pid,
+    session_id: process.env.JRIG_EXECUTION_SESSION_ID,
+  }) + "\n",
+);
 console.error("synthetic-private-stderr-must-not-escape");
 const server = new McpServer({ name: "jrig-fixture", version: "1.0.0" });
 server.registerTool("echo", { inputSchema: { text: z.string() } }, async ({ text }) => {

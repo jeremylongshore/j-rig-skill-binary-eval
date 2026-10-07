@@ -58,7 +58,7 @@ export async function executeWithTools(
   const events: { tool: string; status: "started" | "completed"; result_bytes?: number }[] = [];
   const artifacts = (): ArtifactRecord[] => {
     const content = JSON.stringify(events);
-    return [
+    const records: ArtifactRecord[] = [
       {
         filename: "tool-events.json",
         type: "text",
@@ -66,6 +66,19 @@ export async function executeWithTools(
         size_bytes: Buffer.byteLength(content),
       },
     ];
+    if (session?.sessionId) {
+      const identity = JSON.stringify({
+        schema: "jrig-tool-session/v1",
+        session_id: session.sessionId,
+      });
+      records.push({
+        filename: "tool-session.json",
+        type: "text",
+        content: identity,
+        size_bytes: Buffer.byteLength(identity),
+      });
+    }
+    return records;
   };
   let session: ExecutionToolSession | undefined;
   let calls = 0;

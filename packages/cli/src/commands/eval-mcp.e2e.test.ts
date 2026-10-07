@@ -140,6 +140,11 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
             (receipt: { attempted_tool_calls: number }) => receipt.attempted_tool_calls,
           ),
         ).toEqual([1, 1]);
+        const childIdentities = readFileSync(join(directory, "session-identities"), "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as { pid: number; session_id: string });
+        const receiptIdentities: string[] = [];
         const database = createDatabase(dbPath);
         try {
           const artifacts = database.sqlite
@@ -160,11 +165,24 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
             expect(receipt.cases[0].status).toBe(crash ? "failed" : "completed");
             expect(receipt.cases[0].output.text).toBe(crash ? "" : "grounded fixture answer");
             expect(receipt.cases[0].output.artifacts[0].filename).toBe("tool-events.json");
+            const identity = receipt.cases[0].output.artifacts.find(
+              (entry: { filename: string }) => entry.filename === "tool-session.json",
+            );
+            expect(identity).toBeDefined();
+            expect(identity.size_bytes).toBe(Buffer.byteLength(identity.content));
+            const parsedIdentity = JSON.parse(identity.content);
+            expect(parsedIdentity.schema).toBe("jrig-tool-session/v1");
+            expect(
+              childIdentities.filter((entry) => entry.session_id === parsedIdentity.session_id),
+            ).toHaveLength(1);
+            receiptIdentities.push(parsedIdentity.session_id);
             expect(bytes.toString()).not.toContain("synthetic-private-stderr");
           }
         } finally {
           database.sqlite.close();
         }
+        expect(new Set(receiptIdentities).size).toBe(2);
+        expect(new Set(childIdentities.map((entry) => entry.session_id)).size).toBe(2);
         const judges = requests.filter((request) => !request.tools);
         expect(judges).toHaveLength(crash ? 0 : 2);
         for (const judge of judges) {
