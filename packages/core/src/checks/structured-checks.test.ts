@@ -179,8 +179,8 @@ describe("spec-load validation", () => {
       /64 lowercase hex/,
     );
     expect(
-      messages(criterion("schema_valid", { schema: { type: "object", requird: ["a"] } }))[0],
-    ).toMatch(/not a valid draft 2020-12 JSON Schema: strict mode: unknown keyword: "requird"/);
+      messages(criterion("schema_valid", { schema: { type: "object", mustHave: ["a"] } }))[0],
+    ).toMatch(/not a valid draft 2020-12 JSON Schema: strict mode: unknown keyword: "mustHave"/);
     expect(
       messages(
         criterion("schema_valid", {

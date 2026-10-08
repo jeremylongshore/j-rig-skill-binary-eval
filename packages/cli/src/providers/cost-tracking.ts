@@ -49,29 +49,51 @@ export interface EvalCostReport {
    * Best-effort USD estimate across all recorded calls, summed per-model from
    * the rate table. Null when ANY recorded model has no rate on file (a
    * partial estimate would understate real cost — fail honest, not cheap).
+   * Includes API-equivalent cost of not-billed usage (see `billed_usd`).
    */
   estimated_usd: number | null;
+  /**
+   * The part of `estimated_usd` that is actually billed per token. Excludes
+   * subscription-local `claude-code/*` execution, which is reported at the
+   * API-equivalent list rate but not billed. Null when `estimated_usd` is.
+   */
+  billed_usd: number | null;
   /** Per-model breakdown: tokens and the rate used (null rate = unknown). */
   by_model: Array<{
     model: string;
     calls: number;
     input_tokens: number;
     output_tokens: number;
+    /** Input tokens the provider reported as cache reads (a subset of input_tokens). */
+    cached_input_tokens: number;
     usd: number | null;
+    /** False for subscription-local runs: `usd` is an API-equivalent figure, not a bill. */
+    billed: boolean;
+    /** Rate-table key the USD was priced from, or null when unpriced. */
+    rate_key: string | null;
+    /** Why the figure is or is not billed / priced, when that needs saying. */
+    note?: string;
   }>;
 }
 
+/** One rate-table row: USD per million tokens. */
+export interface ModelRate {
+  input: number;
+  output: number;
+  /** Cache-read input rate; omitted = cache reads priced at `input`. */
+  cached_input?: number;
+  note?: string;
+}
+
 /**
- * USD per MILLION tokens (input, output), keyed by vendor model id.
- * Free-tier endpoints are listed at 0 with a note — "free" is a real price
- * point in the judge value benchmark, not missing data.
+ * USD per MILLION tokens (input, output, cache-read input), keyed by vendor
+ * model id. Free-tier endpoints are listed at 0 with a note — "free" is a real
+ * price point in the judge value benchmark, not missing data.
  *
  * Rates move; this table is advisory and additive. Unknown model → null USD.
+ * Every row names its source and the date it was read; refresh both together.
  */
-export const MODEL_RATES_USD_PER_MTOK: Record<
-  string,
-  { input: number; output: number; note?: string }
-> = {
+export const MODEL_RATES_USD_PER_MTOK: Record<string, ModelRate> = {
   // DeepSeek (paid)
   "deepseek-v4-flash": { input: 0.14, output: 0.28 },
   "deepseek-chat": { input: 0.14, output: 0.28, note: "legacy alias of v4-flash" },
@@ -83,7 +105,79 @@ export const MODEL_RATES_USD_PER_MTOK: Record<
   "meta/llama-3.3-70b-instruct": { input: 0, output: 0, note: "NVIDIA NIM free tier (retired)" },
   "openai/gpt-oss-20b": { input: 0, output: 0, note: "NVIDIA NIM free tier" },
   "meta/llama-3.1-405b-instruct": { input: 0, output: 0, note: "NVIDIA NIM free tier" },
+  // MiniMax pay-as-you-go list prices, Standard tier.
+  // Source: https://platform.minimax.io/docs/guides/pricing-paygo (read 2026-10-08).
+  // MiniMax-M3 is tiered by prompt size; this is the <= 512k-input row (the
+  // > 512k row is 2x). The estate's MiniMax keys are a Coding Plan
+  // subscription, so these are list-price equivalents, not the invoice.
+  "MiniMax-M3": {
+    input: 0.3,
+    output: 1.2,
+    cached_input: 0.06,
+    note: "MiniMax list, <= 512k input (> 512k is 2x)",
+  },
+  "MiniMax-M2.7": { input: 0.3, output: 1.2, cached_input: 0.06, note: "MiniMax list" },
+  "MiniMax-M2.7-highspeed": { input: 0.6, output: 2.4, cached_input: 0.06, note: "MiniMax list" },
+  // Anthropic first-party API list prices.
+  // Source: Anthropic claude-api reference, Current Models + prompt-caching
+  // economics (pricing table cached 2026-09-25, read 2026-10-08). Cache reads:
+  // Fable 5.1 $0.25, Opus 5.5 / Sonnet 5.5 $0.20, Haiku 4.5 0.1x input.
+  // Cache WRITES (1.25x) are not separately metered and price at `input`.
+  "claude-fable-5-1": { input: 10, output: 50, cached_input: 0.25 },
+  "claude-opus-5-5": { input: 4, output: 20, cached_input: 0.2 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cached_input: 0.2 },
+  "claude-haiku-4-5-20251001": { input: 1, output: 5, cached_input: 0.1 },
+  "claude-haiku-4-5": { input: 1, output: 5, cached_input: 0.1, note: "alias of 20251001" },
 };
+
+/**
+ * Prefix the claude-code execution provider puts on the model it reports
+ * (`claude-code/<model>`). Those calls run on the local Claude Code
+ * subscription: priced at the base model's API rate, reported as not billed.
+ */
+export const SUBSCRIPTION_MODEL_PREFIX = "claude-code/";
+
+export interface RateLookup {
+  rate: ModelRate;
+  /** The table key that matched. */
+  key: string;
+  /** False for subscription-local usage. */
+  billed: boolean;
+}
+
+/**
+ * Resolve a recorded model id to its rate: exact key, then case-insensitive
+ * (vendors echo ids with varying case), after stripping the subscription
+ * prefix. Unknown → null: never guess a price.
+ */
+export function lookupModelRate(model: string): RateLookup | null {
+  const billed = !model.startsWith(SUBSCRIPTION_MODEL_PREFIX);
+  const id = billed ? model : model.slice(SUBSCRIPTION_MODEL_PREFIX.length);
+  const exact = MODEL_RATES_USD_PER_MTOK[id];
+  if (exact) return { rate: exact, key: id, billed };
+  const lower = id.toLowerCase();
+  const key = Object.keys(MODEL_RATES_USD_PER_MTOK).find((k) => k.toLowerCase() === lower);
+  return key ? { rate: MODEL_RATES_USD_PER_MTOK[key]!, key, billed } : null;
+}
+
+/**
+ * USD for one model's usage. Cache reads are a subset of input tokens (the
+ * OpenAI-compatible and claude-code adapters report them that way) and are
+ * priced at the cache-read rate when the row has one.
+ */
+export function priceUsage(
+  rate: ModelRate,
+  usage: { input_tokens: number; output_tokens: number; cached_input_tokens: number },
+): number {
+  const cached = Math.min(usage.cached_input_tokens, usage.input_tokens);
+  const cachedRate = rate.cached_input ?? rate.input;
+  return (
+    ((usage.input_tokens - cached) * rate.input +
+      cached * cachedRate +
+      usage.output_tokens * rate.output) /
+    1_000_000
+  );
+}
 
 function emptyPhase(): PhaseCost {
   return { calls: 0, input_tokens: 0, output_tokens: 0 };
@@ -102,6 +196,7 @@ export class EvalCostMeter {
     judge: emptyPhase(),
   };
   readonly #byModel = new Map<string, PhaseCost>();
+  readonly #cachedByModel = new Map<string, number>();
 
   record(model: string, usage: TokenUsage): void {
     // Defensive: a misbehaving adapter may omit usage or its fields — never
@@ -120,6 +215,8 @@ export class EvalCostMeter {
     m.input_tokens += input;
     m.output_tokens += output;
     this.#byModel.set(model, m);
+    const cached = usage.cachedInputTokens ?? 0;
+    if (cached > 0) this.#cachedByModel.set(model, (this.#cachedByModel.get(model) ?? 0) + cached);
   }
 
   report(): EvalCostReport {
@@ -131,15 +228,32 @@ export class EvalCostMeter {
     }
 
     let estimatedUsd: number | null = 0;
+    let billedUsd: number | null = 0;
     const byModel: EvalCostReport["by_model"] = [];
     for (const [model, m] of this.#byModel) {
-      const rate = MODEL_RATES_USD_PER_MTOK[model];
-      const usd = rate
-        ? (m.input_tokens * rate.input + m.output_tokens * rate.output) / 1_000_000
-        : null;
-      byModel.push({ model, ...m, usd });
-      if (usd === null) estimatedUsd = null;
-      else if (estimatedUsd !== null) estimatedUsd += usd;
+      const cached_input_tokens = this.#cachedByModel.get(model) ?? 0;
+      const hit = lookupModelRate(model);
+      const billed = !model.startsWith(SUBSCRIPTION_MODEL_PREFIX);
+      const usd = hit ? priceUsage(hit.rate, { ...m, cached_input_tokens }) : null;
+      const note = !billed
+        ? "API-equivalent at list rate; Claude Code subscription run, not billed"
+        : hit?.rate.note;
+      byModel.push({
+        model,
+        ...m,
+        cached_input_tokens,
+        usd,
+        billed,
+        rate_key: hit?.key ?? null,
+        ...(note ? { note } : {}),
+      });
+      if (usd === null) {
+        estimatedUsd = null;
+        billedUsd = null;
+      } else {
+        if (estimatedUsd !== null) estimatedUsd += usd;
+        if (billedUsd !== null && billed) billedUsd += usd;
+      }
     }
 
     return {
@@ -150,6 +264,7 @@ export class EvalCostMeter {
       },
       total,
       estimated_usd: estimatedUsd,
+      billed_usd: billedUsd,
       by_model: byModel,
     };
   }

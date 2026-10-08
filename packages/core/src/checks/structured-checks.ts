@@ -121,7 +121,7 @@ export function jsonEquals(a: unknown, b: unknown): boolean {
 
 /**
  * Compile a schema with a fresh Ajv 2020-12 instance. Strict schema mode
- * rejects unknown keywords (a typo'd `requird` must not silently validate
+ * rejects unknown keywords (a misspelled keyword must not silently validate
  * everything).
  * `format` stays an annotation, which is the 2020-12 default: no format
  * vocabulary is loaded, so format assertions are deliberately not checked.
