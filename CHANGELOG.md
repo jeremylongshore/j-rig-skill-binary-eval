@@ -9,8 +9,10 @@
   (`ExecutionOutput.trajectory`, `j-rig/trajectory/v1`). `tool_calls` and `artifacts` are now
   observed instead of hard-coded. Trigger and judge stay on `--provider`.
 - Local Claude subscription only: the provider refuses under CI, passes the agent an
-  allowlisted environment (no `ANTHROPIC_*`), copies the access token without the refresh
-  token into a sandbox `HOME`, and aborts if Claude Code reports any `apiKeySource` but `none`.
+  allowlisted environment (no `ANTHROPIC_*` or other API keys), copies the access token without
+  the refresh token into a sandbox `HOME`, and aborts if Claude Code reports any `apiKeySource`
+  but `none`. This is workspace isolation, not an OS sandbox: the agent keeps the invoking
+  user's network access, `PATH` and filesystem reach.
 - Hard per-case budget: wall clock (`--claude-code-timeout-ms`, default 300000) and assistant
   turns (`--claude-code-max-turns`, default 25) enforced by killing the process group, plus
   `--claude-code-max-budget-usd` (default 1). An exhausted case is not completed and is never

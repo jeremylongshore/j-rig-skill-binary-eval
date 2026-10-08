@@ -121,6 +121,20 @@ describe("trajectory checks", () => {
     expect(r.message).toMatch(/--execution-provider claude-code/);
   });
 
+  it("refuses a truncated trajectory, so a budget-cut run cannot pass tool_not_called", () => {
+    for (const stop of ["max_turns", "timeout", "budget", "error", "no_result"] as const) {
+      const r = runTrajectoryCheck(
+        "tool_not_called",
+        { ...input, trajectory: { ...trajectory, stop } },
+        { tool: "Edit" },
+      );
+      expect(r).toEqual({
+        passed: false,
+        message: `Check "tool_not_called" refused: the run ended with stop "${stop}", so its trajectory is truncated`,
+      });
+    }
+  });
+
   it("fails closed on invalid params that bypassed the spec schema", () => {
     const r = run("file_exists", { path: "a", pattern: "b" });
     expect(r.passed).toBe(false);

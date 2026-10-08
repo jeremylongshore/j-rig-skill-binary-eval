@@ -178,7 +178,10 @@ checks `tool_called`, `tool_not_called`, `order_before`, `file_exists` and
   events) before committing.
 - **A budget-exhausted case is not completed** (error, never judged, row signed
   `error`). Do not grade truncated trajectories.
-- Workspace isolation, not an OS sandbox: say so wherever it is described.
+- Workspace isolation, not an OS sandbox: the agent keeps the invoking user's
+  network access, `PATH` and filesystem reach. Say so wherever it is described.
+- Trajectory checks also refuse a trajectory whose `stop` is not `completed`,
+  so a direct `judgeCriteria` caller cannot grade a truncated run either.
 
 ### Evaluator infrastructure failure (one rule)
 

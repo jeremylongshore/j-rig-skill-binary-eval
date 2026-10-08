@@ -161,6 +161,16 @@ export function runTrajectoryCheck(
         `--execution-provider claude-code.`,
     };
   }
+  // A run cut short by a budget, an error or a missing result is truncated:
+  // grading it would let `tool_not_called` pass on calls that never had the
+  // chance to happen. `j-rig eval` already skips such cases (they carry an
+  // error); this keeps every other caller of the engine fail-closed too.
+  if (t.stop !== "completed") {
+    return {
+      passed: false,
+      message: `Check "${name}" refused: the run ended with stop "${t.stop}", so its trajectory is truncated`,
+    };
+  }
 
   switch (name) {
     case "tool_called": {

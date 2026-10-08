@@ -598,6 +598,8 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
       child.on("error", (err) => {
         clearTimeout(wall);
         if (killTimer) clearTimeout(killTimer);
+        // Usually a failed spawn (no pid, so a no-op); otherwise never leave a live group behind.
+        killGroup(child, "SIGKILL");
         reject(
           new ProviderError({
             category: "unknown",

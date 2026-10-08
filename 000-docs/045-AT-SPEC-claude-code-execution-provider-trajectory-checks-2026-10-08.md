@@ -40,8 +40,8 @@ The per-case temp directory holds:
 The directory is deleted after the case unless `--keep-workspaces` is passed.
 
 **Isolation, stated honestly.** This is workspace isolation, not an OS sandbox.
-The agent runs as the invoking user and a shell command can still reach absolute
-paths. What it does not get: the user's settings, `CLAUDE.md`, skills, plugins,
+The agent runs as the invoking user, keeps that user's network access and
+`PATH`, and a shell command can still reach absolute paths. What it does not get: the user's settings, `CLAUDE.md`, skills, plugins,
 hooks, MCP servers or session history; any environment variable outside the
 allowlist (`PATH`, `LANG`, `LC_*`, `TZ`, `TERM`, `TMPDIR`, `USER`, `LOGNAME`,
 `SHELL`); or the refresh token. Without the refresh token a case can never
@@ -120,7 +120,15 @@ Their params are validated by `CriterionSchema` at spec load, so a typo fails
 
 `tool` matches exactly and is case-sensitive. Every check fails closed when the
 outcome has no trajectory: a single-completion provider cannot observe tools, so
-"no tool was called" must not pass vacuously.
+"no tool was called" must not pass vacuously. Every check also fails closed when
+the trajectory's `stop` is not `completed`. `j-rig eval` never judges such a
+case anyway (it carries `output.error`, so `isFailedExecution` skips it and
+`detectInfrastructureFailure` signs the row `error`); the check-level refusal
+covers any other caller of the judgment engine.
+
+A symlink the agent creates is recorded in the manifest with
+`sha256(symlink:<target>)` and appears in `artifacts` as an empty text entry;
+its target is visible only through that manifest hash.
 
 Example (from the live smoke run):
 

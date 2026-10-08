@@ -22,6 +22,10 @@ import {
   type ClaudeCodeProviderOptions,
 } from "./claude-code.js";
 import { resolveClaudeCodeSettings } from "../commands/eval.js";
+import {
+  detectInfrastructureFailure,
+  isFailedExecution,
+} from "../commands/eval-infrastructure-failure.js";
 
 // No live Claude Code here, ever: `claudeBin` points at a test double that
 // replays transcripts recorded locally on the subscription.
@@ -265,10 +269,43 @@ describe("ClaudeCodeExecutionProvider — billing rule and budgets", () => {
     expect(out.error).toMatch(/wall-clock budget exhausted \(300 ms\)/);
   });
 
-  it("enforces the turn budget", async () => {
+  it("enforces the turn budget, and the truncated case is never judged", async () => {
     const out = await provider({ maxTurns: 1 }).execute("FIXTURE write-receipt", ctx());
     expect(out.trajectory?.stop).toBe("max_turns");
     expect(out.error).toMatch(/turn budget exhausted \(1 turns\)/);
+    const outcome = {
+      test_case_id: "t",
+      prompt: "p",
+      output: out,
+      meta: out.meta,
+      status: "completed" as const,
+    };
+    // j-rig eval skips it and signs the row `error` (000-docs/037) ...
+    expect(isFailedExecution(outcome)).toBe(true);
+    expect(
+      detectInfrastructureFailure({
+        outcomes: [outcome],
+        judgments: [],
+        executionProvider: "claude-code",
+        judgeProvider: "stub",
+      })?.message,
+    ).toMatch(/turn budget exhausted/);
+    // ... and a direct engine caller still cannot pass a check on it.
+    const [r] = await judgeCriteria(
+      [
+        CriterionSchema.parse({
+          id: "no-write",
+          description: "d",
+          method: "deterministic",
+          deterministic_check: "tool_not_called",
+          deterministic_check_params: { tool: "Edit" },
+        }),
+      ],
+      outcome,
+      { judge: () => Promise.reject(new Error("unused")) } as never,
+    );
+    expect(r?.verdict).toBe("no");
+    expect(r?.reasoning).toMatch(/stop "max_turns"/);
   });
 
   it("maps a CLI that dies without a result to a typed provider failure", async () => {
