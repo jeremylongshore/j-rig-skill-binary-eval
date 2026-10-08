@@ -10,6 +10,7 @@ import {
 import { ProviderError } from "@j-rig/core";
 import type { ExecutionToolRuntime, ExecutionToolSession, ToolDefinition } from "@j-rig/core";
 import { z } from "zod";
+import { observationRedactor } from "./observation-redaction.js";
 
 const Server = z
   .object({
@@ -28,6 +29,7 @@ const Server = z
   .strict();
 const Config = z
   .object({
+    judgeObservations: z.boolean().optional(),
     servers: z.record(z.string().regex(/^[A-Za-z][A-Za-z_0-9]{0,15}$/), Server),
     limits: z
       .object({
@@ -98,6 +100,9 @@ export async function loadMcpRuntime(path: string): Promise<{
   });
   const runtime: ExecutionToolRuntime = {
     limits,
+    ...(config.judgeObservations
+      ? { judgeObservations: { redact: observationRedactor(process.env) } }
+      : {}),
     async open(signal): Promise<ExecutionToolSession> {
       const sessionId = randomUUID();
       const clients: Client[] = [];

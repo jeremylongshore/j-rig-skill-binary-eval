@@ -23,6 +23,8 @@ export interface ExecutionToolSession {
 }
 
 export interface ExecutionToolRuntime {
+  /** Explicit consent to retain and forward redacted tool data to judges. */
+  judgeObservations?: { redact(text: string): string };
   open(signal: AbortSignal): Promise<ExecutionToolSession>;
   limits: {
     maxTurns: number;

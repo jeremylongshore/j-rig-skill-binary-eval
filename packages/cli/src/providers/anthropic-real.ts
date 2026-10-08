@@ -1,3 +1,4 @@
+import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
  * Real Anthropic provider adapters (iaj-E10 dogfood).
@@ -473,6 +474,9 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
         },
         {
           open: (signal) => context.tool_runtime!.open(signal),
+          ...(context.tool_runtime.judgeObservations
+            ? { judgeObservations: context.tool_runtime.judgeObservations }
+            : {}),
           limits: {
             ...context.tool_runtime.limits,
             timeoutMs: Math.min(
@@ -559,7 +563,8 @@ export class AnthropicJudgeProvider implements JudgeProvider {
       `CRITERION: ${criterion_description}\n\n` +
       `QUESTION: ${question}\n\n` +
       `PROMPT: ${prompt}\n\n` +
-      `OUTPUT:\n${output}`;
+      `OUTPUT:\n${output}` +
+      formatJudgeObservations(options?.observations);
 
     // Judge calls carry the same abort-on-timeout bound as execution calls: a
     // hung endpoint must reject — the engine folds the rejection into an

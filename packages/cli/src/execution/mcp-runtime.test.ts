@@ -19,7 +19,11 @@ afterEach(async () => {
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
-async function setup(tools = ["echo"], limits: Record<string, number> = {}) {
+async function baseSetup(
+  tools = ["echo"],
+  limits: Record<string, number> = {},
+  observations = false,
+) {
   const directory = await mkdtemp(join(tmpdir(), "jrig-mcp-"));
   directories.push(directory);
   vi.stubEnv("MCP_FIXTURE_DIR", directory);
@@ -28,6 +32,7 @@ async function setup(tools = ["echo"], limits: Record<string, number> = {}) {
   await writeFile(
     path,
     JSON.stringify({
+      ...(observations ? { judgeObservations: true } : {}),
       servers: {
         fixture: {
           command: process.execPath,
@@ -82,7 +87,66 @@ async function assertStopped(directory: string) {
   await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 2000 });
 }
 
-describe("explicit stdio MCP execution", () => {
+describe.each([false, true])("explicit stdio MCP execution (observations=%s)", (observations) => {
+  const setup = (tools = ["echo"], limits: Record<string, number> = {}) =>
+    baseSetup(tools, limits, observations);
+  it.skipIf(!observations)(
+    "bounds serialized observation overhead and retains partial receipts after an effect",
+    async () => {
+      const { runtime, directory } = await setup(["echo"], { maxTotalBytes: 600 });
+      let turns = 0;
+      const provider = execution(async () => {
+        turns++;
+        return openaiResponse([
+          { id: "a", name: "fixture__echo", args: { text: "x".repeat(180) } },
+        ]);
+      });
+      const error = await provider
+        .execute("Fixture", { skill_body: "Skill", tool_runtime: runtime })
+        .then(
+          () => {
+            throw new Error("expected observation refusal");
+          },
+          (error) => error,
+        );
+      expect(error).toMatchObject({ message: "tool_execution/observation_limit", toolCalls: 1 });
+      expect(turns).toBe(1);
+      expect(await readFile(join(directory, "calls"), "utf8")).toBe("echo\n");
+      const record = error.artifacts.find(
+        (entry: { filename: string }) => entry.filename === "tool-observations.json",
+      );
+      expect(Buffer.byteLength(record.content)).toBeLessThanOrEqual(600);
+      expect(JSON.parse(record.content).calls[0]).toMatchObject({ status: "started" });
+      expect(JSON.parse(record.content).calls[0]).not.toHaveProperty("result");
+      await assertStopped(directory);
+    },
+  );
+  it("redacts observation copies while keeping actual tool conversation intact", async () => {
+    vi.stubEnv("OBSERVATION_API_KEY", "private-trial-value");
+    const { runtime, directory } = await setup();
+    const requests: TransportRequest[] = [];
+    const provider = execution(async (request) => {
+      requests.push(request);
+      return requests.length === 1
+        ? openaiResponse([
+            { id: "a", name: "fixture__echo", args: { text: "private-trial-value" } },
+          ])
+        : openaiResponse();
+    });
+    const result = await provider.execute("User", {
+      skill_body: "private system instructions",
+      tool_runtime: runtime,
+    });
+    expect(JSON.stringify(requests[1]!.body)).toContain("private-trial-value");
+    const records = result.artifacts.filter((entry) => entry.filename === "tool-observations.json");
+    expect(records).toHaveLength(observations ? 1 : 0);
+    if (observations) {
+      expect(records[0]!.content).toContain("[REDACTED]");
+      expect(records[0]!.content).not.toContain("private-trial-value");
+      expect(records[0]!.content).not.toContain("private system instructions");
+    }
+    await assertStopped(directory);
+  });
   it("generates a fresh correlation identity per session and overrides ambient substitution", async () => {
     const { directory } = await setup();
     vi.stubEnv("JRIG_EXECUTION_SESSION_ID", "ambient-value-must-not-win");
@@ -221,6 +285,21 @@ describe("explicit stdio MCP execution", () => {
     });
     expect(result.text).toBe("grounded final answer");
     expect(result.tool_calls).toBe(2);
+    const observed = result.artifacts.filter(
+      (entry) => entry.filename === "tool-observations.json",
+    );
+    expect(observed).toHaveLength(observations ? 1 : 0);
+    if (observations) {
+      const context = JSON.parse(observed[0]!.content);
+      expect(context.calls).toHaveLength(2);
+      expect(
+        context.calls.every(
+          (call: { status: string; result?: string }) =>
+            call.status === "completed" && typeof call.result === "string",
+        ),
+      ).toBe(true);
+      expect(context).not.toHaveProperty("messages");
+    }
     const first = requests[0]!.body as { tools: { function: { name: string } }[] };
     expect(first.tools.map((tool) => tool.function.name)).toEqual(["fixture__echo"]);
     const second = requests[1]!.body as {
@@ -277,6 +356,21 @@ describe("explicit stdio MCP execution", () => {
       { temperature: 0 },
     );
     expect(result.tool_calls).toBe(2);
+    const observed = result.artifacts.filter(
+      (entry) => entry.filename === "tool-observations.json",
+    );
+    expect(observed).toHaveLength(observations ? 1 : 0);
+    if (observations) {
+      const context = JSON.parse(observed[0]!.content);
+      expect(context.calls).toHaveLength(2);
+      expect(
+        context.calls.every(
+          (call: { status: string; result?: string }) =>
+            call.status === "completed" && typeof call.result === "string",
+        ),
+      ).toBe(true);
+      expect(context).not.toHaveProperty("messages");
+    }
     expect(result.text).toBe("finished");
     expect(JSON.stringify(requests[1]!.body)).toContain('"tool_use_id":"b"');
     expect(JSON.stringify(requests[1]!.body)).toContain('"type":"tool_use"');

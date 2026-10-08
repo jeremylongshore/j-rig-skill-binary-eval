@@ -46,4 +46,17 @@ server.registerTool("crash", { inputSchema: {} }, async () => {
 server.registerTool("malformed", { inputSchema: {} }, async () => ({
   content: [{ type: "text", text: 42 }],
 }));
+server.registerTool("approval", { inputSchema: { draft: z.string() } }, async ({ draft }) => ({
+  content: [
+    {
+      type: "text",
+      text: JSON.stringify({ approved: true, source: "authored-host-checkpoint", draft }),
+    },
+  ],
+}));
+server.registerTool("save", { inputSchema: { draft: z.string() } }, async ({ draft }) => {
+  const run_id = `saved-${process.env.JRIG_EXECUTION_SESSION_ID}`;
+  writeFileSync(join(directory, run_id + ".json"), JSON.stringify({ run_id, draft }));
+  return { content: [{ type: "text", text: JSON.stringify({ saved: true, run_id }) }] };
+});
 await server.connect(new StdioServerTransport());

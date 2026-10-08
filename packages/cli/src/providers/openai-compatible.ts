@@ -1,3 +1,4 @@
+import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
  * Configurable OpenAI-compatible provider (iaj-E10 follow-on).
@@ -736,6 +737,9 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
         },
         {
           open: (signal) => context.tool_runtime!.open(signal),
+          ...(context.tool_runtime.judgeObservations
+            ? { judgeObservations: context.tool_runtime.judgeObservations }
+            : {}),
           limits: {
             ...context.tool_runtime.limits,
             timeoutMs: Math.min(
@@ -841,7 +845,8 @@ export class OpenAICompatJudgeProvider implements JudgeProvider {
       `CRITERION: ${criterion_description}\n\n` +
       `QUESTION: ${question}\n\n` +
       `PROMPT: ${prompt}\n\n` +
-      `OUTPUT:\n${output}`;
+      `OUTPUT:\n${output}` +
+      formatJudgeObservations(options?.observations);
 
     // Judge calls carry the same abort-on-timeout bound as execution calls: a
     // hung endpoint (observed: NVIDIA NIM, >1h) must reject — the engine folds

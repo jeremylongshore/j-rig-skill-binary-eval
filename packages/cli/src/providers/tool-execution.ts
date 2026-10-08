@@ -43,7 +43,7 @@ export function modelToolCall(
   return { id, name, arguments: args as Record<string, unknown> };
 }
 
-/** Model and tool text stays in the conversation; receipts retain counts only. */
+/** Receipts retain counts by default; tool text requires explicit observation consent. */
 export async function executeWithTools(
   provider: Provider,
   request: CompletionRequest,
@@ -56,6 +56,21 @@ export async function executeWithTools(
   const timer = setTimeout(abort, runtime.limits.timeoutMs);
   const signal = controller.signal;
   const events: { tool: string; status: "started" | "completed"; result_bytes?: number }[] = [];
+  const observations: {
+    id: string;
+    tool: string;
+    arguments: unknown;
+    status: "started" | "completed";
+    result?: string;
+  }[] = [];
+  let observationReady = false;
+  const observationContent = () =>
+    JSON.stringify({
+      schema: "jrig-tool-observations/v1",
+      session_id: session?.sessionId,
+      redaction: "known-environment-credentials-and-credential-fields/v1",
+      calls: observations,
+    });
   const artifacts = (): ArtifactRecord[] => {
     const content = JSON.stringify(events);
     const records: ArtifactRecord[] = [
@@ -78,6 +93,15 @@ export async function executeWithTools(
         size_bytes: Buffer.byteLength(identity),
       });
     }
+    if (runtime.judgeObservations && observationReady && session?.sessionId) {
+      const content = observationContent();
+      records.push({
+        filename: "tool-observations.json",
+        type: "text",
+        content,
+        size_bytes: Buffer.byteLength(content),
+      });
+    }
     return records;
   };
   let session: ExecutionToolSession | undefined;
@@ -89,6 +113,14 @@ export async function executeWithTools(
   try {
     signal.throwIfAborted();
     session = await runtime.open(signal);
+    if (runtime.judgeObservations && !session.sessionId)
+      throw refusal("observation_identity_missing");
+    if (
+      runtime.judgeObservations &&
+      Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes
+    )
+      throw refusal("observation_limit");
+    observationReady = !!runtime.judgeObservations;
     const names = new Set(session.tools.map((tool) => tool.name));
     if (!names.size || names.size !== session.tools.length) throw refusal("tool_inventory");
     const messages: ChatMessage[] = request.messages.map((message) => ({ ...message }));
@@ -147,6 +179,20 @@ export async function executeWithTools(
       messages.push({ role: "assistant", content: result.text, toolCalls: requested });
       for (const call of requested) {
         signal.throwIfAborted();
+        let observation: (typeof observations)[number] | undefined;
+        if (runtime.judgeObservations) {
+          observation = {
+            id: call.id,
+            tool: call.name,
+            arguments: JSON.parse(runtime.judgeObservations.redact(JSON.stringify(call.arguments))),
+            status: "started",
+          };
+          observations.push(observation);
+          if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
+            observations.pop();
+            throw refusal("observation_limit");
+          }
+        }
         calls++;
         const event: (typeof events)[number] = { tool: call.name, status: "started" };
         events.push(event);
@@ -156,6 +202,16 @@ export async function executeWithTools(
         totalBytes += bytes;
         if (bytes > runtime.limits.maxResultBytes || totalBytes > runtime.limits.maxTotalBytes)
           throw refusal("output_limit");
+        if (observation && runtime.judgeObservations) {
+          const result = runtime.judgeObservations.redact(output);
+          observation.result = result;
+          observation.status = "completed";
+          if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
+            delete observation.result;
+            observation.status = "started";
+            throw refusal("observation_limit");
+          }
+        }
         event.status = "completed";
         event.result_bytes = bytes;
         messages.push({ role: "tool", content: output, toolName: call.name, toolCallId: call.id });
