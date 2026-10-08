@@ -21,6 +21,8 @@ const policy = parsePolicy({
   forbid_decisions: ["fail", "error"],    // default: both
   advisory_blocks: false,                 // default: false
   allow_unknown_gates: true,              // default: true
+  forbid_providers: ["stub"],             // default: ["stub"]; [] turns it off
+  require_ground_truth: true,             // default: true
 });
 
 const result = decide(bundle, policy);
@@ -53,7 +55,16 @@ contributing reason listed:
 | Any row with a forbidden decision (`fail` + `error` by default) | block |
 | Advisory row when `advisory_blocks: true` | block |
 | Row matching no required pattern when `allow_unknown_gates: false` | block |
+| Row whose `predicate.metadata.provider` is in `forbid_providers` (`stub` by default) | block |
+| Row whose `predicate.metadata.ground_truth` is `false` when `require_ground_truth: true` (default) | block |
 | Invalid policy passed to `decide()` | block (no throw) |
+
+The two stub-discipline checks implement `STUB-PROVIDERS.md` § 3 (consumers
+MUST refuse stub-mode rows). A row that declares neither `metadata.provider` nor
+`metadata.ground_truth`, such as a deterministic static gate, is not affected.
+A non-string provider or a non-boolean `ground_truth` is not treated as a
+marker. Allowing stub rows takes both `forbid_providers: []` and
+`require_ground_truth: false`, which keeps the opt-out visible in the policy.
 
 `parsePolicy()` throws on garbage instead — callers must not fall back to a
 default policy on parse failure.

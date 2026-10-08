@@ -81,6 +81,11 @@ The banner is emitted exactly once per process via a module-scoped flag (subsequ
 
 When j-rig grows an `emit-evidence` path that produces Evidence Bundle rows for downstream consumption (e.g., by `intent-rollout-gate`), the emitted rows MUST carry a `provider.mode: "stub"` marker. Consumers MUST refuse rows where that marker is `"stub"` — a rollout-gate that ships a skill on stub evidence is the failure mode the discipline exists to prevent.
 
+The decision library enforces this: `@intentsolutions/rollout-gate` blocks any row whose
+`predicate.metadata.provider` is listed in the policy's `forbid_providers` (default `["stub"]`)
+or whose `predicate.metadata.ground_truth` is `false` while `require_ground_truth` is on (the
+default). `j-rig eval --emit-bundle` rows carry both fields.
+
 This marker landing is gated on the kernel-canonical schema migration (`iaj-E02b` per DR 018 § 9.2; kernel `iec-E12` ships `EvidenceBundlePayload` first). Until then, j-rig does not emit machine-consumable bundles from the `eval` command at all — only console output.
 
 ### 4. Backward-compat carve-out

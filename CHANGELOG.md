@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — rollout gate refuses stub rows
+
+- `@intentsolutions/rollout-gate` 2.2.0: new policy keys `forbid_providers` (default
+  `["stub"]`) and `require_ground_truth` (default `true`). A row from a forbidden provider, or
+  one declaring `ground_truth: false`, now blocks the rollout, as `STUB-PROVIDERS.md` § 3
+  requires. Rows without these metadata fields are unaffected; opting out takes both
+  `forbid_providers: []` and `require_ground_truth: false`.
+
 ## Unreleased — judge tool observations
 
 - Add explicit MCP `judgeObservations` consent to retain bounded, credential-redacted
