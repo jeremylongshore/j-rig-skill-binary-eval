@@ -113,12 +113,44 @@ descendants created by a server.
 Private files next to the DB (`<db>.execution-*/skill.json` or `baseline.json`)
 retain final text, status, attempted-call counts and tool event receipts. The
 DB records each file's hash; `--emit-bundle` includes matching hashes/counts in
-`metadata.tool_execution`. Receipts omit prompts, raw tool arguments/results,
+`metadata.tool_execution`. By default receipts omit prompts, raw tool arguments/results,
 environment values and server stderr. Final model text can still contain tool
 data, so treat the local files as private. These are observations, not proof
 that a tool's claims or real-world effects were correct; task-specific checks
 must verify those outcomes. The configuration hash does not pin server code,
 environment values or external state.
+
+### Opt in to tool observations for judges
+
+Set `"judgeObservations": true` at the top level of the explicit MCP JSON configuration
+to retain bounded actual call arguments/results and forward them to the selected judge
+provider. The default remains counts only. This is consent to share tool data with that
+provider, including any personal or business data tools return; it is not a sandbox or
+complete secret/PII scrubber. Known credential values from credential-named environment
+variables, credential fields, and common credential prefixes are redacted in the observation
+copy. Normal tool conversations and final model output are not scrubbed by this option.
+
+Each private execution receipt then includes a `tool-observations.json` artifact with
+schema `jrig-tool-observations/v1`, the runtime-owned session UUID, redaction version,
+and ordered calls (`id`, `tool`, `arguments`, `status`, and completed `result`). No skill
+body, system messages, assistant reasoning, or tool definitions are copied into it.
+Both judge adapters receive the exact artifact as untrusted data and no MCP tools.
+A completed MCP `isError` response remains an observed error response, not success.
+A response claiming approval is evidence of that response; host approval and actual
+store effects still need independent task-specific checks.
+
+Skill and baseline contexts stay separate. Portable `tool_execution.receipts[].judge_contexts`
+contains only case/session identity, SHA-256 and byte count; matching private receipts
+bind those exact contexts to phase, run and configuration hash. The grader snapshot
+records the opt-in schema and configuration hash. Consumers can hash each private
+artifact's UTF-8 content and compare it with the portable reference before auditing
+which observations the judge received. Arguments/results never enter the portable
+bundle through these references.
+
+Observation artifacts have a separate serialized `maxTotalBytes` bound (including JSON
+encoding overhead), while existing argument/result/turn/call/time limits still apply.
+A bound may refuse execution after an earlier effect; it cannot undo that effect.
+Interrupted or failed executions retain bounded partial observations and are not judged.
 
 ### Evaluation evidence
 

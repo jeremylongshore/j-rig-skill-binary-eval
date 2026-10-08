@@ -1,6 +1,6 @@
 import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
-import { storeToolExecutionEvidence } from "../execution/evidence.js";
+import { getJudgeObservations, storeToolExecutionEvidence } from "../execution/evidence.js";
 import type { Command } from "commander";
 import chalk from "chalk";
 import { basename, resolve } from "node:path";
@@ -828,6 +828,8 @@ export function registerEvalCommand(program: Command): void {
                     "skill",
                     toolConfig.fingerprint,
                     outcomes,
+                    !!toolConfig.runtime.judgeObservations,
+                    toolConfig.runtime.limits.maxTotalBytes,
                   ),
                 ]
               : [];
@@ -908,6 +910,15 @@ export function registerEvalCommand(program: Command): void {
                 testCase.criteria_ids,
               );
               const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
+                ...(toolConfig?.runtime.judgeObservations
+                  ? {
+                      observations: getJudgeObservations(
+                        outcome,
+                        true,
+                        toolConfig.runtime.limits.maxTotalBytes,
+                      ),
+                    }
+                  : {}),
                 // The JUDGE's model id (differs from the eval target when
                 // --judge-provider/--judge-model decouple the judge) — feeds
                 // JudgmentResult.judge_model, evidence, and the OTel modelId.
@@ -1067,6 +1078,8 @@ export function registerEvalCommand(program: Command): void {
                     "baseline",
                     toolConfig.fingerprint,
                     nakedOutcomes,
+                    !!toolConfig.runtime.judgeObservations,
+                    toolConfig.runtime.limits.maxTotalBytes,
                   ),
                 );
               }
@@ -1080,6 +1093,15 @@ export function registerEvalCommand(program: Command): void {
                   testCase.criteria_ids,
                 );
                 const judgments = await judgeCriteria(nakedCriteria, outcome, providers.judge, {
+                  ...(toolConfig?.runtime.judgeObservations
+                    ? {
+                        observations: getJudgeObservations(
+                          outcome,
+                          true,
+                          toolConfig.runtime.limits.maxTotalBytes,
+                        ),
+                      }
+                    : {}),
                   model: providers.judgeModelId,
                   samples: judgeSamples,
                   judgeTemperature: spec.judge_temperature,
@@ -1153,6 +1175,12 @@ export function registerEvalCommand(program: Command): void {
             // plus the judge/stability settings that influence the fold.
             const graderSnapshot = {
               schema: "j-rig/binary-criteria-grader/v1",
+              ...(toolConfig?.runtime.judgeObservations
+                ? {
+                    tool_observations: "jrig-tool-observations/v1",
+                    mcp_configuration_sha256: toolConfig.fingerprint,
+                  }
+                : {}),
               criteria: scoringCriteria,
               judge: {
                 provider: providers.judgeProviderName,

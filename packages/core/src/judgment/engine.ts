@@ -14,6 +14,8 @@ import { providerFailureFromError } from "../providers/errors.js";
  * temperature (greedy).
  */
 export interface JudgeOptions {
+  /** Explicit host-owned tool observations for this outcome only. */
+  observations?: string;
   model?: string;
   /** Default judge samples per judge-method criterion (N-sample majority voting). */
   samples?: number;
@@ -155,6 +157,7 @@ async function judgeWithLLM(
       {
         ...(temperature !== undefined ? { temperature } : {}),
         timeout_ms: timeoutMs,
+        ...(options?.observations !== undefined ? { observations: options.observations } : {}),
       },
     );
 

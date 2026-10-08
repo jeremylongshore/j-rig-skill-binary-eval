@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — judge tool observations
+
+- Add explicit MCP `judgeObservations` consent to retain bounded, credential-redacted
+  calls/results and forward each session’s observations to tool-free judges.
+- Bind private skill/baseline observation contexts to configuration and execution
+  receipts with portable digest/size references; keep counts-only defaults.
+
 ## Unreleased — trigger evidence
 
 - Retain per-case routing decisions and metrics in JSON/bundle metadata and private,
