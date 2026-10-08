@@ -27,3 +27,23 @@ export {
   type TrajectoryCheckName,
   type TrajectoryCheckResult,
 } from "./trajectory-checks.js";
+
+export {
+  JSON_SCHEMA_DIALECT,
+  STRUCTURED_CHECK_NAMES,
+  STRUCTURED_CHECK_PARAM_SCHEMAS,
+  STRUCTURED_GRADER_CHECK_SCHEMAS,
+  compileJsonSchema,
+  isStructuredCheck,
+  jsonEquals,
+  parseJsonPath,
+  resolveJsonPath,
+  runStructuredCheck,
+  structuredCheckParamIssues,
+  structuredInputFromOutput,
+  type JsonPathSegment,
+  type StructuredCheckFile,
+  type StructuredCheckInput,
+  type StructuredCheckName,
+  type StructuredCheckResult,
+} from "./structured-checks.js";

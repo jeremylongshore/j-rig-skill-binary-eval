@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "document": { "title": "Quarterly report", "pages": 12 },
+  "outputs": [
+    {
+      "path": "report.pdf",
+      "sha256": "4480c3f1dd1164a44521007b732fee306b2e3ce5f3c1cb64e2825db7b5d1e231"
+    }
+  ],
+  "warnings": [],
+  "weird key": null
+}

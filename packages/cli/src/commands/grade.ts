@@ -9,7 +9,7 @@ import {
   type GraderDefinition,
   type JudgeProvider,
 } from "@j-rig/core";
-import { createGrade, getGradesForRun, getRawRun } from "@j-rig/db";
+import { createGrade, getGradesForRun, getRawRun, getRawRunArtifacts } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { selectJudgeOverride } from "./eval.js";
 
@@ -74,7 +74,11 @@ export async function runGrade(options: GradeCommandOptions): Promise<GradeComma
 
     let evaluation: ReturnType<typeof evaluateWithGrader>;
     if (definition.kind === "deterministic") {
-      evaluation = evaluateWithGrader(rawRun.id, rawRun.stdout ?? "", definition);
+      // Structured checks read the sealed exit code and artifact manifest.
+      evaluation = evaluateWithGrader(rawRun.id, rawRun.stdout ?? "", definition, {
+        exit_code: rawRun.exit_code ?? null,
+        artifacts: getRawRunArtifacts(database, rawRun.id),
+      });
     } else {
       const selectedJudge = options.judge
         ? { judge: options.judge }

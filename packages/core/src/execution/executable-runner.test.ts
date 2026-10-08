@@ -68,6 +68,31 @@ describe("ExecutableRunner", () => {
     expect(result.stderr).toBe("harness broke");
   });
 
+  it("seals a declared completed_exit_codes exit as completed and any other as runner_error", async () => {
+    const withCodes = (script: string): RunnerRequest => {
+      const r = request(script);
+      return {
+        ...r,
+        config: EvalConfigSchema.parse({
+          ...r.config,
+          harness: { ...r.config.harness, completed_exit_codes: [0, 3] },
+        }),
+      };
+    };
+    const answered = await new ExecutableRunner().run(
+      withCodes('process.stdout.write("{}"); process.exit(3);'),
+    );
+    expect(answered.status).toBe("completed");
+    expect(answered.exit_code).toBe(3);
+    const broke = await new ExecutableRunner().run(withCodes("process.exit(7);"));
+    expect(broke.status).toBe("runner_error");
+    expect(broke.exit_code).toBe(7);
+  });
+
+  it("keeps the config snapshot free of completed_exit_codes when none is declared", () => {
+    expect("completed_exit_codes" in request("process.exit(0)").config.harness).toBe(false);
+  });
+
   it("terminates a harness that exceeds its configured timeout", async () => {
     const result = await new ExecutableRunner().run(
       request("setTimeout(() => process.exit(0), 1_000);", 25),

@@ -42,6 +42,8 @@ export default defineConfig({
     "@intentsolutions/core",
     "@opentelemetry/api",
     "@opentelemetry/sdk-trace-base",
+    // JSON Schema validator behind the schema_valid deterministic check.
+    "ajv",
     "drizzle-orm",
     "gray-matter",
     "yaml",

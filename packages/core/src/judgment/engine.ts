@@ -2,6 +2,11 @@ import type { Criterion } from "../schemas/criterion.js";
 import type { ObservedOutcome } from "../execution/types.js";
 import { runCheck } from "../checks/deterministic-registry.js";
 import { isTrajectoryCheck, runTrajectoryCheck } from "../checks/trajectory-checks.js";
+import {
+  isStructuredCheck,
+  runStructuredCheck,
+  structuredInputFromOutput,
+} from "../checks/structured-checks.js";
 import type { JudgeProvider, JudgmentResult, JudgmentVerdict } from "./types.js";
 import { redactProviderError } from "./redact.js";
 import { providerFailureFromError } from "../providers/errors.js";
@@ -104,6 +109,23 @@ function judgeDeterministic(criterion: Criterion, outcome: ObservedOutcome): Jud
     const r = runTrajectoryCheck(
       criterion.deterministic_check,
       outcome.output,
+      criterion.deterministic_check_params,
+    );
+    return {
+      criterion_id: criterion.id,
+      verdict: r.passed ? "yes" : "no",
+      confidence: 1,
+      reasoning: r.message,
+      method: "deterministic",
+    };
+  }
+
+  // Structured checks grade the response as JSON, or a produced file
+  // (checks/structured-checks.ts).
+  if (isStructuredCheck(criterion.deterministic_check)) {
+    const r = runStructuredCheck(
+      criterion.deterministic_check,
+      structuredInputFromOutput(outcome.output),
       criterion.deterministic_check_params,
     );
     return {
