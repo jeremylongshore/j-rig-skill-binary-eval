@@ -183,6 +183,23 @@ checks `tool_called`, `tool_not_called`, `order_before`, `file_exists` and
 - Trajectory checks also refuse a trajectory whose `stop` is not `completed`,
   so a direct `judgeCriteria` caller cannot grade a truncated run either.
 
+### Structured checks and eval budgets
+
+- **Structured deterministic checks** (`packages/core/src/checks/structured-checks.ts`,
+  spec `000-docs/046`): `exit_code`, `json_path`, `file_sha256`, `schema_valid` (draft
+  2020-12 pinned). Usable as `j-rig eval` criteria (response JSON or a claude-code
+  produced file; `exit_code` refused at load) and as `j-rig grade` grader checks
+  (stdout, exit code, artifact manifest). `output_contains` grader entries keep their
+  exact shape: do not change it, every saved Grade's snapshot hash depends on it.
+  `harness.completed_exit_codes` must stay default-free (sealed-config snapshots).
+- **Eval budgets** (`packages/cli/src/providers/budget.ts`, spec `000-docs/047`):
+  spec `budget:` and `--max-usd/--max-tokens/--max-wall-ms/--max-calls`, stricter
+  wins, one budget per invocation. A stop means no verdict, no bundle row, run
+  `failed` (`budget_exhausted`), exit 3. Never sign it as an `error` row.
+- **Rates** in `MODEL_RATES_USD_PER_MTOK` carry a source and read date; refresh
+  both together and never guess a price (unknown stays `null`; `max_usd` then
+  fails closed). `claude-code/*` usage is API-equivalent, `billed: false`.
+
 ### Evaluator infrastructure failure (one rule)
 
 Any unrecovered provider failure in `j-rig eval`, trigger, execution or judge phase,
