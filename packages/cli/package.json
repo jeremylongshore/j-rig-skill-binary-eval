@@ -62,7 +62,7 @@
     "better-sqlite3": "^13.0.3",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.3",
     "gray-matter": "^4.0.3",
     "yaml": "^2.9.0",
     "zod": "^4.6.5"
