@@ -95,6 +95,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Package releases (2026-10-08)
+
+- **`@intentsolutions/jrig-cli` 0.5.0** (tag `jrig-cli-v0.5.0`). Ships everything merged
+  since `jrig-cli-v0.4.0`: the claude-code execution provider and trajectory checks
+  ([#357](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/357)), structured
+  deterministic checks and eval cost/latency budgets with MiniMax and Claude rates
+  ([#358](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/358)), judged
+  adversarial cases ([#356](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/356)),
+  explicit MCP tool execution and receipts (#344, #346, #350, #352), trigger evidence (#348),
+  explicit execution reasoning effort (#354) and the `j-rig batch` deprecation (#334).
+  Minor bump: every change is additive while the CLI is 0.x. Only the CLI ships;
+  `@intentsolutions/rollout-gate` 2.2.0 is already on npm and the refiner and pr-comment
+  packages have no source changes since their last tags.
+
 ### Added (2026-10-07)
 
 - Opt-in `j-rig eval --mcp-config` executes explicitly allowlisted stdio MCP
