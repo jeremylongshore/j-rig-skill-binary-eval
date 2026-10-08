@@ -21,11 +21,13 @@ interface Request {
 
 describe("eval with a real MCP child and local HTTP model fixture", { timeout: 30000 }, () => {
   it.each([
-    [false, false],
-    [true, false],
-    [false, true],
-    [true, true],
-  ])("persists isolated evidence (crash=%s, observations=%s)", async (crash, observations) => {
+    [false, false, null],
+    [true, false, null],
+    [false, true, null],
+    [true, true, null],
+    [true, true, "invalid_tool_call"],
+    [true, true, "incomplete_response"],
+  ] as const)("persists isolated evidence (%s, %s, %s)", async (crash, observations, refusal) => {
     const directory = mkdtempSync(join(tmpdir(), "jrig-cli-mcp-"));
     const requests: Request[] = [];
     const server = createServer(async (request, response) => {
@@ -43,7 +45,8 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
         JSON.stringify({
           choices: [
             {
-              finish_reason: needsTool ? "tool_calls" : "stop",
+              finish_reason:
+                refusal === "incomplete_response" ? "length" : needsTool ? "tool_calls" : "stop",
               message: needsTool
                 ? {
                     content: "",
@@ -52,13 +55,16 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
                         id: `call-${toolResults.length + 1}`,
                         type: "function",
                         function: {
-                          name: crash
-                            ? "fixture__crash"
-                            : observations
-                              ? toolResults.length
-                                ? "fixture__save"
-                                : "fixture__approval"
-                              : "fixture__echo",
+                          name:
+                            refusal === "invalid_tool_call"
+                              ? "fixture__unknown"
+                              : crash
+                                ? "fixture__crash"
+                                : observations
+                                  ? toolResults.length
+                                    ? "fixture__save"
+                                    : "fixture__approval"
+                                  : "fixture__echo",
                           arguments: JSON.stringify(
                             crash
                               ? {}
@@ -105,8 +111,9 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       const dbPath = join(directory, "run.db");
       const bundlePath = join(directory, "bundle.json");
       let exitCode = 0;
+      let cliOutput = "";
       try {
-        await promisify(execFile)(
+        const result = await promisify(execFile)(
           process.execPath,
           [
             cli,
@@ -141,7 +148,9 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
             },
           },
         );
+        cliOutput = result.stdout;
       } catch (error) {
+        cliOutput = (error as { stdout: string }).stdout;
         if (!crash) throw error;
         exitCode = (error as { code: number }).code;
       }
@@ -149,13 +158,25 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       const bundle = JSON.parse(readFileSync(bundlePath, "utf8"));
       expect(EvidenceStatementSchema.safeParse(bundle[0]).success).toBe(true);
       if (crash) expect(bundle[0].predicate.gate_decision).toBe("error");
+      if (refusal) {
+        const expectedMessage = `tool_execution/${refusal}`;
+        expect(JSON.parse(cliOutput)["fixture-model"].evaluation_error).toMatchObject({
+          phase: "execution",
+          category: "schema_violation",
+          message: expectedMessage,
+          affected: 2,
+          total: 2,
+        });
+        expect(bundle[0].predicate.metadata.error_detail.message).toBe(expectedMessage);
+      }
+      const expectedCalls = refusal ? 0 : observations && !crash ? 2 : 1;
       const metadata = bundle[0].predicate.metadata.tool_execution;
       expect(metadata.receipts).toHaveLength(2);
       expect(
         metadata.receipts.map(
           (receipt: { attempted_tool_calls: number }) => receipt.attempted_tool_calls,
         ),
-      ).toEqual(observations && !crash ? [2, 2] : [1, 1]);
+      ).toEqual([expectedCalls, expectedCalls]);
       const childIdentities = readFileSync(join(directory, "session-identities"), "utf8")
         .trim()
         .split("\n")
@@ -178,7 +199,8 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
           );
           expect(statSync(artifact.relative_path).mode & 0o777).toBe(0o600);
           const receipt = JSON.parse(bytes.toString());
-          expect(receipt.cases[0].output.tool_calls).toBe(observations && !crash ? 2 : 1);
+          expect(receipt.cases[0].output.tool_calls).toBe(expectedCalls);
+          if (refusal) expect(receipt.cases[0].output.error).toBe(`tool_execution/${refusal}`);
           expect(receipt.cases[0].status).toBe(crash ? "failed" : "completed");
           expect(receipt.cases[0].output.text).toBe(crash ? "" : "grounded fixture answer");
           expect(receipt.cases[0].output.artifacts[0].filename).toBe("tool-events.json");
@@ -201,7 +223,8 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
             const context = JSON.parse(observed[0].content);
             expect(context.session_id).toBe(parsedIdentity.session_id);
             if (crash) {
-              expect(context.calls[0].status).toBe("started");
+              if (refusal) expect(context.calls).toEqual([]);
+              else expect(context.calls[0].status).toBe("started");
               expect(receipt.judge_contexts).toEqual([]);
             } else {
               expect(context.calls.map((call: { tool: string }) => call.tool)).toEqual([
