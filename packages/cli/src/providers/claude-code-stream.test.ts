@@ -122,8 +122,23 @@ describe("summarizeToolInput / relativizePaths", () => {
     expect(summarizeToolInput("mcp__x__y", { b: 1, a: { d: [2], c: "z" } }, "/w")).toBe(
       '{"a":{"c":"z","d":[2]},"b":1}',
     );
-    expect(summarizeToolInput("Bash", { command: "x".repeat(5000) }, "/w")).toHaveLength(2000);
+    expect(summarizeToolInput("Bash", { command: "echo ab ".repeat(1000) }, "/w")).toHaveLength(
+      2000,
+    );
     expect(summarizeToolInput("Grep", { pattern: "TODO", path: "/w/src" }, "/w")).toBe("TODO");
     expect(summarizeToolInput("Write", "not-an-object", "/w")).toBe("{}");
+  });
+
+  it("redacts credential-shaped substrings in persisted summaries", () => {
+    const s = summarizeToolInput(
+      "Bash",
+      {
+        command: 'curl -H "Authorization: Bearer abcdefghijklmnop" -d k=sk-ant-0123456789abcdef x',
+      },
+      "/w",
+    );
+    expect(s).not.toContain("abcdefghijklmnop");
+    expect(s).not.toContain("sk-ant-0123456789abcdef");
+    expect(s).toContain("curl");
   });
 });

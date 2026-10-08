@@ -77,7 +77,14 @@ export const TRAJECTORY_CHECK_PARAM_SCHEMAS = {
   file_matches_sha_in: z
     .object({
       ...FileSelectorShape,
-      in: z.string().min(1).describe("Produced text file that must contain the sha256"),
+      in: z
+        .string()
+        .min(1)
+        .refine(
+          (v) => !v.startsWith("/") && !v.split("/").includes(".."),
+          "`in` must be a workspace-relative path without `..`",
+        )
+        .describe("Produced text file that must contain the sha256"),
     })
     .strict()
     .refine(exactlyOneSelector, SELECTOR_MESSAGE)

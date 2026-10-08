@@ -52,7 +52,10 @@ the access token expires within the case budget plus 60 s.
 
 The provider:
 
-1. refuses to construct when `CI` or `GITHUB_ACTIONS` is truthy;
+1. refuses to construct when any conventional CI marker is truthy (`CI`,
+   `GITHUB_ACTIONS`, `GITLAB_CI`, `CIRCLECI`, `BUILDKITE`, `JENKINS_URL`,
+   `TF_BUILD`, `TEAMCITY_VERSION`, `BITBUCKET_BUILD_NUMBER`,
+   `CODEBUILD_BUILD_ID`, `DRONE`, `TRAVIS`);
 2. strips every `ANTHROPIC_*` variable (the allowlist drops them);
 3. kills the run and refuses when the stream's `init` event reports any
    `apiKeySource` other than `none`.
@@ -87,7 +90,8 @@ was cut short.
 - `steps`: every `tool_use` in stream order: tool name, a deterministic input
   summary (Bash → command; Read/Write/Edit → file path; Glob/Grep → pattern;
   Skill → skill name; anything else → key-sorted JSON), workspace paths made
-  relative, truncated to 2,000 characters, and `is_error` when the tool result
+  relative, credential-shaped substrings redacted with core's provider-error
+  rules (`redactCredentials`), truncated to 2,000 characters, and `is_error` when the tool result
   came back as an error.
 - `files`: the post-run workspace manifest (excluding `.claude/`), each file with
   sha256, size, and `created`, `modified`, `unchanged` or `deleted`.

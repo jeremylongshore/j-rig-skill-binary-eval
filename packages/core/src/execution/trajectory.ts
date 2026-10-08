@@ -59,6 +59,8 @@ export interface Trajectory {
   schema: typeof TRAJECTORY_SCHEMA;
   /** Which execution provider recorded it (e.g. `claude-code`). */
   source: string;
+  /** Model the agent reported running on, when the stream said. */
+  model?: string;
   steps: TrajectoryStep[];
   /** Sorted by path. Excludes the installed skill copy and the sandbox home. */
   files: TrajectoryFile[];

@@ -144,11 +144,27 @@ export class ClaudeCodeRefusedError extends Error {
   }
 }
 
-/** True for any truthy CI marker (GitHub Actions sets both). */
+/** Conventional CI markers: the generic `CI` plus vendors that do not always set it. */
+const CI_MARKERS = [
+  "CI",
+  "GITHUB_ACTIONS",
+  "GITLAB_CI",
+  "CIRCLECI",
+  "BUILDKITE",
+  "JENKINS_URL",
+  "TF_BUILD",
+  "TEAMCITY_VERSION",
+  "BITBUCKET_BUILD_NUMBER",
+  "CODEBUILD_BUILD_ID",
+  "DRONE",
+  "TRAVIS",
+] as const;
+
+/** True for any truthy conventional CI marker. */
 export function isCiEnvironment(env: NodeJS.ProcessEnv): boolean {
   const truthy = (v: string | undefined) =>
     v !== undefined && v !== "" && v !== "0" && v !== "false";
-  return truthy(env.CI) || truthy(env.GITHUB_ACTIONS);
+  return CI_MARKERS.some((k) => truthy(env[k]));
 }
 
 /**
@@ -418,7 +434,7 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
     const env = options.env ?? process.env;
     if (isCiEnvironment(env)) {
       throw new ClaudeCodeRefusedError(
-        "CI detected (CI/GITHUB_ACTIONS). Live Claude Code runs are local-subscription only; " +
+        "CI detected. Live Claude Code runs are local-subscription only; " +
           "CI must exercise the recorded-transcript tests instead",
       );
     }
@@ -504,6 +520,7 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
       const trajectory: Trajectory = {
         schema: TRAJECTORY_SCHEMA,
         source: CLAUDE_CODE_PROVIDER_NAME,
+        ...(parsed.init?.model ? { model: parsed.init.model } : {}),
         steps: parsed.steps,
         files: manifest,
         turns: parsed.turns,

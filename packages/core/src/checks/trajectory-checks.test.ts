@@ -153,6 +153,11 @@ describe("trajectory checks", () => {
       "file_exists: `pattern` is not a valid regular expression",
     ]);
     expect(trajectoryCheckParamIssues("file_matches_sha_in", { path: "a" })).not.toEqual([]);
+    for (const bad of ["../golden.sha256", "/etc/x", "a/../../b"]) {
+      expect(trajectoryCheckParamIssues("file_matches_sha_in", { path: "a", in: bad })).toEqual([
+        "file_matches_sha_in: `in` must be a workspace-relative path without `..` at params.in",
+      ]);
+    }
     expect(
       trajectoryCheckParamIssues("order_before", { first: { tool: "A" }, then: { tool: "B" } }),
     ).toEqual([]);

@@ -1,6 +1,6 @@
 export { formatJudgeObservations } from "./observations.js";
 export { judgeCriteria, DEFAULT_JUDGE_TIMEOUT_MS } from "./engine.js";
-export { redactProviderError, MAX_PROVIDER_ERROR_CHARS } from "./redact.js";
+export { redactProviderError, redactCredentials, MAX_PROVIDER_ERROR_CHARS } from "./redact.js";
 export type { JudgeOptions } from "./engine.js";
 export { selectCriteriaForTestCase } from "./criteria-selection.js";
 export { runCalibration } from "./calibration.js";

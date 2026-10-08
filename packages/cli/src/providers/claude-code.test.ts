@@ -108,6 +108,7 @@ describe("ClaudeCodeExecutionProvider — replayed write-receipt run", () => {
     expect(out.text).toContain("report.md.sha256");
     expect(out.trajectory?.stop).toBe("completed");
     expect(out.trajectory?.turns).toBe(4);
+    expect(out.trajectory?.model).toBe("claude-haiku-5-5");
     expect(out.trajectory?.steps.map((s) => [s.tool, s.input_summary])).toEqual([
       ["Skill", "receipt-writer"],
       ["Write", "report.md"],
@@ -250,6 +251,10 @@ describe("ClaudeCodeExecutionProvider — billing rule and budgets", () => {
   it("refuses to construct under CI", () => {
     expect(() => provider({ env: { CI: "true" } })).toThrow(/local-subscription only/);
     expect(() => provider({ env: { GITHUB_ACTIONS: "true" } })).toThrow(ClaudeCodeRefusedError);
+    expect(() => provider({ env: { JENKINS_URL: "https://ci.example" } })).toThrow(
+      ClaudeCodeRefusedError,
+    );
+    expect(isCiEnvironment({ BUILDKITE: "true" })).toBe(true);
     expect(isCiEnvironment({ CI: "false" })).toBe(false);
     expect(isCiEnvironment({ CI: "0" })).toBe(false);
     expect(isCiEnvironment({})).toBe(false);

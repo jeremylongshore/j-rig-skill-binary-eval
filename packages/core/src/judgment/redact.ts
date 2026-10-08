@@ -40,6 +40,17 @@ const SAFE_TOOL_FAILURES = new Set(
 /** Longest error text we allow into a signed reason. */
 export const MAX_PROVIDER_ERROR_CHARS = 240;
 
+/**
+ * The same credential rules as {@link redactProviderError}, without the
+ * provider-error truncation. Used for recorded tool-call summaries (the
+ * claude-code trajectory), which keep their own length bound.
+ */
+export function redactCredentials(text: string): string {
+  let out = text;
+  for (const [re, rep] of RULES) out = out.replace(re, rep);
+  return out;
+}
+
 const RULES: ReadonlyArray<readonly [RegExp, string]> = [
   // Authorization / Bearer / Basic headers, any casing, any whitespace.
   [/\b(authorization\s*[:=]\s*)(\S+(?:\s+\S+)?)/gi, `$1${REDACTED}`],
@@ -72,7 +83,7 @@ const RULES: ReadonlyArray<readonly [RegExp, string]> = [
 export function redactProviderError(message: unknown): string {
   let out = typeof message === "string" ? message : String(message);
   if (SAFE_TOOL_FAILURES.has(out)) return out;
-  for (const [re, rep] of RULES) out = out.replace(re, rep);
+  out = redactCredentials(out);
   if (out.length > MAX_PROVIDER_ERROR_CHARS) {
     out = `${out.slice(0, MAX_PROVIDER_ERROR_CHARS - 1)}…`;
   }

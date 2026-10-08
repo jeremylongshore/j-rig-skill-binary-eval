@@ -13,12 +13,13 @@
  * is built from the events that parsed, and the count is reported so a
  * damaged transcript is visible.
  *
- * Same bytes in, same trajectory out: no clock, no randomness, and every
+ * Same bytes in, same trajectory out: no clock, no randomness, credential-
+ * shaped substrings redacted by core's rules, and every
  * absolute path under the workspace root is rewritten relative to it before
  * it reaches an input summary, so a recorded transcript replays identically
  * on any machine.
  */
-import { MAX_INPUT_SUMMARY_CHARS, type TrajectoryStep } from "@j-rig/core";
+import { MAX_INPUT_SUMMARY_CHARS, redactCredentials, type TrajectoryStep } from "@j-rig/core";
 
 export interface ClaudeStreamInit {
   model?: string;
@@ -118,7 +119,10 @@ export function summarizeToolInput(tool: string, input: unknown, root: string): 
     default:
       summary = canonicalJson(obj);
   }
-  summary = relativizePaths(summary, root);
+  // Credential-shaped substrings (bearer tokens, sk-/ghp_ keys, long opaque
+  // tokens) are redacted with core's provider-error rules: the summary is
+  // persisted in the eval output, and a skill's command may carry a secret.
+  summary = redactCredentials(relativizePaths(summary, root));
   return summary.length > MAX_INPUT_SUMMARY_CHARS
     ? summary.slice(0, MAX_INPUT_SUMMARY_CHARS)
     : summary;
