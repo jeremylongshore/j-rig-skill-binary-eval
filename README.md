@@ -51,6 +51,14 @@ promotion row rather than a false clean pass. The contract is documented in
 
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
 
+For real OpenAI-compatible functional runs, `--execution-reasoning-effort none|low|medium|high|max`
+sets `reasoning_effort` on every skill and naked-baseline execution request, including MCP turns.
+Choose a value supported by the endpoint and model; a provider rejection remains an evaluation
+error. Trigger and judge requests retain their own defaults. The selected value is bound into
+JSON results, portable evidence, private MCP receipts and the grader fingerprint. Omitting the
+flag preserves existing defaults and evidence shape. Stub, Anthropic and `--no-functional`
+combinations are refused before loading skills or MCP configuration.
+
 ### W5
 
 |           |                                                                                  |

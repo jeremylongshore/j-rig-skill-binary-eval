@@ -42,6 +42,8 @@ export interface ChatMessage {
   toolCalls?: ModelToolCall[];
 }
 
+export type ReasoningEffort = "none" | "low" | "medium" | "high" | "max";
+
 export interface CompletionRequest {
   /**
    * Provider-namespaced model identifier. The adapter MAY validate against a
@@ -59,6 +61,8 @@ export interface CompletionRequest {
   /** Sampling controls. Adapters MAY clamp to provider-supported ranges. */
   maxTokens?: number;
   temperature?: number;
+  /** Explicit compatible-provider reasoning mode; absent preserves the provider default. */
+  reasoningEffort?: ReasoningEffort;
 
   /**
    * When provided, the model is asked to produce structured output matching

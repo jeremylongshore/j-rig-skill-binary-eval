@@ -1,3 +1,4 @@
+import type { ReasoningEffort } from "@j-rig/core";
 import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
 import { getJudgeObservations, storeToolExecutionEvidence } from "../execution/evidence.js";
@@ -115,6 +116,7 @@ interface EvalOptions {
   emitBundle?: string;
   traceBoundary?: boolean;
   mcpConfig?: string;
+  executionReasoningEffort?: string;
   runSelfTest?: boolean;
   requireReviewed?: boolean;
   samples?: string;
@@ -146,6 +148,7 @@ interface SelectedProviders {
 
 /** Extra provider-selection inputs: cost metering + judge decoupling. */
 interface ProviderExtras {
+  executionReasoningEffort?: ReasoningEffort;
   meter?: EvalCostMeter;
   judgeProvider?: string;
   judgeModel?: string;
@@ -244,6 +247,9 @@ function selectProviders(
   const base = ((): SelectedProviders => {
     // Explicit stub request — let the stub constructors enforce the opt-in gate.
     if (want === "stub") {
+      if (extras?.executionReasoningEffort !== undefined) {
+        throw new Error("--execution-reasoning-effort is unavailable with stub execution");
+      }
       return {
         trigger: new StubTriggerProvider(model),
         execution: new StubExecutionProvider(model),
@@ -276,7 +282,11 @@ function selectProviders(
         );
         return {
           trigger: new OpenAICompatTriggerProvider(effectiveModel, provider),
-          execution: new OpenAICompatExecutionProvider(effectiveModel, provider),
+          execution: new OpenAICompatExecutionProvider(
+            effectiveModel,
+            provider,
+            extras?.executionReasoningEffort,
+          ),
           judge: new OpenAICompatJudgeProvider(effectiveModel, provider),
           real: true,
           providerName: cfg.name,
@@ -284,6 +294,12 @@ function selectProviders(
           judgeModelId: effectiveModel,
         };
       }
+    }
+
+    if (extras?.executionReasoningEffort !== undefined) {
+      throw new Error(
+        "--execution-reasoning-effort requires a real OpenAI-compatible execution provider",
+      );
     }
 
     // 2. Real Anthropic path.
@@ -505,6 +521,10 @@ export function registerEvalCommand(program: Command): void {
         "linked to each run as an artifact. Consumable directly by intent-rollout-gate.",
     )
     .option(
+      "--execution-reasoning-effort <effort>",
+      "Explicit reasoning mode for real OpenAI-compatible functional execution only: none | low | medium | high | max. The endpoint must support the selected value. Recorded in evidence; trigger and judge keep their defaults.",
+    )
+    .option(
       "--mcp-config <path>",
       "Explicit JSON stdio MCP server/tool allowlist for bounded functional execution. " +
         "Starts fresh configured server processes per case; judges receive no tools.",
@@ -574,6 +594,29 @@ export function registerEvalCommand(program: Command): void {
         // point so the REFUSED error surfaces BEFORE expensive I/O when stub
         // mode is the only path — but ONLY when there is no real key, so a real
         // dogfood run is never gated behind J_RIG_ALLOW_STUB.
+        let executionParameters: { reasoning_effort: ReasoningEffort } | undefined;
+        if (opts.executionReasoningEffort !== undefined) {
+          if (!["none", "low", "medium", "high", "max"].includes(opts.executionReasoningEffort)) {
+            throw new Error("--execution-reasoning-effort must be none, low, medium, high, or max");
+          }
+          const want = opts.provider?.trim().toLowerCase();
+          if (
+            opts.functional === false ||
+            want === "stub" ||
+            want === "anthropic" ||
+            !resolveOpenAICompatConfig(process.env, want)
+          ) {
+            throw new Error(
+              "--execution-reasoning-effort requires real OpenAI-compatible functional execution",
+            );
+          }
+          executionParameters = {
+            reasoning_effort: opts.executionReasoningEffort as ReasoningEffort,
+          };
+        }
+        const executionMetadata = executionParameters
+          ? { execution_parameters: executionParameters }
+          : {};
         const hasRealKey = hasAnyRealKey(opts.provider);
         if (!hasRealKey) assertStubAllowed();
         if (
@@ -735,6 +778,7 @@ export function registerEvalCommand(program: Command): void {
           const costMeter = new EvalCostMeter();
           const providers = selectProviders(model, opts.provider, {
             meter: costMeter,
+            executionReasoningEffort: executionParameters?.reasoning_effort,
             judgeProvider: opts.judgeProvider,
             judgeModel: opts.judgeModel,
           });
@@ -830,6 +874,7 @@ export function registerEvalCommand(program: Command): void {
                     outcomes,
                     !!toolConfig.runtime.judgeObservations,
                     toolConfig.runtime.limits.maxTotalBytes,
+                    executionParameters,
                   ),
                 ]
               : [];
@@ -1080,6 +1125,7 @@ export function registerEvalCommand(program: Command): void {
                     nakedOutcomes,
                     !!toolConfig.runtime.judgeObservations,
                     toolConfig.runtime.limits.maxTotalBytes,
+                    executionParameters,
                   ),
                 );
               }
@@ -1175,6 +1221,7 @@ export function registerEvalCommand(program: Command): void {
             // plus the judge/stability settings that influence the fold.
             const graderSnapshot = {
               schema: "j-rig/binary-criteria-grader/v1",
+              ...executionMetadata,
               ...(toolConfig?.runtime.judgeObservations
                 ? {
                     tool_observations: "jrig-tool-observations/v1",
@@ -1269,6 +1316,7 @@ export function registerEvalCommand(program: Command): void {
             }
 
             allResults[model] = {
+              ...executionMetadata,
               provider: providers.providerName,
               model,
               judge_provider: providers.judgeProviderName,
@@ -1419,6 +1467,7 @@ export function registerEvalCommand(program: Command): void {
                 runner: `j-rig@${jrigVersion}`,
                 commitSha: commit.sha,
                 metadata: {
+                  ...executionMetadata,
                   trigger: triggerEvidence,
                   model,
                   provider: providers.providerName,
