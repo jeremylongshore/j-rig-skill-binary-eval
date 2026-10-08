@@ -9,6 +9,8 @@
  *   - missing required gate → block
  *   - required gate present but not passing → block
  *   - forbidden decision (`fail` / `error` by default) anywhere → block
+ *   - row from a forbidden provider (`stub` by default) → block
+ *   - row declaring `ground_truth: false` (unless require_ground_truth=false) → block
  *   - invalid policy → block
  *
  * Row validation reuses `@j-rig/core`'s `EvidenceStatementSchema` (which is
@@ -129,6 +131,8 @@ export interface DecideResult {
  *   - zero rows with a forbidden decision (`fail` + `error` by default)
  *   - zero advisory rows when `advisory_blocks` is set
  *   - zero unknown-gate rows when `allow_unknown_gates` is false
+ *   - zero rows from a `forbid_providers` provider (`stub` by default)
+ *   - zero rows declaring `ground_truth: false` when `require_ground_truth`
  * Anything else blocks, with every contributing reason listed.
  */
 export function decide(bundle: unknown, policy: RolloutPolicyInput): DecideResult {
@@ -172,6 +176,7 @@ export function decide(bundle: unknown, policy: RolloutPolicyInput): DecideResul
     regex: patternToRegex(p),
   }));
   const forbidden: ReadonlySet<string> = new Set(resolved.forbid_decisions);
+  const forbiddenProviders: ReadonlySet<string> = new Set(resolved.forbid_providers);
 
   // Per-row evaluation.
   for (const row of parsed.rows) {
@@ -202,6 +207,22 @@ export function decide(bundle: unknown, policy: RolloutPolicyInput): DecideResul
     if (gateDecision === "advisory" && resolved.advisory_blocks) {
       rowReasons.push(
         `advisory decision from gate '${gateId}' at index ${row.index} blocks (advisory_blocks=true)`,
+      );
+    }
+    // Stub discipline (STUB-PROVIDERS.md § 3): a verdict from a placeholder
+    // provider is not evidence, whatever gate_decision it carries.
+    const metadata = row.statement.predicate.metadata;
+    const provider = metadata?.["provider"];
+    if (typeof provider === "string" && forbiddenProviders.has(provider)) {
+      rowReasons.push(
+        `forbidden provider '${provider}' on gate '${gateId}' at index ${row.index} ` +
+          `(forbid_providers)`,
+      );
+    }
+    if (resolved.require_ground_truth && metadata?.["ground_truth"] === false) {
+      rowReasons.push(
+        `gate '${gateId}' at index ${row.index} declares ground_truth=false ` +
+          `(require_ground_truth=true)`,
       );
     }
     const matchesRequired = patterns.some((p) => p.regex.test(gateId));
