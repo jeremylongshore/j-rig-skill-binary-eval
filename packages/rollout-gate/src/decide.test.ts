@@ -8,6 +8,7 @@ const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
 interface StatementOptions {
   gateId?: string;
   decision?: GateResult;
+  metadata?: Record<string, unknown>;
 }
 
 /** Build a schema-valid gate-result/v1 in-toto Statement (I1 + I2 satisfied). */
@@ -32,6 +33,7 @@ function makeStatement(opts: StatementOptions = {}): Record<string, unknown> {
       evaluated_at: "2026-05-12T03:24:04Z",
       runner: "audit-harness@0.3.0",
       commit_sha: "abc1234",
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
     },
   };
 }
@@ -247,5 +249,86 @@ describe("parseBundle", () => {
     const parsed = parseBundle({ bundle_format: "json-array", rows: "nope" });
     expect(parsed.form).toBe("malformed");
     expect(parsed.formError).toContain("rows must be an array");
+  });
+});
+
+describe("decide — stub-provider discipline (STUB-PROVIDERS.md § 3)", () => {
+  const JRIG = "j-rig:local:my-skill";
+  const policy: RolloutPolicyInput = { required_gates: [JRIG] };
+
+  it("blocks a passing row produced by the stub provider by default", () => {
+    const result = decide(
+      [makeStatement({ gateId: JRIG, metadata: { provider: "stub", ground_truth: false } })],
+      policy,
+    );
+    expect(result.decision).toBe("block");
+    expect(result.reasons).toEqual([
+      `forbidden provider 'stub' on gate '${JRIG}' at index 0 (forbid_providers)`,
+      `gate '${JRIG}' at index 0 declares ground_truth=false (require_ground_truth=true)`,
+    ]);
+    expect(result.evaluated.rows[0]?.blocking).toBe(true);
+  });
+
+  it("blocks a row that declares ground_truth=false under any provider name", () => {
+    const result = decide(
+      [makeStatement({ gateId: JRIG, metadata: { provider: "custom", ground_truth: false } })],
+      policy,
+    );
+    expect(result.decision).toBe("block");
+    expect(result.reasons).toEqual([
+      `gate '${JRIG}' at index 0 declares ground_truth=false (require_ground_truth=true)`,
+    ]);
+  });
+
+  it("blocks a stub row even when it does not declare ground_truth", () => {
+    const result = decide(
+      [makeStatement({ gateId: JRIG, metadata: { provider: "stub" } })],
+      policy,
+    );
+    expect(result.decision).toBe("block");
+    expect(result.reasons).toHaveLength(1);
+  });
+
+  it("allows a real-provider row and a row with no provider metadata", () => {
+    const result = decide(
+      [
+        makeStatement({ gateId: JRIG, metadata: { provider: "minimax", ground_truth: true } }),
+        makeStatement(),
+      ],
+      { required_gates: [JRIG, "audit-harness:ci:escape-scan"] },
+    );
+    expect(result.decision).toBe("allow");
+    expect(result.reasons).toEqual([]);
+  });
+
+  it("honours a custom forbid_providers list", () => {
+    const result = decide(
+      [makeStatement({ gateId: JRIG, metadata: { provider: "replay", ground_truth: true } })],
+      { ...policy, forbid_providers: ["replay"] },
+    );
+    expect(result.decision).toBe("block");
+    expect(result.reasons).toEqual([
+      `forbidden provider 'replay' on gate '${JRIG}' at index 0 (forbid_providers)`,
+    ]);
+  });
+
+  it("allows stub rows only when the policy explicitly opts out of both checks", () => {
+    const stub = makeStatement({
+      gateId: JRIG,
+      metadata: { provider: "stub", ground_truth: false },
+    });
+    expect(decide([stub], { ...policy, forbid_providers: [] }).decision).toBe("block");
+    expect(decide([stub], { ...policy, require_ground_truth: false }).decision).toBe("block");
+    expect(
+      decide([stub], { ...policy, forbid_providers: [], require_ground_truth: false }).decision,
+    ).toBe("allow");
+  });
+
+  it("does not treat a non-string provider or a non-boolean ground_truth as a marker", () => {
+    const result = decide(
+      [makeStatement({ gateId: JRIG, metadata: { provider: ["stub"], ground_truth: "false" } })],
+      policy,
+    );
+    expect(result.decision).toBe("allow");
   });
 });

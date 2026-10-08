@@ -8,6 +8,15 @@
 - Reject at spec load the adversarial shapes no layer can test: no expected output with no
   `criteria_ids`, or `criteria_ids: []` without a `trigger_expectation`.
 
+## Unreleased — rollout gate refuses stub rows
+
+- `@intentsolutions/rollout-gate` 2.2.0: new policy keys `forbid_providers` (default
+  `["stub"]`) and `require_ground_truth` (default `true`). A row that declares a forbidden
+  `metadata.provider`, or declares `metadata.ground_truth: false`, now blocks the rollout, as
+  `STUB-PROVIDERS.md` § 3 requires. Rows that declare neither field are unaffected; opting out
+  takes both `forbid_providers: []` and `require_ground_truth: false`. `STUB-PROVIDERS.md` § 3
+  now names the marker fields j-rig actually emits.
+
 ## Unreleased — judge tool observations
 
 - Add explicit MCP `judgeObservations` consent to retain bounded, credential-redacted
