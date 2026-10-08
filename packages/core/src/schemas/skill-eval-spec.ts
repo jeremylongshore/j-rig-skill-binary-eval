@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CriterionSchema } from "./criterion.js";
 import { SELF_TEST_CRITERION_ID, SelfTestSchema } from "./self-test.js";
-import { TestCaseSchema } from "./test-case.js";
+import { TestCaseSchema, adversarialCaseScopeIssue } from "./test-case.js";
 
 /**
  * Models that can be tested independently.
@@ -172,6 +172,16 @@ export const SkillEvalSpecSchema = z
 
     const knownCriteria = new Set(spec.criteria.map((c) => c.id));
     spec.test_cases.forEach((tc, ti) => {
+      // An adversarial case that no layer tests used to be skipped silently by
+      // the functional runner. Reject it here, before any model spend.
+      const scopeIssue = adversarialCaseScopeIssue(tc);
+      if (scopeIssue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: scopeIssue,
+          path: ["test_cases", ti],
+        });
+      }
       tc.criteria_ids?.forEach((cid, ci) => {
         if (!knownCriteria.has(cid)) {
           ctx.addIssue({

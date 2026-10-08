@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SkillEvalSpecSchema } from "@j-rig/core";
+import { SkillEvalSpecSchema, isFunctionallyExecuted, type TestCase } from "@j-rig/core";
 import { buildBaselineSpec, deriveTriggerPrompts, toKebab } from "./scaffold-spec.js";
 
 const SKILL_NAME_RE = /^[a-z][a-z0-9-]*[a-z0-9]$/;
@@ -80,5 +80,12 @@ describe("scaffold-spec — buildBaselineSpec", () => {
       { criteria_ids: string[] } | undefined;
     expect(adv).toBeDefined();
     expect(adv!.criteria_ids).toEqual(["no-prompt-leakage"]);
+  });
+
+  it("scaffolds an adversarial case the functional runner executes, so its blocker is judged", () => {
+    const parsed = SkillEvalSpecSchema.parse(buildBaselineSpec("my-skill", "Does a thing."));
+    const adv = parsed.test_cases.find((t: TestCase) => t.tier === "adversarial");
+    expect(adv).toBeDefined();
+    expect(isFunctionallyExecuted(adv!)).toBe(true);
   });
 });
