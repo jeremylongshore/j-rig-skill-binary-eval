@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import type { ObservedOutcome } from "@j-rig/core";
+import type { ObservedOutcome, ReasoningEffort } from "@j-rig/core";
 import { recordArtifact, type JRigDatabase } from "@j-rig/db";
 
 const Observation = z
@@ -70,6 +70,7 @@ export function storeToolExecutionEvidence(
   outcomes: ObservedOutcome[],
   observationsEnabled = false,
   maxObservationBytes = 4194304,
+  executionParameters?: { reasoning_effort: ReasoningEffort },
 ) {
   const judgeContexts = observationsEnabled
     ? outcomes.flatMap((outcome) => {
@@ -89,6 +90,7 @@ export function storeToolExecutionEvidence(
     schema: "jrig-tool-execution/v1",
     run_id: runId,
     phase,
+    ...(executionParameters ? { execution_parameters: executionParameters } : {}),
     configuration_sha256: configurationSha256,
     ...(judgeContexts ? { judge_contexts: judgeContexts } : {}),
     cases: outcomes.map(({ test_case_id, status, output, meta, provider_failure }) => ({
@@ -110,6 +112,7 @@ export function storeToolExecutionEvidence(
   recordArtifact(database, runId, "tool-execution", filename, path, bytes.length, sha256);
   return {
     phase,
+    ...(executionParameters ? { execution_parameters: executionParameters } : {}),
     sha256,
     ...(judgeContexts ? { judge_contexts: judgeContexts } : {}),
     cases: outcomes.length,

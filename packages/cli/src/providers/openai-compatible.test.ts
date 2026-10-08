@@ -899,3 +899,23 @@ describe("stripThinkBlock — reasoning-model content normalization", () => {
     expect(stripThinkBlock(s)).toBe(s);
   });
 });
+
+describe("execution reasoning effort", () => {
+  it.each([undefined, "none", "low", "medium", "high", "max"] as const)(
+    "forwards %s on plain execution only",
+    async (effort) => {
+      const { transport, lastRequest } = fakeTransport(textResponse("answer"));
+      const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+      await new OpenAICompatExecutionProvider("m", provider, effort).execute("prompt", {
+        skill_body: "original skill",
+      });
+      const body = lastRequest()!.body as Record<string, unknown>;
+      if (effort === undefined) expect(body).not.toHaveProperty("reasoning_effort");
+      else expect(body.reasoning_effort).toBe(effort);
+      await new OpenAICompatTriggerProvider("m", provider).selectSkill("prompt", []);
+      expect(lastRequest()!.body).not.toHaveProperty("reasoning_effort");
+      await new OpenAICompatJudgeProvider("m", provider).judge("c", "p", "o");
+      expect(lastRequest()!.body).not.toHaveProperty("reasoning_effort");
+    },
+  );
+});

@@ -1,3 +1,4 @@
+import { loadSkillEvalSpec } from "../lib/loaders.js";
 import { describe, expect, it } from "vitest";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
@@ -8,26 +9,30 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { createDatabase } from "@j-rig/db";
-import { EvidenceStatementSchema } from "@j-rig/core";
+import { EvidenceStatementSchema, hashCanonicalJson } from "@j-rig/core";
 import { parse, stringify } from "yaml";
 
 const cli = fileURLToPath(new URL("../../dist/index.js", import.meta.url));
 const skill = fileURLToPath(new URL("../../../../skill", import.meta.url));
 const fixture = fileURLToPath(new URL("../execution/__fixtures__/mcp-server.mjs", import.meta.url));
 interface Request {
+  reasoning_effort?: string;
   tools?: { function: { name: string } }[];
   messages: { role: string; content: string; tool_call_id?: string }[];
 }
 
 describe("eval with a real MCP child and local HTTP model fixture", { timeout: 30000 }, () => {
   it.each([
-    [false, false, null],
-    [true, false, null],
-    [false, true, null],
-    [true, true, null],
-    [true, true, "invalid_tool_call"],
-    [true, true, "incomplete_response"],
-  ] as const)("persists isolated evidence (%s, %s, %s)", async (crash, observations, refusal) => {
+    [false, false, null, undefined],
+    [true, false, null, undefined],
+    [false, true, null, undefined],
+    [true, true, null, undefined],
+    [true, true, "invalid_tool_call", undefined],
+    [true, true, "incomplete_response", undefined],
+    [false, true, null, "none"],
+    [true, true, "invalid_tool_call", "low"],
+    [true, true, "incomplete_response", "medium"],
+  ] as const)("%s %s %s %s", async (crash, observations, refusal, effort) => {
     const directory = mkdtempSync(join(tmpdir(), "jrig-cli-mcp-"));
     const requests: Request[] = [];
     const server = createServer(async (request, response) => {
@@ -39,7 +44,9 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       const needsTool = body.tools && toolResults.length < (observations && !crash ? 2 : 1);
       const content = body.tools
         ? "grounded fixture answer"
-        : JSON.stringify({ verdict: "yes", confidence: 1, reasoning: "fixture judgment" });
+        : body.messages[0]?.content.includes("skill router")
+          ? JSON.stringify({ selected: "j-rig-eval", reasoning: "fixture routing" })
+          : JSON.stringify({ verdict: "yes", confidence: 1, reasoning: "fixture judgment" });
       response.setHeader("Content-Type", "application/json");
       response.end(
         JSON.stringify({
@@ -125,7 +132,7 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
             "openai",
             "--models",
             "fixture-model",
-            "--no-trigger",
+            ...(effort ? ["--execution-reasoning-effort", effort] : ["--no-trigger"]),
             "--baseline-check",
             "--samples",
             "1",
@@ -170,7 +177,45 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
         expect(bundle[0].predicate.metadata.error_detail.message).toBe(expectedMessage);
       }
       const expectedCalls = refusal ? 0 : observations && !crash ? 2 : 1;
+      const executionParameters = effort ? { reasoning_effort: effort } : undefined;
+      expect(JSON.parse(cliOutput)["fixture-model"].execution_parameters).toEqual(
+        executionParameters,
+      );
+      expect(bundle[0].predicate.metadata.execution_parameters).toEqual(executionParameters);
+      if (!crash) {
+        const snapshot = {
+          schema: "j-rig/binary-criteria-grader/v1",
+          ...(effort ? { execution_parameters: executionParameters } : {}),
+          ...(observations
+            ? {
+                tool_observations: "jrig-tool-observations/v1",
+                mcp_configuration_sha256:
+                  bundle[0].predicate.metadata.tool_execution.configuration_sha256,
+              }
+            : {}),
+          criteria: loadSkillEvalSpec(specPath, skill).criteria,
+          judge: {
+            provider: "openai",
+            model: "fixture-model",
+            samples: 1,
+            temperature: spec.judge_temperature ?? 0,
+            timeout_ms: spec.judge_timeout_ms ?? 120000,
+            sample_concurrency: spec.judge_sample_concurrency ?? 1,
+          },
+          stability: { min_blocker_agreement: spec.min_blocker_agreement ?? null },
+        };
+        expect(
+          JSON.parse(cliOutput)["fixture-model"].promotion.selected_grader.grader_snapshot_sha256,
+        ).toBe(hashCanonicalJson(snapshot));
+        if (effort) {
+          const defaultSnapshot = { ...snapshot };
+          delete defaultSnapshot.execution_parameters;
+          expect(hashCanonicalJson(defaultSnapshot)).not.toBe(hashCanonicalJson(snapshot));
+        }
+      }
       const metadata = bundle[0].predicate.metadata.tool_execution;
+      for (const receipt of metadata.receipts)
+        expect(receipt.execution_parameters).toEqual(executionParameters);
       expect(metadata.receipts).toHaveLength(2);
       expect(
         metadata.receipts.map(
@@ -199,6 +244,7 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
           );
           expect(statSync(artifact.relative_path).mode & 0o777).toBe(0o600);
           const receipt = JSON.parse(bytes.toString());
+          expect(receipt.execution_parameters).toEqual(executionParameters);
           expect(receipt.cases[0].output.tool_calls).toBe(expectedCalls);
           if (refusal) expect(receipt.cases[0].output.error).toBe(`tool_execution/${refusal}`);
           expect(receipt.cases[0].status).toBe(crash ? "failed" : "completed");
@@ -258,9 +304,15 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       }
       expect(new Set(receiptIdentities).size).toBe(2);
       expect(new Set(childIdentities.map((entry) => entry.session_id)).size).toBe(2);
-      const judges = requests.filter((request) => !request.tools);
+      const routers = requests.filter((request) =>
+        request.messages[0]?.content.includes("skill router"),
+      );
+      expect(routers).toHaveLength(effort ? 1 : 0);
+      for (const router of routers) expect(router).not.toHaveProperty("reasoning_effort");
+      const judges = requests.filter((request) => !request.tools && !routers.includes(request));
       expect(judges).toHaveLength(crash ? 0 : 2);
       for (const [index, judge] of judges.entries()) {
+        expect(judge).not.toHaveProperty("reasoning_effort");
         const text = judge.messages[1]!.content;
         if (observations) {
           expect(text).toContain(observationContents[index]);
@@ -273,6 +325,7 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       }
       const executions = requests.filter((request) => request.tools);
       expect(executions).toHaveLength(crash ? 2 : observations ? 6 : 4);
+      for (const execution of executions) expect(execution.reasoning_effort).toBe(effort);
       expect(executions[0]!.tools).toEqual(executions.at(-1)!.tools);
       expect(executions[0]!.messages[0]!.content.length).toBeGreaterThan(0);
       expect(executions.at(-1)!.messages[0]!.content).toBe("");
@@ -287,4 +340,43 @@ describe("eval with a real MCP child and local HTTP model fixture", { timeout: 3
       rmSync(directory, { recursive: true, force: true });
     }
   });
+});
+
+describe("execution reasoning preflight", { timeout: 30000 }, () => {
+  it.each([
+    ["invalid", ["--provider", "openai"], true],
+    ["none", ["--provider", "stub"], true],
+    ["none", ["--provider", "anthropic"], true],
+    ["none", ["--provider", "openai", "--no-functional"], true],
+    ["none", ["--provider", "openai"], false],
+  ] as const)(
+    "refuses unsupported configuration %s %j %s before I/O",
+    async (effort, flags, key) => {
+      await expect(
+        promisify(execFile)(
+          process.execPath,
+          [
+            cli,
+            "eval",
+            "/missing-skill",
+            "--mcp-config",
+            "/missing-config",
+            "--execution-reasoning-effort",
+            effort,
+            ...flags,
+          ],
+          {
+            timeout: 25000,
+            env: {
+              PATH: process.env.PATH,
+              ...(key ? { OPENAI_API_KEY: "synthetic-fixture-key" } : {}),
+            },
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("--execution-reasoning-effort"),
+      });
+    },
+  );
 });

@@ -9,6 +9,7 @@ export {
 export type {
   ChatMessage,
   CompletionRequest,
+  ReasoningEffort,
   CompletionResult,
   FinishReason,
   Provider,

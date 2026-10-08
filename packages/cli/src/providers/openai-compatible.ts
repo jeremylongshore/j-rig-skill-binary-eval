@@ -51,6 +51,7 @@ import type {
   JudgmentVerdict,
   ChatMessage,
   CompletionRequest,
+  ReasoningEffort,
   CompletionResult,
   FinishReason,
   Provider,
@@ -462,6 +463,7 @@ export class RealOpenAICompatProvider implements Provider {
       messages: toWireMessages(req.messages),
       ...(req.maxTokens !== undefined ? { max_tokens: req.maxTokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.reasoningEffort !== undefined ? { reasoning_effort: req.reasoningEffort } : {}),
       ...(req.stop !== undefined ? { stop: req.stop } : {}),
       ...(req.responseSchema !== undefined
         ? {
@@ -516,6 +518,7 @@ export class RealOpenAICompatProvider implements Provider {
       })),
       ...(req.maxTokens !== undefined ? { max_tokens: req.maxTokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.reasoningEffort !== undefined ? { reasoning_effort: req.reasoningEffort } : {}),
     };
 
     const res = await this.#send(body, req.signal);
@@ -711,7 +714,10 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
   readonly #provider: Provider;
   readonly #model: string;
 
-  constructor(model: string, provider: Provider) {
+  readonly #reasoningEffort?: ReasoningEffort;
+
+  constructor(model: string, provider: Provider, reasoningEffort?: ReasoningEffort) {
+    this.#reasoningEffort = reasoningEffort;
     this.#model = model;
     this.#provider = provider;
   }
@@ -733,6 +739,9 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
             { role: "user", content: prompt },
           ],
           maxTokens: EXECUTION_MAX_TOKENS,
+          ...(this.#reasoningEffort !== undefined
+            ? { reasoningEffort: this.#reasoningEffort }
+            : {}),
           ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
         },
         {
@@ -788,6 +797,7 @@ export class OpenAICompatExecutionProvider implements ExecutionProvider {
         // tokens; 8192 clears both with margin. (Verified 2026-06-29.) Override
         // via JRIG_MAX_OUTPUT_TOKENS for endpoints with a lower output ceiling.
         maxTokens: EXECUTION_MAX_TOKENS,
+        ...(this.#reasoningEffort !== undefined ? { reasoningEffort: this.#reasoningEffort } : {}),
         ...(controller ? { signal: controller.signal } : {}),
       });
       const completed = new Date();
