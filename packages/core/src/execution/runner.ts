@@ -56,6 +56,7 @@ export async function runFunctionalTests(
           artifacts: result.artifacts,
           tool_calls: result.tool_calls,
           error: result.error,
+          ...(result.trajectory ? { trajectory: result.trajectory } : {}),
         },
         meta: result.meta,
         status: result.meta.timed_out ? "timed_out" : "completed",

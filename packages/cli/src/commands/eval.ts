@@ -92,7 +92,17 @@ import {
   OpenAICompatJudgeProvider,
   resolveOpenAICompatConfig,
 } from "../providers/openai-compatible.js";
-import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
+import {
+  CLAUDE_CODE_PROVIDER_NAME,
+  ClaudeCodeExecutionProvider,
+} from "../providers/claude-code.js";
+import type {
+  TriggerProvider,
+  ExecutionProvider,
+  JudgeProvider,
+  Provider,
+  TokenUsage,
+} from "@j-rig/core";
 import type { HeadroomAssessment } from "@j-rig/core";
 import {
   detectInfrastructureFailure,
@@ -124,6 +134,99 @@ interface EvalOptions {
   judgeModel?: string;
   baselineCheck?: boolean;
   regressionBaseline?: string;
+  executionProvider?: string;
+  workspaceFixtures?: string;
+  claudeCodeMaxTurns?: string;
+  claudeCodeTimeoutMs?: string;
+  claudeCodeMaxBudgetUsd?: string;
+  keepWorkspaces?: boolean;
+}
+
+/** Validated `--execution-provider claude-code` settings (see providers/claude-code.ts). */
+interface ClaudeCodeSettings {
+  skillDir: string;
+  skillName: string;
+  fixturesDir?: string;
+  maxTurns?: number;
+  timeoutMs?: number;
+  maxBudgetUsd?: number;
+  keepWorkspaces?: boolean;
+}
+
+function positiveNumber(
+  flag: string,
+  raw: string | undefined,
+  integer: boolean,
+): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || (integer && !Number.isInteger(n))) {
+    throw new Error(`${flag} must be a positive ${integer ? "integer" : "number"}, got "${raw}"`);
+  }
+  return n;
+}
+
+/**
+ * Resolve the execution-leg override. Only `claude-code` exists today; it
+ * swaps ONLY the execution leg (trigger and judge stay on --provider), the
+ * same decoupling --judge-provider applies to the judge leg.
+ */
+export function resolveClaudeCodeSettings(
+  opts: Pick<
+    EvalOptions,
+    | "executionProvider"
+    | "workspaceFixtures"
+    | "claudeCodeMaxTurns"
+    | "claudeCodeTimeoutMs"
+    | "claudeCodeMaxBudgetUsd"
+    | "keepWorkspaces"
+    | "executionReasoningEffort"
+    | "mcpConfig"
+    | "functional"
+  >,
+): Omit<ClaudeCodeSettings, "skillDir" | "skillName"> | undefined {
+  const want = opts.executionProvider?.trim().toLowerCase();
+  const ccFlags =
+    opts.workspaceFixtures !== undefined ||
+    opts.claudeCodeMaxTurns !== undefined ||
+    opts.claudeCodeTimeoutMs !== undefined ||
+    opts.claudeCodeMaxBudgetUsd !== undefined ||
+    opts.keepWorkspaces === true;
+  if (want === undefined || want === "") {
+    if (ccFlags) {
+      throw new Error(
+        "--workspace-fixtures, --claude-code-* and --keep-workspaces require --execution-provider claude-code",
+      );
+    }
+    return undefined;
+  }
+  if (want !== CLAUDE_CODE_PROVIDER_NAME) {
+    throw new Error(`--execution-provider must be "claude-code", got "${opts.executionProvider}"`);
+  }
+  if (opts.functional === false) {
+    throw new Error("--execution-provider claude-code requires functional execution");
+  }
+  if (opts.executionReasoningEffort !== undefined || opts.mcpConfig !== undefined) {
+    throw new Error(
+      "--execution-provider claude-code cannot be combined with --execution-reasoning-effort or --mcp-config",
+    );
+  }
+  const maxTurns = positiveNumber("--claude-code-max-turns", opts.claudeCodeMaxTurns, true);
+  const timeoutMs = positiveNumber("--claude-code-timeout-ms", opts.claudeCodeTimeoutMs, true);
+  const maxBudgetUsd = positiveNumber(
+    "--claude-code-max-budget-usd",
+    opts.claudeCodeMaxBudgetUsd,
+    false,
+  );
+  return {
+    ...(opts.workspaceFixtures !== undefined
+      ? { fixturesDir: resolve(opts.workspaceFixtures) }
+      : {}),
+    ...(maxTurns !== undefined ? { maxTurns } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
+    ...(opts.keepWorkspaces ? { keepWorkspaces: true } : {}),
+  };
 }
 
 /** The three eval-pipeline providers a single run needs, plus run metadata. */
@@ -152,6 +255,7 @@ interface ProviderExtras {
   meter?: EvalCostMeter;
   judgeProvider?: string;
   judgeModel?: string;
+  claudeCode?: ClaudeCodeSettings;
 }
 
 /**
@@ -329,18 +433,35 @@ function selectProviders(
     };
   })();
 
+  // Execution decoupling: `--execution-provider claude-code` swaps ONLY the
+  // execution leg for a real Claude Code run (subscription auth, recorded
+  // trajectory); trigger + judge stay on the base backend.
+  const cc = extras?.claudeCode;
+  const withExecution: SelectedProviders = cc
+    ? {
+        ...base,
+        execution: new ClaudeCodeExecutionProvider({
+          ...cc,
+          model,
+          ...(extras?.meter
+            ? { onUsage: (m: string, u: TokenUsage) => extras.meter!.record(m, u) }
+            : {}),
+        }),
+      }
+    : base;
+
   // Judge decoupling: `--judge-provider` / `--judge-model` swap ONLY the judge
   // leg; trigger + execution stay on the base backend.
   const override = selectJudgeOverride(model, extras);
   if (override) {
     return {
-      ...base,
+      ...withExecution,
       judge: override.judge,
       judgeProviderName: override.name,
       judgeModelId: override.modelId,
     };
   }
-  return base;
+  return withExecution;
 }
 
 /**
@@ -577,6 +698,32 @@ export function registerEvalCommand(program: Command): void {
         "a scoped env (no inherited API keys) and a timeout.",
     )
     .option(
+      "--execution-provider <name>",
+      "Run the EXECUTION leg on a different backend than --provider. `claude-code` runs each " +
+        "test case in real Claude Code (`claude -p --output-format stream-json`) in a fresh temp " +
+        "workspace with a copy of the skill, records every tool call and produced file (sha256), " +
+        "and enables the trajectory checks (tool_called, tool_not_called, order_before, " +
+        "file_exists, file_matches_sha_in). Local Claude subscription ONLY: refuses under CI and " +
+        "never uses an API key. Trigger + judge stay on --provider.",
+    )
+    .option(
+      "--workspace-fixtures <dir>",
+      "claude-code: directory copied into every test case's workspace (no symlinks).",
+    )
+    .option(
+      "--claude-code-max-turns <n>",
+      "claude-code: per-case assistant-turn budget (default 25).",
+    )
+    .option(
+      "--claude-code-timeout-ms <ms>",
+      "claude-code: per-case wall-clock budget in ms (default 300000).",
+    )
+    .option(
+      "--claude-code-max-budget-usd <usd>",
+      "claude-code: per-case --max-budget-usd passed to Claude Code (API-equivalent $, default 1).",
+    )
+    .option("--keep-workspaces", "claude-code: keep each case's temp workspace for debugging.")
+    .option(
       "--require-reviewed",
       "Refuse a spec still tagged `needs-review` (a `scaffold-spec --draft` output nobody has " +
         "reviewed). The nightly roster passes this so unreviewed drafted criteria never gate.",
@@ -614,9 +761,16 @@ export function registerEvalCommand(program: Command): void {
             reasoning_effort: opts.executionReasoningEffort as ReasoningEffort,
           };
         }
-        const executionMetadata = executionParameters
+        let executionMetadata: Record<string, unknown> = executionParameters
           ? { execution_parameters: executionParameters }
           : {};
+        const claudeCodeSettings = resolveClaudeCodeSettings(opts);
+        if (claudeCodeSettings) {
+          executionMetadata = {
+            ...executionMetadata,
+            execution_provider: CLAUDE_CODE_PROVIDER_NAME,
+          };
+        }
         const hasRealKey = hasAnyRealKey(opts.provider);
         if (!hasRealKey) assertStubAllowed();
         if (
@@ -781,6 +935,15 @@ export function registerEvalCommand(program: Command): void {
             executionReasoningEffort: executionParameters?.reasoning_effort,
             judgeProvider: opts.judgeProvider,
             judgeModel: opts.judgeModel,
+            ...(claudeCodeSettings
+              ? {
+                  claudeCode: {
+                    ...claudeCodeSettings,
+                    skillDir: absDir,
+                    skillName,
+                  },
+                }
+              : {}),
           });
 
           // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
@@ -1324,6 +1487,24 @@ export function registerEvalCommand(program: Command): void {
               ground_truth: providers.real,
               pkgReport,
               trigger: triggerEvidence,
+              // The observed tool-call order + produced-file manifest per case
+              // (claude-code execution only): the record the trajectory checks
+              // graded, kept so a reader can re-check a verdict.
+              ...(claudeCodeSettings
+                ? {
+                    trajectories: outcomes.map((o) => ({
+                      test_case_id: o.test_case_id,
+                      status: o.status,
+                      ...(o.output.error ? { error: o.output.error } : {}),
+                      input_tokens: o.meta.input_tokens ?? null,
+                      output_tokens: o.meta.output_tokens ?? null,
+                      // Claude Code's own API-equivalent figure; on the
+                      // subscription this is not a bill.
+                      cost_usd_api_equivalent: o.meta.estimated_cost_usd ?? null,
+                      ...(o.output.trajectory ? { trajectory: o.output.trajectory } : {}),
+                    })),
+                  }
+                : {}),
               scoreCard,
               decision,
               report,
@@ -1550,7 +1731,8 @@ export function registerEvalCommand(program: Command): void {
           // here after trigger/execution/judge work has settled, then print and
           // emit one consistent run-end record for both full and trigger-only
           // real-provider evals. Stub runs remain honestly unmetered.
-          costReport ??= providers.real ? costMeter.report() : null;
+          // claude-code execution is a real run even when the judge is a stub.
+          costReport ??= providers.real || claudeCodeSettings ? costMeter.report() : null;
           if (!opts.json && costReport) {
             const { total, phases } = costReport;
             console.log(

@@ -128,6 +128,9 @@
 | 040 | AA-AACR  | [minimax-m3-phase3-dogfood.md](040-AA-AACR-minimax-m3-phase3-dogfood-2026-08-02.md)                           |
 | 041 | AT-SPEC  | [eval-report-live-serve.md](041-AT-SPEC-eval-report-live-serve-2026-08-02.md)                                     |
 | 042 | AT-SPEC  | [skill-promotion-evidence.md](042-AT-SPEC-skill-promotion-evidence-2026-08-02.md)                                  |
+| 043 | AT-SPEC  | [eval-headroom-saturation-signal.md](043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md) |
+| 044 | AT-DECR  | [suite-replaces-batch.md](044-AT-DECR-suite-replaces-batch-2026-10-05.md) |
+| 045 | AT-SPEC  | [claude-code-execution-provider-trajectory-checks.md](045-AT-SPEC-claude-code-execution-provider-trajectory-checks-2026-10-08.md) |
 
 ## Epics
 
@@ -171,7 +174,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 43 numbered docs (`001`–`042`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 46 numbered docs (`001`–`045`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 043
+- **Next sequence number:** 046
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

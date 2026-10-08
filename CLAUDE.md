@@ -154,6 +154,35 @@ default; runtime default 0.95). The nightly roster prints which skills are
 saturated, and each `j-rig report --unified` cell carries an optional
 `headroom_status` with a matching Headroom column. See `000-docs/043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md`.
 
+### Claude Code execution provider (trajectory grading)
+
+`j-rig eval --execution-provider claude-code` swaps only the execution leg for a
+real `claude -p --output-format stream-json` run per test case, in a temp
+workspace holding a copy of the skill plus fixtures. It records
+`ExecutionOutput.trajectory` (ordered tool calls, workspace-relative input
+summaries, a sha256 manifest of produced files) and enables the trajectory
+checks `tool_called`, `tool_not_called`, `order_before`, `file_exists` and
+`file_matches_sha_in` (deterministic criteria; params validated by
+`CriterionSchema`; fail closed without a trajectory). Code:
+`packages/cli/src/providers/claude-code{,-stream}.ts`,
+`packages/core/src/checks/trajectory-checks.ts`. Spec: `000-docs/045`.
+
+- **Subscription only, never in CI.** The provider refuses under `CI` /
+  `GITHUB_ACTIONS`, drops every non-allowlisted env var, copies only the access
+  token (never the refresh token) into a sandbox `HOME`, and aborts on any
+  `apiKeySource` other than `none`. Do not add an API-key path.
+- **Tests replay recorded transcripts** from
+  `packages/cli/src/providers/__fixtures__/claude-code/` through
+  `fake-claude.mjs`. Record new ones locally on the subscription with a cheap
+  model, then scrub (temp root to `__ROOT__`, renumber uuids, drop rate-limit
+  events) before committing.
+- **A budget-exhausted case is not completed** (error, never judged, row signed
+  `error`). Do not grade truncated trajectories.
+- Workspace isolation, not an OS sandbox: the agent keeps the invoking user's
+  network access, `PATH` and filesystem reach. Say so wherever it is described.
+- Trajectory checks also refuse a trajectory whose `stop` is not `completed`,
+  so a direct `judgeCriteria` caller cannot grade a truncated run either.
+
 ### Evaluator infrastructure failure (one rule)
 
 Any unrecovered provider failure in `j-rig eval`, trigger, execution or judge phase,

@@ -1,6 +1,7 @@
 import type { Criterion } from "../schemas/criterion.js";
 import type { ObservedOutcome } from "../execution/types.js";
 import { runCheck } from "../checks/deterministic-registry.js";
+import { isTrajectoryCheck, runTrajectoryCheck } from "../checks/trajectory-checks.js";
 import type { JudgeProvider, JudgmentResult, JudgmentVerdict } from "./types.js";
 import { redactProviderError } from "./redact.js";
 import { providerFailureFromError } from "../providers/errors.js";
@@ -93,6 +94,23 @@ function judgeDeterministic(criterion: Criterion, outcome: ObservedOutcome): Jud
       verdict: "no",
       confidence: 1,
       reasoning: "Deterministic criterion has no check defined",
+      method: "deterministic",
+    };
+  }
+
+  // Trajectory checks grade the observed tool calls and produced files, not
+  // the response text (checks/trajectory-checks.ts).
+  if (isTrajectoryCheck(criterion.deterministic_check)) {
+    const r = runTrajectoryCheck(
+      criterion.deterministic_check,
+      outcome.output,
+      criterion.deterministic_check_params,
+    );
+    return {
+      criterion_id: criterion.id,
+      verdict: r.passed ? "yes" : "no",
+      confidence: 1,
+      reasoning: r.message,
       method: "deterministic",
     };
   }

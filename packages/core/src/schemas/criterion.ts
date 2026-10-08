@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  TRAJECTORY_CHECK_NAMES,
+  isTrajectoryCheck,
+  trajectoryCheckParamIssues,
+} from "../checks/trajectory-checks.js";
 
 /**
  * How a criterion is evaluated.
@@ -56,7 +61,12 @@ export const CriterionSchema = z
     deterministic_check: z
       .string()
       .optional()
-      .describe("Check identifier for deterministic criteria (e.g. 'file_exists', 'regex_match')"),
+      .describe(
+        "Check identifier for deterministic criteria: a text check (contains, not_contains, " +
+          "regex_match, min_length, max_length, not_empty) or a trajectory check (" +
+          TRAJECTORY_CHECK_NAMES.join(", ") +
+          ") graded from the observed tool calls and produced files",
+      ),
     deterministic_check_params: z
       .record(z.string(), z.unknown())
       .optional()
@@ -74,6 +84,22 @@ export const CriterionSchema = z
   .refine((c) => c.method !== "deterministic" || !!c.deterministic_check, {
     message: "deterministic criteria must define deterministic_check",
     path: ["deterministic_check"],
+  })
+  // Trajectory-check params are typed: validate them at spec-load so a typo'd
+  // or missing param fails `j-rig validate` instead of failing closed mid-run.
+  .superRefine((c, ctx) => {
+    if (c.method !== "deterministic" || !c.deterministic_check) return;
+    if (!isTrajectoryCheck(c.deterministic_check)) return;
+    for (const message of trajectoryCheckParamIssues(
+      c.deterministic_check,
+      c.deterministic_check_params,
+    )) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message,
+        path: ["deterministic_check_params"],
+      });
+    }
   });
 
 export type Criterion = z.infer<typeof CriterionSchema>;
