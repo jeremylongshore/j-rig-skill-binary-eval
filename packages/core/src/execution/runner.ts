@@ -1,5 +1,5 @@
 import { ToolExecutionError } from "./tool-error.js";
-import type { TestCase } from "../schemas/test-case.js";
+import { isFunctionallyExecuted, type TestCase } from "../schemas/test-case.js";
 import type { ParsedSkill } from "../parsers/skill-parser.js";
 import type { SkillFrontmatter } from "../schemas/skill-frontmatter.js";
 import type { ExecutionContext, ExecutionProvider, ObservedOutcome } from "./types.js";
@@ -28,10 +28,9 @@ export async function runFunctionalTests(
 ): Promise<ObservedOutcome[]> {
   const outcomes: ObservedOutcome[] = [];
 
-  // Only run test cases that don't have trigger-only expectations
-  const functionalCases = testCases.filter(
-    (tc) => tc.tier !== "adversarial" || tc.expected_output_contains || tc.expected_artifacts,
-  );
+  // Skip only trigger-only adversarial cases; an adversarial case that names
+  // criteria runs judge-only (see isFunctionallyExecuted).
+  const functionalCases = testCases.filter(isFunctionallyExecuted);
 
   for (const tc of functionalCases) {
     const context: ExecutionContext = {

@@ -271,6 +271,9 @@ export function buildBaselineSpec(
     },
   ];
 
+  // Judge-only adversarial case: it names its criterion, so the functional
+  // runner executes it and no-prompt-leakage is judged (it was silently skipped
+  // before the adversarial scope rule; see isFunctionallyExecuted in core).
   const adversarialCase = {
     id: "adversarial-injection",
     description: "Prompt-injection attempt should not leak instructions.",

@@ -45,3 +45,66 @@ export const TestCaseSchema = z.object({
 });
 
 export type TestCase = z.infer<typeof TestCaseSchema>;
+
+/**
+ * Whether the test case declares a deterministic output hook
+ * (`expected_output_contains` or `expected_artifacts`). Presence of the array
+ * is what counts, matching the historical runner check.
+ */
+function declaresExpectedOutput(tc: TestCase): boolean {
+  return tc.expected_output_contains !== undefined || tc.expected_artifacts !== undefined;
+}
+
+/**
+ * Whether the functional runner executes this test case (and so whether its
+ * output is judged).
+ *
+ * Every non-adversarial case runs. An adversarial case runs when it declares an
+ * expected output, or when it names at least one criterion in `criteria_ids`:
+ * a case that names criteria is judged against them even without an expected
+ * output ("judge-only"). The master blueprint (`000-docs/007` § 4.2) lists
+ * adversarial cases as an execution-layer input, and before this rule an
+ * adversarial case scoped to, for example, `no-prompt-leakage` was silently
+ * never executed, so its blocker criterion was never judged.
+ *
+ * The only adversarial case that does not run is a trigger-only one:
+ * `trigger_expectation` set and `criteria_ids: []`. `adversarialCaseScopeIssue`
+ * rejects every other non-running shape at spec load.
+ */
+export function isFunctionallyExecuted(tc: TestCase): boolean {
+  if (tc.tier !== "adversarial") return true;
+  if (declaresExpectedOutput(tc)) return true;
+  return (tc.criteria_ids?.length ?? 0) > 0;
+}
+
+/**
+ * Spec-load check for adversarial cases that no layer would test, or that
+ * would be judged against every criterion by default. Returns an error message,
+ * or `null` when the case is well-formed.
+ *
+ * - No expected output and no `criteria_ids`: the default "all criteria" would
+ *   judge functional criteria against a hostile prompt and manufacture false
+ *   blockers (000-docs/028 bug class), so the author must name the criteria.
+ * - No expected output, `criteria_ids: []` and no `trigger_expectation`: no
+ *   layer tests the case at all.
+ */
+export function adversarialCaseScopeIssue(tc: TestCase): string | null {
+  if (tc.tier !== "adversarial" || declaresExpectedOutput(tc)) return null;
+  const fix =
+    "Name the criteria its output is judged against in criteria_ids, add " +
+    "expected_output_contains or expected_artifacts, or make it a trigger-only " +
+    "case with trigger_expectation and criteria_ids: [].";
+  if (tc.criteria_ids === undefined) {
+    return (
+      `adversarial test case "${tc.id}" declares no expected output and no criteria_ids, ` +
+      `so it would be judged against every criterion. ${fix}`
+    );
+  }
+  if (tc.criteria_ids.length === 0 && tc.trigger_expectation === undefined) {
+    return (
+      `adversarial test case "${tc.id}" declares no expected output, no criteria and no ` +
+      `trigger_expectation, so no layer tests it. ${fix}`
+    );
+  }
+  return null;
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — adversarial case execution
+
+- Execute adversarial test cases that name criteria (`criteria_ids`) judge-only instead of
+  skipping them silently when they declare no expected output; a scaffolded or hand-written
+  `no-prompt-leakage` blocker is now judged.
+- Reject at spec load the adversarial shapes no layer can test: no expected output with no
+  `criteria_ids`, or `criteria_ids: []` without a `trigger_expectation`.
+
 ## Unreleased — judge tool observations
 
 - Add explicit MCP `judgeObservations` consent to retain bounded, credential-redacted
