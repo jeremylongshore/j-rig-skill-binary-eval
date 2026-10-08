@@ -156,7 +156,7 @@ saturated, and each `j-rig report --unified` cell carries an optional
 
 ### Evaluator infrastructure failure (one rule)
 
-Any unrecovered provider failure in `j-rig eval`, execution or judge phase,
+Any unrecovered provider failure in `j-rig eval`, trigger, execution or judge phase,
 skill or naked-baseline pass, partial or total, yields **no verdict** and a
 **signed `gate-result/v1` `error` row**: class-first `gate_reasons[0]`, typed
 credential-free `metadata.error_detail`, run stored `failed`, exit 2 after every
