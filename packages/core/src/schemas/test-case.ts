@@ -82,9 +82,10 @@ export function isFunctionallyExecuted(tc: TestCase): boolean {
  * would be judged against every criterion by default. Returns an error message,
  * or `null` when the case is well-formed.
  *
- * - No expected output and no `criteria_ids`: the default "all criteria" would
- *   judge functional criteria against a hostile prompt and manufacture false
- *   blockers (000-docs/028 bug class), so the author must name the criteria.
+ * - No expected output and no `criteria_ids`: the runner never executes it, and
+ *   running it under the default "all criteria" would judge functional criteria
+ *   against a hostile prompt and manufacture false blockers (000-docs/028 bug
+ *   class), so the author must name the criteria.
  * - No expected output, `criteria_ids: []` and no `trigger_expectation`: no
  *   layer tests the case at all.
  */
@@ -97,7 +98,8 @@ export function adversarialCaseScopeIssue(tc: TestCase): string | null {
   if (tc.criteria_ids === undefined) {
     return (
       `adversarial test case "${tc.id}" declares no expected output and no criteria_ids, ` +
-      `so it would be judged against every criterion. ${fix}`
+      `so it is never executed, and the "all criteria" default would judge functional ` +
+      `criteria against a hostile prompt. ${fix}`
     );
   }
   if (tc.criteria_ids.length === 0 && tc.trigger_expectation === undefined) {

@@ -73,8 +73,8 @@ criteria). The only adversarial case that does not execute is a trigger-only one
 with `trigger_expectation` set and `criteria_ids: []`. Spec validation rejects the
 two shapes no layer can test honestly:
 
-- no expected output and no `criteria_ids` (the default "all criteria" would judge
-  functional criteria against a hostile prompt);
+- no expected output and no `criteria_ids` (it never executes, and running it under
+  the default "all criteria" would judge functional criteria against a hostile prompt);
 - no expected output, `criteria_ids: []` and no `trigger_expectation` (nothing tests it).
 
 Before this rule an adversarial case without an expected output was skipped
