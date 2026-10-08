@@ -482,7 +482,8 @@ describe("RealAnthropicProvider — response normalization edges", () => {
     const provider = new RealAnthropicProvider({ apiKey: KEY, transport });
     const result = await provider.complete({ model: "sonnet", messages: USER });
     expect(result.text).toBe("ok");
-    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0, cachedInputTokens: 4 });
+    // Cache reads are a subset of total input (the adapter convention).
+    expect(result.usage).toEqual({ inputTokens: 4, outputTokens: 0, cachedInputTokens: 4 });
 
     const { transport: noContent } = fakeTransport({ status: 200, json: { content: "none" } });
     const empty = await new RealAnthropicProvider({ apiKey: KEY, transport: noContent }).complete({

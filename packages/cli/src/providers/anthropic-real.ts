@@ -97,10 +97,19 @@ function mapFinishReason(raw: unknown): FinishReason {
   }
 }
 
+/**
+ * Normalize to the TokenUsage convention the other adapters follow:
+ * `inputTokens` is ALL input (uncached + cache writes + cache reads) and
+ * `cachedInputTokens` is the cache-read subset. The Messages API reports
+ * `input_tokens` excluding both cache buckets, so they are added back here;
+ * otherwise the cost meter would under-count cached Anthropic input.
+ */
 function mapUsage(raw: unknown): TokenUsage {
   const u = (raw ?? {}) as Record<string, unknown>;
+  const n = (v: unknown): number => (typeof v === "number" ? v : 0);
   const usage: TokenUsage = {
-    inputTokens: typeof u.input_tokens === "number" ? u.input_tokens : 0,
+    inputTokens:
+      n(u.input_tokens) + n(u.cache_creation_input_tokens) + n(u.cache_read_input_tokens),
     outputTokens: typeof u.output_tokens === "number" ? u.output_tokens : 0,
   };
   if (typeof u.cache_read_input_tokens === "number") {

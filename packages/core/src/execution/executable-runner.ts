@@ -180,7 +180,10 @@ export class ExecutableRunner implements EvalRunner {
         const completedAt = new Date(completedAtMs).toISOString();
         const status = timedOut
           ? "timed_out"
-          : overflowStream || processError || exitCode !== 0
+          : overflowStream ||
+              processError ||
+              exitCode === null ||
+              !(harness.completed_exit_codes ?? [0]).includes(exitCode)
             ? "runner_error"
             : "completed";
         const errorMessage = timedOut

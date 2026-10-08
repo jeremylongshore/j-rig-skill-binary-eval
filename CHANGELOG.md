@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — eval budgets and MiniMax / Claude rates
+
+- `j-rig eval` budgets: `max_usd`, `max_tokens`, `max_wall_ms`, `max_calls`, per spec (`budget:`)
+  and per run (`--max-usd`, `--max-tokens`, `--max-wall-ms`, `--max-calls`; the stricter limit
+  wins). One budget spans every model and phase. A pre-call guard refuses the next call once a
+  limit is reached; the stopped model gets no verdict and no Evidence Bundle row, the run is
+  stored `failed` with a `budget_exhausted` reason, later models are skipped, every result row
+  carries `run_budget`, and the process exits 3. `max_usd` fails closed on an unpriced model.
+- `MODEL_RATES_USD_PER_MTOK` adds MiniMax-M3, MiniMax-M2.7 and MiniMax-M2.7-highspeed (MiniMax
+  pay-as-you-go list) and claude-fable-5-1, claude-opus-5-5, claude-sonnet-5-5,
+  claude-haiku-4-5-20251001 (Anthropic list), each with a cache-read rate and a source/date
+  comment. Subscription-local `claude-code/*` usage is priced at the API rate and labelled not
+  billed; the cost report adds `billed_usd`. Spec: `000-docs/047`.
+
+## Unreleased — structured deterministic checks
+
+- Four deterministic checks: `exit_code`, `json_path` (`exists` / `equals` / `matches` over a
+  single-value JSONPath subset), `file_sha256`, and `schema_valid` (inline JSON Schema pinned to
+  draft 2020-12, Ajv 8.20.0). Params are validated at spec load.
+- In `j-rig eval` criteria they read the response JSON or, with `file:`, a file the claude-code
+  provider observed the run produce; `exit_code` is refused there at load. In `j-rig grade`
+  deterministic graders they read a command Run's stdout, exit code and artifact manifest;
+  existing `output_contains` graders keep their snapshot hash.
+- `harness.completed_exit_codes` (optional, no default) lets a config seal chosen non-zero exits
+  as gradeable `completed` Runs. Spec: `000-docs/046`.
+
 ## Unreleased — Claude Code execution provider and trajectory checks
 
 - `j-rig eval --execution-provider claude-code` runs each test case in real Claude Code

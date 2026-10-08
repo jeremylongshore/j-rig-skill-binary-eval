@@ -10,9 +10,11 @@ export {
 } from "./test-case.js";
 
 export {
+  EvalBudgetSchema,
   SkillEvalSpecSchema,
   ModelTarget,
   SiblingSkillSchema,
+  type EvalBudget,
   type SkillEvalSpec,
   type SiblingSkill,
 } from "./skill-eval-spec.js";

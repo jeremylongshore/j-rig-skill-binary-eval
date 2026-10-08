@@ -12,6 +12,7 @@ export {
   type GraderCheck,
   type GraderCheckResult,
   type GraderDefinition,
+  type GraderRunObservation,
   type DeterministicGraderDefinition,
   type JudgeGradeMetadata,
   type ModelJudgeGraderDefinition,

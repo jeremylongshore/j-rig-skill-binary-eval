@@ -436,3 +436,37 @@ describe("SkillEvalSpecSchema judge robustness fields", () => {
     );
   });
 });
+
+describe("SkillEvalSpecSchema budget", () => {
+  const baseSpec = {
+    spec_version: "1.0" as const,
+    skill_name: "test-skill",
+    description: "test",
+    criteria: [{ id: "c1", description: "test", method: "judge" as const }],
+    test_cases: [{ id: "t1", description: "test", tier: "core" as const, prompt: "test" }],
+  };
+
+  it("accepts any subset of the four limits and adds no defaults", () => {
+    const result = SkillEvalSpecSchema.safeParse({
+      ...baseSpec,
+      budget: { max_usd: 0.5, max_calls: 40 },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.budget).toEqual({ max_usd: 0.5, max_calls: 40 });
+    const absent = SkillEvalSpecSchema.parse(baseSpec);
+    expect(absent.budget).toBeUndefined();
+  });
+
+  it("rejects an empty budget, unknown limits and non-positive values", () => {
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, budget: {} }).success).toBe(false);
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, budget: { max_dollars: 1 } }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, budget: { max_usd: 0 } }).success).toBe(
+      false,
+    );
+    expect(SkillEvalSpecSchema.safeParse({ ...baseSpec, budget: { max_calls: 1.5 } }).success).toBe(
+      false,
+    );
+  });
+});

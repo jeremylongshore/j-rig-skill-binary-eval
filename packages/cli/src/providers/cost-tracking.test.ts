@@ -8,7 +8,13 @@ import type {
   ToolCallResult,
   ToolDefinition,
 } from "@j-rig/core";
-import { CostTrackingProvider, EvalCostMeter } from "./cost-tracking.js";
+import {
+  CostTrackingProvider,
+  EvalCostMeter,
+  lookupModelRate,
+  MODEL_RATES_USD_PER_MTOK,
+  priceUsage,
+} from "./cost-tracking.js";
 
 function completion(model: string, input: number, output: number): CompletionResult {
   return {
@@ -156,5 +162,108 @@ describe("EvalCostMeter", () => {
     expect(res.text).toBe("ok");
     expect(p.name).toBe("fake");
     expect(p.version).toBe("0.0.0");
+  });
+});
+
+describe("model rates (MiniMax + Claude)", () => {
+  it("carries the current list prices for the estate's MiniMax and Claude models", () => {
+    // MiniMax pay-as-you-go Standard (<= 512k input) and Anthropic first-party
+    // list prices; the source and read date sit beside the table.
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M3"]).toMatchObject({
+      input: 0.3,
+      output: 1.2,
+      cached_input: 0.06,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M2.7-highspeed"]).toMatchObject({
+      input: 0.6,
+      output: 2.4,
+      cached_input: 0.06,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M2.7"]).toMatchObject({ input: 0.3, output: 1.2 });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-fable-5-1"]).toMatchObject({
+      input: 10,
+      output: 50,
+      cached_input: 0.25,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-opus-5-5"]).toMatchObject({
+      input: 4,
+      output: 20,
+      cached_input: 0.2,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-sonnet-5-5"]).toMatchObject({
+      input: 2,
+      output: 10,
+      cached_input: 0.2,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-haiku-4-5-20251001"]).toMatchObject({
+      input: 1,
+      output: 5,
+      cached_input: 0.1,
+    });
+  });
+
+  it("looks up exact, case-insensitive and subscription-prefixed ids; never guesses", () => {
+    expect(lookupModelRate("MiniMax-M3")).toMatchObject({ key: "MiniMax-M3", billed: true });
+    expect(lookupModelRate("minimax-m3")).toMatchObject({ key: "MiniMax-M3", billed: true });
+    expect(lookupModelRate("claude-code/claude-sonnet-5-5")).toMatchObject({
+      key: "claude-sonnet-5-5",
+      billed: false,
+    });
+    expect(lookupModelRate("claude-haiku-4-5")?.rate.input).toBe(1);
+    // A model with no verified rate stays unpriced.
+    expect(lookupModelRate("claude-haiku-5-5")).toBeNull();
+    expect(lookupModelRate("claude-code/claude-haiku-5-5")).toBeNull();
+  });
+
+  it("prices cache reads at the cache rate as a subset of input", () => {
+    const rate = MODEL_RATES_USD_PER_MTOK["claude-opus-5-5"]!;
+    // 1M input of which 800k cache reads, 100k output:
+    // 200k * $4 + 800k * $0.20 + 100k * $20 = 0.8 + 0.16 + 2.0
+    expect(
+      priceUsage(rate, {
+        input_tokens: 1_000_000,
+        cached_input_tokens: 800_000,
+        output_tokens: 100_000,
+      }),
+    ).toBeCloseTo(2.96, 10);
+    // A row without a cache rate prices cache reads at the input rate.
+    expect(
+      priceUsage(
+        { input: 1, output: 0 },
+        { input_tokens: 10, cached_input_tokens: 4, output_tokens: 0 },
+      ),
+    ).toBeCloseTo(10 / 1_000_000, 12);
+  });
+
+  it("reports subscription claude-code usage as API-equivalent, not billed", () => {
+    const meter = new EvalCostMeter();
+    meter.phase = "execution";
+    meter.record("claude-code/claude-sonnet-5-5", {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      cachedInputTokens: 1_000_000,
+    });
+    meter.phase = "judge";
+    meter.record("MiniMax-M3", { inputTokens: 1_000_000, outputTokens: 1_000_000 });
+    const r = meter.report();
+    const cc = r.by_model.find((m) => m.model.startsWith("claude-code/"))!;
+    expect(cc).toMatchObject({
+      billed: false,
+      rate_key: "claude-sonnet-5-5",
+      cached_input_tokens: 1_000_000,
+      note: "API-equivalent at list rate; Claude Code subscription run, not billed",
+    });
+    expect(cc.usd).toBeCloseTo(0.2, 10);
+    expect(r.estimated_usd).toBeCloseTo(0.2 + 1.5, 10);
+    expect(r.billed_usd).toBeCloseTo(1.5, 10);
+  });
+
+  it("nulls billed_usd with estimated_usd when a model is unpriced", () => {
+    const meter = new EvalCostMeter();
+    meter.record("claude-code/claude-haiku-5-5", { inputTokens: 1, outputTokens: 1 });
+    const r = meter.report();
+    expect(r.estimated_usd).toBeNull();
+    expect(r.billed_usd).toBeNull();
+    expect(r.by_model[0]).toMatchObject({ usd: null, rate_key: null, billed: false });
   });
 });

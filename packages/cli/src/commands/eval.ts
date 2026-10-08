@@ -114,6 +114,14 @@ import {
   EvalCostMeter,
   type EvalCostReport,
 } from "../providers/cost-tracking.js";
+import {
+  BudgetGuardedExecutionProvider,
+  BudgetGuardedProvider,
+  mergeBudgetLimits,
+  RunBudget,
+  type BudgetStop,
+  type EvalBudgetLimits,
+} from "../providers/budget.js";
 
 interface EvalOptions {
   spec?: string;
@@ -140,6 +148,10 @@ interface EvalOptions {
   claudeCodeTimeoutMs?: string;
   claudeCodeMaxBudgetUsd?: string;
   keepWorkspaces?: boolean;
+  maxUsd?: string;
+  maxTokens?: string;
+  maxWallMs?: string;
+  maxCalls?: string;
 }
 
 /** Validated `--execution-provider claude-code` settings (see providers/claude-code.ts). */
@@ -164,6 +176,25 @@ function positiveNumber(
     throw new Error(`${flag} must be a positive ${integer ? "integer" : "number"}, got "${raw}"`);
   }
   return n;
+}
+
+/**
+ * The operator's per-run budget flags. Each is optional; `mergeBudgetLimits`
+ * combines them with the spec's `budget` (the stricter limit wins).
+ */
+export function resolveRunBudgetLimits(
+  opts: Pick<EvalOptions, "maxUsd" | "maxTokens" | "maxWallMs" | "maxCalls">,
+): EvalBudgetLimits {
+  const maxUsd = positiveNumber("--max-usd", opts.maxUsd, false);
+  const maxTokens = positiveNumber("--max-tokens", opts.maxTokens, true);
+  const maxWallMs = positiveNumber("--max-wall-ms", opts.maxWallMs, true);
+  const maxCalls = positiveNumber("--max-calls", opts.maxCalls, true);
+  return {
+    ...(maxUsd !== undefined ? { max_usd: maxUsd } : {}),
+    ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
+    ...(maxWallMs !== undefined ? { max_wall_ms: maxWallMs } : {}),
+    ...(maxCalls !== undefined ? { max_calls: maxCalls } : {}),
+  };
 }
 
 /**
@@ -253,6 +284,8 @@ interface SelectedProviders {
 interface ProviderExtras {
   executionReasoningEffort?: ReasoningEffort;
   meter?: EvalCostMeter;
+  /** Pre-call spend/latency guard; wraps outside the meter (providers/budget.ts). */
+  budget?: RunBudget;
   judgeProvider?: string;
   judgeModel?: string;
   claudeCode?: ClaudeCodeSettings;
@@ -264,6 +297,12 @@ interface ProviderExtras {
  * requested backend has no key — silently judging on a different vendor than
  * asked would corrupt the benchmark this exists for.
  */
+/** Meter every real provider call, then guard it with the budget (a refused call is never spend). */
+function wrapMetered(p: Provider, extras: ProviderExtras | undefined): Provider {
+  const metered = extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+  return extras?.budget ? new BudgetGuardedProvider(metered, extras.budget) : metered;
+}
+
 export function selectJudgeOverride(
   targetModel: string,
   extras?: ProviderExtras,
@@ -272,8 +311,7 @@ export function selectJudgeOverride(
   const judgeModel = extras?.judgeModel?.trim();
   if (!judgeProvider && !judgeModel) return null;
 
-  const wrap = (p: Provider): Provider =>
-    extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+  const wrap = (p: Provider): Provider => wrapMetered(p, extras);
 
   if (judgeProvider === "stub") {
     const modelId = judgeModel || targetModel;
@@ -345,8 +383,7 @@ function selectProviders(
   extras?: ProviderExtras,
 ): SelectedProviders {
   const want = preferred?.trim().toLowerCase();
-  const wrap = (p: Provider): Provider =>
-    extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+  const wrap = (p: Provider): Provider => wrapMetered(p, extras);
 
   const base = ((): SelectedProviders => {
     // Explicit stub request — let the stub constructors enforce the opt-in gate.
@@ -437,16 +474,21 @@ function selectProviders(
   // execution leg for a real Claude Code run (subscription auth, recorded
   // trajectory); trigger + judge stay on the base backend.
   const cc = extras?.claudeCode;
-  const withExecution: SelectedProviders = cc
+  const claudeCode = cc
+    ? new ClaudeCodeExecutionProvider({
+        ...cc,
+        model,
+        ...(extras?.meter
+          ? { onUsage: (m: string, u: TokenUsage) => extras.meter!.record(m, u) }
+          : {}),
+      })
+    : undefined;
+  const withExecution: SelectedProviders = claudeCode
     ? {
         ...base,
-        execution: new ClaudeCodeExecutionProvider({
-          ...cc,
-          model,
-          ...(extras?.meter
-            ? { onUsage: (m: string, u: TokenUsage) => extras.meter!.record(m, u) }
-            : {}),
-        }),
+        execution: extras?.budget
+          ? new BudgetGuardedExecutionProvider(claudeCode, extras.budget)
+          : claudeCode,
       }
     : base;
 
@@ -724,6 +766,15 @@ export function registerEvalCommand(program: Command): void {
     )
     .option("--keep-workspaces", "claude-code: keep each case's temp workspace for debugging.")
     .option(
+      "--max-usd <usd>",
+      "Run budget: stop cleanly once the API-equivalent spend reaches this many USD (all models, " +
+        "all phases; subscription claude-code usage counts at list price). Fails closed when a " +
+        "model has no rate on file. Tightens, never loosens, the spec's `budget`.",
+    )
+    .option("--max-tokens <n>", "Run budget: stop cleanly once input+output tokens reach n.")
+    .option("--max-wall-ms <ms>", "Run budget: stop cleanly once the eval has run this long.")
+    .option("--max-calls <n>", "Run budget: stop cleanly once n metered provider calls are made.")
+    .option(
       "--require-reviewed",
       "Refuse a spec still tagged `needs-review` (a `scaffold-spec --draft` output nobody has " +
         "reviewed). The nightly roster passes this so unreviewed drafted criteria never gate.",
@@ -813,6 +864,9 @@ export function registerEvalCommand(program: Command): void {
         if (judgeSamples !== undefined && (!Number.isInteger(judgeSamples) || judgeSamples < 1)) {
           throw new Error(`--samples must be a positive integer, got "${opts.samples}"`);
         }
+        // Budget (spec `budget` + --max-* flags, stricter wins). Validated
+        // before the DB opens so a bad flag costs nothing.
+        const budgetLimits = mergeBudgetLimits(spec.budget, resolveRunBudgetLimits(opts));
         const database = openDb(opts.db);
         const skillName = skill.frontmatter.name;
         // Kernel cutover [9k5h.15]: the standard tier is open-world on optional
@@ -916,6 +970,10 @@ export function registerEvalCommand(program: Command): void {
         // (a CI step that trusts the exit status would otherwise pass a
         // non-evaluation).
         let infrastructureFailureSeen = false;
+        // One budget spans every model and phase of this invocation. The
+        // wall clock starts here, after load and package integrity.
+        const runBudget = new RunBudget(budgetLimits.limits, budgetLimits.sources);
+        let budgetStopSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
           const svId = getOrCreateSkillVersion(database, skillName, skillVersion, skillContent);
@@ -930,8 +988,10 @@ export function registerEvalCommand(program: Command): void {
           // cost meter rides every real provider call and is phase-flipped at
           // each boundary below.
           const costMeter = new EvalCostMeter();
+          runBudget.attach(costMeter, model);
           const providers = selectProviders(model, opts.provider, {
             meter: costMeter,
+            ...(runBudget.active ? { budget: runBudget } : {}),
             executionReasoningEffort: executionParameters?.reasoning_effort,
             judgeProvider: opts.judgeProvider,
             judgeModel: opts.judgeModel,
@@ -957,6 +1017,44 @@ export function registerEvalCommand(program: Command): void {
           // Did any criterion or gate decision fail? Drives the terminal-state
           // enum on runtime.run.finished.
           let runHadFailure = false;
+
+          // ── Budget stop (providers/budget.ts) ──────────────────────────
+          // Called at a phase boundary once the guard has refused a call. The
+          // evaluation is incomplete, so there is NO verdict and NO Evidence
+          // Bundle row (an `error` row means a provider failed, which this is
+          // not); the run is stored `failed` with the stop as its reason, and
+          // the remaining models are not started.
+          const stopForBudget = (stop: BudgetStop): void => {
+            budgetStopSeen = true;
+            transitionRun(
+              database,
+              runId,
+              "failed",
+              JSON.stringify({ type: "budget_exhausted", ...stop }),
+            );
+            allResults[model] = {
+              ...executionMetadata,
+              provider: providers.providerName,
+              model,
+              judge_provider: providers.judgeProviderName,
+              judge_model: providers.judgeModelId,
+              ground_truth: providers.real,
+              pkgReport,
+              budget_stop: stop,
+              cost: providers.real || claudeCodeSettings ? costMeter.report() : null,
+              ...batchLineage,
+            };
+            if (!opts.json) {
+              console.log(
+                `  ${icon("error")} Budget exhausted in the ${stop.phase} phase: ${stop.reason}. ` +
+                  `Stopped with no verdict.`,
+              );
+            }
+            emitRuntimeRunFinished(correlation, {
+              terminalState: RuntimeTerminalState.ARCHIVED_FAILED,
+              durationMs: Date.now() - modelStart,
+            });
+          };
 
           if (!opts.json) {
             console.log(header(`--- Model: ${model} ---`));
@@ -1003,6 +1101,10 @@ export function registerEvalCommand(program: Command): void {
             executionProvider: providers.providerName,
             judgeProvider: providers.judgeProviderName,
           });
+          if (runBudget.stop) {
+            stopForBudget(runBudget.stop);
+            break;
+          }
 
           // Finalized after whichever phases run. This intentionally lives
           // outside the functional branch: trigger-only real-provider runs
@@ -1100,6 +1202,8 @@ export function registerEvalCommand(program: Command): void {
 
             costMeter.phase = "judge";
             for (const outcome of outcomes) {
+              // Spent budget: judging further cases is refused call by call.
+              if (runBudget.stop) break;
               // A failed provider call is not a model response. Judging it
               // would spend judge tokens grading an error string as if it were
               // skill behavior; the run is signed `error` below instead.
@@ -1192,6 +1296,11 @@ export function registerEvalCommand(program: Command): void {
               allJudgments.push(
                 ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
               );
+            }
+
+            if (runBudget.stop) {
+              stopForBudget(runBudget.stop);
+              break;
             }
 
             // Fold the (model-independent) self-test verdict into THIS model's
@@ -1332,6 +1441,12 @@ export function registerEvalCommand(program: Command): void {
                       : ""),
                 );
               }
+            }
+            // The naked-baseline pass spends too; a stop there leaves the
+            // skill pass's criterion results stored but the run unverdicted.
+            if (runBudget.stop) {
+              stopForBudget(runBudget.stop);
+              break;
             }
 
             // Layer 4 — Regression protection (opt-in --regression-baseline <path>):
@@ -1746,12 +1861,19 @@ export function registerEvalCommand(program: Command): void {
                 (m) => `${m.model}: ${m.usd === null ? "no rate on file" : `$${m.usd.toFixed(4)}`}`,
               )
               .join("; ");
+            const notBilled =
+              costReport.estimated_usd !== null &&
+              costReport.billed_usd !== null &&
+              costReport.billed_usd < costReport.estimated_usd
+                ? ` (billed $${costReport.billed_usd.toFixed(4)}; the rest is API-equivalent ` +
+                  `claude-code subscription usage, not billed)`
+                : "";
             console.log(
               `    estimated: ${
                 costReport.estimated_usd === null
                   ? "n/a (a model has no rate on file)"
                   : `$${costReport.estimated_usd.toFixed(4)}`
-              } — ${perModel}`,
+              }${notBilled} — ${perModel}`,
             );
           }
 
@@ -1807,6 +1929,32 @@ export function registerEvalCommand(program: Command): void {
               : RuntimeTerminalState.JUDGED,
             durationMs: Date.now() - modelStart,
           });
+        }
+
+        // A budget stop leaves the remaining models unstarted; say so in the
+        // result rather than omitting them. Every row carries the invocation's
+        // budget summary when one was set.
+        if (budgetStopSeen) {
+          for (const m of models) {
+            allResults[m] ??= { model: m, skipped: "budget_exhausted" };
+          }
+        }
+        if (runBudget.active) {
+          const summary = runBudget.summary();
+          for (const m of Object.keys(allResults)) {
+            allResults[m] = { ...(allResults[m] as Record<string, unknown>), run_budget: summary };
+          }
+          if (!opts.json) {
+            const { spent, limits } = summary;
+            console.log(
+              chalk.dim(
+                `Budget: ${Object.entries(limits)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(" ")} | spent ${spent.calls} calls, ${spent.tokens} tokens, ` +
+                  `${spent.wall_ms} ms, ${spent.usd === null ? "USD unpriced" : `$${spent.usd.toFixed(4)}`}`,
+              ),
+            );
+          }
         }
 
         // ── Evidence Bundle write + artifact linkage (opt-in) ─────────────
@@ -1865,7 +2013,11 @@ export function registerEvalCommand(program: Command): void {
         // signed `error`, 000-docs/037); 1 = crash (catch
         // below). Set after every artifact is flushed so consumers still get
         // the bundle + JSON.
+        // 3 = a budget limit stopped the run cleanly (no verdict for the
+        // stopped model, later models not started); it wins over 2 because
+        // the refused calls it caused are not provider failures.
         if (infrastructureFailureSeen) process.exitCode = 2;
+        if (budgetStopSeen) process.exitCode = 3;
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
