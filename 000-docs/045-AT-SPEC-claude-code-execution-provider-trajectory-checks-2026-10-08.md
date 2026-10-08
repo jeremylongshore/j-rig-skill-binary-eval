@@ -33,7 +33,7 @@ The per-case temp directory holds:
 | Path | Contents |
 |---|---|
 | `ws/` | Agent cwd. `--workspace-fixtures <dir>` is copied in, then the case's `context_hints.workspace_files` (relative path to text). |
-| `ws/.claude/skills/<name>/` | A copy of the skill dir (no `.git`, `node_modules`, `__pycache__`, `.venv`; symlinks refused). Omitted for the naked baseline, which passes an empty skill body. |
+| `ws/.claude/skills/<name>/` | A copy of the skill dir (no dotfiles such as `.git`, `.env`, `.npmrc`, `.venv`; no `node_modules` or `__pycache__`; symlinks refused). Omitted for the naked baseline, which passes an empty skill body. |
 | `home/` | `HOME` and `CLAUDE_CONFIG_DIR` of the agent. |
 | `home/.claude/.credentials.json` | The subscription access token only. The refresh token and every MCP OAuth token are dropped. |
 
@@ -63,7 +63,8 @@ CI exercises the stream parser, the provider and the trajectory checks against
 transcripts were recorded locally on the subscription with `haiku` (about
 US$0.004 API-equivalent in total, not billed) and scrubbed: the temp root became
 `__ROOT__`, uuids were renumbered, account rate-limit events were dropped, and
-the init event was cut to the fields the parser reads.
+the init event was cut to the fields the parser reads (its `skills` list holds
+only the skill under test).
 
 ### 3. Per-case budget
 
@@ -118,7 +119,9 @@ Their params are validated by `CriterionSchema` at spec load, so a typo fails
 | `file_exists` | exactly one of `path` / `pattern`, `produced?` | a matching, non-deleted file exists (and was created or modified, with `produced: true`) |
 | `file_matches_sha_in` | exactly one of `path` / `pattern`, `in` | every matching file's sha256 appears in `in`, a text file the run produced; `{path}` in `in` expands to the matched path |
 
-`tool` matches exactly and is case-sensitive. Every check fails closed when the
+`tool` matches exactly and is case-sensitive. `input_contains` matches the input
+summary, which is truncated at 2,000 characters: a discriminator past that point
+in a very long command is not visible to the check. Every check fails closed when the
 outcome has no trajectory: a single-completion provider cannot observe tools, so
 "no tool was called" must not pass vacuously. Every check also fails closed when
 the trajectory's `stop` is not `completed`. `j-rig eval` never judges such a

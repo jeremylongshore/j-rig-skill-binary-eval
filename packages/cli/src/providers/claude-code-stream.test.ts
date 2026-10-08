@@ -112,6 +112,10 @@ describe("summarizeToolInput / relativizePaths", () => {
       "cat a.md /tmp/x/ws2/b.md",
     );
     expect(relativizePaths("cd /tmp/x/ws && ls", "/tmp/x/ws/")).toBe("cd . && ls");
+    // Regex metacharacters in the root are escaped in both rewrites.
+    expect(
+      relativizePaths("cat /tmp/x.y/ws/a.md /tmp/xzy/ws/b.md /tmp/x.y/ws", "/tmp/x.y/ws"),
+    ).toBe("cat a.md /tmp/xzy/ws/b.md .");
   });
 
   it("summarizes unknown tools as key-sorted JSON and truncates long input", () => {

@@ -50,6 +50,9 @@ beforeAll(() => {
   );
   writeFileSync(join(skillDir, "scripts", "x.sh"), "echo x\n");
   writeFileSync(join(skillDir, "node_modules", "big.js"), "never copied\n");
+  writeFileSync(join(skillDir, ".env"), "SECRET=never copied\n");
+  mkdirSync(join(skillDir, ".git"), { recursive: true });
+  writeFileSync(join(skillDir, ".git", "HEAD"), "never copied\n");
   credentialsPath = join(scratch, "credentials.json");
   writeFileSync(
     credentialsPath,
@@ -191,6 +194,7 @@ describe("ClaudeCodeExecutionProvider — sandbox", () => {
       configDir: string;
       credentialKeys: string[];
       skillInstalled: boolean;
+      skillFiles: string[];
     };
     expect(env.keys).not.toContain("ANTHROPIC_API_KEY");
     expect(env.keys).not.toContain("SECRET");
@@ -201,6 +205,8 @@ describe("ClaudeCodeExecutionProvider — sandbox", () => {
     expect(env.configDir).toBe(`${env.home}/.claude`);
     expect(env.credentialKeys).toEqual(["accessToken", "expiresAt", "scopes"]);
     expect(env.skillInstalled).toBe(true);
+    // The skill copy leaves dotfiles (.env, .git), node_modules and __pycache__ behind.
+    expect(env.skillFiles).toEqual(["receipt-writer/SKILL.md", "receipt-writer/scripts/x.sh"]);
     // The skill copy and sandbox home never appear in the produced-file manifest.
     expect(out.trajectory?.files.map((f) => f.path)).toEqual(["env.json", "notes.txt"]);
     expect(out.trajectory?.steps.find((s) => s.is_error)?.input_summary).toBe("missing.txt");

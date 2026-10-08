@@ -11,6 +11,7 @@
  *   <tmp>/j-rig-cc-XXXX/
  *     ws/                          cwd of the agent
  *       .claude/skills/<name>/     a COPY of the skill dir (never a symlink;
+ *                                  no dotfiles, node_modules or __pycache__;
  *                                  omitted for the naked baseline)
  *       <fixtures>                 --workspace-fixtures dir + the case's
  *                                  context_hints.workspace_files
@@ -99,7 +100,7 @@ const ENV_ALLOWLIST = [
 ];
 
 /** Directory names never copied from the skill dir into the workspace. */
-const SKIP_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv"]);
+const SKIP_DIRS = new Set(["node_modules", "__pycache__"]);
 
 const KILL_GRACE_MS = 2_000;
 
@@ -173,17 +174,28 @@ export function safeWorkspacePath(p: string): string {
   return n;
 }
 
-/** Copy a tree without following or copying symlinks (a symlink could write through to the source). */
-function copyTree(src: string, dest: string, skip: Set<string> = new Set()): void {
+/**
+ * Copy a tree without following or copying symlinks (a symlink could write
+ * through to the source). With `skipDotfiles`, every entry whose name starts
+ * with `.` is left behind (`.git`, `.venv`, `.env`, `.npmrc`, …): a skill's
+ * dotfiles are never part of what it ships to an agent.
+ */
+function copyTree(
+  src: string,
+  dest: string,
+  skip: Set<string> = new Set(),
+  skipDotfiles = false,
+): void {
   mkdirSync(dest, { recursive: true });
   for (const entry of readdirSync(src, { withFileTypes: true })) {
     if (skip.has(entry.name)) continue;
+    if (skipDotfiles && entry.name.startsWith(".")) continue;
     const from = join(src, entry.name);
     const to = join(dest, entry.name);
     if (entry.isSymbolicLink()) {
       throw new ClaudeCodeRefusedError(`symlink in a copied tree is not allowed: ${from}`);
     }
-    if (entry.isDirectory()) copyTree(from, to, skip);
+    if (entry.isDirectory()) copyTree(from, to, skip, skipDotfiles);
     else if (entry.isFile()) copyFileSync(from, to);
   }
 }
@@ -452,7 +464,7 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
       }
       // The naked baseline passes an empty body: run the same agent WITHOUT the skill.
       if (context.skill_body.trim() !== "") {
-        copyTree(o.skillDir, join(ws, ".claude", "skills", o.skillName), SKIP_DIRS);
+        copyTree(o.skillDir, join(ws, ".claude", "skills", o.skillName), SKIP_DIRS, true);
       }
       const before = snapshot(ws);
 

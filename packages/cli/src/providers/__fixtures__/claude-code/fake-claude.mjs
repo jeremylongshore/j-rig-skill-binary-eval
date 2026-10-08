@@ -13,7 +13,7 @@
 //   "CRASH"           print an auth error on stderr and exit 1 with no result
 //   "ENV"             write env.json (env keys, HOME, sandbox credential keys)
 //                     and replay the read-missing transcript
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setInterval } from "node:timers";
@@ -68,6 +68,12 @@ if (mode === "FIXTURE") {
       configDir,
       credentialKeys: Object.keys(creds.claudeAiOauth ?? {}).sort(),
       skillInstalled: existsSync(join(cwd, ".claude", "skills")),
+      skillFiles: existsSync(join(cwd, ".claude", "skills"))
+        ? readdirSync(join(cwd, ".claude", "skills"), { recursive: true, withFileTypes: true })
+            .filter((e) => e.isFile())
+            .map((e) => join(e.parentPath, e.name).slice(join(cwd, ".claude", "skills").length + 1))
+            .sort()
+        : [],
     }),
   );
   replay("read-missing");
