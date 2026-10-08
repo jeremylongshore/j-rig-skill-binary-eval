@@ -1,4 +1,13 @@
 export { ToolExecutionError } from "./tool-error.js";
+export {
+  TRAJECTORY_SCHEMA,
+  MAX_INPUT_SUMMARY_CHARS,
+  type Trajectory,
+  type TrajectoryFile,
+  type TrajectoryFileChange,
+  type TrajectoryStep,
+  type TrajectoryStop,
+} from "./trajectory.js";
 export { runFunctionalTests, checkOutputExpectations } from "./runner.js";
 export { ExecutableRunner } from "./executable-runner.js";
 export {

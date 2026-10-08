@@ -14,3 +14,16 @@ export {
   type CheckResult,
   type PackageReport,
 } from "./types.js";
+
+export {
+  TRAJECTORY_CHECK_NAMES,
+  TRAJECTORY_CHECK_PARAM_SCHEMAS,
+  ToolMatcherSchema,
+  isTrajectoryCheck,
+  runTrajectoryCheck,
+  trajectoryCheckParamIssues,
+  type ToolMatcher,
+  type TrajectoryCheckInput,
+  type TrajectoryCheckName,
+  type TrajectoryCheckResult,
+} from "./trajectory-checks.js";

@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "../providers/types.js";
 import type { ProviderFailure } from "../providers/errors.js";
+import type { Trajectory } from "./trajectory.js";
 
 /**
  * Context provided to the skill during execution.
@@ -43,6 +44,13 @@ export interface ExecutionOutput {
   artifacts: ArtifactRecord[];
   tool_calls: number;
   error?: string;
+  /**
+   * The observed tool-call order and produced-file manifest. Present only
+   * when the execution provider is agentic (e.g. `claude-code`); a
+   * single-completion provider leaves it undefined and trajectory checks fail
+   * closed on it.
+   */
+  trajectory?: Trajectory;
 }
 
 /**

@@ -14,6 +14,7 @@ export default tseslint.config(
             "eval-roster/*.mjs",
             "examples/generic-run/*.mjs",
             "packages/cli/src/execution/__fixtures__/mcp-server.mjs",
+            "packages/cli/src/providers/__fixtures__/claude-code/fake-claude.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
@@ -27,6 +28,7 @@ export default tseslint.config(
       "eval-roster/*.mjs",
       "examples/generic-run/*.mjs",
       "packages/cli/src/execution/__fixtures__/mcp-server.mjs",
+      "packages/cli/src/providers/__fixtures__/claude-code/fake-claude.mjs",
     ],
     languageOptions: {
       globals: { process: "readonly", console: "readonly" },
