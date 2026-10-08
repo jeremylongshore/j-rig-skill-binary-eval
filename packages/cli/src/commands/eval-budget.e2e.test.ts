@@ -180,7 +180,7 @@ describe("j-rig eval budgets (actual CLI)", { timeout: 30000 }, () => {
       expect(calls()).toBe(1);
       const stop = r.out["fixture-model"]!.budget_stop as { observed: unknown; reason: string };
       expect(stop.observed).toBeNull();
-      expect(stop.reason).toMatch(/fixture-model has no rate on file/);
+      expect(stop.reason).toMatch(/no rate on file for fixture-model/);
     } finally {
       server.close();
     }

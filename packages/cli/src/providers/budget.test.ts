@@ -120,6 +120,18 @@ describe("RunBudget", () => {
     expect(budget.stop).toMatchObject({ limit: "max_usd", observed: null });
   });
 
+  it("names every unpriced model in the max_usd refusal", async () => {
+    const budget = new RunBudget({ max_usd: 100 });
+    const meter = new EvalCostMeter();
+    budget.attach(meter, "a");
+    meter.record("mystery-a", { inputTokens: 1, outputTokens: 1 });
+    meter.record("deepseek-v4-flash", { inputTokens: 1, outputTokens: 1 });
+    meter.record("mystery-b", { inputTokens: 1, outputTokens: 1 });
+    expect(budget.check()?.reason).toBe(
+      "max_usd $100.0000 cannot be enforced: no rate on file for mystery-a, mystery-b",
+    );
+  });
+
   it("stops on max_wall_ms from the injected clock", async () => {
     const { budget, provider, tick } = harness({ max_wall_ms: 500 });
     await provider.complete(req());

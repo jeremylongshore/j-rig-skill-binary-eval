@@ -161,9 +161,9 @@ export function lookupModelRate(model: string): RateLookup | null {
 }
 
 /**
- * USD for one model's usage. Cache reads are a subset of input tokens (the
- * OpenAI-compatible and claude-code adapters report them that way) and are
- * priced at the cache-read rate when the row has one.
+ * USD for one model's usage. Cache reads are a subset of input tokens (every
+ * adapter normalizes to that convention) and are priced at the cache-read
+ * rate when the row has one. The clamp only guards a malformed report.
  */
 export function priceUsage(
   rate: ModelRate,
@@ -235,8 +235,11 @@ export class EvalCostMeter {
       const hit = lookupModelRate(model);
       const billed = !model.startsWith(SUBSCRIPTION_MODEL_PREFIX);
       const usd = hit ? priceUsage(hit.rate, { ...m, cached_input_tokens }) : null;
+      // Keep the row's own caveat (e.g. a tiered price) beside the billing label.
       const note = !billed
-        ? "API-equivalent at list rate; Claude Code subscription run, not billed"
+        ? ["API-equivalent at list rate; Claude Code subscription run, not billed", hit?.rate.note]
+            .filter(Boolean)
+            .join("; ")
         : hit?.rate.note;
       byModel.push({
         model,

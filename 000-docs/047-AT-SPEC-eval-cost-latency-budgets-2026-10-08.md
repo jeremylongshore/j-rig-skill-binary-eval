@@ -43,8 +43,10 @@ calls already in flight when it was reached: one, or one criterion's concurrent
 judge samples.
 
 `max_usd` fails **closed**: if any recorded model has no rate on file, the next
-call is refused with `observed: null` and a reason naming the model. A dollar
-cap that cannot price the spend cannot honor itself.
+call is refused with `observed: null` and a reason naming every unpriced
+model. A dollar cap that cannot price the spend cannot honor itself. Limits are
+checked in a fixed order (USD, tokens, calls, wall time), so while a model is
+unpriced a set `max_usd` latches first: pair `max_usd` only with priced models.
 
 ### Clean stop
 
@@ -67,8 +69,11 @@ results were persisted; they stay stored, but the run is `failed` and unverdicte
 ## Rates
 
 `MODEL_RATES_USD_PER_MTOK` rows gain an optional `cached_input` rate. Cache reads
-are priced as a subset of input tokens (how the OpenAI-compatible and claude-code
-adapters report them). Cache writes are not separately metered and price at the
+are priced as a subset of input tokens. The OpenAI-compatible and claude-code
+adapters already report them that way; the Anthropic adapter now does too (it
+adds the Messages API's `cache_read_input_tokens` and
+`cache_creation_input_tokens` back into `inputTokens`, which previously
+excluded them). Cache writes are not separately metered and price at the
 input rate. Every row names its source and read date.
 
 | Model | Input | Output | Cache read | Source (read 2026-10-08) |
@@ -106,9 +111,6 @@ figure, so a subscription run is capped at list price too.
   their harnesses carry their own `timeout_ms`.
 - The nightly roster treats exit 3 like any other non-2 failure (generic error
   log). No roster spec declares a budget today.
-- The Anthropic adapter reports `input_tokens` excluding cache reads while the
-  others include them; cache reads on the direct Anthropic path are rare in
-  evals and the price is clamped, but the convention is not unified here.
 
 ## Tests
 

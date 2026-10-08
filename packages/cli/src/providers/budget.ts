@@ -19,6 +19,9 @@
  * `max_usd` counts the API-equivalent estimate, including subscription-local
  * claude-code usage that is not billed, and fails CLOSED when a model has no
  * rate on file: a dollar cap that cannot price the spend cannot honor itself.
+ * Limits are checked in a fixed order (usd, tokens, calls, wall time), so
+ * while a model is unpriced a set `max_usd` latches first and the other
+ * limits never get the chance: pair `max_usd` only with priced models.
  */
 
 import type {
@@ -104,13 +107,13 @@ export class BudgetExceededError extends Error {
 
 function sumUsd(reports: EvalCostReport[]): { usd: number | null; unpriced?: string } {
   let usd = 0;
+  const unpriced = new Set<string>();
   for (const r of reports) {
-    if (r.estimated_usd === null) {
-      return { usd: null, unpriced: r.by_model.find((m) => m.usd === null)?.model };
-    }
-    usd += r.estimated_usd;
+    for (const m of r.by_model) if (m.usd === null) unpriced.add(m.model);
+    if (r.estimated_usd !== null) usd += r.estimated_usd;
   }
-  return { usd };
+  // Name every unpriced model so the operator can fix the rate table in one pass.
+  return unpriced.size > 0 ? { usd: null, unpriced: [...unpriced].join(", ") } : { usd };
 }
 
 const fmtUsd = (v: number) => `$${v.toFixed(4)}`;
@@ -188,7 +191,7 @@ export class RunBudget {
       hit = stop(
         "max_usd",
         null,
-        `max_usd ${fmtUsd(max_usd)} cannot be enforced: ${s.unpriced ?? "a model"} has no rate on file`,
+        `max_usd ${fmtUsd(max_usd)} cannot be enforced: no rate on file for ${s.unpriced ?? "a model"}`,
       );
     } else if (max_usd !== undefined && s.usd !== null && s.usd >= max_usd) {
       hit = stop(

@@ -76,6 +76,10 @@ checks:
   - { id: pdf, type: file_sha256, path: out/report.pdf, sha256: "4480c3f1..." }
 ```
 
+Each Grade check result keeps `expected: string`. For `output_contains` it is the
+needle, as before; for a structured check it is the check's params as JSON
+(for example `{"equals":0}`). Route on the result's `type` before reading it.
+
 `j-rig grade` passes the sealed Run's exit code and artifact manifest. File
 content is not sealed for command Runs, so `json_path` / `schema_valid` with
 `file:` fail closed there and the Grade says why.
@@ -85,7 +89,8 @@ content is not sealed for command Runs, so `json_path` / `schema_valid` with
 The generic runner seals any non-zero exit as `runner_error`, and only
 `completed` Runs can be graded, so without a change an `exit_code` grader could
 only ever see 0. A config may now declare `harness.completed_exit_codes`
-(non-empty list of 0–255): those exits seal a `completed` Run. It is optional
+(non-empty list of 0–255; an empty list is rejected at load, since a config
+cannot seal nothing as completed): those exits seal a `completed` Run. It is optional
 with no schema default (per `031`, a default would change every sealed config
 snapshot); the runner applies `[0]` when it is absent.
 
