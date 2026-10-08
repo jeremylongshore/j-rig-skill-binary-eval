@@ -278,3 +278,26 @@ A built-in `stub` provider exists for pipeline plumbing only. It is gated behind
 ## License
 
 Apache-2.0 © Jeremy Longshore / Intent Solutions
+
+### Trigger evidence
+
+Every `eval` model result now carries `trigger` with schema
+`jrig-trigger-evidence/v1`, status, metrics, per-case expected/selected/outcome and
+a SHA-256 reference. The local SQLite `trigger-evidence` artifact binds that
+reference to a fresh mode-0600 receipt in a mode-0700 directory; the receipt also
+retains prompts and routing reasoning. Portable bundle metadata carries the same
+summary without prompts or reasoning. Consumers can recompute metrics from the
+recorded cases and verify the private receipt against its digest.
+
+Status is `skipped` for `--no-trigger`, `not_applicable` when no cases declare
+trigger expectations, `complete` when all applicable routing calls returned, and
+`incomplete` on any routing-provider error. Complete describes measurement
+coverage: an incorrect selection remains an explicit false-positive,
+false-negative or sibling-confusion outcome. It does not imply correct routing.
+Only complete trigger measurement appears in `dimensionsEvaluated`; the other
+statuses appear in `dimensionsSkipped` and remain distinguishable in metadata.
+
+A trigger-provider error follows the existing infrastructure-failure rule:
+`gate_decision: error`, no promotion evidence, failed stored run and exit 2 after
+artifacts are flushed. Trigger-only execution also retains its artifact and
+machine-readable error. Trigger and judge calls continue to receive no MCP tools.

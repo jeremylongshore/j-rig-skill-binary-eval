@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — trigger evidence
+
+- Retain per-case routing decisions and metrics in JSON/bundle metadata and private,
+  digest-bound SQLite artifacts; distinguish skipped, inapplicable and incomplete coverage.
+- Apply the evaluator infrastructure-failure rule to trigger-provider outages, including
+  trigger-only runs, while preserving incorrect selections as measured routing outcomes.
+
 All notable changes to `j-rig-binary-eval` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

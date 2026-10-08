@@ -37,6 +37,46 @@ function judgment(id: string, patch: Partial<JudgmentResult> = {}): JudgmentResu
 const providers = { executionProvider: "exec-co", judgeProvider: "judge-co" };
 
 describe("detectInfrastructureFailure", () => {
+  it("retains a partial trigger outage ahead of later execution failures", () => {
+    const failure = detectInfrastructureFailure({
+      triggers: [
+        {
+          test_case_id: "a",
+          prompt: "a",
+          expected: "should_trigger",
+          outcome: "correct_trigger",
+          selected_skill: "target",
+          reasoning: "ok",
+        },
+        {
+          test_case_id: "b",
+          prompt: "b",
+          expected: "should_trigger",
+          outcome: "error",
+          selected_skill: null,
+          reasoning: "Bearer secret-placeholder",
+          provider_failure: {
+            providerName: "router",
+            category: "authentication",
+            retryable: false,
+          },
+        },
+      ],
+      outcomes: [outcome("a", { status: "failed" })],
+      judgments: [],
+      ...providers,
+    });
+    expect(failure).toMatchObject({
+      phase: "trigger",
+      provider: "router",
+      category: "authentication",
+      affected: 1,
+      total: 2,
+    });
+    expect(failure?.message).not.toContain("secret-placeholder");
+    expect(infrastructureFailureReason(failure!)).toContain("provider_failure/trigger");
+  });
+
   it("returns null for a complete evaluation, including a genuine `unsure` verdict", () => {
     expect(
       detectInfrastructureFailure({

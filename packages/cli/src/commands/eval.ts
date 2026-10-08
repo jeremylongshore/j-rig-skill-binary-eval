@@ -1,3 +1,4 @@
+import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
 import { storeToolExecutionEvidence } from "../execution/evidence.js";
 import type { Command } from "commander";
@@ -51,6 +52,7 @@ import type {
   Criterion,
   Regression,
   BaselineComparison,
+  TriggerResult,
 } from "@j-rig/core";
 import {
   getOrCreateSkillVersion,
@@ -767,13 +769,10 @@ export function registerEvalCommand(program: Command): void {
 
           // ── Trigger tests ──────────────────────────────────────────────
           costMeter.phase = "trigger";
+          let triggerResults: TriggerResult[] = [];
           if (opts.trigger !== false) {
             const roster = buildRoster(skill.frontmatter, spec.siblings);
-            const triggerResults = await runTriggerTests(
-              spec.test_cases,
-              roster,
-              providers.trigger,
-            );
+            triggerResults = await runTriggerTests(spec.test_cases, roster, providers.trigger);
             const metrics = computeMetrics(triggerResults);
 
             if (!opts.json) {
@@ -782,6 +781,21 @@ export function registerEvalCommand(program: Command): void {
               );
             }
           }
+
+          const triggerEvidence = storeTriggerEvidence(
+            database,
+            opts.db,
+            runId,
+            opts.trigger !== false,
+            triggerResults,
+          );
+          const triggerFailure = detectInfrastructureFailure({
+            triggers: triggerResults,
+            outcomes: [],
+            judgments: [],
+            executionProvider: providers.providerName,
+            judgeProvider: providers.judgeProviderName,
+          });
 
           // Finalized after whichever phases run. This intentionally lives
           // outside the functional branch: trigger-only real-provider runs
@@ -1197,6 +1211,7 @@ export function registerEvalCommand(program: Command): void {
             // audit, "make it lie" #E), which fired only when EVERY judgment
             // died and ignored execution failures entirely.
             const infraFailure = detectInfrastructureFailure({
+              triggers: triggerResults,
               outcomes: [...outcomes, ...baselineOutcomes],
               judgments: [...allJudgments, ...baselineJudgments],
               executionProvider: providers.providerName,
@@ -1232,6 +1247,7 @@ export function registerEvalCommand(program: Command): void {
               judge_model: providers.judgeModelId,
               ground_truth: providers.real,
               pkgReport,
+              trigger: triggerEvidence,
               scoreCard,
               decision,
               report,
@@ -1303,7 +1319,7 @@ export function registerEvalCommand(program: Command): void {
               if (gateReasons.length === 0) {
                 gateReasons.push(report.reasoning || "all criteria met");
               }
-              const triggerRan = opts.trigger !== false;
+              const triggerRan = triggerEvidence.status === "complete";
               // Vote evidence (audit-substrate review, finding 1): the signed
               // predicate must carry the FOLD INPUTS — per-judgment samples,
               // agreement, and per-sample verdicts — plus the aggregation rule
@@ -1375,6 +1391,7 @@ export function registerEvalCommand(program: Command): void {
                 runner: `j-rig@${jrigVersion}`,
                 commitSha: commit.sha,
                 metadata: {
+                  trigger: triggerEvidence,
                   model,
                   provider: providers.providerName,
                   ground_truth: providers.real,
@@ -1441,7 +1458,13 @@ export function registerEvalCommand(program: Command): void {
               transitionRun(database, runId, "completed");
             }
           } else {
-            transitionRun(database, runId, "completed");
+            if (triggerFailure) {
+              infrastructureFailureSeen = true;
+              runHadFailure = true;
+              transitionRun(database, runId, "failed", JSON.stringify(triggerFailure));
+            } else {
+              transitionRun(database, runId, "completed");
+            }
           }
 
           // ── Eval cost (all executed phase combinations) ───────────────
@@ -1505,6 +1528,10 @@ export function registerEvalCommand(program: Command): void {
               ground_truth: providers.real,
               pkgReport,
               functional_skipped: true,
+              trigger: triggerEvidence,
+              ...(triggerFailure
+                ? { gate_decision: "error", evaluation_error: triggerFailure }
+                : {}),
               cost: costReport,
               ...batchLineage,
             };

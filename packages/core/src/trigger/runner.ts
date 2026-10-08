@@ -1,3 +1,5 @@
+import { providerFailureFromError } from "../providers/errors.js";
+import { redactProviderError } from "../judgment/redact.js";
 import type { TestCase } from "../schemas/test-case.js";
 import type { SkillRoster } from "./roster.js";
 import type { TriggerProvider, TriggerResult, TriggerOutcome } from "./types.js";
@@ -36,13 +38,15 @@ export async function runTriggerTests(
         reasoning,
       });
     } catch (err) {
+      const providerFailure = providerFailureFromError(err);
       results.push({
         test_case_id: tc.id,
         prompt: tc.prompt,
         expected: tc.trigger_expectation!,
         outcome: "error",
         selected_skill: null,
-        reasoning: err instanceof Error ? err.message : String(err),
+        reasoning: redactProviderError(err instanceof Error ? err.message : String(err)),
+        ...(providerFailure ? { provider_failure: providerFailure } : {}),
       });
     }
   }
