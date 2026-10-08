@@ -40,7 +40,9 @@ function replay(name) {
   for (const [p, content] of Object.entries(files)) {
     const dest = join(cwd, p);
     mkdirSync(dirname(dest), { recursive: true });
-    if (!existsSync(dest) || readFileSync(dest, "utf8") !== content) writeFileSync(dest, content);
+    // Unconditional write: identical bytes leave the sha256 (and so the
+    // manifest's `unchanged` verdict) intact, with no check-then-write race.
+    writeFileSync(dest, content);
   }
   const stream = readFileSync(join(here, `${name}.stream.jsonl`), "utf8");
   process.stdout.write(stream.split("__ROOT__").join(root));
