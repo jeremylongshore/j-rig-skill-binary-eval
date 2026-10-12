@@ -491,3 +491,6 @@ Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
 ## Author
 
 **Jeremy Longshore** — [jeremylongshore](https://github.com/jeremylongshore) · Intent Solutions
+
+Dashboard producers and their publication boundaries are documented in
+[Canonical Dashboard Evidence](000-docs/048-AT-SPEC-canonical-dashboard-evidence-2026-10-12.md).

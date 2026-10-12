@@ -47,6 +47,15 @@ jobs:
           set -euo pipefail
           (cd ci/emit-evidence && pnpm install --frozen-lockfile --ignore-workspace)
           node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
+          pnpm exec vitest run scripts/canonical-payload.test.ts
+
+      - name: Typecheck dashboard emitters and cross-kernel contracts
+        run: >
+          pnpm exec tsc --noEmit --target ES2022 --module NodeNext
+          --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions
+          scripts/emit-evidence.ts scripts/assemble-manifest.ts
+          ci/emit-evidence/emit-evidence.ts ci/emit-evidence/assemble-manifest.ts
+          scripts/canonical-payload.test.ts
 
   typecheck:
     name: Typecheck
@@ -89,6 +98,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install standalone nightly kernel for payload contracts
+        working-directory: ci/emit-evidence
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       # Enforcement wall: the vendored audit-harness wrapper verifies the
       # hash-pinned policy surface (the coverage floor in vitest.config.ts). A

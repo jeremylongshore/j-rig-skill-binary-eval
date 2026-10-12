@@ -17,3 +17,13 @@
 # refiner-core floor is likewise a HARNESS_TAMPERED event.
 vitest.config.ts
 packages/refiner-core/vitest.config.ts
+
+# Canonical dashboard payload implementations, kernel pin and byte fixture.
+scripts/emit-evidence.ts
+scripts/assemble-manifest.ts
+scripts/canonical-payload.test.ts
+scripts/canonical-payload.fixture.json
+ci/emit-evidence/emit-evidence.ts
+ci/emit-evidence/assemble-manifest.ts
+ci/emit-evidence/package.json
+ci/emit-evidence/pnpm-lock.yaml

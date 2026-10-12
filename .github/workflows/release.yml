@@ -145,6 +145,11 @@ jobs:
       - name: Build workspace packages (coverage runs the workspace tests)
         run: pnpm run build
 
+      - name: Canonical dashboard payload contracts (both kernel pins)
+        run: |
+          (cd ci/emit-evidence && pnpm install --frozen-lockfile --ignore-workspace)
+          pnpm exec vitest run scripts/canonical-payload.test.ts
+
       - name: Emit-evidence self-check (kernel-valid + canonical-stable)
         run: node --experimental-strip-types scripts/emit-evidence.ts --self-check
 
