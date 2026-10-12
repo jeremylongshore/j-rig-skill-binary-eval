@@ -25,6 +25,12 @@ afterEach(() => {
 async function fixtureServer(): Promise<{ server: Server; port: number; calls: () => number }> {
   let calls = 0;
   const server = createServer(async (request, response) => {
+    // Local port probes are not model completions and must not be parsed as JSON.
+    if (request.method !== "POST" || request.url !== "/chat/completions") {
+      response.writeHead(404);
+      response.end();
+      return;
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(chunks).toString());
@@ -46,6 +52,7 @@ async function fixtureServer(): Promise<{ server: Server; port: number; calls: (
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("missing fixture address");
+  expect((await fetch(`http://127.0.0.1:${address.port}/`)).status).toBe(404);
   return { server, port: address.port, calls: () => calls };
 }
 

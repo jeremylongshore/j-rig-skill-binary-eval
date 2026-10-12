@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Claude Code workspace cleanup
+
+### Fixed
+
+- Bound pipe draining after a stopped Claude Code process group is killed, so
+  an escaped descendant cannot indefinitely prevent per-case workspace cleanup.
+  Recorded artifacts and hashes remain available after the directory is removed.
+- Report explicitly retained workspaces even on failure and mark them with
+  `.j-rig-keep` for stale-workspace reapers. Regression coverage checks success,
+  failure, timeout, crash, spawn/setup errors, and the explicit retention flag.
+  Refs bead `bd_000-projects-dn6j.21`.
+- Reject unrelated requests in local HTTP model fixtures before parsing JSON;
+  verify bodyless GET probes without changing completion assertions.
+  Refs bead `bd_000-projects-dn6j.21.2`.
+
 ## Unreleased — eval budgets and MiniMax / Claude rates
 
 - `j-rig eval` budgets: `max_usd`, `max_tokens`, `max_wall_ms`, `max_calls`, per spec (`budget:`)

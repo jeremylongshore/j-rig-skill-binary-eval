@@ -1,15 +1,17 @@
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { CriterionSchema, ProviderError, judgeCriteria, type ExecutionContext } from "@j-rig/core";
 import {
   ClaudeCodeExecutionProvider,
@@ -41,6 +43,8 @@ let credentialsPath: string;
 beforeAll(() => {
   chmodSync(FAKE, 0o755);
   scratch = mkdtempSync(join(tmpdir(), "j-rig-cc-test-"));
+  // Observe only this test worker's workspaces, never another active eval's.
+  vi.stubEnv("TMPDIR", scratch);
   skillDir = join(scratch, "skill");
   mkdirSync(join(skillDir, "scripts"), { recursive: true });
   mkdirSync(join(skillDir, "node_modules"), { recursive: true });
@@ -68,7 +72,10 @@ beforeAll(() => {
   );
 });
 
-afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+afterAll(() => {
+  vi.unstubAllEnvs();
+  rmSync(scratch, { recursive: true, force: true });
+});
 
 function provider(over: Partial<ClaudeCodeProviderOptions> = {}): ClaudeCodeExecutionProvider {
   return new ClaudeCodeExecutionProvider({
@@ -92,6 +99,55 @@ function jRigTempDirs(): string[] {
   return readdirSync(tmpdir()).filter(
     (d) => d.startsWith("j-rig-cc-") && !d.startsWith("j-rig-cc-test-"),
   );
+}
+
+for (const keepWorkspaces of [false, true]) {
+  describe(`workspace lifecycle (keepWorkspaces=${keepWorkspaces})`, () => {
+    it.each(["success", "failure", "timeout", "crash", "spawn-error", "setup-error"])(
+      "%s retains artifacts and follows the requested cleanup policy",
+      async (kind) => {
+        const prompts: Record<string, string> = {
+          success: "FIXTURE write-receipt",
+          failure: "FAIL",
+          timeout: "HANG",
+          crash: "CRASH",
+        };
+        const run = provider({
+          keepWorkspaces,
+          ...(kind === "timeout" ? { timeoutMs: 500 } : {}),
+          ...(kind === "spawn-error" ? { claudeBin: join(scratch, "missing-claude") } : {}),
+          ...(kind === "setup-error"
+            ? { credentialsPath: join(scratch, "missing-credentials") }
+            : {}),
+        }).execute(prompts[kind] ?? "FIXTURE write-receipt", ctx());
+        try {
+          if (kind === "crash" || kind === "spawn-error") {
+            await expect(run).rejects.toBeInstanceOf(ProviderError);
+          } else if (kind === "setup-error") {
+            await expect(run).rejects.toBeInstanceOf(ClaudeCodeRefusedError);
+          } else {
+            const out = await run;
+            expect(out.trajectory?.stop).toBe(
+              kind === "failure" ? "error" : kind === "timeout" ? "timeout" : "completed",
+            );
+            if (kind === "success") {
+              expect(out.artifacts.find((a) => a.filename === "report.md")?.content).toBe(
+                "hello j-rig",
+              );
+              expect(out.trajectory?.files.find((f) => f.path === "report.md")?.sha256).toBe(SHA);
+            }
+          }
+          expect(jRigTempDirs()).toHaveLength(keepWorkspaces ? 1 : 0);
+          if (keepWorkspaces) {
+            expect(existsSync(join(scratch, jRigTempDirs()[0]!, ".j-rig-keep"))).toBe(true);
+          }
+        } finally {
+          for (const dir of jRigTempDirs())
+            rmSync(join(scratch, dir), { recursive: true, force: true });
+        }
+      },
+    );
+  });
 }
 
 describe("ClaudeCodeExecutionProvider — replayed write-receipt run", () => {
@@ -248,6 +304,41 @@ describe("ClaudeCodeExecutionProvider — sandbox", () => {
 });
 
 describe("ClaudeCodeExecutionProvider — billing rule and budgets", () => {
+  it("bounds cleanup when an escaped descendant holds the stopped child's pipes", async () => {
+    const pidPath = join(scratch, "escaped.pid");
+    const execution = provider({ maxTurns: 1, timeoutMs: 60_000 }).execute(
+      `ESCAPEDPIPE ${pidPath}`,
+      ctx(),
+    );
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await vi.waitFor(() => expect(existsSync(pidPath)).toBe(true), { timeout: 5_000 });
+      const out = await Promise.race([
+        execution,
+        new Promise<null>((resolve) => {
+          deadline = setTimeout(() => resolve(null), 5_000);
+        }),
+      ]);
+      expect(
+        out,
+        "stopped execution must settle even while an escaped process holds pipes",
+      ).not.toBeNull();
+      expect(out?.trajectory?.stop).toBe("max_turns");
+      expect(jRigTempDirs()).toEqual([]);
+      expect(out?.artifacts.find((a) => a.filename === "report.md")?.content).toBe("hello j-rig");
+    } finally {
+      if (deadline) clearTimeout(deadline);
+      if (existsSync(pidPath)) {
+        try {
+          process.kill(Number(readFileSync(pidPath, "utf8")), "SIGKILL");
+        } catch {
+          /* already exited */
+        }
+      }
+      await execution.catch(() => undefined);
+    }
+  }, 20_000);
+
   it("refuses to construct under CI", () => {
     expect(() => provider({ env: { CI: "true" } })).toThrow(/local-subscription only/);
     expect(() => provider({ env: { GITHUB_ACTIONS: "true" } })).toThrow(ClaudeCodeRefusedError);
@@ -385,6 +476,15 @@ describe("j-rig eval --execution-provider flag resolution", () => {
     expect(() => resolveClaudeCodeSettings({ claudeCodeMaxTurns: "3" })).toThrow(
       /require --execution-provider claude-code/,
     );
+    expect(() => resolveClaudeCodeSettings({ keepWorkspaces: true })).toThrow(
+      /require --execution-provider claude-code/,
+    );
+    expect(resolveClaudeCodeSettings({ executionProvider: "claude-code" })).toEqual({});
+    expect(
+      resolveClaudeCodeSettings({ executionProvider: "claude-code", keepWorkspaces: true }),
+    ).toEqual({
+      keepWorkspaces: true,
+    });
   });
 
   it("parses budgets and refuses incompatible combinations", () => {

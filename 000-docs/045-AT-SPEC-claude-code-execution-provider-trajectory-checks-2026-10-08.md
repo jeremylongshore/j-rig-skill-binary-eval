@@ -38,6 +38,16 @@ The per-case temp directory holds:
 | `home/.claude/.credentials.json` | The subscription access token only. The refresh token and every MCP OAuth token are dropped. |
 
 The directory is deleted after the case unless `--keep-workspaces` is passed.
+Cleanup runs after captured artifacts and hashes are assembled, including failed
+results, timeouts, subprocess crashes, spawn errors, and setup failures. Explicit
+retention writes `.j-rig-keep` at the workspace root and reports its path even on
+failure; stale-workspace reapers must honor that marker.
+
+After a budget stop, J-Rig gives the process group 2 seconds to terminate before
+SIGKILL, then bounds pipe draining to 250 ms. An escaped descendant retaining a
+pipe cannot keep the provider promise pending and prevent workspace cleanup.
+This does not kill processes that escaped the group. A killed harness process
+cannot run its cleanup block; aged orphan directories need the host reaper.
 
 **Isolation, stated honestly.** This is workspace isolation, not an OS sandbox.
 The agent runs as the invoking user, keeps that user's network access and

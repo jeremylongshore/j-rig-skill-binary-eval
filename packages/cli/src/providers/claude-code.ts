@@ -103,6 +103,7 @@ const ENV_ALLOWLIST = [
 const SKIP_DIRS = new Set(["node_modules", "__pycache__"]);
 
 const KILL_GRACE_MS = 2_000;
+const PIPE_DRAIN_GRACE_MS = 250;
 
 export interface ClaudeCodeProviderOptions {
   /** Absolute path of the skill directory under test (holds SKILL.md). */
@@ -462,6 +463,8 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
     const home = join(root, "home");
     const started = new Date();
     try {
+      // The stale-workspace reaper also honors explicit debugging retention.
+      if (o.keepWorkspaces) writeFileSync(join(root, ".j-rig-keep"), "");
       mkdirSync(ws, { recursive: true });
       if (o.fixturesDir) copyTree(o.fixturesDir, ws, new Set([".claude"]));
       const files = context.context_hints?.["workspace_files"];
@@ -549,7 +552,6 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
                 ? `claude-code run ended in error (${r?.subtype ?? "unknown"})`
                 : undefined;
 
-      if (o.keepWorkspaces) process.stderr.write(`  [claude-code] kept workspace ${root}\n`);
       return {
         text: r?.text ?? parsed.lastText,
         artifacts: producedArtifacts(manifest, after),
@@ -572,7 +574,8 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         },
       };
     } finally {
-      if (!o.keepWorkspaces) rmSync(root, { recursive: true, force: true });
+      if (o.keepWorkspaces) process.stderr.write(`  [claude-code] kept workspace ${root}\n`);
+      else rmSync(root, { recursive: true, force: true });
     }
   }
 
@@ -601,11 +604,22 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         return;
       }
       let killTimer: NodeJS.Timeout | undefined;
+      let drainTimer: NodeJS.Timeout | undefined;
+      let settled = false;
       const terminate = (why: TrajectoryStop): void => {
-        if (stop !== null) return;
+        if (stop !== null || settled) return;
         stop = why;
         killGroup(child, "SIGTERM");
-        killTimer = setTimeout(() => killGroup(child, "SIGKILL"), KILL_GRACE_MS);
+        killTimer = setTimeout(() => {
+          killGroup(child, "SIGKILL");
+          // An escaped descendant can retain these pipes after the process
+          // group dies. Bound the drain so execute() reaches its finally block.
+          drainTimer = setTimeout(() => {
+            child.stdout!.destroy();
+            child.stderr!.destroy();
+            finish(child.exitCode);
+          }, PIPE_DRAIN_GRACE_MS);
+        }, KILL_GRACE_MS);
       };
       const wall = setTimeout(() => terminate("timeout"), timeoutMs);
       child.stdout!.setEncoding("utf8");
@@ -625,10 +639,15 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         stderr = (stderr + chunk).slice(-4000);
       });
       child.on("error", (err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(wall);
         if (killTimer) clearTimeout(killTimer);
+        if (drainTimer) clearTimeout(drainTimer);
         // Usually a failed spawn (no pid, so a no-op); otherwise never leave a live group behind.
         killGroup(child, "SIGKILL");
+        child.stdout!.destroy();
+        child.stderr!.destroy();
         reject(
           new ProviderError({
             category: "unknown",
@@ -638,9 +657,12 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
           }),
         );
       });
-      child.on("close", (code) => {
+      const finish = (code: number | null): void => {
+        if (settled) return;
+        settled = true;
         clearTimeout(wall);
         if (killTimer) clearTimeout(killTimer);
+        if (drainTimer) clearTimeout(drainTimer);
         const parsed = parser.finish();
         let final: TrajectoryStop;
         if (stop !== null) final = stop;
@@ -656,7 +678,8 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
           stderrTail: stderr,
           ...(refusal ? { refusal } : {}),
         });
-      });
+      };
+      child.on("close", finish);
     });
   }
 }

@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setInterval } from "node:timers";
+import { spawn } from "node:child_process";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -49,7 +50,18 @@ function replay(name) {
 }
 
 const [mode, name] = prompt.split(" ");
-if (mode === "FIXTURE") {
+if (mode === "ESCAPEDPIPE") {
+  // An escaped descendant holds the pipes after its parent/process group dies.
+  // The test owns the PID file and kills this fixture in its finally block.
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    detached: true,
+    stdio: ["ignore", process.stdout, process.stderr],
+  });
+  writeFileSync(name, String(child.pid));
+  child.unref();
+  replay("write-receipt");
+  setInterval(() => {}, 1000);
+} else if (mode === "FIXTURE") {
   replay(name);
 } else if (mode === "HANG" || mode === "APIKEY") {
   process.stdout.write(init(mode === "APIKEY" ? "ANTHROPIC_API_KEY" : "none"));
@@ -57,6 +69,17 @@ if (mode === "FIXTURE") {
 } else if (mode === "CRASH") {
   process.stderr.write("Invalid API key · Please run /login (authentication failed)\n");
   process.exit(1);
+} else if (mode === "FAIL") {
+  process.stdout.write(init("none"));
+  writeFileSync("failure.txt", "failed fixture");
+  process.stdout.write(
+    JSON.stringify({
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      result: "fixture failed",
+    }) + "\n",
+  );
 } else if (mode === "ENV") {
   const configDir = process.env.CLAUDE_CONFIG_DIR ?? "";
   const creds = JSON.parse(readFileSync(join(configDir, ".credentials.json"), "utf8"));
