@@ -128,6 +128,9 @@ jobs:
         working-directory: ci/emit-evidence
         run: pnpm install --frozen-lockfile --ignore-workspace
 
+      - name: Canonical dashboard payload contracts (both kernel pins)
+        run: pnpm exec vitest run scripts/canonical-payload.test.ts
+
       - name: Emit-evidence self-check (kernel-valid + canonical-stable)
         run: node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
 

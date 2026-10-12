@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased — Claude Code workspace cleanup
+## Unreleased
 
 ### Fixed
+
+- Both dashboard emitters (`iaj` release coverage and `jrig` nightly roster)
+  bind signed metadata to kernel-valid canonical statement arrays. Assemblers
+  reject payload, signed metadata and compatibility-body drift; both kernel
+  pins are exercised by interoperability and mutation contracts before signing.
+  Publication identities, decisions and existing triggers are unchanged.
+  Refs bead `bd_000-projects-0s2a`.
 
 - Bound pipe draining after a stopped Claude Code process group is killed, so
   an escaped descendant cannot indefinitely prevent per-case workspace cleanup.
