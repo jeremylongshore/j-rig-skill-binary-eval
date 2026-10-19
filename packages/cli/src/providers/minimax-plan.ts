@@ -7,6 +7,19 @@ const COMPLETION_URL = "https://api.minimax.io/v1/chat/completions";
 const RECOVERY_MS = 70_000;
 const CACHE_MS = 30_000;
 
+/** Explicit rejected overload only; never infer retry safety from a generic 5xx. */
+function isRejectedOverload(response: TransportResponse): boolean {
+  if (response.status !== 503 && response.status !== 529) return false;
+  const body = record(response.json);
+  if ("choices" in body || "usage" in body) return false;
+  const error = record(body.error);
+  return (
+    error.code === 2064 ||
+    error.code === "2064" ||
+    (typeof error.message === "string" && error.message.trimEnd().endsWith("(2064)"))
+  );
+}
+
 export interface PlanQuota {
   intervalRemainingPercent: number;
   weeklyRemainingPercent: number;
@@ -173,20 +186,25 @@ export function createMiniMaxPlanTransport(
     nextStart = now() + 1_000;
     const response = await transport(req);
     if (response.status === 402) circuit = response;
-    if (response.status !== 429) return response;
-    // Only an explicit rate-limit response is retried, never an ambiguous
-    // timeout or a completed output. Preserve the actual 429 after exhaustion.
+    const overload = isRejectedOverload(response);
+    if (response.status !== 429 && !overload) return response;
+    // Rate limits and explicit no-output overloads share ONE recovery allowance.
+    // Never replay an ambiguous timeout, generic 5xx, or completed output.
     circuit = response;
     if (recoveryUsed) return response;
     const afterLimit = await readQuota(req, true);
     const resetAfterLimit = blockedUntil(afterLimit);
     const retryAfter = response.retryAfterSeconds;
     const waitMs = Math.max(
+      overload ? 30_000 : 0,
       resetAfterLimit === undefined
-        ? RECOVERY_MS
+        ? overload
+          ? 30_000
+          : RECOVERY_MS
         : Math.max(1_000, resetAfterLimit - now() + 1_000),
       retryAfter === undefined ? 0 : retryAfter * 1_000,
     );
+    if (overload && waitMs > RECOVERY_MS) return response;
     await recover(req, waitMs);
     // The positive quota check permits one retry; only a successful HTTP
     // response proves recovery. Keep the original limit if the retry throws.
