@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- Evidence files are inspected and read through the same open descriptor;
+  file-read and directory-listing failures return structured input errors.
+  Directory rows remain independent reads, not an atomic snapshot.
+- Refiner skill IDs use linear-time POSIX basename handling for trailing
+  slashes. Vendor routing tests compare exact HTTPS origins.
+  Refs bead `bd_000-projects-oq87`.
+
 - Both dashboard emitters (`iaj` release coverage and `jrig` nightly roster)
   bind signed metadata to kernel-valid canonical statement arrays. Assemblers
   reject payload, signed metadata and compatibility-body drift; both kernel

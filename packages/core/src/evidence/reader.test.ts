@@ -1,8 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  renameSync,
+  statSync,
+  fstatSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readBundle, composeStatement, writeBundle } from "./index.js";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    statSync: vi.fn(actual.statSync),
+    fstatSync: vi.fn(actual.fstatSync),
+    readFileSync: vi.fn(actual.readFileSync),
+    readdirSync: vi.fn(actual.readdirSync),
+  };
+});
 
 const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
 
@@ -25,11 +45,66 @@ const goodRow = composeStatement(baseInput);
 
 describe("readBundle", () => {
   let tmpDir: string;
-  beforeEach(() => {
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    vi.mocked(statSync).mockImplementation(actual.statSync);
+    vi.mocked(fstatSync).mockImplementation(actual.fstatSync);
+    vi.mocked(readFileSync).mockImplementation(actual.readFileSync);
+    vi.mocked(readdirSync).mockImplementation(actual.readdirSync);
     tmpDir = mkdtempSync(join(tmpdir(), "j-rig-evidence-read-"));
   });
   afterEach(() => {
+    vi.mocked(statSync).mockRestore();
+    vi.mocked(fstatSync).mockRestore();
+    vi.mocked(readFileSync).mockRestore();
+    vi.mocked(readdirSync).mockRestore();
     rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reports a file read failure as an input error instead of throwing", () => {
+    const path = join(tmpDir, "unreadable.json");
+    writeFileSync(path, JSON.stringify(goodRow));
+    vi.mocked(readFileSync).mockImplementationOnce(() => {
+      throw new Error("read refused");
+    });
+    expect(readBundle(path)).toEqual({
+      rows: [],
+      errors: [{ rowIndex: -1, source: path, message: "file system error: read refused" }],
+    });
+  });
+
+  it("reports a directory listing failure as an input error", () => {
+    vi.mocked(readdirSync).mockImplementationOnce(() => {
+      throw new Error("listing refused");
+    });
+    expect(readBundle(tmpDir)).toEqual({
+      rows: [],
+      errors: [{ rowIndex: -1, source: tmpDir, message: "file system error: listing refused" }],
+    });
+  });
+
+  it("reads the inspected file even if its path is replaced before reading", () => {
+    const path = join(tmpDir, "row.json");
+    writeFileSync(path, JSON.stringify(goodRow));
+    const swap = () => {
+      renameSync(path, join(tmpDir, "original.json"));
+      writeFileSync(path, "{ replacement is not valid JSON }");
+    };
+    const realStat = vi.mocked(statSync).getMockImplementation()!;
+    const realFstat = vi.mocked(fstatSync).getMockImplementation()!;
+    vi.mocked(statSync).mockImplementationOnce((...args) => {
+      const st = realStat(...args);
+      swap();
+      return st;
+    });
+    vi.mocked(fstatSync).mockImplementationOnce((...args) => {
+      const st = realFstat(...args);
+      swap();
+      return st;
+    });
+    const result = readBundle(path);
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toEqual([goodRow]);
   });
 
   it("reads a single-Statement .json file", () => {

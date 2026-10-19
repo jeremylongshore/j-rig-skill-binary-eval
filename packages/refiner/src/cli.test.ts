@@ -175,18 +175,21 @@ describe("`j-rig refine bootstrap` — offline, deterministic", () => {
     }
   });
 
-  it("emits JSON with --json", async () => {
-    const { program, skillDir, cleanup } = setup();
-    try {
-      await run(program, ["refine", "bootstrap", skillDir, "--json"]);
-      const printed = String(log.mock.calls.at(-1)?.[0]);
-      const parsed = JSON.parse(printed);
-      expect(parsed.source).toBe("synthetic");
-      expect(parsed.skillId).toBe("demo-skill");
-    } finally {
-      cleanup();
-    }
-  });
+  it.each(["", "/", "///", "/".repeat(100_000)])(
+    "emits JSON with --json and trailing separator variant %#",
+    async (suffix) => {
+      const { program, skillDir, cleanup } = setup();
+      try {
+        await run(program, ["refine", "bootstrap", skillDir + suffix, "--json"]);
+        const printed = String(log.mock.calls.at(-1)?.[0]);
+        const parsed = JSON.parse(printed);
+        expect(parsed.source).toBe("synthetic");
+        expect(parsed.skillId).toBe("demo-skill");
+      } finally {
+        cleanup();
+      }
+    },
+  );
 });
 
 describe("`j-rig refine apply` — offline, append-only", () => {
