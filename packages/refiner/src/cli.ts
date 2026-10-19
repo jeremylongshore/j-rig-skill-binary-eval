@@ -23,7 +23,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, posix } from "node:path";
 import type { Command } from "commander";
 import {
   makeSkillDoc,
@@ -54,7 +54,7 @@ function loadSkillDoc(skillDir: string): SkillDoc {
   const path = join(skillDir, "SKILL.md");
   const text = readFileSync(path, "utf8");
   // skillId = directory basename (the conventional skill slug).
-  const skillId = skillDir.replace(/\/+$/, "").split("/").pop() || skillDir;
+  const skillId = posix.basename(skillDir) || skillDir;
   return makeSkillDoc(skillId, text);
 }
 

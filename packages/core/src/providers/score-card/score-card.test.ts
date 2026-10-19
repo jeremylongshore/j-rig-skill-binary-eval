@@ -131,7 +131,7 @@ describe("computeProviderScoreCard — runtime error categories (R5.4)", () => {
           {
             model: "anthropic",
             pass: true,
-            notes: notesAllExpected.replace("anthropic", "anthropic"),
+            notes: notesAllExpected,
           },
           { model: "openai", pass: true, notes: notesAllExpected.replace("anthropic", "openai") },
           { model: "google", pass: true, notes: notesAllExpected.replace("anthropic", "google") },
