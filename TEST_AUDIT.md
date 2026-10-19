@@ -1,112 +1,201 @@
-# TEST_AUDIT.md — j-rig-binary-eval
+# J-Rig test audit — 2026-10-19
 
-> Diagnostic produced by `/audit-tests` (7-layer + gate sweep). Date: 2026-07-13.
-> Scope: the whole pnpm workspace — the `jrig` CLI + `refiner` CLI and the seven
-> library/decision-logic packages they compose. Every claim below is grounded in a
-> real run of the repo's own commands (`pnpm run test:coverage`,
-> `test:coverage:refiner-core`, `scripts/audit-harness {verify,escape-scan,arch,bias,crap}`),
-> not inferred from config.
+Audited source: `e3119f41ffce449844c6320b3d97eef777a9ba20`. Scope: all nine workspace
+packages plus root tests, scripts, hooks and tracked CI. Bead
+`bd_000-projects-0s9t`; implementation handoff: `bd_000-projects-ehyd`.
+This replaces the July diagnostic; Git history retains that earlier observation.
 
-## Grade: B+ (88/100)
+## Result and grade
 
-Genuinely strong, heavily-gated posture: **84 test files / 1407 tests all green**,
-aggregate coverage comfortably above a ratchet-from-here floor, a **second dedicated
-per-package coverage gate** for the critical `refiner-core` decision logic, and a full
-hard-gate chain (lint, format, strict types, coverage floors, hash-pinned harness,
-escape-scan, CodeQL, markdown/yaml/actions/typos) enforced in CI **and** mirrored in a
-local husky pre-commit. Held below A− by one pointed gap and one degraded gate: **no
-mutation testing** anywhere (the single highest-value missing layer for a product whose
-entire thesis is *evaluation rigor* — high line coverage without mutation is exactly the
-"coverage theater" j-rig exists to catch), and the **CRAP gate passes vacuously** because
-`complexity-report` isn't installed, so it measures no JS complexity. Secondary: the
-`dashboard` package ships **0 tests** (unwaived), and there are no RTM/PERSONAS/JOURNEYS
-traceability docs nor a deterministic layering (dep-cruiser) gate.
+**Existing build, lint, types and coverage gates pass; the audit has unresolved
+P1 gaps.** The suite collected 123 files and 1925 cases: **1924 passed and one
+conditionally inapplicable case skipped**. The skipped MCP observation-overhead
+case is duplicated over observations off/on and runs when observations are on
+([mcp-runtime.test.ts](packages/cli/src/execution/mcp-runtime.test.ts), line 111).
 
-## Classification
+**Letter/numeric grade: not assigned.** No authoritative numeric grading formula
+exists, and mutation, complexity and architecture are unmeasured. A fabricated
+aggregate score would obscure those gaps. No P0 defect is established by the
+measured suite; gap priorities below are provisional because the installed
+classifier cannot produce its deterministic gate profile. This is not a safety
+certification or proof of complete requirement coverage.
 
-**Monorepo — dual-CLI + library set.** pnpm workspace (`packages/*`), 9 packages:
+## Freshness and classification
 
-| Package | Name | Role | Test files |
-|---|---|---|---|
-| cli | `@intentsolutions/jrig-cli` | CLI (operator surface) | 17 |
-| core | `@j-rig/core` | library — schemas, providers, scoring, triggers | 34 |
-| refiner-core | `@intentsolutions/refiner-core` | decision-logic library (own coverage gate) | 14 |
-| refiner | `@intentsolutions/refiner` | CLI — skill-refiner orchestration | 6 |
-| migrate | `@j-rig/migrate` | codemod library | 4 |
-| db | `@j-rig/db` | SQLite persistence library | 2 |
-| pr-comment | `@intentsolutions/pr-comment` | PR-render library | 2 |
-| rollout-gate | `@intentsolutions/rollout-gate` | decision-logic library | 2 |
-| dashboard | `@j-rig/dashboard` | presentation | **0** |
+The repository vendors audit-harness **1.4.0**; npm's latest version was **1.5.1**
+on 2026-10-19. Baseline hash verification succeeds (24 pinned files). However:
 
-Plus root `tests/` (integration + smoke) and `scripts/` (2 tool tests). Toolchain: **Node
-≥20 / pnpm 10.8.1 / vitest 3 + @vitest/coverage-v8** (this is a Node/pnpm repo — not Bun).
+- `scripts/audit-harness classify` exits 2: the shell wrapper has no such verb.
+- `node .audit-harness/bin/audit-harness.js classify` exits 2 because
+  `schemas/audit-profile/registry.v1.json` is absent from the installation.
+- The Node `conform`, `audit --deep`, and `scan` commands fail at that same
+  missing registry; `currency` exits 2 because its pins file is absent.
 
-## 7-layer presence / config / enforcement
+Thus no `audit-profile/v1` or successful gate-result bundle is claimed.
+Manual source inspection identifies a **monorepo of CLI and library packages**;
+the dashboard has only a placeholder manifest, not an implemented UI requiring
+browser acceptance tests. No regulated overlay or engineer-declared waivers were
+found. Per-package observations below are not replacement policy.
 
-| Layer | State | Evidence |
-|---|---|---|
-| L1 — git hooks & CI | ✅ HARD | `.husky/pre-commit` (escape-scan `--staged` + `lint-staged`; installed via `prepare: husky`) + a maintained husky-equivalent `lefthook.yml` (pre-push = `pnpm run check`). CI: `ci.yml` (lint / typecheck / test / otel-smoke) + `codeql.yml`, `doc-quality.yml` (markdownlint + lychee + advisory Vale), `lint.yml` (yamllint `--strict` + actionlint), `typos.yml` |
-| L2 — static / lint / types | ✅ HARD | ESLint 10 + typescript-eslint (`pnpm run lint`), Prettier `format:check`, **strict `tsc --noEmit`** over both `tests/tsconfig.json` and every package (`pnpm -r run typecheck`), yamllint/actionlint, markdownlint, typos, **CodeQL `security-extended`** (js-ts + python) |
-| L3 — unit & function | ✅ HARD | **84 `*.test.ts` / 1407 tests, 100% pass**; aggregate coverage floor (`vitest.config.ts` thresholds, hash-pinned) **plus** a dedicated scoped floor for `refiner-core` (`test:coverage:refiner-core`, its own hash-pinned config) |
-| L4 — integration | ✅ | root `tests/` = declared cross-package integration; `core` exercises the real providers + scoring path; `db` covers lifecycle/evidence/schema against real SQLite; `migrate` runs real codemod transforms |
-| L5 — system quality | ◑ partial | `scripts/otel-smoke.sh` is a real end-to-end emission smoke — runs a full stub-provider eval with `J_RIG_OTEL=1` and asserts every 067-taxonomy event name fires with `eval.run_id` (gated as its own CI job). `tests/smoke.test.ts` itself is trivial (`1+1`). No live-provider system leg in CI (by design) |
-| L6 — E2E | ◑ partial | CLI end-to-end exercised via the 17 `cli` tests + the full-eval `otel-smoke` job; **no dedicated E2E/gherkin pack** (0 `.feature` files) |
-| L7 — acceptance / business | ◑ partial | `evidence/dogfood` + `evidence/dogfood-full` self-eval bundles (j-rig evaluating its own skill — `run.json` + `evidence-bundle.json`); **no RTM/PERSONAS/JOURNEYS traceability docs** tying requirements → tests |
+The supported v1.5.1 installer at commit
+`0a6d6e0e76b7f76bcc5bcfd2b7c7cf8ab75e405f` copies the missing schemas and adds
+shell `classify`/`conform` dispatch. That is an implementation route, not an
+upgrade performed by this audit. Its legacy CRAP scorer still needs additional
+TypeScript/monorepo work; upgrading alone will not prove complexity coverage.
 
-## Deterministic gates (measured 2026-07-13)
+## Measurements and reproducibility
 
-| Gate | Result |
-|---|---|
-| test suite | **PASS** — 84 files / 1407 tests, 0 failures |
-| coverage (aggregate) | **PASS** — lines/stmts 79.36% (floor 73), branches 86.02% (floor 84), funcs 88.75% (floor 80) |
-| coverage (`refiner-core` scoped) | **PASS** — 327 tests; lines/stmts 97.23%, branches 91.07%, funcs 100% (floor 80 all dims) |
-| ESLint + Prettier | enforced in CI `lint` job (`pnpm run lint` + `format:check`) |
-| strict typecheck | enforced (`tsc --noEmit` on tests + `-r` packages) |
-| audit-harness `verify` (hash-pin) | **OK** — v1.1.5; pins `vitest.config.ts` + `packages/refiner-core/vitest.config.ts` so a silent floor downgrade trips HARNESS_TAMPERED |
-| escape-scan (`--staged`) | **PASS** — REFUSE=0 CHALLENGE=0 FLAG=0 |
-| audit-harness `bias` | **PASS** — 0 bias patterns |
-| audit-harness `arch` | ⚠️ **not-configured** — no dep-cruiser config; 0 violations because nothing is checked |
-| audit-harness `crap` | ⚠️ **degraded** — reports `{"pass": true}` but `complexity-report` is not installed, so the JS complexity/CRAP metric is a no-op (vacuous pass) |
-| mutation testing | ❌ **ABSENT** — no Stryker config or dependency anywhere |
-| markdownlint / yamllint / actionlint / typos / lychee | enforced across `doc-quality.yml` + `lint.yml` + `typos.yml` |
-| CodeQL `security-extended` | enforced (`codeql.yml`) |
-| Codecov | wired — per-package components, project `auto` + 2% slack, patch 50% |
+Environment: Node 22.23.1, pnpm 10.8.1, Vitest 3.2.4, TypeScript 6.0.3, Linux.
+Dependencies installed from the frozen lockfile; no hosted provider run was
+started. Existing tests use injected transports, fixtures, SQLite and local
+processes/HTTP. The audited runtime source and all 24 original policy-file hashes are unchanged.
 
-## Gaps
+| Command | Exit/result | Scope and interpretation |
+| --- | --- | --- |
+| `pnpm run build` | 0 | All implemented workspace builds. |
+| `pnpm run lint` | 0 | Repository ESLint. |
+| `pnpm run typecheck` | 0 | Root tests and package TypeScript. |
+| `pnpm run test:coverage` | 0; 123 files, 1924 passed, one skip | Aggregate current-config coverage, 139.99 seconds. |
+| `pnpm run test:coverage:refiner-core --coverage.reportsDirectory=/tmp/0s9t-refiner-coverage` | 0; 14 files, 332 passed | Separate configured package gate. |
+| `scripts/audit-harness verify --json` | 0; 24 baseline pins | Integrity of existing protected files, not proof every desired gate is installed. |
+| `scripts/audit-harness arch` | 2; not-configured | No architecture rules measured; zero violations is not a pass. |
+| `scripts/audit-harness crap --target both --out /tmp/0s9t-crap` | 0, but zero production and test methods scored | Missing complexity-report; root-only source traversal. Reported pass is vacuous. |
+| `scripts/audit-harness bias` | 0; root tests only | Ten regex-counted functions, 24 assertions, zero matches; not the workspace suite. |
+| `scripts/audit-harness bias packages` | 0; 213 heuristic matches | Recurses into non-test and generated files; not 213 proven weak tests. |
+| `scripts/audit-harness gherkin-lint` | 2; features directory absent | No BDD pack. Existing CLI E2E remains real evidence. |
+| Mutation runner | Not run: absent | No configuration/dependency or kill-rate evidence. |
 
-**P0:** none. The hard-gate chain is real and enforced in CI + locally; the suite is
-large, green, and above floor on every dimension.
+Aggregate V8 totals: **15,807/19,310 lines and statements (81.85%),
+4,400/5,050 branches (87.12%), 799/883 functions (90.48%)**. Existing floors
+remain 73% lines/statements, 84% branches and 80% functions. The separate
+Refiner Core run reports **1,274/1,310 lines/statements (97.25%), 443/486 branches
+(91.15%), 87/87 functions (100%)**, above its existing 80% floors in all dimensions.
 
-**P1:**
+Coverage is limited by the existing configs: root coverage includes package
+TypeScript but excludes tests, index files, dist and fixtures. Root scripts are
+not in that production coverage denominator. Package counters below aggregate
+the root JSON file counters, rounded to two decimals; the separate Refiner Core
+config has a different instrumented scope. Global coverage can hide weak package
+coverage: the CLI has 68.24% line coverage without violating the global policy.
+No per-package floor is invented for it.
 
-- **No mutation testing.** For an evaluation-rigor product — especially the pure
-  decision-logic packages (`rollout-gate`, `refiner-core`, `core` scoring) — mutation
-  testing is the layer that proves the 1407 assertions actually *catch* defects rather
-  than just execute lines. High v8 coverage (79–97%) with zero mutation is the exact blind
-  spot j-rig itself is built to expose. Highest-value add: a Stryker config scoped first to
-  the decision-logic packages, wired as a CI job with a survivor threshold.
-- **CRAP gate passes vacuously.** `scripts/audit-harness crap` emits
-  `complexity-report not installed` and then `{"pass": true}` — the gate is green but
-  measures no JavaScript complexity. Either install `complexity-report` (so CRAP actually
-  scores) or explicitly waive/remove the gate so a green result isn't misread as signal.
+| Package | Manual role | Test files | Lines | Branches | Functions |
+| --- | --- | --- | --- | --- | --- |
+| cli | CLI | 40 | 5970/8748 (68.24%) | 1838/2090 (87.94%) | 314/376 (83.51%) |
+| core | library | 45 | 6062/6572 (92.24%) | 1407/1660 (84.76%) | 247/262 (94.27%) |
+| dashboard | manifest-only placeholder | 0 | — | — | — |
+| db | SQLite library | 5 | 822/840 (97.86%) | 151/175 (86.29%) | 42/44 (95.45%) |
+| migrate | codemod library | 4 | 259/261 (99.23%) | 91/96 (94.79%) | 15/15 (100.00%) |
+| pr-comment | pure rendering library | 2 | 148/155 (95.48%) | 70/73 (95.89%) | 15/15 (100.00%) |
+| refiner | CLI/orchestration library | 6 | 1088/1240 (87.74%) | 337/405 (83.21%) | 73/78 (93.59%) |
+| refiner-core | pure decision library | 14 | 1276/1312 (97.26%) | 444/487 (91.17%) | 88/88 (100.00%) |
+| rollout-gate | decision library | 2 | 182/182 (100.00%) | 62/64 (96.88%) | 5/5 (100.00%) |
 
-**P2 (logged):**
+The package test files total 118; root tests add two and scripts add three.
+Dashboard has no instrumented source denominator. Only Refiner Core has a
+separately enforced package coverage floor.
 
-- **`dashboard` package has 0 tests** and is not declared as a waived/presentation-only
-  layer — either add smoke coverage or record an explicit waiver.
-- **No `tests/RTM.md` / `PERSONAS.md` / `JOURNEYS.md`** requirements-traceability docs; for
-  a nine-package monorepo the requirement→test mapping is currently implicit.
-- **No dep-cruiser layering config** — the `arch` gate is `not-configured`, so the monorepo
-  layering invariant (leaf packages must not import CLIs; `@j-rig/core` as the base) is
-  unenforced deterministically. A small `.dependency-cruiser.cjs` would close it and light
-  up the existing `arch` gate.
-- **Coverage floors sit ~6 pts below measured** (73/73/80/84 vs 79/86/88); the
-  ratchet-from-here headroom is unused. Acceptable by design, but a modest floor bump would
-  bank the current gains against regression.
+## Seven-layer presence and enforcement
 
-## Handoff
+| Layer | Observation | Evidence and limits |
+| --- | --- | --- |
+| L1 hooks/CI | Installed | `.husky/pre-commit` runs staged escape scan and lint-staged; CI runs on PRs. Protection and local merge guard explicitly list eight checks. |
+| L2 static | Partial | ESLint, Prettier, strict types, Markdown/YAML/actions/typos checks run. No secret or dependency-vulnerability scanner invocation was found in tracked workflows. This is not a claim about external GitHub security settings. |
+| L3 unit/function | Partial | Both coverage gates pass; no mutation or generated property/fuzz framework; architecture unconfigured and CRAP unmeasured. |
+| L4 integration/contracts | Installed | Real SQLite lifecycle and raw-run/grade persistence; cross-package rollout/comment tests; kernel EvidenceStatement and migration round-trip contracts. |
+| L5 system quality | Partial | CodeQL and CISO regression tests exist. Main CI tests Node 22 despite published Node >=20 support; the other supported versions are not verified by this run. |
+| L6 E2E/smoke | Installed for local CLI boundaries | Built CLI tests exercise eval, budgets, MCP and provider-failure behavior; OTel smoke is a distinct workflow job. Root arithmetic smoke alone is not application coverage. No Gherkin pack. |
+| L7 acceptance | Scoped observations only | RTM/persona/journey mappings below. Unit tests and synthetic eval output do not establish human acceptance or production promotion. |
 
-**Recommended → `/implement-tests`** for the two P1 items — scaffold Stryker (scoped to the
-decision-logic packages first) and either install `complexity-report` or waive the CRAP
-gate. The P2 items (dashboard smoke, RTM/traceability docs, dep-cruiser arch config, floor
-ratchet) are low-risk follow-ups that can be filed as beads rather than blocking work.
+GitHub protection was read from the canonical
+`jeremylongshore/j-rig-skill-binary-eval` repository. Its explicit required
+contexts are `Lint`, `Test`, `Typecheck`, `yamllint`, `actionlint`,
+`markdownlint-cli2`, `lychee`, and `typos`; the local safe-merge configuration
+lists the same eight. Strict up-to-date-branch checking is false. The active
+ruleset requires a PR and forbids non-fast-forward updates/deletion, with zero
+required approving reviews. Administrative bypass exists; none was used here.
+CodeQL and OTel jobs run but are absent from those explicit required-context
+lists. Repository guidance separately names CodeQL as a merge gate. This audit
+records the difference and does not change protection or weaken that guidance.
+
+## Test-quality caveats
+
+The bias scanner's recursive grep does not restrict itself to test source.
+Its Python-style quote/space/`in` pattern flags legitimate JavaScript field-absence checks
+in `packages/migrate/src/transform.test.ts`; production length comparisons also
+match its patterns. `toBeDefined` in `packages/refiner/src/propose.test.ts` is
+accompanied by exact transport, API-key and output assertions. Those examples
+are false positives for a weak-test defect. The reported 11.9 matches per 100
+regex-counted functions is a review heuristic, not a measured defect rate.
+
+The CRAP implementation returns empty results when complexity-report is absent
+and selects only root `src` or `tests`. Installing that tool alone would still
+omit package source. Its production/test method counts are both zero, so max/mean
+zero cannot certify the configured complexity thresholds. The upstream
+measurement work is already tracked in `bd_000-projects-0wvb`.
+
+## Traceability and acceptance scope
+
+[RTM](tests/RTM.md) maps **35 selected requirements**: 26 locally covered,
+seven partial, two unverified within the local test inventory. All priorities
+are inferred SHOULD pending engineer review; source obligations remain intact.
+53 of 123 test files have explicit sidecar associations. The other 70 are
+**unmapped in this scoped catalog**, not proven orphans. Exhaustive historical
+requirements and orphan totals remain undetermined.
+
+[PERSONAS](tests/PERSONAS.md) records four inferred roles and 12 selected flows;
+11 have local evidence and one is the dashboard placeholder.
+[JOURNEYS](tests/JOURNEYS.md) records five inferred journeys with 23 steps:
+12 local, six partial, four locally unverified, one placeholder. No persona or
+journey threshold was declared or installed. These mappings distinguish fixture
+signatures, unsigned reports and disconnected seams from actual signing,
+publication, external ingestion and human decisions. Absence from this local
+test catalog does not invalidate operational evidence maintained by other beads.
+
+## Gaps and implementation handoff
+
+The audit is diagnostic. No existing thresholds, runtime behavior, workflows,
+architecture rules or original protected-file hashes were changed. New testing
+documents contain observations only. The implementation handoff initializes one
+additional hash entry for the new root `tests/TESTING.md`, which the installed
+harness automatically treats as a protected filename. The following P1 work is handed to `bd_000-projects-ehyd`
+through the implement-tests workflow:
+
+| ID | Priority | Gap | Required completion evidence |
+| --- | --- | --- | --- |
+| G1 | P1 | Incomplete vendored harness blocks deterministic profiles and dimension reports. | Supported complete install; classify every package; rerun conform/audit/scan/currency with explicit statuses and unchanged original policy. |
+| G2 | P1 | No mutation measurement for implemented decision logic. | Configured Stryker run, retained killed/survived/uncovered/error counts, meaningful survivor review, CI evidence; no invented or lowered blocking floor. |
+| G3 | P1 | CRAP has zero methods and excludes workspace source. | TypeScript-capable source inventory joined to actual execution coverage, nonempty production/test measurement, explicit unsupported cases and fail-closed missing-tool proof; coordinate upstream `0wvb`. |
+| G4 | P1 | No tracked secret/dependency scan workflow gate. | Reproducible scanner outputs and CI wiring with synthetic fault checks; retain existing advisory vulnerabilities honestly. New harness gate promotion follows its false-positive and engineer-policy requirements. |
+| G5 | P1 | No architecture measurement. | Rules derived from authored package boundaries, reviewed policy ownership, actual dependency graph and injected-violation proof. No blanket invented dependency rule or repinning to silence a failure. |
+| G6 | P1 | No generated property-based tests for core invariants. | Bounded generators exercise authored acceptance/apply/evidence invariants with reproducible seeds and nontrivial failure cases. |
+
+P2 observations: explicit CodeQL/OTel required-context mismatch; unmeasured
+Node compatibility range; uneven package-level coverage; incomplete local
+traceability for continuous live refinement, human review and external release
+flows. The dashboard is an explicit placeholder, not an implemented untested UI.
+No automatically generated waiver closes any of these findings.
+
+Implementation order: repair supported harness installation and obtain the
+profile; preserve existing policy and inspect unresolved applicability; add
+measurements and advisory evidence; then perform any policy promotion only with
+the required evidence and ownership. The upstream TypeScript measurement gap
+must not be hidden behind an unrelated passing Python measurement.
+
+## Containment and delivery
+
+Adding `tests/TESTING.md` initially caused an inventory-mismatch REFUSE.
+Review confirmed that all 24 existing protected-file hashes were unchanged.
+The implementation handoff initializes the new observation-only file as the
+25th pin; no manifest entry is removed or replaced. Final staged escape
+scanning passes with zero REFUSE, CHALLENGE or FLAG findings.
+
+The escape scanner reports its fallback comparison floors (80% line, 70% branch,
+70% mutation) because this observational file declares no new threshold policy.
+Those fallback values also applied before this file existed; they are not the
+configured Vitest floors or an adopted mutation policy. The existing coverage
+configs and unchanged hash protections remain authoritative. The implementation
+handoff must reconcile this policy-source mismatch explicitly. Raw measurement
+logs and JSON remain in the task's local receipt bundle. The final PR and Beads
+closure record carry exact-head CI and merge evidence. Report generation does
+not itself establish that every handoff gap is fixed.
