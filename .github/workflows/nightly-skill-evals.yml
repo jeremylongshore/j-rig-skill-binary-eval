@@ -66,7 +66,9 @@ jobs:
     # produce an unverifiable manifest, so guard instead of emitting one.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 14 serial skills x 20 minutes, plus 20 minutes for setup and signed evidence.
+    # tests/eval-roster.test.ts checks this against the actual roster and runner.
+    timeout-minutes: 300
     permissions:
       contents: write # create/upload the rolling evidence-latest release
       id-token: write # cosign keyless (Fulcio OIDC)

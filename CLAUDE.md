@@ -214,8 +214,11 @@ re-derive it inline in `eval.ts`.
 - A failed test case is never sent to the judge.
 - Partial **sample** loss is not a failure: an errored sample votes `unsure`.
   Only a criterion with zero surviving samples counts. There is deliberately no
-  provider retry layer; `--samples` of 2 or more is the supported mitigation
-  (the nightly roster runs 5).
+  generic provider retry layer; `--samples` of 2 or more is the supported mitigation
+  (the nightly roster runs 5). The opt-in nightly MiniMax admission transport
+  permits one shared, bounded recovery for an explicit 429 or no-output 2064
+  overload response; see `eval-roster/README.md`. It never replays a completed
+  response or an ambiguous transport timeout.
 - A completed response with empty text is boundary evidence, not a failure.
 - Provider text is redacted by core's `redactProviderError` **where it is
   captured** (functional runner and judgment engine). Do not add a second

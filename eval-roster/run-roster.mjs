@@ -32,6 +32,22 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(repoRoot, "packages", "cli", "dist", "index.js");
+export const SKILL_TIMEOUT_MS = 20 * 60 * 1000;
+export const EVIDENCE_RESERVE_MINUTES = 20;
+
+/** Initial budget only: never replay an empty, already completed response. */
+export function executionEnvironment(provider, models, env = process.env) {
+  if (
+    provider === "minimax" &&
+    models === "MiniMax-M3" &&
+    !env.JRIG_MAX_OUTPUT_TOKENS &&
+    !env.LLM_MODEL &&
+    !env.LLM_BASE_URL
+  ) {
+    return { ...env, JRIG_MAX_OUTPUT_TOKENS: "16384" };
+  }
+  return { ...env };
+}
 
 function parseArgs(argv) {
   const args = {
@@ -127,6 +143,7 @@ function main() {
   const models =
     args.models ?? (effectiveProvider === rosterProvider ? (roster.models ?? null) : null);
   const skills = roster.skills.filter((s) => (args.skills ? args.skills.includes(s.key) : true));
+  const executionEnv = executionEnvironment(effectiveProvider, models);
   mkdirSync(args.out, { recursive: true });
 
   const summary = [];
@@ -174,7 +191,12 @@ function main() {
           join(args.out, "j-rig.db"),
           "--json",
         ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], timeout: 20 * 60 * 1000 },
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "inherit"],
+          timeout: SKILL_TIMEOUT_MS,
+          env: executionEnv,
+        },
       );
       writeFileSync(resultPath, stdout, "utf8");
       const statements = JSON.parse(readFileSync(statementsPath, "utf8"));

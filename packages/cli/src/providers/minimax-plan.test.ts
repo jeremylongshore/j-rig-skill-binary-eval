@@ -87,6 +87,112 @@ describe("MiniMax plan quota", () => {
   });
 });
 
+describe("MiniMax explicit overload recovery", () => {
+  const overload: TransportResponse = {
+    status: 503,
+    json: { error: { message: "The server cluster is currently under high load. (2064)" } },
+  };
+
+  it.each([503, 529])(
+    "recovers an explicit HTTP %s overload after fresh quota and cooldown",
+    async (status) => {
+      const h = setup([{ ...overload, status }, success]);
+      expect(await h.send(request)).toBe(success);
+      expect(h.starts).toEqual([NOW, NOW + 30_000]);
+      expect(h.fetchQuota).toHaveBeenCalledTimes(3);
+      expect(h.transport).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([2064, "2064"])("accepts a typed explicit overload code %s", async (code) => {
+    const h = setup([{ status: 503, json: { error: { code } } }, success]);
+    expect(await h.send(request)).toBe(success);
+    expect(h.transport).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { status: 200, json: { choices: [{ message: { content: "" }, finish_reason: "length" }] } },
+    { status: 503, json: null },
+    { status: 503, json: { error: { message: "upstream timeout (1001)" } } },
+    { status: 504, json: overload.json },
+    { status: 503, json: { ...(overload.json as object), choices: [] } },
+    { status: 503, json: { ...(overload.json as object), usage: { completion_tokens: 5 } } },
+  ])("does not replay ambiguous or already completed responses", async (response) => {
+    const h = setup([response]);
+    expect(await h.send(request)).toBe(response);
+    expect(h.transport).toHaveBeenCalledTimes(1);
+    expect(h.sleep).not.toHaveBeenCalled();
+  });
+
+  it("honors Retry-After and refuses a delay beyond the shared bound", async () => {
+    const h = setup([{ ...overload, retryAfterSeconds: 45 }, success]);
+    expect(await h.send(request)).toBe(success);
+    expect(h.starts).toEqual([NOW, NOW + 45_000]);
+    const tooLong = { ...overload, retryAfterSeconds: 71 };
+    const blocked = setup([tooLong]);
+    expect(await blocked.send(request)).toBe(tooLong);
+    expect(await blocked.send(request)).toBe(tooLong);
+    expect(blocked.transport).toHaveBeenCalledTimes(1);
+    expect(blocked.sleep).not.toHaveBeenCalled();
+  });
+
+  it("keeps the overload cooldown when quota resets sooner", async () => {
+    const h = setup([overload, success]);
+    h.fetchQuota
+      .mockResolvedValueOnce(quota())
+      .mockResolvedValueOnce(
+        quota({ current_interval_remaining_percent: 0, end_time: NOW + 5_000 }),
+      );
+    expect(await h.send(request)).toBe(success);
+    expect(h.starts).toEqual([NOW, NOW + 30_000]);
+  });
+
+  it.each([
+    { responses: [overload, success, limited] },
+    { responses: [limited, success, overload] },
+  ])("shares one recovery between rate limits and overloads", async ({ responses }) => {
+    const later = responses[2];
+    const h = setup([...responses]);
+    expect(await h.send(request)).toBe(success);
+    expect(await h.send(request)).toBe(later);
+    expect(await h.send(request)).toBe(later);
+    expect(h.transport).toHaveBeenCalledTimes(3);
+    expect(h.sleep.mock.calls.filter(([ms]) => ms >= 30_000)).toHaveLength(1);
+  });
+
+  it("keeps queued work blocked after a failed overload recovery", async () => {
+    const h = setup([overload, overload]);
+    expect(await Promise.all([h.send(request), h.send(request)])).toEqual([overload, overload]);
+    expect(h.transport).toHaveBeenCalledTimes(2);
+    const thrown = setup();
+    thrown.transport
+      .mockResolvedValueOnce(overload)
+      .mockRejectedValueOnce(new Error("socket timeout"));
+    await expect(thrown.send(request)).rejects.toThrow("socket timeout");
+    expect(await thrown.send(request)).toBe(overload);
+    expect(thrown.transport).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses an overload retry when the fresh quota is unavailable", async () => {
+    const h = setup([overload]);
+    h.fetchQuota.mockResolvedValueOnce(quota()).mockResolvedValueOnce(null);
+    await expect(h.send(request)).rejects.toThrow("quota response unavailable");
+    await expect(h.send(request)).rejects.toThrow("quota response unavailable");
+    expect(h.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels overload cooldown without retrying or reopening queued admission", async () => {
+    const h = setup([overload]);
+    const controller = new AbortController();
+    h.sleep.mockImplementationOnce(async () => {
+      controller.abort();
+    });
+    await expect(h.send({ ...request, signal: controller.signal })).rejects.toThrow();
+    await expect(h.send(request)).rejects.toThrow("recovery did not complete");
+    expect(h.transport).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("MiniMax nightly admission", () => {
   it("cancels a queued caller promptly while the preceding request is pending", async () => {
     const h = setup();
