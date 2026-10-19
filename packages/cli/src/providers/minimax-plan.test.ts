@@ -205,6 +205,26 @@ describe("MiniMax nightly admission", () => {
     expect(h.sleep).not.toHaveBeenCalled();
   });
 
+  it.each([401, 403, 500, 503])(
+    "keeps queued work blocked after a recovery returns HTTP %s",
+    async (status) => {
+      const failedRetry = { status, json: null };
+      const h = setup([limited, failedRetry]);
+      const results = await Promise.all([h.send(request), h.send(request)]);
+      expect(results).toEqual([failedRetry, failedRetry]);
+      expect(h.transport).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("keeps queued work blocked when the recovery transport throws", async () => {
+    const h = setup();
+    h.transport.mockResolvedValueOnce(limited).mockRejectedValueOnce(new Error("socket timeout"));
+    const results = await Promise.allSettled([h.send(request), h.send(request)]);
+    expect(results[0]).toMatchObject({ status: "rejected", reason: { message: "socket timeout" } });
+    expect(results[1]).toEqual({ status: "fulfilled", value: limited });
+    expect(h.transport).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves a persistent 429 for all queued calls after one retry", async () => {
     const h = setup([limited, limited]);
     expect(await Promise.all([h.send(request), h.send(request), h.send(request)])).toEqual([
