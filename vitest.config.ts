@@ -3,6 +3,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globals: true,
+    // The suite launches real CLI/MCP children. Bound worker fan-out on large
+    // shared dev hosts; callers can explicitly override with --maxWorkers.
+    maxWorkers: 2,
+    minWorkers: 1,
     include: ["packages/*/src/**/*.test.ts", "tests/**/*.test.ts", "scripts/**/*.test.ts"],
     coverage: {
       provider: "v8",
