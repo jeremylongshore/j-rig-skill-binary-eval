@@ -179,6 +179,23 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 
 pnpm monorepo with nine workspace packages — four published to npm (`@intentsolutions/{jrig-cli,refiner,refiner-core,rollout-gate}`) and five internal-only (`@j-rig/{core,dashboard,db,migrate,pr-comment}`, the eval engine plus its `migrate`/`pr-comment` helpers; the `@j-rig` scope is unpublished) — on a TypeScript baseline (tsup builds), with quality guardrails (ESLint, Prettier, Vitest) and CI/CD workflows.
 
+### TypeScript toolchain
+
+The workspace builds with TypeScript 6.0.3. Package imports resolve through
+workspace links and package exports; no `baseUrl` or path aliases are needed.
+Node ambient types are explicit in the shared config and the test config.
+
+`patches/tsup@8.5.1.patch` removes tsup's implicit `baseUrl: "."` from its
+DTS compiler options ([upstream issue](https://github.com/egoist/tsup/issues/1389)).
+The existing options spread still preserves explicitly configured options.
+The patch is version-scoped and hash-pinned in the pnpm lockfile; it does not
+silence deprecations. When upgrading tsup, check whether upstream removed the
+injection before removing or updating the patch. Verify with
+`pnpm install --frozen-lockfile`, `pnpm run build`, and `pnpm run check`.
+TypeScript 7 compatibility has not been established by this change.
+
+Refs bead `j-rig-binary-eval-dnu`.
+
 ### Choosing a provider
 
 `j-rig eval` runs the trigger / functional / judgment layers against a **real model API** so the rollout decision is ground truth. It supports the real Anthropic Messages API **and** any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Kimi/Moonshot, OpenRouter, OpenAI, MiniMax, Groq, and NVIDIA — through one configurable adapter (`providers/openai-compatible.ts`). No vendor SDK is added; every call routes through the same injectable `Transport` seam, so it stays CISO-gate-clean (no key logging, no subprocess spawn).

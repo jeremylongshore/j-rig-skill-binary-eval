@@ -50,8 +50,10 @@ jobs:
           pnpm exec vitest run scripts/canonical-payload.test.ts
 
       - name: Typecheck dashboard emitters and cross-kernel contracts
+        # This is intentionally a standalone file-list compilation with all
+        # options supplied here. TS6 requires that choice to be explicit.
         run: >
-          pnpm exec tsc --noEmit --target ES2022 --module NodeNext
+          pnpm exec tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext
           --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions
           scripts/emit-evidence.ts scripts/assemble-manifest.ts
           ci/emit-evidence/emit-evidence.ts ci/emit-evidence/assemble-manifest.ts
