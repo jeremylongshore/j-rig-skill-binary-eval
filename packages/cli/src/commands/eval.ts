@@ -333,7 +333,12 @@ export function selectJudgeOverride(
   const cfg = resolveOpenAICompatConfig(process.env, judgeProvider);
   if (cfg) {
     const provider = wrap(
-      new RealOpenAICompatProvider({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, name: cfg.name }),
+      new RealOpenAICompatProvider({
+        apiKey: cfg.apiKey,
+        baseUrl: cfg.baseUrl,
+        name: cfg.name,
+        minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
+      }),
     );
     const modelId = judgeModel || cfg.defaultModel || targetModel;
     return { judge: new OpenAICompatJudgeProvider(modelId, provider), name: cfg.name, modelId };
@@ -419,6 +424,7 @@ function selectProviders(
             apiKey: cfg.apiKey,
             baseUrl: cfg.baseUrl,
             name: cfg.name,
+            minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
           }),
         );
         return {

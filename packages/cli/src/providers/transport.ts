@@ -46,6 +46,8 @@ export interface TransportResponse {
   status: number;
   /** Parsed JSON body. `null` for empty/non-JSON bodies. */
   json: unknown;
+  /** Optional Retry-After delay, normalized from seconds or an HTTP date. */
+  retryAfterSeconds?: number;
 }
 
 /**
@@ -81,6 +83,17 @@ export function createFetchTransport(): Transport {
     } catch {
       json = null;
     }
-    return { status: res.status, json };
+    const header = res.headers.get("retry-after");
+    const seconds =
+      header === null
+        ? NaN
+        : /^\d+(?:\.\d+)?$/.test(header)
+          ? Number(header)
+          : (Date.parse(header) - Date.now()) / 1_000;
+    return {
+      status: res.status,
+      json,
+      ...(Number.isFinite(seconds) ? { retryAfterSeconds: Math.max(0, seconds) } : {}),
+    };
   };
 }

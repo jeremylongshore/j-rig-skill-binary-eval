@@ -1,3 +1,4 @@
+import { createMiniMaxPlanTransport } from "./minimax-plan.js";
 import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
@@ -417,6 +418,8 @@ function errorForThrow(name: string, err: unknown): ProviderError {
 }
 
 export interface RealOpenAICompatProviderOptions {
+  /** Opt-in quota admission for the canonical MiniMax endpoint. */
+  minimaxPlanAdmission?: boolean;
   /** API key forwarded as the Bearer token (held privately; never logged — G-1). */
   apiKey: string;
   /** Base URL of the OpenAI-compatible endpoint (no trailing `/chat/completions`). */
@@ -444,7 +447,11 @@ export class RealOpenAICompatProvider implements Provider {
     this.#apiKey = opts.apiKey;
     this.#baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.name = opts.name ?? "openai-compatible";
-    this.#transport = opts.transport ?? createFetchTransport();
+    const transport = opts.transport ?? createFetchTransport();
+    this.#transport =
+      opts.minimaxPlanAdmission && this.name === "minimax"
+        ? createMiniMaxPlanTransport(transport)
+        : transport;
   }
 
   #headers(): Record<string, string> {
