@@ -333,3 +333,21 @@ A trigger-provider error follows the existing infrastructure-failure rule:
 `gate_decision: error`, no promotion evidence, failed stored run and exit 2 after
 artifacts are flushed. Trigger-only execution also retains its artifact and
 machine-readable error. Trigger and judge calls continue to receive no MCP tools.
+
+### Bundled frontmatter parser
+
+The CLI inlines the existing `gray-matter` parser and the YAML modules it uses.
+It does not install the parser's unused YAML command-line dependency chain
+(`argparse` 1.x and `sprintf-js`) in consumer projects. SKILL.md and AGENTS.md
+parsing use the same implementation and schemas. Bundled component copyrights
+and licenses are included in `THIRD_PARTY_LICENSES.txt`; refresh that file when
+updating the bundled parser dependencies.
+
+This removes the affected formatter from the CLI's installed dependency tree;
+it does not patch upstream advisory GHSA-hp3w-g68c-fv3c. The private workspace
+core still declares `gray-matter` as a build/runtime dependency, so workspace
+production audits continue to report that unused CLI chain. Keep auditing the
+workspace dependencies as well as the packed CLI: consumer `npm audit` cannot
+inspect modules inlined into a bundle. No advisory is ignored or suppressed.
+
+Refs bead `bd_000-projects-code`.

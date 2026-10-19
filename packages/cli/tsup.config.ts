@@ -22,13 +22,19 @@ export default defineConfig({
   dts: { resolve: [/^@j-rig\//] },
   clean: true,
   banner: {
-    js: "#!/usr/bin/env node",
+    // The inlined CommonJS parser imports Node builtins. Give esbuild's
+    // require shim an ESM-safe require anchored to the installed CLI.
+    js: `#!/usr/bin/env node
+import { createRequire as __jrigCreateRequire } from "node:module";
+const require = __jrigCreateRequire(import.meta.url);`,
   },
   // BUNDLE the private workspace packages into the published artifact —
   // @j-rig/{core,db,migrate} are private:true / unpublished (the @j-rig npm
   // scope 403s). A consumer installing @intentsolutions/jrig-cli cannot pull
   // them from the registry, so they must be inlined here.
-  noExternal: [/^@j-rig\//],
+  // Keep the parser implementation, but exclude its unused YAML CLI dependency
+  // chain from consumer installs (argparse 1.x pulls vulnerable sprintf-js).
+  noExternal: [/^@j-rig\//, "gray-matter"],
   external: [
     // Native addon — cannot be bundled; declared as a real runtime dependency
     // so npm rebuilds its prebuilt binary on install.
@@ -45,7 +51,6 @@ export default defineConfig({
     // JSON Schema validator behind the schema_valid deterministic check.
     "ajv",
     "drizzle-orm",
-    "gray-matter",
     "yaml",
     "zod",
     // CLI's own direct npm deps.
