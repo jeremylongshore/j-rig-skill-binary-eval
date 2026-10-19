@@ -188,10 +188,13 @@ export function createMiniMaxPlanTransport(
       retryAfter === undefined ? 0 : retryAfter * 1_000,
     );
     await recover(req, waitMs);
+    // The positive quota check permits one retry; only a successful HTTP
+    // response proves recovery. Keep the original limit if the retry throws.
+    circuit = response;
     req.signal?.throwIfAborted();
     nextStart = now() + 1_000;
     const retried = await transport(req);
-    if (retried.status === 429 || retried.status === 402) circuit = retried;
+    circuit = retried.status >= 200 && retried.status < 300 ? undefined : retried;
     return retried;
   }
 
