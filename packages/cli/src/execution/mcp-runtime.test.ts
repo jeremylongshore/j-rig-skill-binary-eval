@@ -10,6 +10,24 @@ import {
 } from "../providers/openai-compatible.js";
 import { RealAnthropicProvider, AnthropicExecutionProvider } from "../providers/anthropic-real.js";
 import type { Transport, TransportRequest } from "../providers/transport.js";
+import type { ExecutionToolSession } from "@j-rig/core";
+
+// Keep readiness polling on the real clock while the execution deadline is
+// controlled. vi.waitFor advances fake timers and would reintroduce the race.
+const realSetTimeout = setTimeout;
+
+async function waitForActiveCall(directory: string): Promise<void> {
+  const deadline = performance.now() + 5000;
+  while (performance.now() < deadline) {
+    const calls = await readFile(join(directory, "calls"), "utf8").catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+      throw error;
+    });
+    if (calls === "hang\n") return;
+    await new Promise<void>((resolve) => realSetTimeout(resolve, 10));
+  }
+  throw new Error("MCP fixture did not enter its hang tool call");
+}
 
 const fixture = fileURLToPath(new URL("./__fixtures__/mcp-server.mjs", import.meta.url));
 const directories: string[] = [];
@@ -420,10 +438,47 @@ describe.each([false, true])("explicit stdio MCP execution (observations=%s)", (
     const provider = execution(async () =>
       openaiResponse([{ id: "a", name: "fixture__hang", args: {} }]),
     );
-    await expect(
-      provider.execute("Fixture", { skill_body: "Skill", tool_runtime: runtime }),
-    ).rejects.toMatchObject({ category: "network_timeout", toolCalls: 1 });
-    await assertStopped(directory);
+    let session: ExecutionToolSession | undefined;
+    let settled = false;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const outcome = provider
+      .execute("Fixture", {
+        skill_body: "Skill",
+        tool_runtime: {
+          ...runtime,
+          async open(signal) {
+            session = await runtime.open(signal);
+            return session;
+          },
+        },
+      })
+      .then(
+        (value) => {
+          settled = true;
+          return { value };
+        },
+        (error: unknown) => {
+          settled = true;
+          return { error };
+        },
+      );
+    try {
+      await waitForActiveCall(directory);
+      await vi.advanceTimersByTimeAsync(1499);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await outcome).toMatchObject({
+        error: { category: "network_timeout", toolCalls: 1 },
+      });
+      vi.useRealTimers();
+      await assertStopped(directory);
+    } finally {
+      // Ensure failed readiness/assertion probes also release their real child.
+      if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(5500);
+      vi.useRealTimers();
+      await session?.close();
+      await outcome;
+    }
   }, 10000);
 
   it("redacts transport failure while retaining the attempted-call count", async () => {

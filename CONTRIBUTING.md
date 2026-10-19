@@ -81,6 +81,12 @@ pnpm run typecheck       # Type check
 pnpm run check           # All of the above
 ```
 
+The default test pool uses at most two workers because integration tests launch
+real CLI and MCP child processes. To choose another limit explicitly, run
+`pnpm run test --maxWorkers=4`. Cancellation tests wait for the MCP fixture to
+enter its tool call before advancing the controlled execution deadline; child
+startup and shutdown still use real process I/O.
+
 ### Code Review
 
 - All PRs require at least 1 maintainer approval
