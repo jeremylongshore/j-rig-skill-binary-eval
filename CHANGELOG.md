@@ -1,5 +1,29 @@
 # Changelog
 
+## Package releases — 0.5.1 — 2026-10-19
+
+### Fixed
+
+- `@intentsolutions/jrig-cli` 0.5.1 removes the unused formatter chain from
+  consumer installs, bounds MiniMax plan admission and shared quota/overload recovery, bounds stopped
+  Claude Code workspace cleanup, and binds evidence inspection/read to one file
+  descriptor. Package and bundled dependency licenses ship in the tarball.
+- `@intentsolutions/refiner` 0.5.1 uses POSIX basename for skill IDs without an
+  unanchored regex. `@intentsolutions/refiner-core` 0.5.1 is the required lockstep
+  publication; its runtime sources are unchanged.
+
+### Changed
+
+- The release includes canonical dashboard evidence binding, MCP cancellation
+  test stabilization, the Intent Solutions Select badge, and the TypeScript 6
+  build migration merged since `jrig-cli-v0.5.0` (PRs #360–#377).
+- The nightly roster now budgets the complete serial run and signed-evidence
+  processing. Default MiniMax-M3 functional calls start with a 16,384-token
+  ceiling; explicit token, model, or gateway settings retain their behavior.
+- The workspace retains the upstream sprintf-js advisory on its unused YAML CLI
+  chain. Consumer audits cannot inspect inlined modules; workspace audits remain
+  required. No advisory is suppressed.
+
 ## Unreleased
 
 ### Fixed
