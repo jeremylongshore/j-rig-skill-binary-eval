@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Count cross-set prompt leakage with one-to-one matches so duplicate prompts
+  cannot inflate the smaller-collection overlap ratio above one. Self-comparison
+  still reports repeated occurrences after the first.
+- Reject non-finite calibration confidence values before computing Brier score
+  and expected calibration error.
+
 ## [0.5.1] - 2026-10-19
 
 ### Changed
