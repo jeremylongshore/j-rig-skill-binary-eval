@@ -35,8 +35,7 @@ export interface ScoredRollout {
 
 /**
  * The result of a single model completion: the generated text plus the token
- * usage that the model API reports. Usage is required so the cost meter can
- * record per-attempt token counts without any adapter-side magic.
+ * usage that the model API reports. Null means unmeasured or invalid, never free.
  *
  * Real adapters populate `usage` from the API response body (e.g. the
  * `usage.input_tokens` / `usage.output_tokens` fields in the Anthropic Messages
@@ -46,8 +45,8 @@ export interface ScoredRollout {
 export interface CompletionResult {
   /** The generated text (verbatim model output). */
   readonly text: string;
-  /** Token counts for this completion (required; never undefined). */
-  readonly usage: ModelUsage;
+  /** Token counts for this completion; null when measurement is unavailable. */
+  readonly usage: ModelUsage | null;
 }
 
 /**

@@ -30,6 +30,11 @@
 
 ## Unreleased
 
+- Preserve native Refiner completion usage instead of fabricated zeros; legacy or
+  malformed measurements are explicitly null. Persist CLI proposal call intent
+  and outcomes, including usage after parsing failures. USD admission and
+  assessment accounting remain open in `bd_000-projects-214c.18` / #403.
+
 - Bootstrap reviewed harvested rollouts and human-nominated golden traces with
   source/review provenance, explicit expectations, and lineage-preserving versions.
   Opt-in `eval --rollout-file` retains actual functional outcomes in a private,

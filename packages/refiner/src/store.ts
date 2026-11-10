@@ -60,7 +60,9 @@ export type RefinerRecordKind =
   | "acceptance-assessment"
   | "bootstrap-source"
   | "optimizer-source"
-  | "optimizer-experiment";
+  | "optimizer-experiment"
+  | "completion-attempt"
+  | "proposal-attempt";
 
 /** A single line in the append-only event log. */
 export type RefinerEvent =

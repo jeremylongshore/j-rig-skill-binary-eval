@@ -616,3 +616,75 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
     }
   });
 });
+
+describe("refine propose usage receipts", () => {
+  it.each([true, false])(
+    "persists real client usage even when proposal valid=%s",
+    async (valid) => {
+      const { program, store, skillDir, cleanup } = setup();
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("exit");
+      }) as never);
+      vi.stubEnv("OPENAI_API_KEY", "test-key-only");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          status: 200,
+          json: async () => ({
+            model: "actual-model",
+            choices: [
+              {
+                message: {
+                  content: valid
+                    ? '{"rationale":"clarity","ops":[{"kind":"replace","target":"carefully","content":"with care"}]}'
+                    : "invalid proposal",
+                },
+              },
+            ],
+            usage: { prompt_tokens: 12, completion_tokens: 8 },
+          }),
+        })),
+      );
+      try {
+        const action = run(program, [
+          "refine",
+          "propose",
+          skillDir,
+          "--provider",
+          "openai",
+          "--model",
+          "alias",
+          "--json",
+        ]);
+        if (valid) await action;
+        else await expect(action).rejects.toThrow("exit");
+        const receipts = store
+          .readLog()
+          .flatMap((e) =>
+            e.type === "stored" && e.kind === "completion-attempt" ? [store.get(e.hash)] : [],
+          );
+        expect(receipts).toHaveLength(2);
+        expect(receipts[1]).toMatchObject({
+          provider: "openai",
+          format: "openai",
+          requestedModel: "alias",
+          status: "completed",
+          measurement: {
+            reportedModel: "actual-model",
+            usage: { promptTokens: 12, completionTokens: 8 },
+          },
+        });
+        if (valid) expect(JSON.parse(log.mock.calls[0][0] as string).ops).toHaveLength(1);
+      } finally {
+        vi.unstubAllGlobals();
+        vi.unstubAllEnvs();
+        log.mockRestore();
+        err.mockRestore();
+        exit.mockRestore();
+        cleanup();
+      }
+    },
+  );
+});

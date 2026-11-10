@@ -375,9 +375,10 @@ The caller must check before starting another call. `record` still accepts valid
 already-incurred usage after a cap, so accounting cannot silently discard spend.
 
 This helper does not execute requests, persist a queue, price USD or enforce
-runtime admission by itself. The current `createRefinerModel` adapter still emits
-zero-usage placeholders and does not invoke this meter. Full provider accounting,
-USD budget policy, ledger/quarantine and OTel integration remain explicitly open
+runtime admission by itself. `createRefinerModel` now carries measured native
+provider usage or explicit `null`; it does not invoke this meter. The CLI persists
+proposal call receipts (see §8.9). Full assessment accounting, USD budget policy,
+rollups, quarantine and OTel integration remain explicitly open
 in `bd_000-projects-214c.18` / #403. The input/snapshot integrity repair is
 `bd_000-projects-214c.18.1` / #404; it does not settle that broader requirement.
 
@@ -584,6 +585,45 @@ flags are supplied; `refine assess --experiment` resolves them. The README gives
 exact flags, source-retention behavior and the legacy truncated-digest limitation.
 Source runs guide targeting, never substitute for fresh paired evidence. No best
 pointer or document is promoted automatically. Tracked by #401 / 214c.17.
+
+### 8.9 Proposal usage receipts
+
+`CompletionResult.usage` is now `ModelUsage | null`. Consumers must handle null as
+unmeasured, never zero. Native completion clients offer `completeWithUsage` while
+preserving text-only `complete` compatibility. Legacy injected clients remain
+usable with missing measurement. Responses distinguish reported, missing and
+invalid usage; malformed, negative, fractional, unsafe or inconsistent counts
+are invalid, not coerced. Requested and API-reported model IDs remain separate.
+
+Anthropic totals include uncached input, cache reads and cache writes. OpenAI
+prompt/output totals already include cached/reasoning subsets. Selected numeric
+wire fields are retained for subsequent explicit pricing; these are not invoices
+or a complete pricing policy. Unknown response fields and raw content are omitted.
+Protocol references checked 2026-11-10:
+[Claude caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+and [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+`proposeWithEvidence(strategy, ctx, client, store, opts, runtime?)` persists a
+`completion-attempt` before each call and a linked completion/failure afterwards.
+The CLI uses it. Each run has a unique ID and numbered calls; receipts include
+skill/strategy identity, provider when supplied, requested model, response model,
+prompt hash, requested output limit, clocks and measurement. A started-only call
+means unknown outcome after interruption. Transport failures also have unknown
+billing; they are never free or automatically retried. Storage failure before
+intent persistence prevents provider I/O. Storage failure after I/O fails the
+operation and leaves the started record for reconciliation.
+
+A `proposal-attempt` links completed call records and the stored proposal, or
+records failure without a proposal. Parsing failure does not erase incurred
+usage. Credentials, URLs, raw prompts, raw completions and error strings are not
+stored in receipts; existing proposal storage remains unchanged. CLI JSON output
+remains the proposal object. Historical objects are not rewritten. The original
+`propose` API remains available without persistence; callers requiring receipts
+must use `proposeWithEvidence`.
+
+Tracked under `bd_000-projects-214c.18` / #403. Assessment usage, per-accept/file
+rollups, explicit USD pricing and admission, Wave B 80%/100% stops, quarantine,
+and OTel remain open. This measurement delivery does not authorize paid Wave B.
 
 ## 9. Build and test
 

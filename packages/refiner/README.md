@@ -300,3 +300,19 @@ result messages are retained locally in the private Refiner store; review their
 content before sharing. These local records do not authenticate the source.
 
 Tracked by `bd_000-projects-214c.17` / GitHub #401; API doc 029 §8.8.
+
+### Proposal usage evidence
+
+`refine propose` now stores intent before every provider call and measured usage
+after it. Native clients preserve usage; missing or malformed usage is `null`,
+never a synthetic zero. Call receipts retain usage even if proposal parsing fails.
+Started-only or failed calls have unknown billing and require reconciliation.
+No automatic retry is added. The JSON command output remains the proposal.
+
+Library callers can use `proposeWithEvidence` with a `RefinerStore`; ordinary
+`propose` remains available without persistence. `CompletionResult.usage` is now
+nullable, so cost consumers must handle unmeasured responses explicitly.
+Receipts omit raw prompts, responses, credentials and endpoint URLs. Selected
+numeric billing fields do not constitute a USD policy. Assessment usage, cost
+rollups, dollar admission, quarantine and telemetry remain tracked in 214c.18 /
+issue #403. See API doc 029 §8.9 for receipt semantics and protocol references.

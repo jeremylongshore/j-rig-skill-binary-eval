@@ -1,3 +1,4 @@
+import { proposeWithEvidence } from "./propose-evidence.js";
 import { assessOptimizerExperiment } from "./optimizer.js";
 import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 /**
@@ -45,7 +46,6 @@ import {
   type AcceptanceQualityPolicy,
 } from "./assess.js";
 import {
-  propose,
   createCompletionClient,
   resolveProvider,
   NoProviderError,
@@ -373,7 +373,14 @@ export function registerRefineCommand(
           const client = createCompletionClient(resolved);
           // No scored rollouts on the CLI path yet (harvest is wave 2+); the
           // strategies tolerate an empty rollout set (single-pass proposal).
-          const proposal = await propose(strategy, { doc, rollouts: [] }, client, proposeOpts);
+          const { proposal } = await proposeWithEvidence(
+            strategy,
+            { doc, rollouts: [] },
+            client,
+            store,
+            proposeOpts,
+            { provider: resolved.name },
+          );
           const hash = store.putEditProposal(proposal);
           if (opts.json) {
             console.log(JSON.stringify(proposal, null, 2));
