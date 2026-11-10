@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -424,6 +424,24 @@ const MAX_OPS_PER_PROPOSAL = 8;
 Shared, pure op-parsing both reference strategies use, so the op grammar is validated identically across mechanisms. `extractJsonObject` extracts the first balanced JSON object from a completion (models often wrap JSON in prose or fences). `parseProposalResponse` validates the JSON against a Zod discriminated-union schema (add / delete / replace with non-empty anchors) and **truncates** to at most `MAX_OPS_PER_PROPOSAL = 8` ops (excess truncated, not an error — robust to over-eager models). It `throws OpParseError` if no parseable, schema-valid JSON is present.
 
 ---
+
+### 8.5 Scoring adapter execution identity (2026-11-10 repair)
+
+The I/O adapter in `packages/refiner/src/score.ts` executes the exact supplied
+`SkillDoc.text` and `EvalSet.items`, after checking their existing content hashes
+and skill identity. Each item needs an explicit expectation; draft bootstrap
+prompts are not graded without reviewed expected behavior. The default runner
+materializes a private temporary skill/spec/database and delegates to `j-rig eval`
+with one scoped criterion per item. It refuses stub, incomplete, malformed, or
+failed evaluations rather than manufacturing observations. Temporary state is
+removed on success or failure; historical persisted records are unchanged.
+
+See `packages/refiner/README.md` for the frozen-input JSON/CLI workflow and the
+text-only `SkillDoc` boundary. This repair is `bd_000-projects-214c.14` /
+[issue #393](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/393).
+It does not prove the separate capability-quality integration required by
+`bd_000-projects-214c.13` /
+[issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
 
 ## 9. Build and test
 

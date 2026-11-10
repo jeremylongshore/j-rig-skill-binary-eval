@@ -18,6 +18,10 @@
  */
 
 import type { SkillDoc, EvalSet, ScoreRecord, ScoreDimension } from "@intentsolutions/refiner-core";
+import { hashSkillDoc, hashValue, validateEvalSet } from "@intentsolutions/refiner-core";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /**
  * Per-pass scoring model. On the Anthropic path a tier (`haiku`|`sonnet`; opus
@@ -35,7 +39,10 @@ export interface EvalRunnerResult {
 
 /** The j-rig eval invocation the runner should perform. */
 export interface EvalInvocation {
-  /** Absolute/relative path to the skill directory containing SKILL.md. */
+  /** Frozen, integrity-checked inputs; the directory is never their authority. */
+  readonly doc: SkillDoc;
+  readonly evalSet: EvalSet;
+  /** Caller source-directory context; the default runner executes the frozen inputs below. */
   readonly skillDir: string;
   /**
    * Value forwarded to `--models`. On the Anthropic path this is the `haiku`|
@@ -83,11 +90,11 @@ export interface ScoreOptions {
  * Score a skill doc against an eval set by delegating to `j-rig eval`.
  *
  * @param doc      The skill version being scored (its hash anchors the record).
- * @param evalSet  The held-out set the score is "against" (its hash anchors it).
+ * @param evalSet  The frozen items and explicit expectations actually executed.
  * @param runner   The injected evaluator shell-out (default spawns j-rig).
  * @param opts     skillDir + modelTier (default sonnet) + optional provider.
  * @returns A refiner-core ScoreRecord with the kernel-pinned `behavioral` dim
- *          mapped from j-rig's pass_rate, plus `pass_count` / `total` dims.
+ *          mapped from the verified scorecard, plus the `pass_count` dimension.
  * @throws ScoreAdapterError if the evaluator failed or emitted unparseable output.
  */
 export async function score(
@@ -96,21 +103,33 @@ export async function score(
   runner: EvalRunner,
   opts: ScoreOptions,
 ): Promise<ScoreRecord> {
+  const { doc: frozenDoc, evalSet: frozenSet } = checkedInputs(doc, evalSet);
   const modelTier: string = opts.modelTier ?? "sonnet";
   const result = await runner.run({
+    doc: frozenDoc,
+    evalSet: frozenSet,
     skillDir: opts.skillDir,
     modelTier,
     ...(opts.provider ? { provider: opts.provider } : {}),
   });
 
   if (result.exitCode !== 0) {
+    const output = parseLastJsonObject(result.stdout);
+    const reason =
+      output?.error === "Package integrity failed"
+        ? "package integrity failed; check frozen SKILL.md metadata and file references"
+        : result.exitCode === 2
+          ? "provider infrastructure failure"
+          : result.exitCode === 3
+            ? "evaluation budget exhausted"
+            : "evaluation failed";
     throw new ScoreAdapterError(
-      `j-rig eval exited ${result.exitCode}: ${result.stderr.trim() || result.stdout.trim() || "(no output)"}`,
+      `j-rig eval exited ${result.exitCode}: ${reason}; no ScoreRecord produced`,
     );
   }
 
-  const scoreCard = extractScoreCard(result.stdout, modelTier);
-  return mapToScoreRecord(doc, evalSet, scoreCard);
+  const scoreCard = extractScoreCard(result.stdout, modelTier, frozenSet.items.length);
+  return mapToScoreRecord(frozenDoc, frozenSet, scoreCard);
 }
 
 /** The subset of `j-rig eval --json` output the refiner consumes. */
@@ -128,7 +147,7 @@ interface JRigScoreCard {
  * differs (the OpenAI-compatible path substitutes a vendor model id for the
  * short alias — so a single-entry object is taken as-is).
  */
-function extractScoreCard(stdout: string, modelTier: string): JRigScoreCard {
+function extractScoreCard(stdout: string, modelTier: string, expectedCount: number): JRigScoreCard {
   const json = parseLastJsonObject(stdout);
   if (json === null) {
     throw new ScoreAdapterError("j-rig eval produced no parseable JSON object on stdout");
@@ -148,20 +167,44 @@ function extractScoreCard(stdout: string, modelTier: string): JRigScoreCard {
     );
   }
 
+  if (picked === null || typeof picked !== "object" || Array.isArray(picked)) {
+    throw new ScoreAdapterError("j-rig eval result is not an object");
+  }
+  if (
+    picked.ground_truth !== true ||
+    picked.evaluation_error !== undefined ||
+    picked.gate_decision === "error"
+  ) {
+    throw new ScoreAdapterError("j-rig eval did not produce completed real-provider evidence");
+  }
   const card = picked.scoreCard as Record<string, unknown> | undefined;
-  if (card === undefined) {
+  if (card === undefined || card === null || typeof card !== "object" || Array.isArray(card)) {
     throw new ScoreAdapterError(`j-rig eval result for '${modelTier}' had no scoreCard`);
   }
 
-  const total = asNumber(card.total_criteria);
-  const passed = asNumber(card.passed);
-  // j-rig carries pass_rate, but recompute defensively when absent / malformed.
-  const passRate =
-    typeof card.pass_rate === "number" && Number.isFinite(card.pass_rate)
-      ? card.pass_rate
-      : total > 0
-        ? passed / total
-        : 0;
+  const total = card.total_criteria;
+  const passed = card.passed;
+  if (
+    typeof total !== "number" ||
+    !Number.isSafeInteger(total) ||
+    total !== expectedCount ||
+    total < 1 ||
+    typeof passed !== "number" ||
+    !Number.isSafeInteger(passed) ||
+    passed < 0 ||
+    passed > total
+  ) {
+    throw new ScoreAdapterError("j-rig eval scoreCard does not account for the frozen eval set");
+  }
+  const passRate = passed / total;
+  if (
+    card.pass_rate !== undefined &&
+    (typeof card.pass_rate !== "number" ||
+      !Number.isFinite(card.pass_rate) ||
+      Math.abs(card.pass_rate - passRate) > Number.EPSILON * 4)
+  ) {
+    throw new ScoreAdapterError("j-rig eval scoreCard has an inconsistent pass_rate");
+  }
   return { total_criteria: total, passed, pass_rate: passRate };
 }
 
@@ -176,8 +219,8 @@ function extractScoreCard(stdout: string, modelTier: string): JRigScoreCard {
  * (Goodhart-resistant per AC-3), never a bare scalar.
  */
 function mapToScoreRecord(doc: SkillDoc, evalSet: EvalSet, card: JRigScoreCard): ScoreRecord {
-  const n = Math.max(1, card.total_criteria);
-  const p = clamp01(card.pass_rate);
+  const n = card.total_criteria;
+  const p = card.pass_rate;
   const behavioral: ScoreDimension = { value: p, variance: p * (1 - p), n };
   const passCount: ScoreDimension = { value: card.passed, variance: 0, n };
 
@@ -203,31 +246,80 @@ export function createSubprocessEvalRunner(
 ): EvalRunner {
   return {
     async run(invocation: EvalInvocation): Promise<EvalRunnerResult> {
+      const { doc, evalSet } = checkedInputs(invocation.doc, invocation.evalSet);
       const { spawn } = await import("node:child_process");
-      const command = opts.command ?? "j-rig";
-      const baseArgs = opts.args ?? ["eval"];
-      const args = [...baseArgs, invocation.skillDir, "--json", "--models", invocation.modelTier];
-      // Forward the resolved provider so eval hits the same backend (deepseek/
-      // groq/nvidia/openai/minimax/anthropic/…) propose() picked. `j-rig eval` already supports
-      // `--provider`; when the backend is OpenAI-compatible, eval uses its vendor
-      // default model (a haiku/sonnet tier is not a valid vendor model id there).
-      if (invocation.provider) {
-        args.push("--provider", invocation.provider);
-      }
-      return await new Promise<EvalRunnerResult>((resolvePromise, rejectPromise) => {
-        const child = spawn(command, args, {
-          env: opts.env ?? process.env,
-          stdio: ["ignore", "pipe", "pipe"],
+      const root = await mkdtemp(join(tmpdir(), "j-rig-refiner-score-"));
+      try {
+        const skillDir = join(root, doc.skillId);
+        await mkdir(skillDir, { mode: 0o700 });
+        await writeFile(join(skillDir, "SKILL.md"), doc.text, { mode: 0o600 });
+        const specPath = join(root, "eval-spec.json");
+        // JSON is valid YAML. One independently judged criterion per frozen item.
+        const spec = {
+          spec_version: "1.0",
+          skill_name: doc.skillId,
+          description: `Frozen Refiner eval set ${evalSet.hash}`,
+          models: [invocation.modelTier],
+          criteria: evalSet.items.map((item, i) => ({
+            id: `refiner-item-${i}`,
+            description: item.expectation,
+            method: "judge",
+            judge_prompt: item.expectation,
+          })),
+          test_cases: evalSet.items.map((item, i) => ({
+            id: item.id,
+            description: `Frozen eval item ${item.id}`,
+            tier: "core",
+            prompt: item.prompt,
+            criteria_ids: [`refiner-item-${i}`],
+          })),
+        };
+        await writeFile(specPath, JSON.stringify(spec), { mode: 0o600 });
+        const command = opts.command ?? "j-rig";
+        const baseArgs = opts.args ?? ["eval"];
+        const args = [
+          ...baseArgs,
+          skillDir,
+          "--json",
+          "--models",
+          invocation.modelTier,
+          "--spec",
+          specPath,
+          "--no-trigger",
+          "--db",
+          join(root, "evaluation.db"),
+        ];
+        if (invocation.provider) args.push("--provider", invocation.provider);
+        return await new Promise<EvalRunnerResult>((resolvePromise, rejectPromise) => {
+          const child = spawn(command, args, {
+            env: opts.env ?? process.env,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+          child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+          child.on("error", (error: NodeJS.ErrnoException) => {
+            const code = [
+              "ENOENT",
+              "EACCES",
+              "ENOEXEC",
+              "EMFILE",
+              "ENFILE",
+              "ENOMEM",
+              "EAGAIN",
+            ].includes(error.code ?? "")
+              ? ` (${error.code})`
+              : "";
+            rejectPromise(new ScoreAdapterError(`could not start j-rig eval${code}`));
+          });
+          child.on("close", (code: number | null) =>
+            resolvePromise({ stdout, stderr, exitCode: code ?? 1 }),
+          );
         });
-        let stdout = "";
-        let stderr = "";
-        child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
-        child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
-        child.on("error", (err: Error) => rejectPromise(new ScoreAdapterError(err.message)));
-        child.on("close", (code: number | null) =>
-          resolvePromise({ stdout, stderr, exitCode: code ?? 1 }),
-        );
-      });
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
     },
   };
 }
@@ -273,11 +365,41 @@ function parseLastJsonObject(text: string): Record<string, unknown> | null {
   return null;
 }
 
-function asNumber(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return value < 0 ? 0 : value > 1 ? 1 : value;
+/** Validate and snapshot inputs before any evaluator I/O. */
+function checkedInputs(doc: SkillDoc, evalSet: EvalSet): { doc: SkillDoc; evalSet: EvalSet } {
+  if (typeof doc.text !== "string" || hashSkillDoc(doc.text) !== doc.hash) {
+    throw new ScoreAdapterError("skill document hash does not match its content");
+  }
+  if (!/^[a-z][a-z0-9-]*[a-z0-9]$/.test(doc.skillId)) {
+    throw new ScoreAdapterError("skill id must be a kebab-case slug");
+  }
+  try {
+    validateEvalSet(evalSet);
+  } catch {
+    throw new ScoreAdapterError("invalid frozen eval set");
+  }
+  if (doc.skillId !== evalSet.skillId) {
+    throw new ScoreAdapterError("skill and eval-set identity mismatch");
+  }
+  // Preserve the existing bootstrap hash preimage (lineageId is metadata).
+  const { skillId, source, items, evalSetVersion, lineageParent, refreshDueAt } = evalSet;
+  if (
+    hashValue({ skillId, source, items, evalSetVersion, lineageParent, refreshDueAt }) !==
+    evalSet.hash
+  ) {
+    throw new ScoreAdapterError("eval-set hash does not match its content");
+  }
+  const ids = new Set<string>();
+  for (const item of items) {
+    if (ids.has(item.id) || !item.prompt.trim()) {
+      throw new ScoreAdapterError("eval-set items must have unique ids and non-empty prompts");
+    }
+    ids.add(item.id);
+    if (!item.expectation?.trim()) {
+      throw new ScoreAdapterError(
+        "each eval item needs an explicit expected-behavior criterion before scoring",
+      );
+    }
+  }
+  return { doc: { ...doc }, evalSet: structuredClone(evalSet) };
 }

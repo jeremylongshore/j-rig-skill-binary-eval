@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { RefinerStore, type FileSystem } from "./store.js";
 import { registerRefineCommand } from "./cli.js";
+import { makeSkillDoc, bootstrap } from "@intentsolutions/refiner-core";
 
 /** Shared in-memory FileSystem so every command in a test sees the same store. */
 class MemoryFileSystem implements FileSystem {
@@ -421,6 +422,45 @@ describe("`j-rig refine score` / `propose` — guard rails", () => {
         run(program, ["refine", "score", skillDir, "--eval-set", "f".repeat(64)]),
       ).rejects.toThrow();
       expect(String(err.mock.calls[0][0])).toMatch(/not found in the refiner store/);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("loads an explicit eval-set file and refuses unreviewed bootstrap without store writes", async () => {
+    process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";
+    const { program, store, skillDir, cleanup } = setup();
+    try {
+      const doc = makeSkillDoc("demo-skill", readFileSync(join(skillDir, "SKILL.md"), "utf8"));
+      const path = join(skillDir, "eval-set.json");
+      writeFileSync(path, JSON.stringify(bootstrap(doc)));
+      await expect(
+        run(program, ["refine", "score", skillDir, "--eval-set-file", path]),
+      ).rejects.toThrow();
+      expect(String(err.mock.calls[0][0])).toMatch(/explicit expected-behavior/);
+      expect(store.readLog()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses conflicting eval-set selectors before reading either input", async () => {
+    process.env.NVIDIA_API_KEY = "nvidia-key-1234-not-real";
+    const { program, store, skillDir, cleanup } = setup();
+    try {
+      await expect(
+        run(program, [
+          "refine",
+          "score",
+          skillDir,
+          "--eval-set",
+          "missing",
+          "--eval-set-file",
+          "/absent",
+        ]),
+      ).rejects.toThrow();
+      expect(String(err.mock.calls[0][0])).toMatch(/choose --eval-set or --eval-set-file/);
+      expect(store.readLog()).toEqual([]);
     } finally {
       cleanup();
     }
