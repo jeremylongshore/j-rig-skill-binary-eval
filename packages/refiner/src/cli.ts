@@ -1,3 +1,4 @@
+import { assessOptimizerExperiment } from "./optimizer.js";
 import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 /**
  * `j-rig refine` command group — the 5 Skill Refiner CLI commands (plan 027 § 4
@@ -24,17 +25,17 @@ import { bootstrapReviewedSource } from "./bootstrap-sources.js";
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve, posix } from "node:path";
+import { resolve } from "node:path";
+import { loadSkillDoc } from "./skill-doc.js";
 import type { Command } from "commander";
 import {
-  makeSkillDoc,
   bootstrap,
   hashValue,
   validateEvalSet,
   type EvalSet,
   applyEdit,
-  type SkillDoc,
   type EditProposal,
+  type RefinerExperiment,
 } from "@intentsolutions/refiner-core";
 import { RefinerStore } from "./store.js";
 import { score, createSubprocessEvalRunner, type EvalRunner } from "./score.js";
@@ -57,15 +58,6 @@ import {
   type RefinerStrategy,
 } from "@intentsolutions/refiner-core";
 import { renderReportHtml, ReportRenderError } from "./report-render.js";
-
-/** Load the SKILL.md in `skillDir` into a content-addressed SkillDoc. */
-function loadSkillDoc(skillDir: string): SkillDoc {
-  const path = join(skillDir, "SKILL.md");
-  const text = readFileSync(path, "utf8");
-  // skillId = directory basename (the conventional skill slug).
-  const skillId = posix.basename(skillDir) || skillDir;
-  return makeSkillDoc(skillId, text);
-}
 
 /** Select a strategy by id, defaulting to the SkillOpt-style refiner. */
 function selectStrategy(id?: string): RefinerStrategy {
@@ -403,7 +395,11 @@ export function registerRefineCommand(
     .command("assess")
     .description("Assess a proposal with reviewed quality evidence and fresh paired scores")
     .argument("<skill-dir>", "Skill directory containing the baseline SKILL.md")
-    .requiredOption("--proposal <hash>", "Stored EditProposal hash")
+    .option("--proposal <hash>", "Stored EditProposal hash")
+    .option(
+      "--experiment <hash>",
+      "Stored proposed optimizer experiment hash (instead of --proposal)",
+    )
     .requiredOption("--eval-set-file <path>", "Frozen EvalSet JSON")
     .requiredOption("--quality-file <path>", "JSON with explicit evidence and policy")
     .option("--provider <name>", "Evaluation provider")
@@ -413,7 +409,8 @@ export function registerRefineCommand(
       async (
         skillDir: string,
         opts: {
-          proposal: string;
+          proposal?: string;
+          experiment?: string;
           evalSetFile: string;
           qualityFile: string;
           provider?: string;
@@ -424,8 +421,22 @@ export function registerRefineCommand(
         try {
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
-          const proposal = store.get<EditProposal>(opts.proposal);
-          if (!proposal) fail(`proposal ${opts.proposal} not found in the refiner store`);
+          if (Boolean(opts.proposal) === Boolean(opts.experiment))
+            fail("choose exactly one of --proposal or --experiment");
+          if (
+            [opts.proposal, opts.experiment].some(
+              (value) => value !== undefined && !/^[0-9a-f]{64}$/.test(value),
+            )
+          )
+            fail("invalid content hash");
+          const experiment = opts.experiment
+            ? store.get<RefinerExperiment>(opts.experiment)
+            : undefined;
+          if (opts.experiment && (!experiment || hashValue(experiment) !== opts.experiment))
+            fail("optimizer experiment missing or content hash mismatch");
+          const proposal = experiment?.editProposal ?? store.get<EditProposal>(opts.proposal!);
+          if (!proposal || (opts.proposal && hashValue(proposal) !== opts.proposal))
+            fail("proposal missing or content hash mismatch");
           const evalSet = JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<
             typeof bootstrap
           >;
@@ -440,29 +451,54 @@ export function registerRefineCommand(
           if (resolved.format === "anthropic" && !["haiku", "sonnet"].includes(modelTier)) {
             fail("assessment scoring requires haiku or sonnet on Anthropic");
           }
-          const result = await assessProposal(
-            {
-              doc,
-              proposal,
-              evalSet,
-              quality: quality.evidence,
-              policy: quality.policy,
-              now: assessmentRuntime.now?.() ?? new Date().toISOString(),
-              scoreOptions: { skillDir, provider: resolved.name, modelTier },
-            },
-            assessmentRuntime.runner ?? createSubprocessEvalRunner(),
-          );
+          const inputs = {
+            doc,
+            proposal,
+            evalSet,
+            quality: quality.evidence,
+            policy: quality.policy,
+            now: assessmentRuntime.now?.() ?? new Date().toISOString(),
+            scoreOptions: { skillDir, provider: resolved.name, modelTier },
+          };
+          const runner = assessmentRuntime.runner ?? createSubprocessEvalRunner();
+          const optimizer = experiment
+            ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
+            : undefined;
+          const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
           const hash =
             result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
+          const experimentHash = optimizer?.experiment
+            ? store.put("optimizer-experiment", optimizer.experiment)
+            : undefined;
           if (opts.json)
-            console.log(JSON.stringify({ ...result, ...(hash ? { stored: hash } : {}) }, null, 2));
+            console.log(
+              JSON.stringify(
+                {
+                  ...result,
+                  ...(hash ? { stored: hash } : {}),
+                  ...(optimizer
+                    ? { optimizer: { experiment: optimizer.experiment, stored: experimentHash } }
+                    : {}),
+                },
+                null,
+                2,
+              ),
+            );
           else if (result.status === "blocked")
             console.log(`Assessment blocked: ${result.reasons.join(", ")}`);
           else
             console.log(
               `Assessment: ${result.decision.outcome}\n  stored: ${hash}\n  Best pointer requires human promotion.`,
             );
-          if (result.status === "blocked" || result.decision.outcome !== "ACCEPT")
+          if (optimizer?.experiment && !opts.json)
+            console.log(
+              `Optimizer: ${optimizer.experiment.experiment.status}\n  stored: ${experimentHash}\n  reasons: ${optimizer.experiment.resolution!.reasons.join(", ") || "all gates passed"}`,
+            );
+          if (
+            result.status === "blocked" ||
+            result.decision.outcome !== "ACCEPT" ||
+            (optimizer && optimizer.experiment?.experiment.status !== "accepted")
+          )
             process.exitCode = 2;
         } catch (error) {
           fail(error instanceof Error ? error.message : String(error));

@@ -257,3 +257,46 @@ quality-gated assessment until refreshed. Import does not establish held-out
 independence or calibration: assessment still requires its separate quality
 checks. Refs `bd_000-projects-214c.15` /
 [issue #397](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/397).
+
+### Optimizer experiments
+
+The existing `optimize` analysis can bind a stored one-operation edit to a
+Refiner experiment. Map the weakest legacy criterion to a reviewed eval item
+explicitly; the command does not infer that mapping or generate a new edit.
+
+```bash
+j-rig optimize --skill demo --db j-rig.db --run-id 42 \
+  --refiner-proposal <stored-edit-hash> --skill-dir ./demo \
+  --eval-set-file reviewed.json --target-item case-20 \
+  --change-type instruction --expected-impact "Correct the target failure" --json
+j-rig refine assess ./demo --experiment <optimizer-experiment-hash> \
+  --eval-set-file reviewed.json --quality-file quality.json --provider openai --json
+```
+
+Both commands use `loadSkillDoc` to derive the skill ID from the resolved directory
+basename, including when invoked with `.`.
+
+All six bridge options are required together. Without them, `optimize` retains
+its analysis-only behavior. The selected source run must be completed and belong
+to the requested skill, with its legacy 16-character digest matching the current
+baseline. That truncated historical digest is not a full Refiner identity.
+The new immutable record retains the full document, run metadata and result rows;
+it does not reclassify historical results as fresh scoring evidence.
+
+`createRefinerExperiment` (pure core) binds the shared `ChangeProposal` and
+`Experiment` contracts to baseline/candidate documents, a frozen EvalSet,
+exactly one effective EditProposal operation, source evidence and explicit target.
+`assessOptimizerExperiment` (adapter) reconstructs and checks that binding before
+fresh paired scoring. Acceptance requires the normal reviewed-quality, kernel
+schema and statistical gates **and** a failing-to-passing target with no
+previously passing item regressing. The legacy `evaluateExperiment` refuses
+Refiner-bound experiments. Ordinary Refiner assessments still allow 1–8 edits.
+
+Completed assessments append a child experiment whose parent is the proposed
+record's content address. Resolution retains assessment and paired-score hashes;
+the assessment holds the full score evidence. Quality-blocked assessments produce
+no child. Neither command edits SKILL.md or moves the best pointer. Raw historical
+result messages are retained locally in the private Refiner store; review their
+content before sharing. These local records do not authenticate the source.
+
+Tracked by `bd_000-projects-214c.17` / GitHub #401; API doc 029 §8.8.

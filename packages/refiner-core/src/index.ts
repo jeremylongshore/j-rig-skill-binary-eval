@@ -186,3 +186,13 @@ export {
   computeAdoptionVerdict,
   toAdoptionObservations,
 } from "./adoption.js";
+
+export {
+  createRefinerExperiment,
+  validateProposedRefinerExperiment,
+  type RefinerExperiment,
+  type CreateRefinerExperimentInputs,
+  type ChangeProposal,
+  type Experiment,
+  type ExperimentStatus,
+} from "./optimizer.js";

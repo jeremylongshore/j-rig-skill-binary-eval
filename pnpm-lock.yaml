@@ -64,6 +64,9 @@ importers:
       '@intentsolutions/refiner':
         specifier: workspace:^
         version: link:../refiner
+      '@intentsolutions/refiner-core':
+        specifier: workspace:*
+        version: link:../refiner-core
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.5)
@@ -110,6 +113,9 @@ importers:
       '@intentsolutions/core':
         specifier: 0.11.0
         version: 0.11.0
+      '@intentsolutions/refiner-core':
+        specifier: workspace:*
+        version: link:../refiner-core
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1

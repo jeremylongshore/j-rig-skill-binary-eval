@@ -7,3 +7,5 @@ export type {
   Experiment,
   OptimizerProvider,
 } from "./types.js";
+
+export { createRefinerExperiment, type RefinerExperiment } from "@intentsolutions/refiner-core";

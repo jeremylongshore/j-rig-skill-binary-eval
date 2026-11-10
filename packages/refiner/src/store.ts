@@ -58,7 +58,9 @@ export type RefinerRecordKind =
   | "score-record"
   | "eval-set"
   | "acceptance-assessment"
-  | "bootstrap-source";
+  | "bootstrap-source"
+  | "optimizer-source"
+  | "optimizer-experiment";
 
 /** A single line in the append-only event log. */
 export type RefinerEvent =

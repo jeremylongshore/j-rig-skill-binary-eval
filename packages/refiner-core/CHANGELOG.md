@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Share legacy optimizer contracts and bind atomic experiments to immutable Refiner inputs with explicit source and target identities. Refs `bd_000-projects-214c.17` / #401.
+
 ### Added
 
 - Declared-capability sampling completeness via `capabilityCoverage` and the

@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Connect optimize failure analysis to stored Refiner experiments with explicit target mapping and source validation. Refs `bd_000-projects-214c.17` / #401.
+
 ## [0.5.1] - 2026-10-19
 
 ### Fixed
