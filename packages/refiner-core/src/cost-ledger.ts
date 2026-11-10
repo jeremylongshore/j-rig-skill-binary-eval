@@ -119,110 +119,124 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
     calls: new Map(),
     outcomes: new Set(),
   };
-  for (const event of events.slice(1)) {
-    if (event.kind === "policy") throw new Error("Duplicate cost policy");
-    if (event.kind === "reserve") {
-      const rate = policy.rates.find(
-        (r) => r.provider === event.provider && r.model === event.model,
-      );
-      if (
-        !Object.hasOwn(state.files, event.fileId) ||
-        !rate ||
-        state.calls.has(event.callId) ||
-        state.outcomes.has(event.attemptId) ||
-        [...state.calls.values()].some(
-          (call) =>
-            call.reservation.attemptId === event.attemptId &&
-            call.reservation.fileId !== event.fileId,
-        ) ||
-        event.reservedMicros !== reserveCost(rate, event.outputLimit)
-      )
-        throw new Error("Invalid cost reservation");
-      state.calls.set(event.callId, { reservation: event });
-    } else if (event.kind === "settle") {
-      const call = state.calls.get(event.callId);
-      if (!call || call.settlement) throw new Error("Missing or duplicate cost settlement");
-      call.settlement = event;
-    } else {
-      const file = Object.hasOwn(state.files, event.fileId) ? state.files[event.fileId] : undefined;
-      if (!file) throw new Error("Unknown cost file");
-      if (event.kind === "halt") {
-        state.lastHalt = event;
-        if (event.scope === "wave") state.stopped = true;
-        else file.quarantined = true;
-      } else {
-        if (state.outcomes.has(event.attemptId)) throw new Error("Duplicate cost outcome");
-        if (
-          [...state.calls.values()].some(
-            (c) =>
-              c.reservation.attemptId === event.attemptId &&
-              (c.reservation.fileId !== event.fileId ||
-                (!c.settlement && event.decision !== "failed")),
-          )
-        )
-          throw new Error("Unsettled or mismatched cost outcome");
-        if (event.decision === "accepted") {
-          const calls = [...state.calls.values()].filter(
-            (c) => c.reservation.attemptId === event.attemptId,
-          );
-          if (
-            !calls.some((c) => c.settlement?.outcome === "completed") ||
-            calls.some((c) => {
-              const rate = policy.rates.find(
-                (r) => r.provider === c.reservation.provider && r.model === c.reservation.model,
-              )!;
-              return (
-                !c.settlement?.usage ||
-                !c.settlement.reportedModel ||
-                !rate.reportedModels.includes(c.settlement.reportedModel) ||
-                c.settlement.usage.inputTokens > rate.maxInputTokens ||
-                c.settlement.usage.outputTokens > c.reservation.outputLimit ||
-                priceCostUsage(rate, c.settlement.usage) > c.reservation.reservedMicros
-              );
-            })
-          )
-            throw new Error("Acceptance requires complete priced calls");
-        }
-        state.outcomes.add(event.attemptId);
-        if (event.decision === "accepted") file.accepted++;
-      }
-    }
-  }
-  for (const { reservation: r, settlement: s } of state.calls.values()) {
-    const file = state.files[r.fileId]!;
-    const rate = policy.rates.find(
-      (rate) => rate.provider === r.provider && rate.model === r.model,
-    )!;
-    const priced =
-      s?.usage && s.reportedModel && rate.reportedModels.includes(s.reportedModel)
-        ? priceCostUsage(rate, s.usage)
-        : null;
-    const measuredTokens = s?.usage ? add(s.usage.inputTokens, s.usage.outputTokens) : null;
-    file.knownTokens = add(file.knownTokens, measuredTokens ?? 0);
-    file.committedTokens = add(
-      file.committedTokens,
-      measuredTokens ?? add(rate.maxInputTokens, r.outputLimit),
-    );
-    file.calls = add(file.calls, 1);
-    file.committedMicros = add(file.committedMicros, priced ?? r.reservedMicros);
-    file.knownMicros = add(file.knownMicros, priced ?? 0);
-    if (!s) file.pendingCalls++;
-    else if (priced === null) {
-      file.unknownCalls++;
-      file.quarantined = true;
-      state.stopped = true;
-    }
+  for (const event of events.slice(1)) applyCostEvent(state, event);
+  for (const call of state.calls.values()) accumulateCallCost(state, call);
+  summarizeCostLedger(state);
+  return state;
+}
+
+/** Replay event validation in ledger order before computing any rollups. */
+function applyCostEvent(state: CostLedgerState, event: CostEvent): void {
+  const { policy } = state;
+  if (event.kind === "policy") throw new Error("Duplicate cost policy");
+  if (event.kind === "reserve") {
+    const rate = policy.rates.find((r) => r.provider === event.provider && r.model === event.model);
     if (
-      s?.usage &&
-      (s.usage.inputTokens > rate.maxInputTokens ||
-        s.usage.outputTokens > r.outputLimit ||
-        (priced !== null && priced > r.reservedMicros))
-    ) {
-      state.p0 = true;
-      state.stopped = true;
-      file.quarantined = true;
+      !Object.hasOwn(state.files, event.fileId) ||
+      !rate ||
+      state.calls.has(event.callId) ||
+      state.outcomes.has(event.attemptId) ||
+      [...state.calls.values()].some(
+        (call) =>
+          call.reservation.attemptId === event.attemptId &&
+          call.reservation.fileId !== event.fileId,
+      ) ||
+      event.reservedMicros !== reserveCost(rate, event.outputLimit)
+    )
+      throw new Error("Invalid cost reservation");
+    state.calls.set(event.callId, { reservation: event });
+  } else if (event.kind === "settle") {
+    const call = state.calls.get(event.callId);
+    if (!call || call.settlement) throw new Error("Missing or duplicate cost settlement");
+    call.settlement = event;
+  } else {
+    const file = Object.hasOwn(state.files, event.fileId) ? state.files[event.fileId] : undefined;
+    if (!file) throw new Error("Unknown cost file");
+    if (event.kind === "halt") {
+      state.lastHalt = event;
+      if (event.scope === "wave") state.stopped = true;
+      else file.quarantined = true;
+    } else {
+      if (state.outcomes.has(event.attemptId)) throw new Error("Duplicate cost outcome");
+      if (
+        [...state.calls.values()].some(
+          (c) =>
+            c.reservation.attemptId === event.attemptId &&
+            (c.reservation.fileId !== event.fileId ||
+              (!c.settlement && event.decision !== "failed")),
+        )
+      )
+        throw new Error("Unsettled or mismatched cost outcome");
+      if (event.decision === "accepted") {
+        const calls = [...state.calls.values()].filter(
+          (c) => c.reservation.attemptId === event.attemptId,
+        );
+        if (
+          !calls.some((c) => c.settlement?.outcome === "completed") ||
+          calls.some((c) => {
+            const rate = policy.rates.find(
+              (r) => r.provider === c.reservation.provider && r.model === c.reservation.model,
+            )!;
+            return (
+              !c.settlement?.usage ||
+              !c.settlement.reportedModel ||
+              !rate.reportedModels.includes(c.settlement.reportedModel) ||
+              c.settlement.usage.inputTokens > rate.maxInputTokens ||
+              c.settlement.usage.outputTokens > c.reservation.outputLimit ||
+              priceCostUsage(rate, c.settlement.usage) > c.reservation.reservedMicros
+            );
+          })
+        )
+          throw new Error("Acceptance requires complete priced calls");
+      }
+      state.outcomes.add(event.attemptId);
+      if (event.decision === "accepted") file.accepted++;
     }
   }
+}
+
+/** Retain reservations for pending or unpriced calls and quarantine overruns. */
+function accumulateCallCost(
+  state: CostLedgerState,
+  { reservation: r, settlement: s }: { reservation: Reservation; settlement?: Settlement },
+): void {
+  const { policy } = state;
+  const file = state.files[r.fileId]!;
+  const rate = policy.rates.find((rate) => rate.provider === r.provider && rate.model === r.model)!;
+  const priced =
+    s?.usage && s.reportedModel && rate.reportedModels.includes(s.reportedModel)
+      ? priceCostUsage(rate, s.usage)
+      : null;
+  const measuredTokens = s?.usage ? add(s.usage.inputTokens, s.usage.outputTokens) : null;
+  file.knownTokens = add(file.knownTokens, measuredTokens ?? 0);
+  file.committedTokens = add(
+    file.committedTokens,
+    measuredTokens ?? add(rate.maxInputTokens, r.outputLimit),
+  );
+  file.calls = add(file.calls, 1);
+  file.committedMicros = add(file.committedMicros, priced ?? r.reservedMicros);
+  file.knownMicros = add(file.knownMicros, priced ?? 0);
+  if (!s) file.pendingCalls++;
+  else if (priced === null) {
+    file.unknownCalls++;
+    file.quarantined = true;
+    state.stopped = true;
+  }
+  if (
+    s?.usage &&
+    (s.usage.inputTokens > rate.maxInputTokens ||
+      s.usage.outputTokens > r.outputLimit ||
+      (priced !== null && priced > r.reservedMicros))
+  ) {
+    state.p0 = true;
+    state.stopped = true;
+    file.quarantined = true;
+  }
+}
+
+/** Aggregate file commitments before evaluating whole-wave limits. */
+function summarizeCostLedger(state: CostLedgerState): void {
+  const { policy } = state;
   for (const file of Object.values(state.files)) {
     file.quarantined ||=
       file.committedMicros >= policy.maxFileMicros ||
@@ -256,5 +270,4 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
   state.aboveMeanBudget =
     BigInt(state.total.knownMicros) >
     BigInt(policy.meanFileBudgetMicros) * BigInt(policy.files.length);
-  return state;
 }
