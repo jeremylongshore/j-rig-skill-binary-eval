@@ -258,7 +258,6 @@ independence or calibration: assessment still requires its separate quality
 checks. Refs `bd_000-projects-214c.15` /
 [issue #397](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/397).
 
-
 ### Optimizer experiments
 
 The existing `optimize` analysis can bind a stored one-operation edit to a
