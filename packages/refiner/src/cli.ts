@@ -28,10 +28,14 @@ import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { CostLedger } from "./cost-ledger.js";
+import { createCostTransport } from "./cost-transport.js";
 import { loadSkillDoc } from "./skill-doc.js";
 import type { Command } from "commander";
 import {
   bootstrap,
+  CostPolicySchema,
   hashValue,
   validateEvalSet,
   type EvalSet,
@@ -48,6 +52,7 @@ import {
 } from "./assess.js";
 import {
   createCompletionClient,
+  createCompletionFetchTransport,
   resolveProvider,
   NoProviderError,
   type ProposeModelTier,
@@ -322,13 +327,40 @@ export function registerRefineCommand(
       "Propose model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
         "providers: a raw vendor model id (defaults to the provider's default).",
     )
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger (default: audit/wave-b-cost-ledger.jsonl)")
+    .option("--cost-file-id <id>", "Stable file identity from the cost policy")
     .option("--json", "Output as JSON")
     .action(
       async (
         skillDir: string,
-        opts: { strategy?: string; provider?: string; model?: string; json?: boolean },
+        opts: {
+          strategy?: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+          costPolicy?: string;
+          costLedger?: string;
+          costFileId?: string;
+        },
       ) => {
+        let cost: { ledger: CostLedger; attemptId: string; fileId: string } | undefined;
         try {
+          if ((opts.costLedger || opts.costFileId) && !opts.costPolicy)
+            fail("cost options require --cost-policy");
+          if (opts.costPolicy) {
+            if (!opts.costFileId) fail("--cost-policy requires --cost-file-id");
+            const policy = CostPolicySchema.parse(
+              JSON.parse(readFileSync(opts.costPolicy, "utf8")),
+            );
+            if (!policy.files.includes(opts.costFileId))
+              fail("file identity absent from cost policy");
+            cost = {
+              ledger: new CostLedger(opts.costLedger ?? "audit/wave-b-cost-ledger.jsonl", policy),
+              attemptId: randomUUID(),
+              fileId: opts.costFileId,
+            };
+          }
           // PROVIDER-AGNOSTIC: resolve a backend from --provider / LLM_* / the
           // first present key (preferring free/cheap). No Anthropic requirement.
           let resolved;
@@ -371,18 +403,34 @@ export function registerRefineCommand(
           store.putSkillDoc(doc);
           // Build the client that matches the resolved provider's wire format
           // (Anthropic Messages vs OpenAI Chat Completions).
-          const client = createCompletionClient(resolved);
+          const transport = cost
+            ? createCostTransport(createCompletionFetchTransport(), cost.ledger, {
+                fileId: cost.fileId,
+                attemptId: cost.attemptId,
+                provider: resolved.name,
+                format: resolved.format,
+                phase: "propose",
+              })
+            : undefined;
+          const client = createCompletionClient(resolved, transport);
           // No scored rollouts on the CLI path yet (harvest is wave 2+); the
           // strategies tolerate an empty rollout set (single-pass proposal).
+          const costAttemptId = cost?.attemptId;
           const { proposal } = await proposeWithEvidence(
             strategy,
             { doc, rollouts: [] },
             client,
             store,
             proposeOpts,
-            { provider: resolved.name },
+            { provider: resolved.name, ...(costAttemptId ? { id: () => costAttemptId } : {}) },
           );
           const hash = store.putEditProposal(proposal);
+          if (cost)
+            cost.ledger.outcome({
+              attemptId: cost.attemptId,
+              fileId: cost.fileId,
+              decision: "proposed",
+            });
           if (opts.json) {
             console.log(JSON.stringify(proposal, null, 2));
           } else {
@@ -393,6 +441,12 @@ export function registerRefineCommand(
             console.log(`  stored:   .j-rig/refiner/store/${hash.slice(0, 12)}…`);
           }
         } catch (err) {
+          if (cost && !cost.ledger.snapshot().outcomes.has(cost.attemptId))
+            cost.ledger.outcome({
+              attemptId: cost.attemptId,
+              fileId: cost.fileId,
+              decision: "failed",
+            });
           fail(err instanceof Error ? err.message : String(err));
         }
       },

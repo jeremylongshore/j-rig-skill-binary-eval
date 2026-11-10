@@ -722,3 +722,19 @@ Every export above has a co-located `*.test.ts` in `packages/refiner-core/src/`.
 - `000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md` — the wave-1 (`0.1.0`) foundation surface this doc grows from.
 - `packages/refiner-core/src/` — the authoritative source; each export's JSDoc is normative.
 - `packages/refiner-core/README.md` — the foundation overview.
+
+### 8.12 Explicit cost policy and durable admission (in development)
+
+Tracked by `bd_000-projects-214c.18` / GitHub #403. Pure `CostPolicySchema`,
+`priceCostUsage`, `reserveCost` and `replayCostLedger` define reproducible integer
+micro-USD arithmetic and record replay. Public adapter `CostLedger` performs
+exclusive, synced append-only reservations; `createCostTransport` admits each
+wire attempt and settles it before response parsing. `refine propose` accepts
+explicit policy, ledger and stable file identity flags. See the Refiner README
+for pricing units, token-bound assumptions, fixed Wave B limits and recovery.
+
+This implementation remains incomplete: score/assess integration, cross-process
+concurrency evidence, per-accept runtime receipts and existing OTel correlation
+must be delivered before the runtime-cost bead can close or Wave B can run.
+The current ledger supports outcome rollups and persistent quarantine/stop state;
+this is not evidence of a completed assessment or an executed Wave B cohort.

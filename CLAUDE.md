@@ -482,3 +482,9 @@ This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CL
 **Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
 
 > **Note**: this repo IS the seven-layer binary eval harness for Claude Skills. The audit-harness install adds a complementary 7-layer testing taxonomy gate at the repo level — independent of the skill-eval harness, applied to this repo's own code.
+
+Cost admission work in progress: `refine propose --cost-policy ... --cost-file-id ...`
+uses a shared synced reservation ledger and explicitly supplied rates. The pure
+policy/replay contracts live in refiner-core; filesystem/transport adapters live
+in refiner. Score/assess integration and OTel remain outstanding in 214c.18/#403.
+See API029 §8.12 and the Refiner README before using the partial runtime path.
