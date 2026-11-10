@@ -292,6 +292,15 @@ function evaluateEvalSet(evalSet: EvalSet, opts?: EvaluateEvalSetOptions): EvalS
 
 Pure eval-set quality measurement (bead `214c.11`): `coverage` (stratification breakdown), `leakage` (train/held-out overlap), `calibration` (predicted-vs-observed reliability), `adversarialPassRate` (robustness on adversarial items), and `evaluateEvalSet` (the roll-up quality report). These gate whether an eval-set is trustworthy enough to derive an accept verdict against.
 
+`leakage` matches canonical prompts (trimmed and lowercased) one-to-one across
+distinct arrays. Its ratio is the multiset intersection count divided by the
+smaller array length, so it is symmetric and bounded by zero and one even when
+prompts repeat. Matched IDs come from the first array in input order. Passing
+the same array reference instead reports duplicate occurrences after the first
+per prompt, divided by that array length. Empty inputs return zero.
+`calibration` rejects non-finite confidences and values outside `[0, 1]` with a
+`RangeError`, including when called through `evaluateEvalSet`.
+
 ### 6.2 Slice-utility (LOBO causal attribution)
 
 ```ts
