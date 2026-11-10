@@ -152,6 +152,39 @@ describe("score() adapter — delegates to `j-rig eval` (build-order step 5)", (
     ).rejects.toThrow(ScoreAdapterError);
   });
 
+  it.each([
+    [
+      1,
+      { error: "Package integrity failed", pkgReport: { detail: "private-marker" } },
+      "package integrity failed",
+    ],
+    [2, { error: "private-marker" }, "provider infrastructure failure"],
+    [3, { error: "private-marker" }, "evaluation budget exhausted"],
+    [9, { error: "private-marker" }, "evaluation failed"],
+  ])("reports a bounded cause for evaluator exit %i", async (exitCode, output, reason) => {
+    const runner = fakeRunner({
+      exitCode,
+      stdout: JSON.stringify(output),
+      stderr: "private-marker",
+    });
+    let failure: unknown;
+    try {
+      await score(doc, evalSet, runner, { skillDir: "/d" });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(ScoreAdapterError);
+    expect((failure as Error).message).toContain(reason);
+    expect((failure as Error).message).not.toContain("private-marker");
+  });
+
+  it("preserves a safe startup error code without exposing the executable path", async () => {
+    const runner = createSubprocessEvalRunner({ command: "/missing-private-marker/j-rig" });
+    await expect(score(doc, evalSet, runner, { skillDir: "/d" })).rejects.toThrow(
+      "could not start j-rig eval (ENOENT)",
+    );
+  });
+
   it("throws when stdout has no parseable JSON", async () => {
     const runner = fakeRunner({ stdout: "no json here" });
     await expect(

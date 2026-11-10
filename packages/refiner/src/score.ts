@@ -114,7 +114,18 @@ export async function score(
   });
 
   if (result.exitCode !== 0) {
-    throw new ScoreAdapterError(`j-rig eval exited ${result.exitCode}; no ScoreRecord produced`);
+    const output = parseLastJsonObject(result.stdout);
+    const reason =
+      output?.error === "Package integrity failed"
+        ? "package integrity failed; check frozen SKILL.md metadata and file references"
+        : result.exitCode === 2
+          ? "provider infrastructure failure"
+          : result.exitCode === 3
+            ? "evaluation budget exhausted"
+            : "evaluation failed";
+    throw new ScoreAdapterError(
+      `j-rig eval exited ${result.exitCode}: ${reason}; no ScoreRecord produced`,
+    );
   }
 
   const scoreCard = extractScoreCard(result.stdout, modelTier, frozenSet.items.length);
@@ -288,9 +299,20 @@ export function createSubprocessEvalRunner(
           let stderr = "";
           child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
           child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
-          child.on("error", () =>
-            rejectPromise(new ScoreAdapterError("could not start j-rig eval")),
-          );
+          child.on("error", (error: NodeJS.ErrnoException) => {
+            const code = [
+              "ENOENT",
+              "EACCES",
+              "ENOEXEC",
+              "EMFILE",
+              "ENFILE",
+              "ENOMEM",
+              "EAGAIN",
+            ].includes(error.code ?? "")
+              ? ` (${error.code})`
+              : "";
+            rejectPromise(new ScoreAdapterError(`could not start j-rig eval${code}`));
+          });
           child.on("close", (code: number | null) =>
             resolvePromise({ stdout, stderr, exitCode: code ?? 1 }),
           );
