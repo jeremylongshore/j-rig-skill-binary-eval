@@ -62,6 +62,9 @@ export interface EvalInvocation {
    * names this package's registry uses — so `refine score` and `j-rig eval` agree.
    */
   readonly provider?: string;
+  /** Explicit judge selection, independent of the execution provider/model. */
+  readonly judgeProvider?: string;
+  readonly judgeModel?: string;
 }
 
 /**
@@ -91,6 +94,9 @@ export interface ScoreOptions {
    * SAME backend propose() resolved (deepseek/groq/nvidia/openai/minimax/anthropic/…).
    */
   readonly provider?: string;
+  /** Explicit judge selection, independent of the execution provider/model. */
+  readonly judgeProvider?: string;
+  readonly judgeModel?: string;
 }
 
 /**
@@ -150,6 +156,8 @@ async function runScore(
     skillDir: opts.skillDir,
     modelTier,
     ...(opts.provider ? { provider: opts.provider } : {}),
+    ...(opts.judgeProvider ? { judgeProvider: opts.judgeProvider } : {}),
+    ...(opts.judgeModel ? { judgeModel: opts.judgeModel } : {}),
   });
 
   if (result.exitCode !== 0) {
@@ -407,6 +415,8 @@ export function createSubprocessEvalRunner(
           join(root, "evaluation.db"),
         ];
         if (invocation.provider) args.push("--provider", invocation.provider);
+        if (invocation.judgeProvider) args.push("--judge-provider", invocation.judgeProvider);
+        if (invocation.judgeModel) args.push("--judge-model", invocation.judgeModel);
         return await new Promise<EvalRunnerResult>((resolvePromise, rejectPromise) => {
           const child = spawn(command, args, {
             env: opts.env ?? process.env,

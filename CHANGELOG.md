@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Bound assessed proposals to 1–8 operations before scoring and pin both judges
+  to reviewed provider/model evidence. Anthropic judge metadata now reports the
+  resolved transport model ID. Refs bead `bd_000-projects-214c.16` / #398.
+
 - `@intentsolutions/jrig-cli` 0.5.1 removes the unused formatter chain from
   consumer installs, bounds MiniMax plan admission and shared quota/overload recovery, bounds stopped
   Claude Code workspace cleanup, and binds evidence inspection/read to one file

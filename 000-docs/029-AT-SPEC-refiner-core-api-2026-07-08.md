@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -495,6 +495,15 @@ versions on the same frozen items, and invoke the existing `decide` gate. The
 adversarial dimension participates in non-regression. No historical ScoreRecord
 can substitute for a fresh run. Schema-invalid improvements retain the existing
 schema-revision-candidate outcome rather than becoming accepts.
+
+Assessment requires 1–8 operations (the shared `MAX_OPS_PER_PROPOSAL` bound)
+before evaluator I/O. Both score invocations pin `judgeProvider`/`judgeModel`
+from reviewed quality evidence, overriding caller scoring options. The subprocess
+forwards `--judge-provider`/`--judge-model`; Anthropic metadata reports the
+resolved transport model ID. Calibration must name that concrete ID, since a
+tier alias does not match the runtime identity. Ordinary scoring can still use
+execution tiers. Tracked by `bd_000-projects-214c.16` /
+[issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
 
 `refine assess` stores completed assessments with both documents, proposal,
 eval-set content, item observations, quality evidence, and policy. Blocked

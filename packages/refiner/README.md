@@ -156,6 +156,15 @@ dimension. A different actual judge blocks the assessment; provider failures
 produce no decision. Historical ScoreRecords cannot be supplied in place of
 these fresh observations. The default validator uses the kernel schema.
 
+Assessment requires 1–8 operations (the shared `MAX_OPS_PER_PROPOSAL` bound)
+before evaluator I/O. Both score invocations pin `judgeProvider`/`judgeModel`
+from reviewed quality evidence, overriding caller scoring options. The subprocess
+forwards `--judge-provider`/`--judge-model`; Anthropic metadata reports the
+resolved transport model ID. Calibration must name that concrete ID, since a
+tier alias does not match the runtime identity. Ordinary scoring can still use
+execution tiers. Tracked by `bd_000-projects-214c.16` /
+[issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
+
 The CLI stores an immutable `acceptance-assessment` only for completed paired
 evaluation, including both documents, the proposal, frozen eval set, per-item
 observations, reviewed evidence, explicit policy, and their content hashes.

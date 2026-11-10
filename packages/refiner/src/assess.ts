@@ -6,6 +6,7 @@ import {
   isRefreshDue,
   kernelSkillFrontmatterValidator,
   leakage,
+  MAX_OPS_PER_PROPOSAL,
   type AdversarialEvalItem,
   type CalibrationPrediction,
   type CapabilityManifest,
@@ -93,6 +94,12 @@ export async function assessProposal(
   const { doc, evalSet } = checkedInputs(frozen.doc, frozen.evalSet);
   const { quality, policy, now } = frozen;
   const blocked = (...reasons: string[]): ProposalAssessment => ({ status: "blocked", reasons });
+  if (
+    !Array.isArray(frozen.proposal.ops) ||
+    frozen.proposal.ops.length < 1 ||
+    frozen.proposal.ops.length > MAX_OPS_PER_PROPOSAL
+  )
+    return blocked("invalid-proposal-operation-count");
   if (!validPolicy(policy)) return blocked("invalid-quality-policy");
   if (!quality) return blocked("missing-quality-evidence");
   if (quality.evalSetHash !== evalSet.hash) return blocked("quality-eval-set-mismatch");
@@ -175,9 +182,14 @@ export async function assessProposal(
   if (reasons.length > 0) return blocked(...reasons);
 
   const candidateDoc = applyEdit(doc, frozen.proposal);
-  const baseline = await scoreWithEvidence(doc, evalSet, runner, frozen.scoreOptions);
+  const scoreOptions: ScoreOptions = {
+    ...frozen.scoreOptions,
+    judgeProvider: quality.judge.provider,
+    judgeModel: quality.judge.model,
+  };
+  const baseline = await scoreWithEvidence(doc, evalSet, runner, scoreOptions);
   if (!sameJudge(baseline, quality)) return blocked("calibrated-judge-mismatch");
-  const candidate = await scoreWithEvidence(candidateDoc, evalSet, runner, frozen.scoreOptions);
+  const candidate = await scoreWithEvidence(candidateDoc, evalSet, runner, scoreOptions);
   if (!sameJudge(candidate, quality)) return blocked("calibrated-judge-mismatch");
   if (
     !baseline.record.dimensions.adversarial_pass_rate ||

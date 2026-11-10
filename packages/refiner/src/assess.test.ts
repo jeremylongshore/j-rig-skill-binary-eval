@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { bootstrap, hashValue, makeSkillDoc } from "@intentsolutions/refiner-core";
+import {
+  bootstrap,
+  hashValue,
+  makeSkillDoc,
+  MAX_OPS_PER_PROPOSAL,
+} from "@intentsolutions/refiner-core";
 import { assessProposal, type AssessProposalInputs } from "./assess.js";
 import type { EvalInvocation, EvalRunner } from "./score.js";
 
@@ -107,6 +112,45 @@ describe("quality-gated proposal assessment", () => {
     expect(result.qualityReport.adversarialPassRate?.rate).toBe(0.5);
     expect(result.qualityEvidenceHash).toBe(hashValue(inputs.quality));
     expect(result.policyHash).toBe(hashValue(inputs.policy));
+  });
+
+  it.each([0, MAX_OPS_PER_PROPOSAL + 1])("blocks %i operations before scoring", async (count) => {
+    const inputs = fixture();
+    const runner = evaluator();
+    const ops = Array.from({ length: count }, (_, i) => ({
+      kind: "replace" as const,
+      target: i === 0 ? "Baseline" : `Improved-${i - 1}`,
+      content: `Improved-${i}`,
+    }));
+    expect(
+      await assessProposal(
+        { ...inputs, proposal: { ...inputs.proposal, ops } },
+        runner,
+        validSchema,
+      ),
+    ).toEqual({ status: "blocked", reasons: ["invalid-proposal-operation-count"] });
+    expect(runner.run).not.toHaveBeenCalled();
+  });
+
+  it("pins both evaluations to the reviewed judge rather than caller overrides", async () => {
+    const inputs = fixture();
+    const runner = evaluator();
+    await assessProposal(
+      {
+        ...inputs,
+        scoreOptions: {
+          ...inputs.scoreOptions,
+          judgeProvider: "other-provider",
+          judgeModel: "other-model",
+        },
+      },
+      runner,
+      validSchema,
+    );
+    expect(runner.run).toHaveBeenCalledTimes(2);
+    for (const [invocation] of runner.run.mock.calls) {
+      expect(invocation).toMatchObject({ judgeProvider: "test-judge", judgeModel: "judge-v1" });
+    }
   });
 
   it("rejects a significant adversarial regression despite overall improvement", async () => {
@@ -222,6 +266,39 @@ describe("quality-gated proposal assessment", () => {
     const result = await assessProposal(change(fixture()), runner, validSchema);
     expect(result.status).toBe("blocked");
     expect(runner.run).not.toHaveBeenCalled();
+  });
+
+  it("allows the shared maximum operation count", async () => {
+    const inputs = fixture();
+    const ops = Array.from({ length: MAX_OPS_PER_PROPOSAL }, (_, i) => ({
+      kind: "replace" as const,
+      target: i === 0 ? "Baseline" : `Improved-${i - 1}`,
+      content: `Improved-${i}`,
+    }));
+    const result = await assessProposal(
+      { ...inputs, proposal: { ...inputs.proposal, ops } },
+      evaluator(),
+      validSchema,
+    );
+    expect(result).toMatchObject({ status: "evaluated", decision: { outcome: "ACCEPT" } });
+  });
+
+  it("does not treat a calibrated alias as evidence for a resolved model", async () => {
+    const inputs = fixture();
+    const runner = evaluator(false, "judge-v2");
+    const result = await assessProposal(
+      {
+        ...inputs,
+        quality: {
+          ...inputs.quality!,
+          judge: { provider: "test-judge", model: "latest" },
+        },
+      },
+      runner,
+      validSchema,
+    );
+    expect(result).toEqual({ status: "blocked", reasons: ["calibrated-judge-mismatch"] });
+    expect(runner.run).toHaveBeenCalledTimes(1);
   });
 
   it("checks calibrated judge identity before running the candidate", async () => {
