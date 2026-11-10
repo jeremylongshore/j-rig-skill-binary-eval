@@ -9,6 +9,14 @@ import type {
   Provider,
 } from "@j-rig/core";
 
+type ToolObservation = {
+  id: string;
+  tool: string;
+  arguments: unknown;
+  status: "started" | "completed";
+  result?: string;
+};
+
 function refusal(reason: string, timeout = false): ProviderError {
   return new ProviderError({
     category: timeout ? "network_timeout" : "schema_violation",
@@ -56,13 +64,7 @@ export async function executeWithTools(
   const timer = setTimeout(abort, runtime.limits.timeoutMs);
   const signal = controller.signal;
   const events: { tool: string; status: "started" | "completed"; result_bytes?: number }[] = [];
-  const observations: {
-    id: string;
-    tool: string;
-    arguments: unknown;
-    status: "started" | "completed";
-    result?: string;
-  }[] = [];
+  const observations: ToolObservation[] = [];
   let observationReady = false;
   const observationContent = () =>
     JSON.stringify({
@@ -138,61 +140,17 @@ export async function executeWithTools(
       if (totalBytes > runtime.limits.maxTotalBytes) throw refusal("output_limit");
       if (result.finishReason === "length" || result.finishReason === "error")
         throw refusal("incomplete_response");
-      const requested: ModelToolCall[] =
-        result.toolCalls ??
-        (result.toolName === null
-          ? []
-          : [
-              {
-                id: result.toolCallId ?? "",
-                name: result.toolName,
-                arguments: result.toolArguments ?? {},
-              },
-            ]);
+      const validated = validateTurnCalls(result, names, ids, runtime, calls, totalBytes);
+      const requested = validated.requested;
+      totalBytes = validated.totalBytes;
       if (!requested.length) {
-        if (result.finishReason === "tool_use") throw refusal("missing_tool_call");
         answer = result.text;
         break;
-      }
-      if (result.finishReason !== "tool_use") throw refusal("unexpected_tool_call");
-      // Validate the entire turn before invoking any effect.
-      for (const call of requested) {
-        if (
-          !call.id ||
-          ids.has(call.id) ||
-          !names.has(call.name) ||
-          !call.arguments ||
-          typeof call.arguments !== "object" ||
-          Array.isArray(call.arguments)
-        ) {
-          throw refusal("invalid_tool_call");
-        }
-        ids.add(call.id);
-        totalBytes += Buffer.byteLength(JSON.stringify(call.arguments));
-      }
-      if (
-        calls + requested.length > runtime.limits.maxCalls ||
-        totalBytes > runtime.limits.maxTotalBytes
-      ) {
-        throw refusal("call_or_output_limit");
       }
       messages.push({ role: "assistant", content: result.text, toolCalls: requested });
       for (const call of requested) {
         signal.throwIfAborted();
-        let observation: (typeof observations)[number] | undefined;
-        if (runtime.judgeObservations) {
-          observation = {
-            id: call.id,
-            tool: call.name,
-            arguments: JSON.parse(runtime.judgeObservations.redact(JSON.stringify(call.arguments))),
-            status: "started",
-          };
-          observations.push(observation);
-          if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
-            observations.pop();
-            throw refusal("observation_limit");
-          }
-        }
+        const observation = beginToolObservation(call, runtime, observations, observationContent);
         calls++;
         const event: (typeof events)[number] = { tool: call.name, status: "started" };
         events.push(event);
@@ -202,16 +160,7 @@ export async function executeWithTools(
         totalBytes += bytes;
         if (bytes > runtime.limits.maxResultBytes || totalBytes > runtime.limits.maxTotalBytes)
           throw refusal("output_limit");
-        if (observation && runtime.judgeObservations) {
-          const result = runtime.judgeObservations.redact(output);
-          observation.result = result;
-          observation.status = "completed";
-          if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
-            delete observation.result;
-            observation.status = "started";
-            throw refusal("observation_limit");
-          }
-        }
+        completeToolObservation(observation, output, runtime, observationContent);
         event.status = "completed";
         event.result_bytes = bytes;
         messages.push({ role: "tool", content: output, toolName: call.name, toolCallId: call.id });
@@ -243,4 +192,96 @@ export async function executeWithTools(
     );
   }
   return { text: answer!, tool_calls: calls, artifacts: artifacts() };
+}
+
+/** Validate the complete model turn before the caller invokes any tool effects. */
+function validateTurnCalls(
+  result: Awaited<ReturnType<Provider["callTool"]>>,
+  names: ReadonlySet<string>,
+  ids: Set<string>,
+  runtime: ExecutionToolRuntime,
+  calls: number,
+  totalBytes: number,
+): { requested: ModelToolCall[]; totalBytes: number } {
+  const requested: ModelToolCall[] =
+    result.toolCalls ??
+    (result.toolName === null
+      ? []
+      : [
+          {
+            id: result.toolCallId ?? "",
+            name: result.toolName,
+            arguments: result.toolArguments ?? {},
+          },
+        ]);
+  if (!requested.length) {
+    if (result.finishReason === "tool_use") throw refusal("missing_tool_call");
+    return { requested, totalBytes };
+  }
+  if (result.finishReason !== "tool_use") throw refusal("unexpected_tool_call");
+  // Validate the entire turn before invoking any effect.
+  for (const call of requested) {
+    if (
+      !call.id ||
+      ids.has(call.id) ||
+      !names.has(call.name) ||
+      !call.arguments ||
+      typeof call.arguments !== "object" ||
+      Array.isArray(call.arguments)
+    ) {
+      throw refusal("invalid_tool_call");
+    }
+    ids.add(call.id);
+    totalBytes += Buffer.byteLength(JSON.stringify(call.arguments));
+  }
+  if (
+    calls + requested.length > runtime.limits.maxCalls ||
+    totalBytes > runtime.limits.maxTotalBytes
+  ) {
+    throw refusal("call_or_output_limit");
+  }
+  return { requested, totalBytes };
+}
+
+/** Retain a bounded started observation before dispatching the tool. */
+function beginToolObservation(
+  call: ModelToolCall,
+  runtime: ExecutionToolRuntime,
+  observations: ToolObservation[],
+  observationContent: () => string,
+): ToolObservation | undefined {
+  let observation: ToolObservation | undefined;
+  if (runtime.judgeObservations) {
+    observation = {
+      id: call.id,
+      tool: call.name,
+      arguments: JSON.parse(runtime.judgeObservations.redact(JSON.stringify(call.arguments))),
+      status: "started",
+    };
+    observations.push(observation);
+    if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
+      observations.pop();
+      throw refusal("observation_limit");
+    }
+  }
+  return observation;
+}
+
+/** Roll back oversized result text while retaining the attempted-call observation. */
+function completeToolObservation(
+  observation: ToolObservation | undefined,
+  output: string,
+  runtime: ExecutionToolRuntime,
+  observationContent: () => string,
+): void {
+  if (observation && runtime.judgeObservations) {
+    const result = runtime.judgeObservations.redact(output);
+    observation.result = result;
+    observation.status = "completed";
+    if (Buffer.byteLength(observationContent()) > runtime.limits.maxTotalBytes) {
+      delete observation.result;
+      observation.status = "started";
+      throw refusal("observation_limit");
+    }
+  }
 }
