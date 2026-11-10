@@ -40,10 +40,10 @@ describe("parseClaudeStream — recorded write-receipt run (skill installed)", (
       numTurns: 5,
       totalCostUsd: 0.00275216,
       usage: {
-        inputTokens: 8,
+        inputTokens: 44090,
         outputTokens: 321,
         cacheCreationInputTokens: 11316,
-        cacheReadInputTokens: 32766,
+        cachedInputTokens: 32766,
       },
     });
     expect(parsed.result?.text).toContain("report.md.sha256");
@@ -140,5 +140,62 @@ describe("summarizeToolInput / relativizePaths", () => {
     expect(s).not.toContain("abcdefghijklmnop");
     expect(s).not.toContain("sk-ant-0123456789abcdef");
     expect(s).toContain("curl");
+  });
+});
+
+describe("subscription usage integrity", () => {
+  it.each([
+    undefined,
+    {},
+    { input_tokens: 0 },
+    { output_tokens: 1 },
+    { input_tokens: -1, output_tokens: 1 },
+    { input_tokens: 1.5, output_tokens: 1 },
+    { input_tokens: "1", output_tokens: 1 },
+    { input_tokens: Number.MAX_SAFE_INTEGER, output_tokens: 1 },
+    { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: -1 },
+    {
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_creation_input_tokens: 5,
+      cache_creation: { ephemeral_5m_input_tokens: 3, ephemeral_1h_input_tokens: 1 },
+    },
+  ])("keeps missing or invalid usage unknown: %j", (usage) => {
+    const parsed = parseClaudeStream(JSON.stringify({ type: "result", usage }), "/w");
+    expect(parsed.result?.usage).toBeNull();
+  });
+
+  it("preserves explicit zeros and cache buckets without double counting", () => {
+    const parsed = parseClaudeStream(
+      JSON.stringify({
+        type: "result",
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_input_tokens: 4,
+          cache_creation_input_tokens: 5,
+          cache_creation: { ephemeral_5m_input_tokens: 3, ephemeral_1h_input_tokens: 2 },
+        },
+      }),
+      "/w",
+    );
+    expect(parsed.result?.usage).toEqual({
+      inputTokens: 9,
+      outputTokens: 0,
+      cachedInputTokens: 4,
+      cacheCreationInputTokens: 5,
+      cacheCreation5mInputTokens: 3,
+      cacheCreation1hInputTokens: 2,
+    });
+  });
+
+  it("does not choose one usage total from duplicate result events", () => {
+    const event = JSON.stringify({ type: "result", usage: { input_tokens: 1, output_tokens: 2 } });
+    expect(parseClaudeStream([event, event, event].join("\n"), "/w").result?.usage).toBeNull();
+  });
+
+  it.each([-1, "1", null])("omits invalid API-equivalent cost %j", (total_cost_usd) => {
+    const parsed = parseClaudeStream(JSON.stringify({ type: "result", total_cost_usd }), "/w");
+    expect(parsed.result).not.toHaveProperty("totalCostUsd");
   });
 });

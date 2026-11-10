@@ -146,6 +146,13 @@ The existing evaluator soft caps stop on unknown settled usage and check at
 phase boundaries. Hard reservations and Wave B USD governance remain open in
 214c.18 / #403. See API029 §8.10 and budget spec 047.
 
+Subscription execution uses `onAttempt` to meter before process launch and settle
+all outcomes before artifact collection. Stream usage is nullable and cache-aware;
+nonzero exits stay provider errors even after a result event. The CLI retains
+subscription cost JSON with stub provider legs. Tests use the local executable
+fixture, not live Claude. See API029 §8.11 and CLI README; 214c.18 / #403 remains
+open for pricing, reservations, rollups and the Wave B ledger.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

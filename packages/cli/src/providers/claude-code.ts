@@ -70,7 +70,10 @@ import {
   type TrajectoryFile,
   type TrajectoryStop,
 } from "@j-rig/core";
+import type { EvaluationCall } from "@intentsolutions/refiner-core";
 import { ClaudeStreamParser, type ParsedClaudeStream } from "./claude-code-stream.js";
+
+export type ClaudeCodeMeasurement = Pick<EvaluationCall, "usage" | "outcome" | "reportedModel">;
 
 export const CLAUDE_CODE_PROVIDER_NAME = "claude-code";
 
@@ -121,8 +124,10 @@ export interface ClaudeCodeProviderOptions {
   tools?: readonly string[];
   /** Keep each case's temp dir (debugging); the path is reported on stderr. */
   keepWorkspaces?: boolean;
-  /** Called once per case with the token usage Claude Code reported (cost meter hook). */
+  /** Legacy observer for measured results only; accounting must use onAttempt. */
   onUsage?: (model: string, usage: TokenUsage) => void;
+  /** Called after preflight and before launch. Its returned observer settles every launch attempt. */
+  onAttempt?: (requestedModel: string) => (measurement: ClaudeCodeMeasurement) => void;
   // ── Seams (tests) ──
   /** Executable to run (default `claude` on PATH). */
   claudeBin?: string;
@@ -494,13 +499,33 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         now(),
       );
 
-      const run = await this.#run(
-        buildClaudeArgs(prompt, model, tools, o.maxBudgetUsd ?? CLAUDE_CODE_DEFAULTS.maxBudgetUsd),
-        ws,
-        sandboxEnv(env, home),
-        timeoutMs,
-        maxTurns,
+      const args = buildClaudeArgs(
+        prompt,
+        model,
+        tools,
+        o.maxBudgetUsd ?? CLAUDE_CODE_DEFAULTS.maxBudgetUsd,
       );
+      const runEnv = sandboxEnv(env, home);
+      const finishAttempt = o.onAttempt?.(model);
+      let run: RunOutcome;
+      try {
+        run = await this.#run(args, ws, runEnv, timeoutMs, maxTurns);
+      } catch (error) {
+        finishAttempt?.({ usage: null, reportedModel: null, outcome: "failed" });
+        throw error;
+      }
+      // Settle before artifact collection or failure handling: those can throw
+      // after the process has already consumed subscription capacity.
+      finishAttempt?.({
+        usage: run.parsed.result?.usage ? { ...run.parsed.result.usage } : null,
+        reportedModel: run.parsed.init?.model?.trim() ? run.parsed.init.model : null,
+        outcome:
+          run.stop === "completed" && !run.refusal
+            ? "completed"
+            : ["timeout", "max_turns", "budget"].includes(run.stop)
+              ? "interrupted"
+              : "failed",
+      });
       if (run.refusal) throw new ClaudeCodeRefusedError(run.refusal);
 
       const after = snapshot(ws);
@@ -530,15 +555,9 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         stop: run.stop,
       };
       const usage = r?.usage;
-      const inputTokens = usage
-        ? usage.inputTokens + usage.cacheCreationInputTokens + usage.cacheReadInputTokens
-        : undefined;
+      const inputTokens = usage?.inputTokens;
       if (usage && o.onUsage) {
-        o.onUsage(`${CLAUDE_CODE_PROVIDER_NAME}/${parsed.init?.model ?? model}`, {
-          inputTokens: inputTokens ?? 0,
-          outputTokens: usage.outputTokens,
-          cachedInputTokens: usage.cacheReadInputTokens,
-        });
+        o.onUsage(`${CLAUDE_CODE_PROVIDER_NAME}/${parsed.init?.model ?? model}`, { ...usage });
       }
 
       const error =
@@ -669,7 +688,7 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
         else if (!parsed.result) final = "no_result";
         else if (parsed.result.subtype === "error_max_turns") final = "max_turns";
         else if (parsed.result.subtype === "error_max_budget_usd") final = "budget";
-        else if (parsed.result.isError) final = "error";
+        else if (parsed.result.isError || code !== 0) final = "error";
         else final = "completed";
         resolve({
           parsed,

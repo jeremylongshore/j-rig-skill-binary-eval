@@ -313,7 +313,11 @@ export class EvalCostMeter {
     >();
     let unknown = 0;
     for (const call of calls) {
-      const model = call.reportedModel ?? call.requestedModel;
+      const identity = call.reportedModel ?? call.requestedModel;
+      // Keep wire model identity in the evidence; the legacy report key carries
+      // subscription billing classification separately from that identity.
+      const model =
+        call.provider === "claude-code" ? SUBSCRIPTION_MODEL_PREFIX + identity : identity;
       const row = models.get(model) ?? {
         ...emptyPhase(),
         cached_input_tokens: 0,

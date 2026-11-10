@@ -376,3 +376,12 @@ boundaries check the final call as well as subsequent-call admission. These
 remain soft caps for in-flight requests, not hard dollar reservations. See
 budget spec 047 and Refiner API029 §8.10; full Wave B accounting is tracked in
 `bd_000-projects-214c.18` / issue #403.
+
+Subscription execution records intent before each process launch and settles
+failed/interrupted attempts as well as successful ones. Missing/invalid usage is
+unknown, not zero; cache-write and TTL buckets are preserved. Cost JSON is
+retained even with a stub judge. A nonzero process exit is an execution error even
+when a result event arrived. Subscription report keys distinguish API-equivalent
+cost from billed usage, while call evidence keeps requested and reported model
+identities separate. Cache writes still lack advisory rates; hard USD admission
+and Wave B accounting remain open in 214c.18 / #403. See Refiner API029 §8.11.

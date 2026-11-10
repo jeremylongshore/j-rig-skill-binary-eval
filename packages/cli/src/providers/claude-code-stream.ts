@@ -19,7 +19,13 @@
  * it reaches an input summary, so a recorded transcript replays identically
  * on any machine.
  */
-import { MAX_INPUT_SUMMARY_CHARS, redactCredentials, type TrajectoryStep } from "@j-rig/core";
+import {
+  MAX_INPUT_SUMMARY_CHARS,
+  redactCredentials,
+  type TrajectoryStep,
+  type TokenUsage,
+} from "@j-rig/core";
+import { mapProviderUsage } from "./usage.js";
 
 export interface ClaudeStreamInit {
   model?: string;
@@ -37,12 +43,8 @@ export interface ClaudeStreamResult {
   stopReason?: string;
   /** API-equivalent USD the CLI reports; on a subscription this is not billed. */
   totalCostUsd?: number;
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    cacheCreationInputTokens: number;
-    cacheReadInputTokens: number;
-  };
+  /** Inclusive input tokens; absent or invalid measurements remain unknown. */
+  usage: TokenUsage | null;
 }
 
 export interface ParsedClaudeStream {
@@ -60,10 +62,6 @@ type Json = Record<string, unknown>;
 
 function isObj(v: unknown): v is Json {
   return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 /** Key-sorted JSON so the same input object always summarizes the same way. */
@@ -260,20 +258,20 @@ export class ClaudeStreamParser {
   }
 
   #onResult(e: Json): void {
-    const u = isObj(e.usage) ? e.usage : {};
+    const duplicate = this.#result !== null;
     this.#result = {
       ...(typeof e.subtype === "string" ? { subtype: e.subtype } : {}),
       isError: e.is_error === true,
       ...(typeof e.num_turns === "number" ? { numTurns: e.num_turns } : {}),
       ...(typeof e.result === "string" ? { text: e.result } : {}),
       ...(typeof e.stop_reason === "string" ? { stopReason: e.stop_reason } : {}),
-      ...(typeof e.total_cost_usd === "number" ? { totalCostUsd: e.total_cost_usd } : {}),
-      usage: {
-        inputTokens: num(u.input_tokens),
-        outputTokens: num(u.output_tokens),
-        cacheCreationInputTokens: num(u.cache_creation_input_tokens),
-        cacheReadInputTokens: num(u.cache_read_input_tokens),
-      },
+      ...(!duplicate &&
+      typeof e.total_cost_usd === "number" &&
+      Number.isFinite(e.total_cost_usd) &&
+      e.total_cost_usd >= 0
+        ? { totalCostUsd: e.total_cost_usd }
+        : {}),
+      usage: duplicate ? null : mapProviderUsage(e.usage, "anthropic"),
     };
   }
 }
