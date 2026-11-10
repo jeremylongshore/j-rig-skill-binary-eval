@@ -144,6 +144,24 @@ export function runUnifiedReport(options: UnifiedReportOptions): UnifiedReportRe
   }
 }
 
+interface ReportCommandOptions {
+  db: string;
+  skill?: string;
+  runId?: number;
+  limit: number;
+  unified?: boolean;
+  samplingManifest?: string;
+  graderId?: string;
+  graderVersion?: string;
+  graderSnapshotSha256?: string;
+  output?: string;
+  html?: boolean;
+  json?: boolean;
+  serve?: boolean;
+  host: string;
+  port: number;
+}
+
 /**
  * Register the `report` command on the given Commander program.
  *
@@ -173,170 +191,168 @@ export function registerReportCommand(program: Command): void {
     .option("--host <host>", "Loopback bind address for --serve", "127.0.0.1")
     .option("--port <n>", "TCP port for --serve (0 chooses an available port)", parseInt, 0)
     .option("--json", "Output as JSON")
-    .action(
-      async (opts: {
-        db: string;
-        skill?: string;
-        runId?: number;
-        limit: number;
-        unified?: boolean;
-        samplingManifest?: string;
-        graderId?: string;
-        graderVersion?: string;
-        graderSnapshotSha256?: string;
-        output?: string;
-        html?: boolean;
-        json?: boolean;
-        serve?: boolean;
-        host: string;
-        port: number;
-      }) => {
-        let database: ReturnType<typeof openDb> | undefined;
-        try {
-          if (opts.html && !opts.unified) {
-            throw new Error("--html requires --unified");
-          }
-          if (opts.serve && !opts.unified) {
-            throw new Error("--serve requires --unified");
-          }
-          if (opts.serve && !opts.html) {
-            throw new Error("--serve requires --html");
-          }
-          if (opts.unified) {
-            if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
-              throw new Error(
-                "--unified requires --grader-id, --grader-version, and --grader-snapshot-sha256",
-              );
-            }
-            if (opts.html && opts.json) {
-              throw new Error("--html and --json are mutually exclusive");
-            }
-            if (opts.serve && opts.json) {
-              throw new Error("--serve and --json are mutually exclusive");
-            }
-            const result = runUnifiedReport({
-              db: opts.db,
-              graderId: opts.graderId,
-              graderVersion: opts.graderVersion,
-              graderSnapshotSha256: opts.graderSnapshotSha256,
-              json: opts.json,
-              html: opts.html,
-              output: opts.output,
-            });
-            if (opts.serve) {
-              const server = await startReportServer(result.rendered, {
-                host: opts.host,
-                port: opts.port,
-              });
-              console.error(`Serving report at ${server.url} (Ctrl-C to stop)`);
-              await waitForReportServer(server);
-            } else if (!opts.output) {
-              process.stdout.write(result.rendered);
-            }
-            return;
-          }
-
-          if (opts.samplingManifest) {
-            if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
-              throw new Error(
-                "sampling reports require --grader-id, --grader-version, and --grader-snapshot-sha256",
-              );
-            }
-            printSamplingReport(
-              runSamplingReport({
-                manifestPath: opts.samplingManifest,
-                db: opts.db,
-                selector: {
-                  grader_id: opts.graderId,
-                  grader_version: opts.graderVersion,
-                  grader_snapshot_sha256: opts.graderSnapshotSha256,
-                },
-              }),
-              opts.json,
-            );
-            return;
-          }
-
-          database = openDb(opts.db);
-
-          if (opts.runId) {
-            // Detail mode — single run with criterion results and artifacts
-            const run = getRun(database, opts.runId);
-            if (!run) {
-              console.error(`Run #${opts.runId} not found`);
-              process.exit(1);
-            }
-            const results = getRunResults(database, opts.runId);
-            const arts = getRunArtifacts(database, opts.runId);
-
-            if (opts.json) {
-              console.log(JSON.stringify({ run, results, artifacts: arts }, null, 2));
-            } else {
-              const summary = run.summary;
-              console.log(header(`Run #${run.id}`));
-              console.log(
-                `  Status: ${run.status} | Model: ${run.model ?? "n/a"} | Type: ${run.run_type}`,
-              );
-              if (run.duration_ms != null) {
-                console.log(`  Duration: ${formatDuration(run.duration_ms)}`);
-              }
-              if (summary) {
-                console.log(`  Score: ${formatScore(summary.passed, summary.total)}`);
-              }
-
-              console.log(`\n  ${header("Criterion Results:")}`);
-              for (const r of results) {
-                // severity from the DB row is a plain string; cast to the
-                // narrowest union accepted by icon().
-                const sev = r.severity as "pass" | "error" | "warning" | "info";
-                const ic = r.passed ? icon("pass") : icon("error");
-                const sevIcon = sev === "warning" ? ` ${icon("warning")}` : "";
-                console.log(`    ${ic}${sevIcon} ${r.criterion_id}: ${r.message}`);
-              }
-
-              if (arts.length > 0) {
-                console.log(`\n  ${header("Artifacts:")}`);
-                for (const a of arts) {
-                  console.log(`    ${a.filename} (${a.artifact_type})`);
-                }
-              }
-            }
-          } else {
-            // List mode — compact table of recent runs
-            const rows = getRecentRuns(database, {
-              limit: opts.limit,
-              skillName: opts.skill,
-            });
-
-            if (opts.json) {
-              console.log(JSON.stringify(rows, null, 2));
-            } else {
-              console.log(header("Recent Runs:"));
-              console.log(
-                chalk.dim("  ID   Skill                       Model    Status      Date"),
-              );
-              for (const row of rows) {
-                const r = row.runs;
-                const sv = row.skill_versions;
-                console.log(
-                  `  ${String(r.id).padEnd(5)} ` +
-                    `${sv.skill_name.padEnd(28)} ` +
-                    `${(r.model ?? "n/a").padEnd(9)} ` +
-                    `${r.status.padEnd(12)} ` +
-                    `${r.created_at?.slice(0, 10) ?? ""}`,
-                );
-              }
-              if (rows.length === 0) {
-                console.log(chalk.dim("  No runs found."));
-              }
-            }
-          }
-        } catch (err) {
-          console.error(`Error: ${err instanceof Error ? err.message : err}`);
-          process.exit(1);
-        } finally {
-          database?.close();
+    .action(async (opts: ReportCommandOptions) => {
+      let database: ReturnType<typeof openDb> | undefined;
+      try {
+        if (opts.html && !opts.unified) {
+          throw new Error("--html requires --unified");
         }
-      },
+        if (opts.serve && !opts.unified) {
+          throw new Error("--serve requires --unified");
+        }
+        if (opts.serve && !opts.html) {
+          throw new Error("--serve requires --html");
+        }
+        if (opts.unified) {
+          await displayUnifiedReport(opts);
+          return;
+        }
+
+        if (opts.samplingManifest) {
+          if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
+            throw new Error(
+              "sampling reports require --grader-id, --grader-version, and --grader-snapshot-sha256",
+            );
+          }
+          printSamplingReport(
+            runSamplingReport({
+              manifestPath: opts.samplingManifest,
+              db: opts.db,
+              selector: {
+                grader_id: opts.graderId,
+                grader_version: opts.graderVersion,
+                grader_snapshot_sha256: opts.graderSnapshotSha256,
+              },
+            }),
+            opts.json,
+          );
+          return;
+        }
+
+        database = openDb(opts.db);
+
+        if (opts.runId) {
+          // Detail mode — single run with criterion results and artifacts
+          const run = getRun(database, opts.runId);
+          if (!run) {
+            console.error(`Run #${opts.runId} not found`);
+            process.exit(1);
+          }
+          const results = getRunResults(database, opts.runId);
+          const arts = getRunArtifacts(database, opts.runId);
+
+          printRunDetail(opts, run, results, arts);
+        } else {
+          // List mode — compact table of recent runs
+          const rows = getRecentRuns(database, {
+            limit: opts.limit,
+            skillName: opts.skill,
+          });
+
+          printRecentRuns(opts, rows);
+        }
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      } finally {
+        database?.close();
+      }
+    });
+}
+
+/** Render one legacy run after its results and artifacts have been loaded. */
+function printRunDetail(
+  opts: { json?: boolean },
+  run: NonNullable<ReturnType<typeof getRun>>,
+  results: ReturnType<typeof getRunResults>,
+  arts: ReturnType<typeof getRunArtifacts>,
+): void {
+  if (opts.json) {
+    console.log(JSON.stringify({ run, results, artifacts: arts }, null, 2));
+  } else {
+    const summary = run.summary;
+    console.log(header(`Run #${run.id}`));
+    console.log(`  Status: ${run.status} | Model: ${run.model ?? "n/a"} | Type: ${run.run_type}`);
+    if (run.duration_ms != null) {
+      console.log(`  Duration: ${formatDuration(run.duration_ms)}`);
+    }
+    if (summary) {
+      console.log(`  Score: ${formatScore(summary.passed, summary.total)}`);
+    }
+
+    console.log(`\n  ${header("Criterion Results:")}`);
+    for (const r of results) {
+      // severity from the DB row is a plain string; cast to the
+      // narrowest union accepted by icon().
+      const sev = r.severity as "pass" | "error" | "warning" | "info";
+      const ic = r.passed ? icon("pass") : icon("error");
+      const sevIcon = sev === "warning" ? ` ${icon("warning")}` : "";
+      console.log(`    ${ic}${sevIcon} ${r.criterion_id}: ${r.message}`);
+    }
+
+    if (arts.length > 0) {
+      console.log(`\n  ${header("Artifacts:")}`);
+      for (const a of arts) {
+        console.log(`    ${a.filename} (${a.artifact_type})`);
+      }
+    }
+  }
+}
+
+/** Render the selected legacy runs without changing query order or filters. */
+function printRecentRuns(opts: { json?: boolean }, rows: ReturnType<typeof getRecentRuns>): void {
+  if (opts.json) {
+    console.log(JSON.stringify(rows, null, 2));
+  } else {
+    console.log(header("Recent Runs:"));
+    console.log(chalk.dim("  ID   Skill                       Model    Status      Date"));
+    for (const row of rows) {
+      const r = row.runs;
+      const sv = row.skill_versions;
+      console.log(
+        `  ${String(r.id).padEnd(5)} ` +
+          `${sv.skill_name.padEnd(28)} ` +
+          `${(r.model ?? "n/a").padEnd(9)} ` +
+          `${r.status.padEnd(12)} ` +
+          `${r.created_at?.slice(0, 10) ?? ""}`,
+      );
+    }
+    if (rows.length === 0) {
+      console.log(chalk.dim("  No runs found."));
+    }
+  }
+}
+
+/** Validate and display the unified projection, including its optional local server. */
+async function displayUnifiedReport(opts: ReportCommandOptions): Promise<void> {
+  if (!opts.graderId || !opts.graderVersion || !opts.graderSnapshotSha256) {
+    throw new Error(
+      "--unified requires --grader-id, --grader-version, and --grader-snapshot-sha256",
     );
+  }
+  if (opts.html && opts.json) {
+    throw new Error("--html and --json are mutually exclusive");
+  }
+  if (opts.serve && opts.json) {
+    throw new Error("--serve and --json are mutually exclusive");
+  }
+  const result = runUnifiedReport({
+    db: opts.db,
+    graderId: opts.graderId,
+    graderVersion: opts.graderVersion,
+    graderSnapshotSha256: opts.graderSnapshotSha256,
+    json: opts.json,
+    html: opts.html,
+    output: opts.output,
+  });
+  if (opts.serve) {
+    const server = await startReportServer(result.rendered, {
+      host: opts.host,
+      port: opts.port,
+    });
+    console.error(`Serving report at ${server.url} (Ctrl-C to stop)`);
+    await waitForReportServer(server);
+  } else if (!opts.output) {
+    process.stdout.write(result.rendered);
+  }
 }
