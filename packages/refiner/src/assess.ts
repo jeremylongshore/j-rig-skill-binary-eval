@@ -92,71 +92,10 @@ export async function assessProposal(
 ): Promise<ProposalAssessment> {
   const frozen = structuredClone(inputs);
   const { doc, evalSet } = checkedInputs(frozen.doc, frozen.evalSet);
-  const { quality, policy, now } = frozen;
-  const blocked = (...reasons: string[]): ProposalAssessment => ({ status: "blocked", reasons });
-  if (
-    !Array.isArray(frozen.proposal.ops) ||
-    frozen.proposal.ops.length < 1 ||
-    frozen.proposal.ops.length > MAX_OPS_PER_PROPOSAL
-  )
-    return blocked("invalid-proposal-operation-count");
-  if (!validPolicy(policy)) return blocked("invalid-quality-policy");
-  if (!quality) return blocked("missing-quality-evidence");
-  if (quality.evalSetHash !== evalSet.hash) return blocked("quality-eval-set-mismatch");
-  if (quality.verifiedEvalSet !== true) return blocked("unreviewed-eval-set");
-  const current = Date.parse(now);
-  const reviewed = Date.parse(quality.reviewedAt);
-  const expires = Date.parse(quality.expiresAt);
-  if (
-    ![current, reviewed, expires].every(Number.isFinite) ||
-    reviewed > current ||
-    expires <= current ||
-    expires <= reviewed
-  ) {
-    return blocked("invalid-or-expired-quality-evidence");
-  }
-  if (isRefreshDue(evalSet, { now, treatNullAsDue: true })) return blocked("eval-set-refresh-due");
-  if (
-    !quality.judge ||
-    typeof quality.judge.provider !== "string" ||
-    !quality.judge.provider.trim() ||
-    typeof quality.judge.model !== "string" ||
-    !quality.judge.model.trim()
-  )
-    return blocked("missing-calibrated-judge");
-  if (
-    !Array.isArray(quality.referenceItems) ||
-    quality.referenceItems.length === 0 ||
-    quality.referenceItems.some(
-      (item) =>
-        !item ||
-        typeof item.id !== "string" ||
-        !item.id.trim() ||
-        typeof item.prompt !== "string" ||
-        !item.prompt.trim(),
-    )
-  ) {
-    return blocked("missing-or-invalid-leakage-reference");
-  }
-  if (
-    !Array.isArray(quality.predictions) ||
-    quality.predictions.length < policy.minCalibrationSamples ||
-    quality.predictions.some(
-      (prediction) =>
-        !prediction ||
-        typeof prediction.correct !== "boolean" ||
-        !Number.isFinite(prediction.confidence) ||
-        prediction.confidence < 0 ||
-        prediction.confidence > 1,
-    )
-  ) {
-    return blocked("missing-or-invalid-calibration-evidence");
-  }
-  const adversarialCount = evalSet.items.filter(
-    (item) => (item as AdversarialEvalItem).adversarial === true,
-  ).length;
-  if (adversarialCount < policy.minAdversarialItems)
-    return blocked("insufficient-adversarial-items");
+  const { policy, now } = frozen;
+  const readiness = checkQualityInputs(frozen, evalSet);
+  if (readiness.status === "blocked") return readiness;
+  const { quality } = readiness;
   let qualityReport: EvalSetQualityReport;
   try {
     if (!quality.manifest) return blocked("missing-capability-manifest");
@@ -224,6 +163,84 @@ export async function assessProposal(
     policyHash: hashValue(policy),
     evaluatedAt: now,
   };
+}
+
+type BlockedAssessment = Extract<ProposalAssessment, { status: "blocked" }>;
+
+function blocked(...reasons: string[]): BlockedAssessment {
+  return { status: "blocked", reasons };
+}
+
+/** Validate reviewed inputs in refusal order before editing or invoking the evaluator. */
+function checkQualityInputs(
+  frozen: AssessProposalInputs,
+  evalSet: EvalSet,
+): BlockedAssessment | { status: "ready"; quality: AcceptanceQualityEvidence } {
+  const { quality, policy, now } = frozen;
+  if (
+    !Array.isArray(frozen.proposal.ops) ||
+    frozen.proposal.ops.length < 1 ||
+    frozen.proposal.ops.length > MAX_OPS_PER_PROPOSAL
+  )
+    return blocked("invalid-proposal-operation-count");
+  if (!validPolicy(policy)) return blocked("invalid-quality-policy");
+  if (!quality) return blocked("missing-quality-evidence");
+  if (quality.evalSetHash !== evalSet.hash) return blocked("quality-eval-set-mismatch");
+  if (quality.verifiedEvalSet !== true) return blocked("unreviewed-eval-set");
+  const current = Date.parse(now);
+  const reviewed = Date.parse(quality.reviewedAt);
+  const expires = Date.parse(quality.expiresAt);
+  if (
+    ![current, reviewed, expires].every(Number.isFinite) ||
+    reviewed > current ||
+    expires <= current ||
+    expires <= reviewed
+  ) {
+    return blocked("invalid-or-expired-quality-evidence");
+  }
+  if (isRefreshDue(evalSet, { now, treatNullAsDue: true })) return blocked("eval-set-refresh-due");
+  if (
+    !quality.judge ||
+    typeof quality.judge.provider !== "string" ||
+    !quality.judge.provider.trim() ||
+    typeof quality.judge.model !== "string" ||
+    !quality.judge.model.trim()
+  )
+    return blocked("missing-calibrated-judge");
+  if (
+    !Array.isArray(quality.referenceItems) ||
+    quality.referenceItems.length === 0 ||
+    quality.referenceItems.some(
+      (item) =>
+        !item ||
+        typeof item.id !== "string" ||
+        !item.id.trim() ||
+        typeof item.prompt !== "string" ||
+        !item.prompt.trim(),
+    )
+  ) {
+    return blocked("missing-or-invalid-leakage-reference");
+  }
+  if (
+    !Array.isArray(quality.predictions) ||
+    quality.predictions.length < policy.minCalibrationSamples ||
+    quality.predictions.some(
+      (prediction) =>
+        !prediction ||
+        typeof prediction.correct !== "boolean" ||
+        !Number.isFinite(prediction.confidence) ||
+        prediction.confidence < 0 ||
+        prediction.confidence > 1,
+    )
+  ) {
+    return blocked("missing-or-invalid-calibration-evidence");
+  }
+  const adversarialCount = evalSet.items.filter(
+    (item) => (item as AdversarialEvalItem).adversarial === true,
+  ).length;
+  if (adversarialCount < policy.minAdversarialItems)
+    return blocked("insufficient-adversarial-items");
+  return { status: "ready", quality };
 }
 
 function sameJudge(scored: ScoredEvaluation, quality: AcceptanceQualityEvidence): boolean {
