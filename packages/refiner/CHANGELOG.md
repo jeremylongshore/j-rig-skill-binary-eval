@@ -8,6 +8,11 @@
 
 ### Added
 
+- Bootstrap reviewed harvested rollouts and human-nominated golden traces with
+  source/review provenance, explicit expectations, and lineage-preserving versions.
+  Opt-in `eval --rollout-file` retains actual functional outcomes in a private,
+  non-overwriting file. Refs `bd_000-projects-214c.15` / #397.
+
 - `assessProposal` and `refine assess` enforce reviewed capability, leakage,
   calibration, and freshness evidence before fresh paired scoring. Completed
   assessments retain their full inputs and policy; the existing schema and

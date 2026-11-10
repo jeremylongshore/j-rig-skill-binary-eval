@@ -57,7 +57,7 @@ export { sha256, canonicalJson, hashSkillDoc, hashValue } from "./hash.js";
 
 // Pure operations
 export { applyEdit, makeSkillDoc, EditApplicationError } from "./apply.js";
-export { bootstrap, type BootstrapOptions } from "./bootstrap.js";
+export { bootstrap, bootstrapFromItems, type BootstrapOptions } from "./bootstrap.js";
 export {
   accept,
   isSignificantImprovement,

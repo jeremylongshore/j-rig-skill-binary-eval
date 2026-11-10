@@ -106,6 +106,17 @@ tier alias does not match the runtime identity. Ordinary scoring can still use
 execution tiers. Tracked by `bd_000-projects-214c.16` /
 [issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
 
+`refine bootstrap` accepts `--harvest-file` or `--golden-file` with a
+`--review-file` bound to the source's canonical hash and the exact skill text.
+Reviewed boolean adversarial flags remain in hashed items. The default store
+keeps files mode 0600 and store directories mode 0700. Harvest input comes from opt-in `eval --rollout-file` exports of actual functional
+outcomes. Failed, partial, and stub exports are refused. Reviewed expectations
+are explicit labels, never inferred from model output. Source/review objects
+are retained in the content-addressed store and item provenance participates in
+the EvalSet hash. `--parent-set-file` preserves lineage with an explicit changed
+`--eval-set-version`. See the Refiner README for the schemas and privacy boundary.
+Tracked by `bd_000-projects-214c.15` / #397.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

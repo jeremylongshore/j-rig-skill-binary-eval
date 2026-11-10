@@ -1,3 +1,4 @@
+import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 /**
  * `j-rig refine` command group — the 5 Skill Refiner CLI commands (plan 027 § 4
  * Phase A build-order step 7; "thin shim over orchestrator").
@@ -28,6 +29,9 @@ import type { Command } from "commander";
 import {
   makeSkillDoc,
   bootstrap,
+  hashValue,
+  validateEvalSet,
+  type EvalSet,
   applyEdit,
   type SkillDoc,
   type EditProposal,
@@ -104,30 +108,105 @@ export function registerRefineCommand(
   // ── bootstrap ──────────────────────────────────────────────────────────────
   refine
     .command("bootstrap")
-    .description("Synthesize a held-out eval set from a SKILL.md")
+    .description("Bootstrap a held-out eval set from synthetic probes or reviewed retained traces")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
     .option("--quick", "Quick mode: skip refresh-due-at (casual contributors)")
+    .option("--harvest-file <path>", "Retained j-rig eval --rollout-file JSON")
+    .option("--golden-file <path>", "Human-nominated golden trace JSON")
+    .option("--review-file <path>", "Reviewed expectations bound to the source content hash")
+    .option("--eval-set-version <version>", "Eval-set semver", "1.0.0")
+    .option("--parent-set-file <path>", "Prior EvalSet JSON, preserving its lineage")
     .option("--json", "Output as JSON")
-    .action((skillDir: string, opts: { quick?: boolean; json?: boolean }) => {
-      try {
-        const doc = loadSkillDoc(skillDir);
-        const evalSet = bootstrap(doc, { quick: opts.quick, now: new Date().toISOString() });
-        const store = storeFactory(process.cwd());
-        store.putSkillDoc(doc);
-        store.putEvalSet(evalSet);
-        if (opts.json) {
-          console.log(JSON.stringify(evalSet, null, 2));
-        } else {
-          console.log(`Bootstrapped eval set for '${doc.skillId}'`);
-          console.log(`  items:    ${evalSet.items.length}`);
-          console.log(`  version:  ${evalSet.evalSetVersion}`);
-          console.log(`  hash:     ${evalSet.hash.slice(0, 12)}`);
-          console.log(`  stored:   .j-rig/refiner/store/${evalSet.hash.slice(0, 12)}…`);
+    .action(
+      (
+        skillDir: string,
+        opts: {
+          quick?: boolean;
+          json?: boolean;
+          harvestFile?: string;
+          goldenFile?: string;
+          reviewFile?: string;
+          evalSetVersion: string;
+          parentSetFile?: string;
+        },
+      ) => {
+        try {
+          const doc = loadSkillDoc(skillDir);
+          if (opts.harvestFile && opts.goldenFile) throw new Error("Choose one bootstrap source");
+          const sourceFile = opts.harvestFile ?? opts.goldenFile;
+          if (Boolean(sourceFile) !== Boolean(opts.reviewFile))
+            throw new Error(
+              "Trace sources require --review-file; synthetic sources do not accept it",
+            );
+          if (
+            !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(
+              opts.evalSetVersion,
+            )
+          )
+            throw new Error("Invalid eval-set version");
+          const parent = opts.parentSetFile
+            ? (JSON.parse(readFileSync(opts.parentSetFile, "utf8")) as EvalSet)
+            : undefined;
+          if (opts.parentSetFile) validateEvalSet(parent);
+          if (parent) {
+            const { skillId, source, items, evalSetVersion, lineageParent, refreshDueAt } = parent;
+            if (
+              skillId !== doc.skillId ||
+              parent.hash !==
+                hashValue({
+                  skillId,
+                  source,
+                  items,
+                  evalSetVersion,
+                  lineageParent,
+                  refreshDueAt,
+                }) ||
+              opts.evalSetVersion === parent.evalSetVersion
+            )
+              throw new Error("Invalid parent eval set or unchanged version");
+          }
+          const bootstrapOptions = {
+            quick: opts.quick,
+            now: new Date().toISOString(),
+            evalSetVersion: opts.evalSetVersion,
+            ...(parent ? { lineageParent: parent.hash, lineageId: parent.lineageId } : {}),
+          };
+          const sourceInput: unknown = sourceFile
+            ? JSON.parse(readFileSync(sourceFile, "utf8"))
+            : undefined;
+          const reviewInput: unknown = opts.reviewFile
+            ? JSON.parse(readFileSync(opts.reviewFile, "utf8"))
+            : undefined;
+          const evalSet = sourceFile
+            ? bootstrapReviewedSource(
+                doc,
+                sourceInput,
+                reviewInput,
+                opts.harvestFile ? "harvested" : "golden",
+                bootstrapOptions,
+              )
+            : bootstrap(doc, bootstrapOptions);
+          const store = storeFactory(process.cwd());
+          if (sourceFile) {
+            store.put("bootstrap-source", sourceInput);
+            store.put("bootstrap-source", reviewInput);
+          }
+          store.putSkillDoc(doc);
+          store.putEvalSet(evalSet);
+          if (opts.json) {
+            console.log(JSON.stringify(evalSet, null, 2));
+          } else {
+            console.log(`Bootstrapped eval set for '${doc.skillId}'`);
+            console.log(`  items:    ${evalSet.items.length}`);
+            console.log(`  version:  ${evalSet.evalSetVersion}`);
+            console.log(`  hash:     ${evalSet.hash.slice(0, 12)}`);
+            console.log(`  stored:   .j-rig/refiner/store/${evalSet.hash.slice(0, 12)}…`);
+          }
+        } catch (err) {
+          fail(err instanceof Error ? err.message : String(err));
         }
-      } catch (err) {
-        fail(err instanceof Error ? err.message : String(err));
-      }
-    });
+      },
+    );
 
   // ── score ────────────────────────────────────────────────────────────────
   refine

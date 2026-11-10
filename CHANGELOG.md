@@ -30,6 +30,11 @@
 
 ## Unreleased
 
+- Bootstrap reviewed harvested rollouts and human-nominated golden traces with
+  source/review provenance, explicit expectations, and lineage-preserving versions.
+  Opt-in `eval --rollout-file` retains actual functional outcomes in a private,
+  non-overwriting file. Refs `bd_000-projects-214c.15` / #397.
+
 ### Fixed
 
 - Evidence files are inspected and read through the same open descriptor;
