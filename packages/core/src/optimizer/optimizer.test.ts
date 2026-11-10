@@ -185,3 +185,19 @@ describe("early stopping", () => {
     expect(stop).toBe(false);
   });
 });
+
+it("refuses to resolve a Refiner-bound experiment through the legacy gate", () => {
+  const proposal: ChangeProposal = {
+    id: "bound",
+    target_criterion: "c1",
+    change_type: "instruction",
+    description: "Change",
+    rationale: "Failure",
+    expected_impact: "Pass",
+  };
+  const experiment = createExperiment(proposal, [result("c1", "no")]);
+  experiment.refiner = { skill: "skill-hash", evalSet: "eval-hash", editProposal: "edit-hash" };
+  expect(() => evaluateExperiment(experiment, [result("c1", "yes")])).toThrow(
+    /fresh assessOptimizerExperiment/,
+  );
+});

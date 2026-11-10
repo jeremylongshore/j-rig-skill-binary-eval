@@ -97,3 +97,5 @@ export {
 } from "./report-render.js";
 
 export { bootstrapReviewedSource } from "./bootstrap-sources.js";
+
+export { assessOptimizerExperiment, type OptimizerAssessment } from "./optimizer.js";

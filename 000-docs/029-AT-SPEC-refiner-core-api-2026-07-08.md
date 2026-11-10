@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15`, `bd_000-projects-214c.17` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397`, `jeremylongshore/j-rig-skill-binary-eval#401` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -536,6 +536,34 @@ hash. `--parent-set-file` validates parent schema/hash/skill identity and preser
 its lineage; `--eval-set-version` must change for a child. Freshness follows the
 existing 90-day/quick-mode contract. These local records do not authenticate a
 reviewer or prove held-out independence; acceptance-quality checks still apply.
+
+### 8.8 Legacy optimizer integration (214c.17)
+
+Plan027 §4 Phase A/Phase C and §6 require runtime reuse of legacy proposals and
+experiments. Their canonical contracts now live in public `refiner-core`; private
+`@j-rig/core` re-exports them with its JudgmentResult specialization. Published
+Refiner libraries do not depend on private eval-engine packages.
+
+`createRefinerExperiment(inputs)` accepts a ChangeProposal, SkillDoc, EvalSet,
+one-operation EditProposal, targetItemId, source `{runId, criterionId, evidenceHash}`,
+and explicit `now`. It validates content identities, explicit unique eval labels,
+criterion mapping and an effective atomic edit. Its deterministic experiment ID
+binds the change, content identities, mapping and source. The full value is stored
+under `hashValue(value)`; timestamps participate in the store address.
+
+`validateProposedRefinerExperiment(unknown)` reconstructs a proposed root and
+rejects tampering/resolved records. `assessOptimizerExperiment(inputs, runner,
+validator?)` checks bound inputs before fresh `assessProposal` scoring. It accepts
+only when the Refiner decision is ACCEPT, the mapped target changes false→true,
+and every previously passing item still passes. An evaluated result appends an
+immutable child with assessment/score hashes; blocked quality produces no child.
+The weaker legacy evaluator throws for bound experiments.
+
+`optimize` now creates these records from actual failure analysis when all bridge
+flags are supplied; `refine assess --experiment` resolves them. The README gives
+exact flags, source-retention behavior and the legacy truncated-digest limitation.
+Source runs guide targeting, never substitute for fresh paired evidence. No best
+pointer or document is promoted automatically. Tracked by #401 / 214c.17.
 
 ## 9. Build and test
 

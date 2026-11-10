@@ -67,7 +67,8 @@
     "commander": "^15.0.0",
     "drizzle-orm": "^0.45.2",
     "yaml": "^2.9.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@intentsolutions/refiner-core": "workspace:*"
   },
   "devDependencies": {
     "@j-rig/core": "workspace:*",

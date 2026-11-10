@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Assess optimizer experiments with fresh quality-gated scoring, target improvement and per-item nonregression; append immutable resolutions. Refs `bd_000-projects-214c.17` / #401.
+
 - Bound assessed proposals to 1–8 operations before scoring and pin both judges
   to reviewed provider/model evidence. Anthropic judge metadata now reports the
   resolved transport model ID. Refs bead `bd_000-projects-214c.16` / #398.

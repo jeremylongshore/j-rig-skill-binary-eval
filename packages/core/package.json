@@ -26,7 +26,8 @@
     "ajv": "8.20.0",
     "gray-matter": "^4.0.3",
     "yaml": "^2.9.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@intentsolutions/refiner-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.2"

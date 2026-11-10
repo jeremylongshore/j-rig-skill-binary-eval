@@ -117,6 +117,15 @@ the EvalSet hash. `--parent-set-file` preserves lineage with an explicit changed
 `--eval-set-version`. See the Refiner README for the schemas and privacy boundary.
 Tracked by `bd_000-projects-214c.15` / #397.
 
+`optimize --refiner-proposal` binds an actual analyzed source run and explicit
+criterion-to-eval-item mapping to an immutable Refiner experiment. All bridge
+flags are required together (see Refiner README). `refine assess --experiment`
+uses fresh paired assessment plus target improvement and per-item nonregression.
+Shared ChangeProposal/Experiment types live in public refiner-core; private core
+consumes them, and its legacy evaluator refuses Refiner-bound values. No automatic
+promotion. Historical source digest checks are limited to the DB's 16-character
+hash; new documents use full content identities. API029 §8.8 / 214c.17 / #401.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):
