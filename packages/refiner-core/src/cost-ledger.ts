@@ -45,7 +45,14 @@ export const CostEventSchema = z.discriminatedUnion("kind", [
       kind: z.literal("halt"),
       fileId: id,
       scope: z.enum(["file", "wave"]),
-      reason: z.enum(["file-limit", "wave-stop"]),
+      reason: z.enum([
+        "file-limit",
+        "wave-stop",
+        "file-tokens",
+        "wave-tokens",
+        "file-attempts",
+        "wave-attempts",
+      ]),
     })
     .strict(),
   z
@@ -61,6 +68,9 @@ export type CostEvent = z.infer<typeof CostEventSchema>;
 type Reservation = Extract<CostEvent, { kind: "reserve" }>;
 type Settlement = Extract<CostEvent, { kind: "settle" }>;
 export interface CostRollup {
+  knownTokens: number;
+  committedTokens: number;
+  calls: number;
   knownMicros: number;
   committedMicros: number;
   pendingCalls: number;
@@ -71,6 +81,7 @@ export interface CostRollup {
 }
 export interface CostLedgerState {
   policy: CostPolicy;
+  lastHalt?: Extract<CostEvent, { kind: "halt" }>;
   files: Record<string, CostRollup>;
   total: CostRollup;
   stopped: boolean;
@@ -80,6 +91,9 @@ export interface CostLedgerState {
   outcomes: Set<string>;
 }
 const empty = (): CostRollup => ({
+  knownTokens: 0,
+  committedTokens: 0,
+  calls: 0,
   knownMicros: 0,
   committedMicros: 0,
   pendingCalls: 0,
@@ -133,6 +147,7 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
       const file = Object.hasOwn(state.files, event.fileId) ? state.files[event.fileId] : undefined;
       if (!file) throw new Error("Unknown cost file");
       if (event.kind === "halt") {
+        state.lastHalt = event;
         if (event.scope === "wave") state.stopped = true;
         else file.quarantined = true;
       } else {
@@ -151,7 +166,7 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
             (c) => c.reservation.attemptId === event.attemptId,
           );
           if (
-            !calls.length ||
+            !calls.some((c) => c.settlement?.outcome === "completed") ||
             calls.some((c) => {
               const rate = policy.rates.find(
                 (r) => r.provider === c.reservation.provider && r.model === c.reservation.model,
@@ -160,7 +175,9 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
                 !c.settlement?.usage ||
                 !c.settlement.reportedModel ||
                 !rate.reportedModels.includes(c.settlement.reportedModel) ||
-                c.settlement.outcome !== "completed"
+                c.settlement.usage.inputTokens > rate.maxInputTokens ||
+                c.settlement.usage.outputTokens > c.reservation.outputLimit ||
+                priceCostUsage(rate, c.settlement.usage) > c.reservation.reservedMicros
               );
             })
           )
@@ -180,6 +197,13 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
       s?.usage && s.reportedModel && rate.reportedModels.includes(s.reportedModel)
         ? priceCostUsage(rate, s.usage)
         : null;
+    const measuredTokens = s?.usage ? add(s.usage.inputTokens, s.usage.outputTokens) : null;
+    file.knownTokens = add(file.knownTokens, measuredTokens ?? 0);
+    file.committedTokens = add(
+      file.committedTokens,
+      measuredTokens ?? add(rate.maxInputTokens, r.outputLimit),
+    );
+    file.calls = add(file.calls, 1);
     file.committedMicros = add(file.committedMicros, priced ?? r.reservedMicros);
     file.knownMicros = add(file.knownMicros, priced ?? 0);
     if (!s) file.pendingCalls++;
@@ -200,12 +224,18 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
     }
   }
   for (const file of Object.values(state.files)) {
-    file.quarantined ||= file.committedMicros >= policy.maxFileMicros;
+    file.quarantined ||=
+      file.committedMicros >= policy.maxFileMicros ||
+      (policy.maxFileTokens !== undefined && file.committedTokens >= policy.maxFileTokens) ||
+      (policy.maxFileAttempts !== undefined && file.calls >= policy.maxFileAttempts);
     file.costPerAcceptMicros =
       file.accepted && !file.pendingCalls && !file.unknownCalls
         ? file.knownMicros / file.accepted
         : null;
     for (const key of [
+      "committedTokens",
+      "knownTokens",
+      "calls",
       "committedMicros",
       "knownMicros",
       "pendingCalls",
@@ -218,7 +248,10 @@ export function replayCostLedger(input: readonly unknown[]): CostLedgerState {
     state.total.accepted && !state.total.pendingCalls && !state.total.unknownCalls
       ? state.total.knownMicros / state.total.accepted
       : null;
-  state.stopped ||= state.total.committedMicros >= costStopMicros(policy);
+  state.stopped ||=
+    state.total.committedMicros >= costStopMicros(policy) ||
+    (policy.maxTotalTokens !== undefined && state.total.committedTokens >= policy.maxTotalTokens) ||
+    (policy.maxAttempts !== undefined && state.total.calls >= policy.maxAttempts);
   state.p0 ||= state.total.knownMicros >= policy.maxTotalMicros;
   state.aboveMeanBudget =
     BigInt(state.total.knownMicros) >

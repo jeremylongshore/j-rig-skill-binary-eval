@@ -6,6 +6,12 @@ import {
 import { CostLedger } from "./cost-ledger.js";
 import { readCompletionMeasurement } from "./completion-usage.js";
 
+export class CostAdmissionError extends Error {
+  constructor(message = "Cost admission stopped; no wire call was made") {
+    super(message);
+    this.name = "CostAdmissionError";
+  }
+}
 export interface CostCallContext {
   fileId: string;
   attemptId: string;
@@ -13,6 +19,7 @@ export interface CostCallContext {
   format: "anthropic" | "openai";
   phase: string | (() => string);
   onAdmissionRefused?: () => void;
+  beforeAdmission?: () => void;
 }
 /** Wrap the innermost transport, inside any retry layer: one reservation per wire attempt. */
 export function createCostTransport<
@@ -25,8 +32,11 @@ export function createCostTransport<
 ): (request: Request) => Promise<Response> {
   const pinned = { ...context };
   return async (request) => {
+    let wireRequest: Request | undefined;
     const admit = (): string => {
-      const body = request.body as Record<string, unknown> | null;
+      pinned.beforeAdmission?.();
+      wireRequest = { ...request, body: structuredClone(request.body) };
+      const body = wireRequest.body as Record<string, unknown> | null;
       if (
         !body ||
         typeof body !== "object" ||
@@ -91,11 +101,11 @@ export function createCostTransport<
       callId = admit();
     } catch (error) {
       pinned.onAdmissionRefused?.();
-      throw error;
+      throw new CostAdmissionError(error instanceof Error ? error.message : undefined);
     }
     let response: Response;
     try {
-      response = await inner(request);
+      response = await inner(wireRequest!);
     } catch (error) {
       ledger.settle({ callId, outcome: "failed", reportedModel: null, usage: null });
       throw error;

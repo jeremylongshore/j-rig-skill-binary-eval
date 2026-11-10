@@ -488,5 +488,7 @@ Cost admission under review: `refine propose/score/assess --cost-policy ...
 execution and judge transports admit each wire attempt, including retries;
 subscription execution is refused in governed mode. Pure contracts live in
 refiner-core, I/O in refiner. Cost-outcome/quarantine/P0 receipts and existing OTel
-correlation retain accepted, rejected and failed attempts. Final closure review
+correlation retain accepted, rejected and failed attempts. Optional per-file and
+whole-scope token/attempt caps persist across invocations; zero caps refuse all
+applicable calls. Unknown usage retains its reserved tokens. Final closure review
 remains in 214c.18/#403. See API029 §8.12 and the Refiner README; no paid Wave B run.

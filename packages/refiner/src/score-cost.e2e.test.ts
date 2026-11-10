@@ -16,14 +16,58 @@ import { RefinerStore } from "./store.js";
 
 describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
   it.each([
-    { failJudge: false, governed: false, denyJudge: false },
-    { failJudge: true, governed: false, denyJudge: false },
-    { failJudge: false, governed: true, denyJudge: false },
-    { failJudge: true, governed: true, denyJudge: false },
-    { failJudge: false, governed: true, denyJudge: true },
+    {
+      failJudge: false,
+      governed: false,
+      denyJudge: false,
+      failExecution: false,
+      measuredFailure: false,
+    },
+    {
+      failJudge: true,
+      governed: false,
+      denyJudge: false,
+      failExecution: false,
+      measuredFailure: false,
+    },
+    {
+      failJudge: false,
+      governed: true,
+      denyJudge: false,
+      failExecution: false,
+      measuredFailure: false,
+    },
+    {
+      failJudge: true,
+      governed: true,
+      denyJudge: false,
+      failExecution: false,
+      measuredFailure: false,
+    },
+    {
+      failJudge: false,
+      governed: true,
+      denyJudge: true,
+      failExecution: false,
+      measuredFailure: false,
+    },
+    {
+      failJudge: false,
+      governed: true,
+      denyJudge: false,
+      failExecution: true,
+      measuredFailure: false,
+    },
+    {
+      failJudge: false,
+      governed: true,
+      denyJudge: false,
+      failExecution: true,
+      measuredFailure: true,
+    },
   ])(
     "retains subprocess usage and enforces shared admission: %j",
-    async ({ failJudge, governed, denyJudge }) => {
+    async ({ failJudge, governed, denyJudge, failExecution, measuredFailure }) => {
       const root = mkdtempSync(join(tmpdir(), "refiner-eval-cost-"));
       let calls = 0;
       const server = createServer(async (request, response) => {
@@ -36,6 +80,16 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
         const prompt = Buffer.concat(chunks).toString().toLowerCase();
         const judge = prompt.includes("verdict");
         calls++;
+        if (failExecution) {
+          response.writeHead(500, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              model: "actual-fixture",
+              error: { message: "private fixture execution error" },
+              ...(measuredFailure ? { usage: { prompt_tokens: 3, completion_tokens: 2 } } : {}),
+            }),
+          );
+          return;
+        }
         if (judge && failJudge) {
           response.writeHead(500).end('{"error":{"message":"private fixture error"}}');
           return;
@@ -71,6 +125,9 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
         );
         const evalSet = bootstrapFromItems(doc, "synthetic", [
           { id: "number", prompt: "Return 7", expectation: "The answer is 7" },
+          ...(failExecution
+            ? [{ id: "second", prompt: "Return 8", expectation: "The answer is 8" }]
+            : []),
         ]);
         const policy: CostPolicy = {
           schema: "refiner-cost-policy/v1",
@@ -131,6 +188,28 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
           modelTier: "fixture",
           ...(session ? { costContext: session.context } : {}),
         });
+        if (failExecution) {
+          await expect(action).rejects.toThrow("provider infrastructure failure");
+          expect(calls).toBe(1);
+          const state = session!.ledger.snapshot();
+          expect(state.calls.size).toBe(1);
+          expect(state.total).toMatchObject({
+            knownMicros: measuredFailure ? 3 : 0,
+            unknownCalls: measuredFailure ? 0 : 1,
+          });
+          const receiptEvent = store.readLog().at(-1)!;
+          if (receiptEvent.type !== "stored") throw new Error("missing receipt");
+          const receipt = store.get<{
+            status: string;
+            usage: { evidence: EvaluationUsageEvidence };
+          }>(receiptEvent.hash)!;
+          expect(receipt.status).toBe("failed");
+          expect(receipt.usage.evidence.calls[0]).toMatchObject({
+            phase: "execution",
+            outcome: "failed",
+          });
+          return;
+        }
         if (denyJudge) await expect(action).rejects.toThrow("evaluation budget exhausted");
         else if (failJudge) await expect(action).rejects.toThrow("provider infrastructure failure");
         else {

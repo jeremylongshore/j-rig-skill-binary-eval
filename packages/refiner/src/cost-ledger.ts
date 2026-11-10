@@ -130,10 +130,25 @@ export class CostLedger {
       const file = Object.hasOwn(state.files, input.fileId) ? state.files[input.fileId] : undefined;
       if (!rate || !file) throw new Error("Missing explicit cost rate or file identity");
       const quote = reserveCost(rate, input.outputLimit);
+      const quoteTokens = BigInt(rate.maxInputTokens) + BigInt(input.outputLimit);
+      const waveTokens =
+        state.policy.maxTotalTokens !== undefined &&
+        BigInt(state.total.committedTokens) + quoteTokens > BigInt(state.policy.maxTotalTokens);
+      const fileTokens =
+        state.policy.maxFileTokens !== undefined &&
+        BigInt(file.committedTokens) + quoteTokens > BigInt(state.policy.maxFileTokens);
+      const waveAttempts =
+        state.policy.maxAttempts !== undefined && state.total.calls >= state.policy.maxAttempts;
+      const fileAttempts =
+        state.policy.maxFileAttempts !== undefined && file.calls >= state.policy.maxFileAttempts;
       const wave =
+        waveTokens ||
+        waveAttempts ||
         state.stopped ||
         BigInt(state.total.committedMicros) + BigInt(quote) > BigInt(costStopMicros(state.policy));
       const denied =
+        fileTokens ||
+        fileAttempts ||
         wave ||
         file.quarantined ||
         BigInt(file.committedMicros) + BigInt(quote) > BigInt(state.policy.maxFileMicros);
@@ -142,7 +157,17 @@ export class CostLedger {
           kind: "halt",
           fileId: input.fileId,
           scope: wave ? "wave" : "file",
-          reason: wave ? "wave-stop" : "file-limit",
+          reason: wave
+            ? waveTokens
+              ? "wave-tokens"
+              : waveAttempts
+                ? "wave-attempts"
+                : "wave-stop"
+            : fileTokens
+              ? "file-tokens"
+              : fileAttempts
+                ? "file-attempts"
+                : "file-limit",
         });
         return null;
       }
@@ -158,6 +183,12 @@ export class CostLedger {
   settle(input: SettlementInput): void {
     this.#transaction((events) => {
       events.push(CostEventSchema.parse({ ...input, kind: "settle" }));
+    });
+  }
+  /** Validate before publishing an assessment without finalizing its outcome. */
+  assertOutcome(input: OutcomeInput): void {
+    this.#transaction((events) => {
+      replayCostLedger([...events, CostEventSchema.parse({ ...input, kind: "outcome" })]);
     });
   }
   outcome(input: OutcomeInput): CostLedgerState {

@@ -576,6 +576,21 @@ export function registerRefineCommand(
             ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
             : undefined;
           const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
+          const costDecision =
+            result.status === "blocked"
+              ? "blocked"
+              : result.decision.outcome === "ACCEPT" &&
+                  (!optimizer || optimizer.experiment?.experiment.status === "accepted")
+                ? "accepted"
+                : "rejected";
+          cost?.ledger.assertOutcome({
+            attemptId: cost.context.attemptId,
+            fileId: cost.context.fileId,
+            decision:
+              result.status === "evaluated" && result.decision.outcome === "ACCEPT"
+                ? "accepted"
+                : costDecision,
+          });
           const hash =
             result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
           if (runner.attemptCount > 0)
@@ -589,15 +604,7 @@ export function registerRefineCommand(
               status: result.status,
               decision: result.status === "evaluated" ? result.decision.outcome : null,
             });
-          finishCost(
-            cost,
-            result.status === "blocked"
-              ? "blocked"
-              : result.decision.outcome === "ACCEPT" &&
-                  (!optimizer || optimizer.experiment?.experiment.status === "accepted")
-                ? "accepted"
-                : "rejected",
-          );
+          finishCost(cost, costDecision);
           const experimentHash = optimizer?.experiment
             ? store.put("optimizer-experiment", optimizer.experiment)
             : undefined;

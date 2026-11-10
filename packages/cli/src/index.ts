@@ -71,6 +71,11 @@ function createProgram(): Command {
           unknownCalls: report.unknownCalls,
           fileKnownUsd: report.file.knownMicros / 1_000_000,
           fileCommittedUsd: report.file.committedMicros / 1_000_000,
+          fileAccepted: report.file.accepted,
+          filePerAcceptUsd:
+            report.file.costPerAcceptMicros === null
+              ? null
+              : report.file.costPerAcceptMicros / 1_000_000,
           outcome: report.decision,
           p0: report.p0,
         },

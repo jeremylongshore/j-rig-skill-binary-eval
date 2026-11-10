@@ -133,3 +133,47 @@ it("records failure after interruption without claiming accepted cost", () => {
     replayCostLedger([header, reserve, { ...accepted, decision: "failed" }]).total,
   ).toMatchObject({ pendingCalls: 1, accepted: 0 });
 });
+
+it.each([
+  { field: "maxFileTokens", max: 12, wave: false },
+  { field: "maxTotalTokens", max: 12, wave: true },
+  { field: "maxFileAttempts", max: 1, wave: false },
+  { field: "maxAttempts", max: 1, wave: true },
+])("replays cumulative cap $field at its exact boundary", ({ field, max, wave }) => {
+  const state = replayCostLedger([
+    { kind: "policy", policy: { ...policy, [field]: max } },
+    reserve,
+    settle,
+  ]);
+  expect(state.total).toMatchObject({ knownTokens: 12, committedTokens: 12, calls: 1 });
+  expect(wave ? state.stopped : state.files.a?.quarantined).toBe(true);
+});
+it("does not release unknown token usage when the call has settled", () => {
+  const state = replayCostLedger([header, reserve, { ...settle, usage: null }]);
+  expect(state.total).toMatchObject({ knownTokens: 0, committedTokens: 150, calls: 1 });
+});
+
+it("accepts recovered retries while retaining the failed wire call's cost", () => {
+  const result = replayCostLedger([
+    header,
+    reserve,
+    { ...settle, outcome: "failed" },
+    { ...reserve, callId: "retry" },
+    { ...settle, callId: "retry" },
+    accepted,
+  ]);
+  expect(result.total).toMatchObject({
+    calls: 2,
+    knownMicros: 24,
+    accepted: 1,
+    costPerAcceptMicros: 24,
+  });
+});
+it.each([
+  { inputTokens: 101, outputTokens: 2 },
+  { inputTokens: 10, outputTokens: 51 },
+])("refuses acceptance after a provider exceeds its reserved bounds", (usage) => {
+  expect(() => replayCostLedger([header, reserve, { ...settle, usage }, accepted])).toThrow(
+    "Acceptance requires complete priced calls",
+  );
+});

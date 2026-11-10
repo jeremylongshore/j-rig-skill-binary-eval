@@ -1,5 +1,10 @@
 import { costStopMicros, hashValue as hashRefinerValue } from "@intentsolutions/refiner-core";
-import { createCostTransport, openCostSession, type CostSession } from "@intentsolutions/refiner";
+import {
+  createCostTransport,
+  CostAdmissionError,
+  openCostSession,
+  type CostSession,
+} from "@intentsolutions/refiner";
 import { createFetchTransport } from "../providers/transport.js";
 import { retainRolloutRun, writeRolloutExport, type RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
@@ -31,6 +36,7 @@ import {
   compareBaseline,
   isObsoleteCandidate,
   uuidv7,
+  ProviderError,
   emitRuntimeRunStarted,
   emitRuntimeRunFinished,
   emitRuntimeCriterionEvaluated,
@@ -283,6 +289,7 @@ interface SelectedProviders {
 
 /** Extra provider-selection inputs: cost metering + judge decoupling. */
 interface GovernedCostSession extends CostSession {
+  providerFailed?: boolean;
   refused?: { phase: "trigger" | "execution" | "judge" };
 }
 interface ProviderExtras {
@@ -304,7 +311,16 @@ interface ProviderExtras {
  */
 /** Meter every real provider call, then guard it with the budget (a refused call is never spend). */
 function wrapMetered(p: Provider, extras: ProviderExtras | undefined): Provider {
-  const metered = extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+  const metered = extras?.meter
+    ? new CostTrackingProvider(p, extras.meter, (error) => {
+        if (
+          extras.costSession &&
+          !(error instanceof CostAdmissionError) &&
+          !(error instanceof ProviderError && error.originalError instanceof CostAdmissionError)
+        )
+          extras.costSession.providerFailed = true;
+      })
+    : p;
   return extras?.budget ? new BudgetGuardedProvider(metered, extras.budget) : metered;
 }
 
@@ -320,6 +336,10 @@ function costTransport(
     provider,
     format,
     phase: () => extras.meter?.phase ?? "execution",
+    beforeAdmission: () => {
+      if (session.providerFailed)
+        throw new CostAdmissionError("Stopped after a provider failure; no further wire calls");
+    },
     onAdmissionRefused: () => {
       session.refused ??= { phase: extras.meter?.phase ?? "execution" };
     },
@@ -1111,13 +1131,30 @@ export function registerEvalCommand(program: Command): void {
           const costStop = (): BudgetStop | null => {
             if (!costSession?.refused) return null;
             const state = costSession.ledger.snapshot();
-            const spent = state.stopped ? state.total : state.files[costSession.context.fileId]!;
+            const halt =
+              state.lastHalt?.fileId === costSession.context.fileId &&
+              (state.lastHalt.scope === "wave" || !state.stopped)
+                ? state.lastHalt
+                : undefined;
+            const wave = halt ? halt.scope === "wave" : state.stopped;
+            const spent = wave ? state.total : state.files[costSession.context.fileId]!;
+            const tokens = halt?.reason.endsWith("tokens");
+            const attempts = halt?.reason.endsWith("attempts");
+            const max = tokens
+              ? (wave ? state.policy.maxTotalTokens : state.policy.maxFileTokens)!
+              : attempts
+                ? (wave ? state.policy.maxAttempts : state.policy.maxFileAttempts)!
+                : (wave ? costStopMicros(state.policy) : state.policy.maxFileMicros) / 1_000_000;
             return {
-              limit: "max_usd",
-              max:
-                (state.stopped ? costStopMicros(state.policy) : state.policy.maxFileMicros) /
-                1_000_000,
-              observed: spent.unknownCalls ? null : spent.committedMicros / 1_000_000,
+              limit: tokens ? "max_tokens" : attempts ? "max_calls" : "max_usd",
+              max,
+              observed: tokens
+                ? spent.committedTokens
+                : attempts
+                  ? spent.calls
+                  : spent.unknownCalls
+                    ? null
+                    : spent.committedMicros / 1_000_000,
               source: "cost-policy",
               phase: costSession.refused.phase,
               model,
@@ -1204,7 +1241,10 @@ export function registerEvalCommand(program: Command): void {
           });
           // A refused call keeps the budget-stop path. A provider failure with
           // unknown usage must still reach the signed infrastructure-error path.
-          if (costSession?.refused || runBudget.stop || (!triggerFailure && runBudget.check())) {
+          if (
+            !costSession?.providerFailed &&
+            (costSession?.refused || runBudget.stop || (!triggerFailure && runBudget.check()))
+          ) {
             stopForBudget(costStop() ?? runBudget.stop!);
             break;
           }
@@ -1218,7 +1258,7 @@ export function registerEvalCommand(program: Command): void {
           if (opts.functional !== false) {
             costMeter.phase = "execution";
             const outcomes: ObservedOutcome[] =
-              runBudget.active && triggerFailure
+              (runBudget.active || costSession) && triggerFailure
                 ? []
                 : await runFunctionalTests(spec.test_cases, skill, providers.execution, {
                     model,
@@ -1410,7 +1450,10 @@ export function registerEvalCommand(program: Command): void {
               executionProvider: providers.providerName,
               judgeProvider: providers.judgeProviderName,
             });
-            if (costSession?.refused || runBudget.stop || (!skillFailure && runBudget.check())) {
+            if (
+              !costSession?.providerFailed &&
+              (costSession?.refused || runBudget.stop || (!skillFailure && runBudget.check()))
+            ) {
               stopForBudget(costStop() ?? runBudget.stop!);
               break;
             }
@@ -1482,7 +1525,7 @@ export function registerEvalCommand(program: Command): void {
             // to the same infrastructure-failure rule as the skill pass.
             let baselineOutcomes: ObservedOutcome[] = [];
             let baselineJudgments: JudgmentResult[] = [];
-            if (opts.baselineCheck && (!runBudget.active || !skillFailure)) {
+            if (opts.baselineCheck && (!(runBudget.active || costSession) || !skillFailure)) {
               ranBaseline = true;
               costMeter.phase = "execution";
               const nakedOutcomes = await runFunctionalTests(
@@ -1566,9 +1609,8 @@ export function registerEvalCommand(program: Command): void {
               judgeProvider: providers.judgeProviderName,
             });
             if (
-              costSession?.refused ||
-              runBudget.stop ||
-              (!evaluationFailure && runBudget.check())
+              !costSession?.providerFailed &&
+              (costSession?.refused || runBudget.stop || (!evaluationFailure && runBudget.check()))
             ) {
               stopForBudget(costStop() ?? runBudget.stop!);
               break;

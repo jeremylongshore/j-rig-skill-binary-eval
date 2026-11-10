@@ -205,3 +205,29 @@ it("retains a reservation when individually valid cache subsets overlap", async 
     total: { unknownCalls: 1, committedMicros: 1100 },
   });
 });
+
+it("pins the admitted body even when a transport yields before sending", async () => {
+  const ledger = setup();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const req = request();
+  const operation = createCostTransport(
+    async (wire: { body: unknown }) => {
+      await gate;
+      expect(wire.body).toMatchObject({ max_tokens: 100 });
+      return {
+        status: 200,
+        json: { model: "test", usage: { prompt_tokens: 1, completion_tokens: 1 } },
+      };
+    },
+    ledger,
+    context,
+  )(req);
+  req.body.max_tokens = 100000;
+  req.body.messages[0]!.content = "Changed after reservation";
+  release();
+  await operation;
+  expect(ledger.snapshot().total.knownMicros).toBe(2);
+});

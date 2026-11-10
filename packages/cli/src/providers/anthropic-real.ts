@@ -1,3 +1,4 @@
+import { CostAdmissionError } from "@intentsolutions/refiner";
 import { mapProviderUsage, reportedModel } from "./usage.js";
 import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
@@ -377,6 +378,7 @@ export class RealAnthropicProvider implements Provider {
         signal,
       });
     } catch (err) {
+      if (err instanceof CostAdmissionError) throw err;
       throw errorForThrow(err);
     }
   }

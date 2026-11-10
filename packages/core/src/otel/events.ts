@@ -173,6 +173,8 @@ export function emitCostRunRecorded(
     unknownCalls?: number;
     fileKnownUsd?: number;
     fileCommittedUsd?: number;
+    fileAccepted?: number;
+    filePerAcceptUsd?: number | null;
     outcome?: string;
     p0?: boolean;
   },
@@ -181,6 +183,8 @@ export function emitCostRunRecorded(
     ...correlationAttrs(c),
     [OtelAttrs.COST_FILE_KNOWN_USD]: payload.fileKnownUsd,
     [OtelAttrs.COST_FILE_COMMITTED_USD]: payload.fileCommittedUsd,
+    [OtelAttrs.COST_FILE_ACCEPTED]: payload.fileAccepted,
+    [OtelAttrs.COST_FILE_PER_ACCEPT_USD]: payload.filePerAcceptUsd ?? undefined,
     [OtelAttrs.COST_OUTCOME]: payload.outcome,
     [OtelAttrs.COST_P0]: payload.p0,
     [OtelAttrs.COST_RUN_TOTAL_INPUT_TOKENS]: payload.totalInputTokens,

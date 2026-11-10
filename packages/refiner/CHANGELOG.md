@@ -4,7 +4,8 @@
 
 - In development: explicit cost policy, durable reservation ledger and proposer
   transport admission across propose/score/assess, including judge retries,
-  outcome/quarantine/P0 receipts and OTel correlation. Final review remains open in
+  outcome/quarantine/P0 receipts, cumulative token/attempt limits and OTel
+  correlation. Final review remains open in
   `bd_000-projects-214c.18` / #403; see API029 §8.12.
 
 - Assess optimizer experiments with fresh quality-gated scoring, target improvement and per-item nonregression; append immutable resolutions. Refs `bd_000-projects-214c.17` / #401.

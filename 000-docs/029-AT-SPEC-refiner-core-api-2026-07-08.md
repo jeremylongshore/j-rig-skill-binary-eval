@@ -740,12 +740,28 @@ stop path. Unsupported subscription execution is refused in governed mode.
 
 `recordCostOutcome` snapshots cumulative file and global costs at the outcome
 boundary. CLI attempts store these reports, quarantine/manual-review entries and
-P0 findings, and emit existing `cost.run.recorded` events with Refiner correlation.
+P0 findings, and emit existing `cost.run.recorded` events with Refiner correlation,
+file accepted counts and cumulative per-accept USD (omitted when unknown).
 The `cost.record.scope` attribute separates whole Refiner attempts from nested
 evaluator runs; never sum these two levels. See the Refiner README for unknown
 usage, planned-cohort means and provider-bound assumptions. Paired accept/reject,
 quality-blocked, parse-failure, concurrency and retry tests use local fixtures.
 No paid Wave B run or production cost calibration has been performed. Final
-validation/review and cumulative token/attempt-cap reconciliation remain required
-for bead closure. Outer evaluator attempts and admitted wire calls have distinct
+validation/review remain required for bead closure. Optional per-file and
+whole-scope token/attempt limits use the same durable reservations as USD limits;
+zero caps deny all applicable calls. Attempt counts include each admitted retry,
+failed call and zero-priced call. Pending token reservations cannot be reset by
+restarting the process. Outer evaluator attempts and admitted wire calls have distinct
 counts; refusal does not add a wire reservation or charge.
+
+Governed native execution latches unrecovered outer provider failures before
+further wire admission. Later refusals cannot replace the original infrastructure
+error with budget exhaustion. `CostAdmissionError` stays distinct through native
+provider adapters; measured MiniMax recovery remains a separately reserved retry.
+
+Governed assessment validates its financial outcome before storing an accepted
+assessment. Every wire call must have settled, priced usage within its reserved
+bounds, and at least one call must have completed. Measured failed calls followed
+by successful recovery remain in the accepted attempt's cost. Unknown usage or a
+provider-bound overrun prevents publishing an accepted assessment; the failed
+outcome retains its cost and quarantine/P0 evidence.

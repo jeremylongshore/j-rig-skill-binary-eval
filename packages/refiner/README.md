@@ -383,7 +383,8 @@ also get `cost-quarantine` manual-review records; overruns get a
 if a process stops before these derived receipts are written.
 
 The existing `cost.run.recorded` OTel event carries Refiner attempt/file/policy
-correlation and file commitments. `cost.record.scope=refiner-attempt` identifies
+correlation, file commitments, accepted counts and cumulative cost per accept.
+The per-accept USD attribute is omitted while that value is unknown. `cost.record.scope=refiner-attempt` identifies
 whole-attempt summaries; nested evaluator events use `evaluator-run`. These are
 two aggregation levels of the same work and must not be summed together. Unknown
 attempt cost omits the USD estimate. Telemetry is best effort; durable accounting
@@ -394,7 +395,30 @@ admitted wire calls. A hard refusal can therefore appear as a failed outer
 attempt without a ledger reservation or charge. MiniMax retries have separate
 wire reservations even when they belong to one outer provider attempt.
 
-The governed policy currently bounds per-call tokens and cumulative USD.
-Reconciliation of the historical pure meter's cumulative token/attempt caps is
-still open in 214c.18; the evaluator's existing per-invocation soft caps are a
-separate mechanism. Do not treat this implementation as closure of that full bead.
+The policy also accepts optional `maxFileTokens`, `maxTotalTokens`,
+`maxFileAttempts` and `maxAttempts`. Zero refuses all applicable calls. Token
+admission reserves the full input bound plus output limit; settlement releases
+only measured excess. Pending/missing usage keeps its token reservation. Attempt
+caps count admitted wire calls (including failed calls, zero-priced calls and
+retries), across processes and Refiner invocations sharing the ledger. Per-file
+caps quarantine that file; whole-run caps stop the scope. Receipts expose known
+and committed tokens plus admitted call counts alongside USD.
+
+These durable limits implement the historical pure CostMeter token/attempt
+contract in the native runtime. The old measured-only in-memory helper remains
+available for compatibility; it cannot represent unknown usage or cross-process
+reservations. The evaluator's existing per-invocation soft caps remain separate.
+
+An unrecovered native provider failure stops further wire calls in that governed
+invocation. Its infrastructure-error evidence takes precedence over later
+refusals; a refusal must not relabel actual failed work as an unspent budget stop.
+`CostAdmissionError` preserves the distinction through the native adapters.
+MiniMax recovery remains inside one provider call and reserves each retry before
+sending it; successful recovery does not latch an outer provider failure.
+
+Governed assessment validates its financial outcome before storing an accepted
+assessment. Every wire call must have settled, priced usage within its reserved
+bounds, and at least one call must have completed. Measured failed calls followed
+by successful recovery remain in the accepted attempt's cost. Unknown usage or a
+provider-bound overrun prevents publishing an accepted assessment; the failed
+outcome retains its cost and quarantine/P0 evidence.

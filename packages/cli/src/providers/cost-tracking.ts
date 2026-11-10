@@ -401,9 +401,11 @@ export class EvalCostMeter {
 export class CostTrackingProvider implements Provider {
   readonly #inner: Provider;
   readonly #meter: EvalCostMeter;
-  constructor(inner: Provider, meter: EvalCostMeter) {
+  readonly #onFailure?: (error: unknown) => void;
+  constructor(inner: Provider, meter: EvalCostMeter, onFailure?: (error: unknown) => void) {
     this.#inner = inner;
     this.#meter = meter;
+    this.#onFailure = onFailure;
   }
   get name(): string {
     return this.#inner.name;
@@ -419,6 +421,7 @@ export class CostTrackingProvider implements Provider {
       result = await this.#inner.complete(req);
     } catch (error) {
       this.#meter.finish(call, null, "failed");
+      this.#onFailure?.(error);
       throw error;
     }
     this.#meter.finish(call, result.usage, "completed", result.reportedModel);
@@ -447,6 +450,7 @@ export class CostTrackingProvider implements Provider {
       }
     } catch (error) {
       outcome = "failed";
+      this.#onFailure?.(error);
       throw error;
     } finally {
       this.#meter.finish(call, usage, outcome, reportedModel);
@@ -460,6 +464,7 @@ export class CostTrackingProvider implements Provider {
       result = await this.#inner.callTool(req);
     } catch (error) {
       this.#meter.finish(call, null, "failed");
+      this.#onFailure?.(error);
       throw error;
     }
     this.#meter.finish(call, result.usage, "completed", result.reportedModel);
@@ -473,6 +478,7 @@ export class CostTrackingProvider implements Provider {
       results = await this.#inner.batch(reqs);
     } catch (error) {
       for (const call of calls) this.#meter.finish(call, null, "failed");
+      this.#onFailure?.(error);
       throw error;
     }
     for (let i = 0; i < Math.max(calls.length, results.length); i++) {
@@ -480,7 +486,10 @@ export class CostTrackingProvider implements Provider {
       const call = calls[i] ?? this.#meter.begin("unattributed-batch-result", this.name);
       if (result && typeof result === "object" && !(result instanceof Error) && "usage" in result)
         this.#meter.finish(call, result.usage, "completed", result.reportedModel);
-      else this.#meter.finish(call, null, "failed");
+      else {
+        this.#meter.finish(call, null, "failed");
+        this.#onFailure?.(result);
+      }
     }
     return results;
   }

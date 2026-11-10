@@ -210,3 +210,108 @@ it("refuses a symlink ledger without reading or modifying its target", () => {
   expect(() => new CostLedger(path, p)).toThrow();
   expect(readFileSync(target, "utf8")).toBe(secret);
 });
+
+it.each([
+  ["maxFileTokens", "file-tokens"],
+  ["maxTotalTokens", "wave-tokens"],
+  ["maxFileAttempts", "file-attempts"],
+  ["maxAttempts", "wave-attempts"],
+] as const)("enforces a zero %s cap without admitting any call", (field, reason) => {
+  const p = { ...policy(), [field]: 0 };
+  const { ledger, path } = setup(p);
+  expect(() => ledger.reserve(input())).toThrow(/admission stopped/);
+  const recovered = new CostLedger(path, p).snapshot();
+  expect(recovered.calls.size).toBe(0);
+  expect(recovered.lastHalt?.reason).toBe(reason);
+  expect(reason.startsWith("wave") ? recovered.stopped : recovered.files.a?.quarantined).toBe(true);
+});
+it.each(["maxFileAttempts", "maxAttempts"] as const)(
+  "counts failures and zero-priced calls toward %s across restarts",
+  (field) => {
+    const p = { ...policy(), [field]: 1 };
+    const { ledger, path } = setup(p);
+    const id = ledger.reserve(input());
+    ledger.settle({
+      callId: id,
+      outcome: "failed",
+      reportedModel: "test",
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+    const resumed = new CostLedger(path, p);
+    expect(resumed.snapshot().total).toMatchObject({ calls: 1, knownTokens: 0, knownMicros: 0 });
+    expect(() => resumed.reserve(input("second", field === "maxAttempts" ? "b" : "a"))).toThrow(
+      /admission stopped/,
+    );
+  },
+);
+it("reserves full input/output token bounds and releases only measured token excess", () => {
+  const { ledger } = setup({ ...policy(), maxFileMicros: 1000, maxFileTokens: 162 });
+  const id = ledger.reserve(input());
+  expect(ledger.snapshot().total).toMatchObject({ committedTokens: 150, knownTokens: 0 });
+  ledger.settle({
+    callId: id,
+    outcome: "completed",
+    reportedModel: "test",
+    usage: { inputTokens: 10, outputTokens: 2 },
+  });
+  ledger.reserve(input("second"));
+  expect(ledger.snapshot().total).toMatchObject({ committedTokens: 162, knownTokens: 12 });
+  expect(() => ledger.reserve(input("third"))).toThrow(/admission stopped/);
+  expect(ledger.snapshot().lastHalt?.reason).toBe("file-tokens");
+});
+it("shares token reservations across files even when all prices are zero", () => {
+  const p = policy();
+  for (const key of Object.keys(p.rates[0]!.microsPerMillionTokens) as Array<
+    keyof (typeof p.rates)[0]["microsPerMillionTokens"]
+  >)
+    p.rates[0]!.microsPerMillionTokens[key] = 0;
+  p.maxTotalTokens = 299;
+  const { ledger } = setup(p);
+  ledger.reserve(input());
+  expect(() => ledger.reserve(input("second", "b"))).toThrow(/admission stopped/);
+  expect(ledger.snapshot()).toMatchObject({
+    stopped: true,
+    lastHalt: { reason: "wave-tokens" },
+    total: { committedMicros: 0, committedTokens: 150, calls: 1 },
+  });
+});
+
+it("does not let callers erase reservations or raise limits through a snapshot", () => {
+  const { ledger } = setup();
+  ledger.reserve(input());
+  const exposed = ledger.snapshot();
+  exposed.calls.clear();
+  exposed.policy.maxFileMicros = 1000000;
+  exposed.files.a!.committedMicros = 0;
+  exposed.total.committedTokens = 0;
+  expect(() => ledger.reserve(input("second"))).toThrow(/admission stopped/);
+  expect(ledger.snapshot().total).toMatchObject({
+    committedMicros: 150,
+    committedTokens: 150,
+    calls: 1,
+  });
+});
+
+it("preflights acceptance without appending an outcome or suppressing retry cost", () => {
+  const { ledger, path } = setup();
+  const outcome = { attemptId: "attempt", fileId: "a", decision: "accepted" as const };
+  const failed = ledger.reserve(input());
+  ledger.settle({
+    callId: failed,
+    outcome: "failed",
+    reportedModel: "test",
+    usage: { inputTokens: 10, outputTokens: 2 },
+  });
+  expect(() => ledger.assertOutcome(outcome)).toThrow();
+  const retry = ledger.reserve(input());
+  ledger.settle({
+    callId: retry,
+    outcome: "completed",
+    reportedModel: "test",
+    usage: { inputTokens: 10, outputTokens: 2 },
+  });
+  const before = readFileSync(path, "utf8");
+  ledger.assertOutcome(outcome);
+  expect(readFileSync(path, "utf8")).toBe(before);
+  expect(ledger.outcome(outcome).total).toMatchObject({ accepted: 1, knownMicros: 24 });
+});

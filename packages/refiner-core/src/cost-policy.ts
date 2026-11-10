@@ -45,6 +45,10 @@ export const CostPolicySchema = z
     maxTotalMicros: count.positive(),
     meanFileBudgetMicros: count.positive(),
     stopBasisPoints: count.positive().max(10000),
+    maxFileTokens: count.optional(),
+    maxTotalTokens: count.optional(),
+    maxFileAttempts: count.optional(),
+    maxAttempts: count.optional(),
   })
   .strict()
   .superRefine((p, ctx) => {

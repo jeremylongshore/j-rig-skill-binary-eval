@@ -6,8 +6,9 @@
  *
  * This module is I/O-free by construction: it records usage, applies budget
  * policies, and emits typed decisions — it never calls a model or touches the
- * filesystem. The adapter layer (`@intentsolutions/refiner`) feeds real token counts
- * produced by the Anthropic API; tests feed deterministic stubs.
+ * filesystem. This compatibility helper accepts measured usage only. The governed
+ * runtime uses cost-policy/cost-ledger reservations instead, because this helper
+ * cannot represent unknown usage or coordinate concurrent processes.
  *
  * ## Key types
  *
@@ -23,8 +24,10 @@
  * When a cap fires (token ceiling OR attempt ceiling), the work is NOT silently
  * dropped — it is routed to a quarantine queue as a {@link QuarantineRecord}
  * carrying the reason, the accumulated usage, and the skill that triggered the
- * cap. The pipeline MUST check {@link CostMeter.checkBudget} before each attempt
- * and stop if `{ continue: false }` is returned.
+ * cap. Consumers of this helper must check {@link CostMeter.checkBudget} before
+ * each attempt and stop if `{ continue: false }` is returned. The governed CLI
+ * enforces equivalent cumulative token/attempt limits with durable reservations,
+ * plus explicit USD pricing; it does not reset this in-memory meter each run.
  *
  * Bead: bd_000-projects-jqam
  * Plan: intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md

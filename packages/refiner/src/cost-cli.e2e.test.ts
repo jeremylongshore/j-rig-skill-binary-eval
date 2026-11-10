@@ -13,10 +13,15 @@ const cli = resolve("packages/cli/dist/index.js");
 it.each([
   "score",
   "deny-judge",
+  "deny-file-tokens",
+  "deny-wave-tokens",
+  "deny-file-attempts",
+  "deny-wave-attempts",
   "propose-parse-failure",
   "propose-overrun",
   "propose-success",
   "assess-accepted",
+  "assess-accepted-overrun",
   "assess-rejected",
   "assess-blocked",
 ])(
@@ -38,13 +43,22 @@ it.each([
       const improved = body.includes("improved");
       const pass =
         !assessment ||
-        (index < 10 ? index < 5 : (improved && mode === "assess-accepted") || index < 15);
+        (index < 10 ? index < 5 : (improved && mode.startsWith("assess-accepted")) || index < 15);
       calls++;
       response.setHeader("content-type", "application/json");
       response.end(
         JSON.stringify({
           model: "actual-fixture",
-          usage: { prompt_tokens: mode === "propose-overrun" ? 100001 : 3, completion_tokens: 2 },
+          usage: {
+            prompt_tokens:
+              mode.includes("tokens") && !judge
+                ? 8000
+                : mode === "propose-overrun" ||
+                    (mode === "assess-accepted-overrun" && calls === 160)
+                  ? 100001
+                  : 3,
+            completion_tokens: 2,
+          },
           choices: [
             {
               finish_reason: "stop",
@@ -127,6 +141,10 @@ it.each([
         meanFileBudgetMicros: 1000000,
         stopBasisPoints: 8000,
       };
+      if (mode === "deny-file-tokens") policy.maxFileTokens = 109000;
+      if (mode === "deny-wave-tokens") policy.maxTotalTokens = 109000;
+      if (mode === "deny-file-attempts") policy.maxFileAttempts = 1;
+      if (mode === "deny-wave-attempts") policy.maxAttempts = 1;
       writeFileSync(join(root, "policy.json"), JSON.stringify(policy));
       const bin = join(root, "bin");
       mkdirSync(bin);
@@ -233,7 +251,7 @@ it.each([
       expect(result.code, result.stderr + result.stdout.slice(0, 2000)).toBe(
         mode === "score" || mode === "assess-accepted" || mode === "propose-success"
           ? 0
-          : assessing
+          : assessing && mode !== "assess-accepted-overrun"
             ? 2
             : 1,
       );
@@ -261,11 +279,27 @@ it.each([
                   : mode === "assess-blocked"
                     ? "blocked"
                     : "failed",
-        knownMicros: mode === "propose-overrun" ? 100001 : expectedCalls * 3,
+        knownMicros: mode.includes("tokens")
+          ? 8000
+          : mode === "propose-overrun"
+            ? 100001
+            : mode === "assess-accepted-overrun"
+              ? 100478
+              : expectedCalls * 3,
         unknownCalls: 0,
       });
-      expect(report.file.quarantined).toBe(mode === "deny-judge" || mode === "propose-overrun");
-      expect(report.p0).toBe(mode === "propose-overrun");
+      expect(report.file.quarantined).toBe(
+        mode === "deny-judge" || mode.startsWith("deny-file") || mode.endsWith("overrun"),
+      );
+      expect(report.p0).toBe(mode.endsWith("overrun"));
+      if (mode === "assess-accepted-overrun") {
+        expect(
+          store
+            .readLog()
+            .filter((event) => event.type === "stored" && event.kind === "acceptance-assessment"),
+        ).toHaveLength(0);
+      }
+      if (mode.startsWith("deny-wave")) expect(report.stopped).toBe(true);
       expect(
         store
           .readLog()
@@ -288,6 +322,12 @@ it.each([
         (event) =>
           event.name === "cost.run.recorded" &&
           event.attributes["cost.record.scope"] === "refiner-attempt",
+      );
+      expect(recorded?.attributes["cost.file.accepted"]).toBe(report.file.accepted);
+      expect(recorded?.attributes["cost.file.per_accept_usd"]).toBe(
+        report.file.costPerAcceptMicros === null
+          ? undefined
+          : report.file.costPerAcceptMicros / 1_000_000,
       );
       expect(recorded?.attributes).toMatchObject({
         "refiner.attempt_id": report.attemptId,

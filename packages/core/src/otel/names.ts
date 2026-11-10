@@ -133,6 +133,8 @@ export const OtelAttrs = {
   COST_RECORD_SCOPE: "cost.record.scope",
   COST_FILE_KNOWN_USD: "cost.file.known_usd",
   COST_FILE_COMMITTED_USD: "cost.file.committed_usd",
+  COST_FILE_ACCEPTED: "cost.file.accepted",
+  COST_FILE_PER_ACCEPT_USD: "cost.file.per_accept_usd",
   COST_OUTCOME: "cost.outcome",
   COST_P0: "cost.p0",
   COST_RUN_TOTAL_INPUT_TOKENS: "cost.run.total_input_tokens",
