@@ -54,6 +54,24 @@ pnpm --filter @j-rig/core run build
 pnpm --filter @intentsolutions/jrig-cli run build   # builds the bundled CLI
 ```
 
+## Refiner frozen scoring inputs
+
+`j-rig refine score <skill-dir> --eval-set-file reviewed.json` executes the
+supplied document and frozen eval-set items after validating their content
+hashes and shared skill identity. Each item requires an explicit expectation;
+bootstrap drafts need review and annotation before scoring. Stored inputs can
+instead be selected with `--eval-set <hash>`.
+
+The adapter creates a private temporary skill/spec/database, delegates to the
+existing evaluator, and removes temporary state on success or failure. Stub,
+failed, or inconsistent results produce no ScoreRecord. The frozen SkillDoc
+contract covers text only; directory assets are not silently copied. Historical
+scores remain unchanged and require rerunning before their execution identity
+can be trusted. See `packages/refiner/README.md` and API doc 029 §8.5.
+
+Tracked by `bd_000-projects-214c.14` / GitHub #393. Capability coverage and
+acceptance-quality integration remain in `bd_000-projects-214c.13` / #394.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):
