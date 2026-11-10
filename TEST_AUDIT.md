@@ -49,7 +49,9 @@ with zero violations.
 
 `pnpm run verify:workspace` runs repository-owned architecture checks and
 inventory adapters around the unmodified vendored bias/Gherkin scanners.
-It runs in the existing CI Test job and in `pnpm run check`; its scripts,
+It runs in the existing CI Test job and in `pnpm run check`; the CI Test job
+also runs the focused verification suites and commands on Node 20.20.2 using
+the declared `tsx` development runner. Its scripts,
 shared inventory, tests and CI wiring are hash-pinned. This does not upgrade
 the vendored harness, which remains **1.4.0**.
 

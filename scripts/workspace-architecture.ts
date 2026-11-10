@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env tsx
 /** Repo-owned import-boundary check; not a sandbox or a general purity proof.
  * Authority: package.json dependency contracts, CLAUDE.md's CLI leaf boundary,
  * and packages/refiner-core/README.md's no-I/O core contract.

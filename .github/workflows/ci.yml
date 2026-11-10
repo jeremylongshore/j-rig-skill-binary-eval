@@ -147,6 +147,16 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
+      - name: Set up Node.js 20 for workspace compatibility
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "20.20.2"
+
+      - name: Workspace verification on Node.js 20
+        run: |
+          pnpm exec vitest run scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts
+          pnpm run verify:workspace
+
   otel-smoke:
     name: OTel emission smoke (iaj-E08)
     runs-on: ubuntu-latest

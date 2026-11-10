@@ -28,7 +28,7 @@
     "license:audit": "node --experimental-strip-types scripts/license-audit.ts --prod",
     "harness:verify": "scripts/audit-harness verify",
     "harness:init": "scripts/audit-harness init",
-    "verify:workspace": "node --experimental-strip-types scripts/workspace-architecture.ts && node --experimental-strip-types scripts/workspace-quality.ts bias && node --experimental-strip-types scripts/workspace-quality.ts gherkin",
+    "verify:workspace": "tsx scripts/workspace-architecture.ts && tsx scripts/workspace-quality.ts bias && tsx scripts/workspace-quality.ts gherkin",
     "typecheck:workspace": "tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions scripts/workspace-inventory.ts scripts/workspace-quality.ts scripts/workspace-quality.test.ts scripts/workspace-architecture.ts scripts/workspace-architecture.test.ts"
   },
   "lint-staged": {
@@ -51,6 +51,7 @@
     "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.9.9",
     "tsup": "^8.5.1",
+    "tsx": "4.21.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "^3.1.0"
