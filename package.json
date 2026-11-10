@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tests/tsconfig.json && pnpm -r run typecheck",
     "clean": "pnpm -r run clean",
-    "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test",
+    "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run typecheck:workspace && pnpm run verify:workspace",
     "test:coverage": "vitest run --coverage",
     "test:coverage:refiner-core": "vitest run --coverage --config packages/refiner-core/vitest.config.ts",
     "lint:md": "markdownlint-cli2",
@@ -27,7 +27,9 @@
     "assemble:manifest": "node --experimental-strip-types scripts/assemble-manifest.ts",
     "license:audit": "node --experimental-strip-types scripts/license-audit.ts --prod",
     "harness:verify": "scripts/audit-harness verify",
-    "harness:init": "scripts/audit-harness init"
+    "harness:init": "scripts/audit-harness init",
+    "verify:workspace": "node --experimental-strip-types scripts/workspace-architecture.ts && node --experimental-strip-types scripts/workspace-quality.ts bias && node --experimental-strip-types scripts/workspace-quality.ts gherkin",
+    "typecheck:workspace": "tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions scripts/workspace-inventory.ts scripts/workspace-quality.ts scripts/workspace-quality.test.ts scripts/workspace-architecture.ts scripts/workspace-architecture.test.ts"
   },
   "lint-staged": {
     "*.{ts,js,cjs,mjs}": [

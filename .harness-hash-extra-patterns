@@ -27,3 +27,17 @@ ci/emit-evidence/emit-evidence.ts
 ci/emit-evidence/assemble-manifest.ts
 ci/emit-evidence/package.json
 ci/emit-evidence/pnpm-lock.yaml
+
+# Workspace inventory, architecture rules and CI enforcement.
+scripts/workspace-inventory.ts
+scripts/workspace-quality.ts
+scripts/workspace-quality.test.ts
+scripts/workspace-architecture.ts
+scripts/workspace-architecture.test.ts
+.github/workflows/ci.yml
+package.json
+
+# Inventory and dependency declarations are architecture policy inputs.
+.harness-hash-extra-patterns
+pnpm-workspace.yaml
+packages/*/package.json
