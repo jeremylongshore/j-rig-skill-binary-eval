@@ -397,47 +397,8 @@ describe(
           );
           expect(row.predicate.metadata?.ground_truth).toBe(false);
 
-          // Promotion metadata is a separate, content-addressed contract. The
-          // default self-eval intentionally skips regression coverage, so its
-          // evidence must not claim a clean promotion pass.
-          expect(row.predicate.metadata?.schema).toBe("j-rig/skill-promotion/v1");
-          expect(row.predicate.metadata?.eval_run_id).toMatch(
-            /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-          );
-          expect(row.predicate.metadata?.run_ids).toContain(row.predicate.metadata?.eval_run_id);
-          expect(row.predicate.metadata?.skill?.snapshot_sha256).toBe(row.predicate.input_hash);
-          expect(row.predicate.metadata?.eval_spec?.profile_sha256).toBe(row.predicate.policy_hash);
-          expect(row.predicate.metadata?.selected_grader).toMatchObject({
-            grader_id: "j-rig-binary-criteria",
-            grader_version: expect.any(String),
-          });
-          expect(row.predicate.metadata?.selected_grader?.grader_snapshot_sha256).toMatch(
-            /^sha256:[a-f0-9]{64}$/,
-          );
-          expect(row.predicate.metadata?.thresholds).toMatchObject({
-            required_pass_rate: 1,
-          });
-          expect(row.predicate.metadata?.regression).toMatchObject({
-            required: true,
-            enabled: false,
-            result: "not-run",
-            baseline_sha256: null,
-          });
-          expect(row.predicate.metadata?.promotion_eligible).toBe(false);
-          expect(["advisory", "fail"]).toContain(row.predicate.gate_decision);
-
-          // Headroom rides beside the verdict (000-docs/043), measured over the
-          // same criteria the scorecard counted, with the runtime default ceiling
-          // because the self-eval spec declares none.
-          expect(row.predicate.metadata?.headroom).toMatchObject({
-            ceiling: 0.95,
-            ceiling_source: "default",
-            passed: row.predicate.metadata?.passed,
-            trials: row.predicate.metadata?.total_criteria,
-          });
-          expect(["saturated", "near_ceiling", "headroom", "no_data"]).toContain(
-            row.predicate.metadata?.headroom?.status,
-          );
+          assertPromotionIdentity(row);
+          assertPromotionEligibilityAndHeadroom(row);
         }
 
         // 4. The DB→bundle link is integrity-checked: every evidence-bundle
@@ -641,3 +602,50 @@ describe(
     });
   },
 );
+
+function assertPromotionIdentity(row: GateRow): void {
+  // Promotion metadata is a separate, content-addressed contract. The
+  // default self-eval intentionally skips regression coverage, so its
+  // evidence must not claim a clean promotion pass.
+  expect(row.predicate.metadata?.schema).toBe("j-rig/skill-promotion/v1");
+  expect(row.predicate.metadata?.eval_run_id).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  expect(row.predicate.metadata?.run_ids).toContain(row.predicate.metadata?.eval_run_id);
+  expect(row.predicate.metadata?.skill?.snapshot_sha256).toBe(row.predicate.input_hash);
+  expect(row.predicate.metadata?.eval_spec?.profile_sha256).toBe(row.predicate.policy_hash);
+  expect(row.predicate.metadata?.selected_grader).toMatchObject({
+    grader_id: "j-rig-binary-criteria",
+    grader_version: expect.any(String),
+  });
+  expect(row.predicate.metadata?.selected_grader?.grader_snapshot_sha256).toMatch(
+    /^sha256:[a-f0-9]{64}$/,
+  );
+}
+
+function assertPromotionEligibilityAndHeadroom(row: GateRow): void {
+  expect(row.predicate.metadata?.thresholds).toMatchObject({
+    required_pass_rate: 1,
+  });
+  expect(row.predicate.metadata?.regression).toMatchObject({
+    required: true,
+    enabled: false,
+    result: "not-run",
+    baseline_sha256: null,
+  });
+  expect(row.predicate.metadata?.promotion_eligible).toBe(false);
+  expect(["advisory", "fail"]).toContain(row.predicate.gate_decision);
+
+  // Headroom rides beside the verdict (000-docs/043), measured over the
+  // same criteria the scorecard counted, with the runtime default ceiling
+  // because the self-eval spec declares none.
+  expect(row.predicate.metadata?.headroom).toMatchObject({
+    ceiling: 0.95,
+    ceiling_source: "default",
+    passed: row.predicate.metadata?.passed,
+    trials: row.predicate.metadata?.total_criteria,
+  });
+  expect(["saturated", "near_ceiling", "headroom", "no_data"]).toContain(
+    row.predicate.metadata?.headroom?.status,
+  );
+}
