@@ -284,13 +284,37 @@ The significance test is a two-sample z-test on the difference of means using th
 
 ```ts
 function coverage(evalSet: EvalSet): CoverageResult;
+function capabilityCoverage(evalSet: EvalSet, manifest: CapabilityManifest): CapabilityCoverageResult;
 function leakage(setA: readonly EvalItem[], setB: readonly EvalItem[]): LeakageResult;
 function calibration(predictions: readonly CalibrationPrediction[]): CalibrationResult;
-function adversarialPassRate(results: readonly ItemResult[], items: readonly AdversarialEvalItem[]): AdversarialPassRateResult;
+function adversarialPassRate(items: readonly AdversarialEvalItem[], results: readonly ItemResult[]): AdversarialPassRateResult;
 function evaluateEvalSet(evalSet: EvalSet, opts?: EvaluateEvalSetOptions): EvalSetQualityReport;
 ```
 
-Pure eval-set quality measurement (bead `214c.11`): `coverage` (stratification breakdown), `leakage` (train/held-out overlap), `calibration` (predicted-vs-observed reliability), `adversarialPassRate` (robustness on adversarial items), and `evaluateEvalSet` (the roll-up quality report). These gate whether an eval-set is trustworthy enough to derive an accept verdict against.
+Pure eval-set quality measurement (beads `214c.11`, `214c.13`): `coverage`
+(legacy observed-category entropy), `capabilityCoverage` (declared sampling
+completeness), `leakage` (train/held-out overlap), `calibration`
+(predicted-vs-observed reliability), `adversarialPassRate` (robustness on
+adversarial items), and `evaluateEvalSet` (the roll-up quality report).
+Acceptance integration is being implemented under `214c.13`; computing this
+report alone does not enforce the acceptance precondition.
+
+`CapabilityManifest` contains `skillId`, `evalSetHash`, `capabilities` (unique
+`id` plus positive integer `minimumItems`), and `assignments` (`itemId` plus
+distinct declared `capabilityIds`). It is reviewed input, not an inference from
+prompt text or item names. The separate manifest preserves historical EvalSet
+hashes. `evaluateEvalSet(..., { capabilityManifest })` adds a
+`capabilityCoverage` result; without declarations the result is absent.
+Consumers must also validate the eval-set content hash before trusting its
+binding label.
+
+`completeness` is the fraction of declared strata meeting their minimum count.
+`strata` includes zero-count capabilities and each stratum's shortfall.
+`complete` additionally requires every item to have a reviewed assignment;
+`unassignedItemIds` lists those lacking one. Unknown or duplicate assignments,
+duplicate declarations, and mismatched skill/hash bindings throw. A uniform
+observed distribution can have entropy one while declared completeness is less
+than one; these are different measurements.
 
 `leakage` matches canonical prompts (trimmed and lowercased) one-to-one across
 distinct arrays. Its ratio is the multiset intersection count divided by the

@@ -5,8 +5,8 @@
  *
  *   1. **coverage** — diversity of the eval set's behavioral space, measured as
  *      Shannon entropy of the item-type distribution (derived from the item `id`
- *      prefix segment, e.g. "validate-skillmd-syn-001" → type "syn"; or over
- *      the first token of each `prompt` when no structured prefix is present).
+ *      prefix with its numeric suffix removed, e.g. "validate-skillmd-syn-001"
+ *      → "validate-skillmd-syn"; otherwise the full id).
  *      Returns a normalized [0,1] score + per-type breakdown. A uniform set has
  *      coverage = 1.0; a set where every item comes from one bucket has
  *      coverage = 0.0 (when there is more than one bucket).
@@ -44,12 +44,12 @@
  *   - Exported individually and via the `evaluateEvalSet` aggregator.
  *
  * Definitional choices (documented here and in the PR body):
- *   - Coverage uses Shannon entropy because it captures BOTH category count
- *     AND balance — a set with 10 categories all having 1 item scores higher
- *     than a set with 10 categories where 9 are singletons and 1 has 100 items.
+ *   - Legacy coverage measures balance across observed categories. Normalized
+ *     entropy cannot detect an absent capability. capabilityCoverage separately
+ *     measures sampling completeness against an explicit reviewed manifest.
  *   - The item type derivation prefers the structured id prefix (segment before
  *     the last `-NNN` counter) over prompt heuristics, because ids are
- *     machine-generated and stable; prompt-based bucketing is a fallback only.
+ *     machine-generated and stable; there is no prompt-based fallback.
  *   - Leakage uses a canonical string key (trim + lower-case of the prompt) to
  *     avoid false negatives from invisible whitespace or capitalization drift.
  *   - ECE uses 10 equal-width bins (0–0.1, 0.1–0.2, …, 0.9–1.0) per the
@@ -65,6 +65,11 @@
  */
 
 import type { EvalItem, EvalSet } from "./types.js";
+import {
+  capabilityCoverage,
+  type CapabilityManifest,
+  type CapabilityCoverageResult,
+} from "./capability-coverage.js";
 
 // ─── Extended EvalItem (bead 214c.11 — minimal backward-compatible addition) ──
 
@@ -446,6 +451,8 @@ export function adversarialPassRate(
 
 /** Options for {@link evaluateEvalSet}. */
 export interface EvaluateEvalSetOptions {
+  /** Reviewed declared strata and item assignments bound to this eval set. */
+  readonly capabilityManifest?: CapabilityManifest;
   /**
    * Reference item collection to check for leakage against (e.g. training set).
    * When omitted, the leakage metric checks for intra-set duplicates only
@@ -466,6 +473,8 @@ export interface EvaluateEvalSetOptions {
 
 /** Aggregated result of {@link evaluateEvalSet}. */
 export interface EvalSetQualityReport {
+  /** Absent without declarations; legacy entropy cannot establish completeness. */
+  readonly capabilityCoverage?: CapabilityCoverageResult;
   /** Behavioral diversity of the eval set [0, 1]. */
   readonly coverage: CoverageResult;
   /**
@@ -510,6 +519,11 @@ export function evaluateEvalSet(
   const report: EvalSetQualityReport = {
     coverage: coverageResult,
     leakage: leakageResult,
+    ...(opts.capabilityManifest === undefined
+      ? {}
+      : {
+          capabilityCoverage: capabilityCoverage(evalSet, opts.capabilityManifest),
+        }),
   };
 
   if (opts.predictions !== undefined) {

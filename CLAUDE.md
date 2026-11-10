@@ -72,6 +72,14 @@ can be trusted. See `packages/refiner/README.md` and API doc 029 §8.5.
 Tracked by `bd_000-projects-214c.14` / GitHub #393. Capability coverage and
 acceptance-quality integration remain in `bd_000-projects-214c.13` / #394.
 
+`capabilityCoverage(evalSet, manifest)` measures completeness against reviewed
+declared capabilities and explicit minimum sample counts. The manifest binds to
+the skill ID and eval-set hash; item assignments must name known, unique items
+and declared capabilities. `evaluateEvalSet` accepts it as `capabilityManifest`
+and reports `capabilityCoverage` separately from legacy ID-prefix entropy.
+Absence of this report is missing evidence, not proof of completeness. This is
+the measurement stage of #394; acceptance orchestration remains in progress.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

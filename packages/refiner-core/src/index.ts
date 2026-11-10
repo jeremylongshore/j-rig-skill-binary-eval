@@ -119,6 +119,8 @@ export type {
 export { decide } from "./decide.js";
 
 // Eval-set quality metrics — coverage, leakage, calibration, adversarialPassRate (bead 214c.11)
+export { capabilityCoverage } from "./capability-coverage.js";
+export type { CapabilityManifest, CapabilityCoverageResult } from "./capability-coverage.js";
 export type {
   AdversarialEvalItem,
   CoverageBreakdown,
