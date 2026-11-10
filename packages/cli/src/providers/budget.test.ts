@@ -128,7 +128,7 @@ describe("RunBudget", () => {
     meter.record("deepseek-v4-flash", { inputTokens: 1, outputTokens: 1 });
     meter.record("mystery-b", { inputTokens: 1, outputTokens: 1 });
     expect(budget.check()?.reason).toBe(
-      "max_usd $100.0000 cannot be enforced: no rate on file for mystery-a, mystery-b",
+      "max_usd $100.0000 cannot be enforced: no rate on file for mystery-a, mystery-b, or incomplete usage",
     );
   });
 
@@ -182,5 +182,40 @@ describe("RunBudget", () => {
     );
     await expect(guarded.execute("p", { skill_body: "" })).rejects.toThrow(BudgetExceededError);
     expect(execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("unmeasured spend", () => {
+  it.each(["max_tokens", "max_usd"] as const)(
+    "stops %s after an unmeasured call",
+    async (limit) => {
+      const { meter, budget, provider, inner } = harness({ [limit]: 100 });
+      meter.record("deepseek-v4-flash", null);
+      await expect(provider.complete(req())).rejects.toThrow(BudgetExceededError);
+      expect(inner.calls).toBe(0);
+      expect(budget.stop).toMatchObject({ limit, observed: null });
+    },
+  );
+  it("counts in-flight calls without confusing them with settled unknown usage", () => {
+    const { meter, budget } = harness({ max_usd: 100, max_tokens: 100, max_calls: 2 });
+    const call = meter.begin("deepseek-v4-flash");
+    expect(budget.check()).toBeNull();
+    expect(budget.spent().calls).toBe(1);
+    meter.finish(call, null, "failed");
+    expect(budget.check()?.limit).toBe("max_usd");
+  });
+});
+
+describe("cross-model usage totals", () => {
+  it("fails closed when the combined token total cannot be represented safely", () => {
+    const budget = new RunBudget({ max_tokens: Number.MAX_SAFE_INTEGER });
+    const first = new EvalCostMeter();
+    budget.attach(first, "first");
+    first.record("first", { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 0 });
+    const second = new EvalCostMeter();
+    budget.attach(second, "second");
+    second.record("second", { inputTokens: 1, outputTokens: 0 });
+    expect(budget.spent().tokens).toBeNull();
+    expect(budget.check()).toMatchObject({ limit: "max_tokens", observed: null });
   });
 });

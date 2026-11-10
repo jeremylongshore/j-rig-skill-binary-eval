@@ -316,3 +316,19 @@ Receipts omit raw prompts, responses, credentials and endpoint URLs. Selected
 numeric billing fields do not constitute a USD policy. Assessment usage, cost
 rollups, dollar admission, quarantine and telemetry remain tracked in 214c.18 /
 issue #403. See API doc 029 §8.9 for receipt semantics and protocol references.
+
+### Scoring usage evidence
+
+`refine score` and `refine assess` persist evaluator intent and outcomes through
+`createAccountingEvalRunner`. Usage survives nonzero exits and score parsing
+failure; started-only records have unknown outcome. Assessment outcomes join
+those receipts to a decision without moving the best pointer. Receipt storage
+must succeed before evaluator I/O. Raw stdout/stderr, prompts and source paths
+are excluded from these receipts.
+
+`scoreWithEvidence().usage` distinguishes reported, missing and invalid evidence.
+Reported evidence may contain unmeasured calls, whose `usage` is null. The
+`evaluation-usage/v1` schema is shared through refiner-core. CLI JSON score output
+remains a ScoreRecord. Library users requiring durable cost records must wrap
+their runner with `createAccountingEvalRunner`. API029 §8.10 documents limits;
+priced rollups and hard USD admission remain in 214c.18 / issue #403.

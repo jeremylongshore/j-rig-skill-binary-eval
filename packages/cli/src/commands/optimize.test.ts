@@ -255,7 +255,16 @@ describe("optimizer CLI to Refiner assessment", () => {
           evalSet,
           qualityEvidence: evidence,
         });
-        expect(store.readLog().length).toBe(before + 2);
+        const events = store.readLog().slice(before);
+        expect(
+          events.filter((e) => e.type === "stored" && e.kind === "evaluation-attempt"),
+        ).toHaveLength(4);
+        const costOutcome = events.find(
+          (e) => e.type === "stored" && e.kind === "evaluation-outcome",
+        );
+        expect(costOutcome?.type === "stored" ? store.get(costOutcome.hash) : null).toMatchObject({
+          assessmentHash: result.stored,
+        });
         expect(store.get(proposed.stored)).toEqual(proposed.experiment);
         expect(store.get(result.optimizer.stored)).toMatchObject({
           parent: proposed.stored,

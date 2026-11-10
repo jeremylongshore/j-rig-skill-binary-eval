@@ -1,3 +1,4 @@
+import { mapProviderUsage, reportedModel } from "./usage.js";
 import { createMiniMaxPlanTransport } from "./minimax-plan.js";
 import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
@@ -321,18 +322,7 @@ function mapFinishReason(raw: unknown): FinishReason {
   }
 }
 
-function mapUsage(raw: unknown): TokenUsage {
-  const u = (raw ?? {}) as Record<string, unknown>;
-  const usage: TokenUsage = {
-    inputTokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : 0,
-    outputTokens: typeof u.completion_tokens === "number" ? u.completion_tokens : 0,
-  };
-  const cached = (u.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens;
-  if (typeof cached === "number") {
-    usage.cachedInputTokens = cached;
-  }
-  return usage;
-}
+const mapUsage = (raw: unknown): TokenUsage | null => mapProviderUsage(raw, "openai");
 
 /** OpenAI-style message shape the Chat Completions endpoint accepts. */
 function toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
@@ -495,6 +485,7 @@ export class RealOpenAICompatProvider implements Provider {
       text,
       model: req.model,
       usage: mapUsage((res.json as Record<string, unknown>).usage),
+      reportedModel: reportedModel(res.json),
       finishReason: mapFinishReason(choice.finish_reason),
     };
     if (req.responseSchema !== undefined) {
@@ -511,7 +502,12 @@ export class RealOpenAICompatProvider implements Provider {
     if (completion.text.length > 0) {
       yield { type: "text_delta", delta: completion.text };
     }
-    yield { type: "finish", finishReason: completion.finishReason, usage: completion.usage };
+    yield {
+      type: "finish",
+      finishReason: completion.finishReason,
+      usage: completion.usage,
+      reportedModel: completion.reportedModel,
+    };
   }
 
   async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
@@ -548,6 +544,7 @@ export class RealOpenAICompatProvider implements Provider {
         text,
         finishReason: mapFinishReason(choice.finish_reason),
         usage,
+        reportedModel: reportedModel(res.json),
       };
     }
 
@@ -564,6 +561,7 @@ export class RealOpenAICompatProvider implements Provider {
       text,
       finishReason: mapFinishReason(choice.finish_reason),
       usage,
+      reportedModel: reportedModel(res.json),
     };
   }
 

@@ -621,9 +621,58 @@ remains the proposal object. Historical objects are not rewritten. The original
 `propose` API remains available without persistence; callers requiring receipts
 must use `proposeWithEvidence`.
 
-Tracked under `bd_000-projects-214c.18` / #403. Assessment usage, per-accept/file
-rollups, explicit USD pricing and admission, Wave B 80%/100% stops, quarantine,
-and OTel remain open. This measurement delivery does not authorize paid Wave B.
+Tracked under `bd_000-projects-214c.18` / #403. Evaluator call evidence is now
+captured as described in §8.10. Complete priced per-accept/file rollups, USD
+admission, Wave B 80%/100% stops, quarantine and Refiner OTel joins remain open. This measurement delivery does not authorize paid Wave B.
+
+### 8.10 Evaluator usage evidence and scoring receipts
+
+The evaluator-specific `evaluation-usage/v1` contract lives in refiner-core.
+It is local to the Refiner/evaluator boundary; it does not replace kernel
+Evidence Bundle, ScoreRecord or acceptance schemas. Its ordered calls
+record provider, requested/reported model, starting phase, outcome and nullable
+usage. Counts must be nonnegative safe integers; cache subsets and TTL splits
+must reconcile. Nullable evaluator `TokenUsage` replaces fabricated zero values.
+The native OpenAI/Anthropic adapters and prototype LiteLLM/Vercel adapters retain
+unknown usage explicitly. These records describe provider-interface calls;
+internal transport retries are not separate call records.
+
+`EvalCostMeter` records failed, interrupted, partial-batch and in-flight calls.
+Reports include `usage_complete`, `unknown_calls` and `usage_evidence`; numeric
+totals are known subtotals. Returned records are detached. The advisory USD table
+returns null for missing/invalid usage or cache writes without explicit rates;
+it no longer clamps malformed counts. OpenAI-compatible, Anthropic and LiteLLM
+adapters preserve exposed cache buckets and actual response models separately
+from request aliases. The Vercel prototype retains aggregate token usage only;
+cache buckets and reported model are unavailable through that adapter.
+`cost.run.recorded` gains usage-complete and unknown-call attributes;
+`cost.phase.recorded` gains an unknown-call attribute.
+
+`createAccountingEvalRunner(inner, store, context?, runtime?)` writes intent
+before subprocess I/O and a linked outcome before score parsing. The CLI uses it
+for both score and assess, including optimizer assessments. Failed exits retain
+valid call evidence; thrown runners and started-only records remain unknown.
+Storage failure before intent prevents the call. Receipts omit raw stdout,
+stderr, prompts and filesystem paths. Evaluated assessments that made calls get
+an `evaluation-outcome` joining the run ID to the decision and stored assessment.
+Blocked outcomes after calls retain run ID and status with null decision and
+assessment hash. Quality rejection before scoring incurs no calls or receipts.
+
+`scoreWithEvidence` returns `usage: { status, evidence }`; non-JSON or legacy
+output is missing. Parseable output with malformed or ambiguous usage evidence
+is invalid. A reported evidence object can contain null
+usage calls: reported does not mean complete. Historical records are unchanged.
+A later runner failure does not erase earlier attempt receipts; this retention
+is covered at the runner boundary.
+
+Existing evaluator token/USD soft caps stop after unknown settled usage, including
+when the last call in a phase is unmeasured. Provider failures retain exit 2 and
+error evidence when no call was budget-refused; later phases are skipped.
+In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
+dollar reservations. The subscription execution callback, internal retry costs,
+explicit reproducible pricing, dollar reservations, per-accept/file priced
+rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in
+`bd_000-projects-214c.18` / #403. No paid Wave B run is part of this change.
 
 ## 9. Build and test
 

@@ -96,8 +96,8 @@ describe("RealAnthropicProvider.complete — wire format", () => {
     // Response normalization.
     expect(result.text).toBe("hello world");
     expect(result.finishReason).toBe("stop");
-    expect(result.usage.inputTokens).toBe(10);
-    expect(result.usage.outputTokens).toBe(5);
+    expect(result.usage?.inputTokens).toBe(10);
+    expect(result.usage?.outputTokens).toBe(5);
   });
 
   it("concatenates multiple text content blocks", async () => {
@@ -466,7 +466,7 @@ describe("RealAnthropicProvider — response normalization edges", () => {
     }
   });
 
-  it("zeroes missing usage, keeps cached input tokens, and ignores non-text or malformed blocks", async () => {
+  it("marks malformed usage unknown and ignores non-text or malformed blocks", async () => {
     const { transport } = fakeTransport({
       status: 200,
       json: {
@@ -483,7 +483,7 @@ describe("RealAnthropicProvider — response normalization edges", () => {
     const result = await provider.complete({ model: "sonnet", messages: USER });
     expect(result.text).toBe("ok");
     // Cache reads are a subset of total input (the adapter convention).
-    expect(result.usage).toEqual({ inputTokens: 4, outputTokens: 0, cachedInputTokens: 4 });
+    expect(result.usage).toBeNull();
 
     const { transport: noContent } = fakeTransport({ status: 200, json: { content: "none" } });
     const empty = await new RealAnthropicProvider({ apiKey: KEY, transport: noContent }).complete({
@@ -491,7 +491,7 @@ describe("RealAnthropicProvider — response normalization edges", () => {
       messages: USER,
     });
     expect(empty.text).toBe("");
-    expect(empty.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(empty.usage).toBeNull();
   });
 
   it("sends tool results as user tool_result blocks and forwards temperature and stop sequences", async () => {
@@ -634,7 +634,7 @@ describe("RealAnthropicProvider.callTool — degenerate responses", () => {
     expect(await empty.callTool({ model: "sonnet", messages: USER, tools })).toMatchObject({
       toolName: null,
       text: "",
-      usage: { inputTokens: 0, outputTokens: 0 },
+      usage: null,
     });
   });
 });

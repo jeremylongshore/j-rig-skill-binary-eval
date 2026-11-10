@@ -1,3 +1,4 @@
+import { mapProviderUsage, reportedModel } from "./usage.js";
 /**
  * LiteLLM measurement adapter — candidate prototype implementing the
  * vendor-neutral `Provider` contract from `@j-rig/core`.
@@ -72,19 +73,7 @@ function mapFinishReason(raw: unknown): FinishReason {
   }
 }
 
-function mapUsage(raw: unknown): TokenUsage {
-  const u = (raw ?? {}) as Record<string, unknown>;
-  return {
-    inputTokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : 0,
-    outputTokens: typeof u.completion_tokens === "number" ? u.completion_tokens : 0,
-    ...(typeof (u.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens ===
-    "number"
-      ? {
-          cachedInputTokens: (u.prompt_tokens_details as Record<string, number>).cached_tokens,
-        }
-      : {}),
-  };
-}
+const mapUsage = (raw: unknown): TokenUsage | null => mapProviderUsage(raw, "openai");
 
 /** OpenAI-style message shape LiteLLM accepts on the wire. */
 function toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
@@ -202,6 +191,7 @@ export class LiteLlmProvider implements Provider {
       text,
       model: req.model,
       usage: mapUsage((res.json as Record<string, unknown>).usage),
+      reportedModel: reportedModel(res.json),
       finishReason: mapFinishReason(choice.finish_reason),
     };
 
@@ -221,7 +211,12 @@ export class LiteLlmProvider implements Provider {
     if (completion.text.length > 0) {
       yield { type: "text_delta", delta: completion.text };
     }
-    yield { type: "finish", finishReason: completion.finishReason, usage: completion.usage };
+    yield {
+      type: "finish",
+      finishReason: completion.finishReason,
+      usage: completion.usage,
+      reportedModel: completion.reportedModel,
+    };
   }
 
   async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
@@ -263,6 +258,7 @@ export class LiteLlmProvider implements Provider {
         text,
         finishReason: mapFinishReason(choice.finish_reason),
         usage,
+        reportedModel: reportedModel(res.json),
       };
     }
 
@@ -274,6 +270,7 @@ export class LiteLlmProvider implements Provider {
       text,
       finishReason: "tool_use",
       usage,
+      reportedModel: reportedModel(res.json),
     };
   }
 

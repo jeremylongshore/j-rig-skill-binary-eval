@@ -22,7 +22,10 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-async function fixtureServer(): Promise<{ server: Server; port: number; calls: () => number }> {
+async function fixtureServer(
+  omitUsage = false,
+  failAt?: number,
+): Promise<{ server: Server; port: number; calls: () => number }> {
   let calls = 0;
   const server = createServer(async (request, response) => {
     // Local port probes are not model completions and must not be parsed as JSON.
@@ -35,6 +38,11 @@ async function fixtureServer(): Promise<{ server: Server; port: number; calls: (
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(chunks).toString());
     calls++;
+    if (calls === failAt) {
+      response.writeHead(401, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "fixture provider unavailable" } }));
+      return;
+    }
     const prompt = JSON.stringify(body.messages);
     const content = prompt.includes("skill router")
       ? JSON.stringify({ selected: "j-rig-eval", reasoning: "fixture" })
@@ -45,7 +53,7 @@ async function fixtureServer(): Promise<{ server: Server; port: number; calls: (
     response.end(
       JSON.stringify({
         choices: [{ finish_reason: "stop", message: { content } }],
-        usage: { prompt_tokens: 3, completion_tokens: 2 },
+        ...(omitUsage ? {} : { usage: { prompt_tokens: 3, completion_tokens: 2 } }),
       }),
     );
   });
@@ -212,6 +220,90 @@ describe("j-rig eval budgets (actual CLI)", { timeout: 30000 }, () => {
       server.close();
     }
   });
+
+  it.each(["--max-tokens", "--max-usd"])(
+    "checks missing usage on the final call at the phase boundary (%s)",
+    async (flag) => {
+      const { server, port, calls } = await fixtureServer(true);
+      try {
+        const r = await runEval(
+          port,
+          (spec) => {
+            spec.test_cases = (spec.test_cases as unknown[]).slice(0, 1);
+          },
+          ["--no-functional", flag, "100"],
+          "deepseek-v4-flash",
+        );
+        expect(calls()).toBe(1);
+        expect(r.exitCode).toBe(3);
+        const row = r.out["deepseek-v4-flash"]!;
+        expect(row.budget_stop).toMatchObject({ observed: null });
+        expect(row.cost).toMatchObject({
+          unknown_calls: 1,
+          usage_complete: false,
+          estimated_usd: null,
+        });
+        expect(row).not.toHaveProperty("decision");
+      } finally {
+        server.close();
+      }
+    },
+  );
+
+  for (const flag of ["--max-tokens", "--max-usd"]) {
+    it.each([
+      { phase: "trigger", failAt: 1, flags: [] },
+      { phase: "execution", failAt: 1, flags: ["--no-trigger"] },
+      { phase: "judge", failAt: 2, flags: ["--no-trigger"] },
+      { phase: "execution", failAt: 3, flags: ["--no-trigger", "--baseline-check"] },
+      { phase: "judge", failAt: 4, flags: ["--no-trigger", "--baseline-check"] },
+    ])(
+      `retains provider failure evidence with ${flag}: $phase call $failAt`,
+      async ({ phase, failAt, flags }) => {
+        const { server, port, calls } = await fixtureServer(false, failAt);
+        try {
+          const r = await runEval(
+            port,
+            (spec) => {
+              const cases = (spec.test_cases as Record<string, unknown>[]).slice(0, 1);
+              cases[0]!.criteria_ids = ["mentions-ship-decision"];
+              spec.test_cases = cases;
+              spec.criteria = (spec.criteria as Record<string, unknown>[]).filter(
+                (c) => c.id === "mentions-ship-decision",
+              );
+            },
+            [...flags, flag, "100", "--samples", "1", "--judge-model", "deepseek-v4-flash"],
+            "deepseek-v4-flash",
+          );
+          expect(r.exitCode).toBe(2);
+          expect(calls()).toBe(failAt);
+          const row = r.out["deepseek-v4-flash"]!;
+          expect(row).not.toHaveProperty("budget_stop");
+          expect(row.gate_decision).toBe("error");
+          expect(row.evaluation_error).toMatchObject({ type: "provider_failure", phase });
+          expect(row.cost).toMatchObject({ unknown_calls: 1, usage_complete: false });
+          const bundle = JSON.parse(readFileSync(r.bundlePath, "utf8"));
+          expect(bundle[0].predicate.gate_decision).toBe("error");
+          const database = createDatabase(r.dbPath);
+          try {
+            const run = database.sqlite.prepare("SELECT status, error_message FROM runs").get() as {
+              status: string;
+              error_message: string;
+            };
+            expect(run.status).toBe("failed");
+            expect(JSON.parse(run.error_message)).toMatchObject({
+              type: "provider_failure",
+              phase,
+            });
+          } finally {
+            database.close();
+          }
+        } finally {
+          server.close();
+        }
+      },
+    );
+  }
 
   it("rejects a malformed budget flag before any call", async () => {
     const { server, port, calls } = await fixtureServer();

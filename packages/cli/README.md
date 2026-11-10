@@ -361,3 +361,18 @@ and completion states. It is local evidence, not a signed statement. Failed,
 partial, budget-stopped, and stub exports are refused by harvested bootstrap.
 Use `j-rig refine bootstrap --harvest-file <file> --review-file <review>` with
 independently reviewed expectations; see [the Refiner source schemas](../refiner/README.md#bootstrap-from-retained-rollouts-or-golden-traces).
+
+### Evaluator cost completeness
+
+Provider results now use nullable token usage. Missing/malformed measurements
+and failed/interrupted calls appear as unknown in `cost.usage_evidence`, using
+the shared `evaluation-usage/v1` contract. `cost.total` contains known token
+subtotals; inspect `usage_complete` and `unknown_calls` before treating them as
+complete. The advisory price table leaves unmeasured calls and unpriced cache
+writes as null USD. Requested and reported model identities remain distinct.
+
+`--max-tokens` and `--max-usd` stop after unknown settled usage, and phase
+boundaries check the final call as well as subsequent-call admission. These
+remain soft caps for in-flight requests, not hard dollar reservations. See
+budget spec 047 and Refiner API029 §8.10; full Wave B accounting is tracked in
+`bd_000-projects-214c.18` / issue #403.

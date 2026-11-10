@@ -30,6 +30,12 @@
 
 ## Unreleased
 
+- Preserve nullable evaluator usage and failed/interrupted provider calls in
+  shared call evidence; persist Refiner scoring receipts before validation.
+  Token/USD soft caps now stop on unknown settled usage, including the final
+  call of a phase. Cost telemetry explicitly identifies incomplete totals.
+  Hard USD reservations and Wave B policy remain in `bd_000-projects-214c.18`.
+
 - Preserve native Refiner completion usage instead of fabricated zeros; legacy or
   malformed measurements are explicitly null. Persist CLI proposal call intent
   and outcomes, including usage after parsing failures. USD admission and

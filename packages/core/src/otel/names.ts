@@ -136,12 +136,15 @@ export const OtelAttrs = {
   // endpoints), and "unknown shown as free" is measured-wrong.
   COST_RUN_ESTIMATED_USD: "cost.run.estimated_usd",
   COST_RUN_USD_KNOWN: "cost.run.usd_known",
+  COST_RUN_USAGE_COMPLETE: "cost.run.usage_complete",
+  COST_RUN_UNKNOWN_CALLS: "cost.run.unknown_calls",
 
   // cost.phase.recorded payload (minted here — see the cost.* note on OtelEvents).
   COST_PHASE_NAME: "cost.phase.name",
   COST_PHASE_INPUT_TOKENS: "cost.phase.input_tokens",
   COST_PHASE_OUTPUT_TOKENS: "cost.phase.output_tokens",
   COST_PHASE_CALLS: "cost.phase.calls",
+  COST_PHASE_UNKNOWN_CALLS: "cost.phase.unknown_calls",
   // Judge phase only: the resolved samples-per-criterion multiplier — the ×N
   // that multi-sample majority voting applies to judge cost.
   COST_PHASE_JUDGE_SAMPLES: "cost.phase.judge_samples_default",

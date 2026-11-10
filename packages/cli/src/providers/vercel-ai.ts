@@ -1,3 +1,4 @@
+import { mapProviderUsage } from "./usage.js";
 /**
  * Vercel AI SDK measurement adapter — candidate prototype implementing the
  * vendor-neutral `Provider` contract from `@j-rig/core`.
@@ -117,23 +118,15 @@ function mapFinishReason(raw: unknown): FinishReason {
   }
 }
 
-function mapUsage(raw: unknown): TokenUsage {
+function mapUsage(raw: unknown): TokenUsage | null {
   const u = (raw ?? {}) as Record<string, unknown>;
-  // AI SDK normalizes usage to { inputTokens, outputTokens } (newer) or
-  // { promptTokens, completionTokens } (older). Accept both.
-  const input =
-    typeof u.inputTokens === "number"
-      ? u.inputTokens
-      : typeof u.promptTokens === "number"
-        ? u.promptTokens
-        : 0;
-  const output =
-    typeof u.outputTokens === "number"
-      ? u.outputTokens
-      : typeof u.completionTokens === "number"
-        ? u.completionTokens
-        : 0;
-  return { inputTokens: input, outputTokens: output };
+  return mapProviderUsage(
+    {
+      prompt_tokens: u.inputTokens ?? u.promptTokens,
+      completion_tokens: u.outputTokens ?? u.completionTokens,
+    },
+    "openai",
+  );
 }
 
 function toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {

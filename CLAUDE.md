@@ -137,6 +137,15 @@ failures retain usage. Assessment accounting, rollups, USD admission, quarantine
 and telemetry remain open in 214c.18 / #403; see API029 §8.9. Integrity repair: 214c.18.1 / #404,
 API029 §7.1.
 
+Evaluator usage is nullable and validated, with ordered per-call evidence in
+`evaluation-usage/v1` (public refiner-core). Cost reports expose known subtotals,
+unknown call counts and completeness; failed/interrupted calls are retained.
+`refine score/assess` use `createAccountingEvalRunner` to persist intent and
+outcome before score parsing, so candidate failures cannot erase baseline spend.
+The existing evaluator soft caps stop on unknown settled usage and check at
+phase boundaries. Hard reservations and Wave B USD governance remain open in
+214c.18 / #403. See API029 §8.10 and budget spec 047.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

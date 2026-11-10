@@ -1,3 +1,4 @@
+import { createAccountingEvalRunner } from "./score-evidence.js";
 import { proposeWithEvidence } from "./propose-evidence.js";
 import { assessOptimizerExperiment } from "./optimizer.js";
 import { bootstrapReviewedSource } from "./bootstrap-sources.js";
@@ -282,7 +283,7 @@ export function registerRefineCommand(
           if (evalSet === null) {
             fail(`eval set ${opts.evalSet} not found in the refiner store`);
           }
-          const runner = createSubprocessEvalRunner();
+          const runner = createAccountingEvalRunner(createSubprocessEvalRunner(), store);
           const record = await score(doc, evalSet, runner, {
             skillDir,
             modelTier,
@@ -467,13 +468,32 @@ export function registerRefineCommand(
             now: assessmentRuntime.now?.() ?? new Date().toISOString(),
             scoreOptions: { skillDir, provider: resolved.name, modelTier },
           };
-          const runner = assessmentRuntime.runner ?? createSubprocessEvalRunner();
+          const runner = createAccountingEvalRunner(
+            assessmentRuntime.runner ?? createSubprocessEvalRunner(),
+            store,
+            {
+              proposalHash: hashValue(proposal),
+              ...(opts.experiment ? { experimentHash: opts.experiment } : {}),
+            },
+            { now: assessmentRuntime.now },
+          );
           const optimizer = experiment
             ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
             : undefined;
           const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
           const hash =
             result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
+          if (runner.attemptCount > 0)
+            store.put("evaluation-outcome", {
+              schema: "refiner-evaluation-outcome/v1",
+              runId: runner.runId,
+              skillId: doc.skillId,
+              skillHash: doc.hash,
+              proposalHash: hashValue(proposal),
+              assessmentHash: hash ?? null,
+              status: result.status,
+              decision: result.status === "evaluated" ? result.decision.outcome : null,
+            });
           const experimentHash = optimizer?.experiment
             ? store.put("optimizer-experiment", optimizer.experiment)
             : undefined;

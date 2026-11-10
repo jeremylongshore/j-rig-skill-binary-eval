@@ -167,9 +167,13 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
         totalOutputTokens: 100,
         totalCalls: 3,
         estimatedUsd: null,
+        usageComplete: false,
+        unknownCalls: 2,
       }),
     );
     expect(ev.attributes["cost.run.usd_known"]).toBe(false);
+    expect(ev.attributes["cost.run.usage_complete"]).toBe(false);
+    expect(ev.attributes["cost.run.unknown_calls"]).toBe(2);
     expect("cost.run.estimated_usd" in ev.attributes).toBe(false);
   });
 

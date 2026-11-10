@@ -61,7 +61,7 @@ export interface BudgetStop {
 export interface BudgetSpent {
   /** API-equivalent USD; null when any recorded model has no rate on file. */
   usd: number | null;
-  tokens: number;
+  tokens: number | null;
   calls: number;
   wall_ms: number;
 }
@@ -107,13 +107,17 @@ export class BudgetExceededError extends Error {
 
 function sumUsd(reports: EvalCostReport[]): { usd: number | null; unpriced?: string } {
   let usd = 0;
+  let unknown = false;
   const unpriced = new Set<string>();
   for (const r of reports) {
     for (const m of r.by_model) if (m.usd === null) unpriced.add(m.model);
     if (r.estimated_usd !== null) usd += r.estimated_usd;
+    else unknown = true;
   }
   // Name every unpriced model so the operator can fix the rate table in one pass.
-  return unpriced.size > 0 ? { usd: null, unpriced: [...unpriced].join(", ") } : { usd };
+  return unknown || unpriced.size > 0 || !Number.isFinite(usd)
+    ? { usd: null, ...(unpriced.size > 0 ? { unpriced: [...unpriced].join(", ") } : {}) }
+    : { usd };
 }
 
 const fmtUsd = (v: number) => `$${v.toFixed(4)}`;
@@ -153,14 +157,22 @@ export class RunBudget {
     this.#current = { meter, model };
   }
 
+  // Legacy soft caps permit already-in-flight requests; unknown settled usage fails closed.
+  // Hard dollar reservations are a separate requirement tracked in 214c.18.
   spent(): BudgetSpent & { unpriced?: string } {
-    const reports = [...this.#closed, ...(this.#current ? [this.#current.meter.report()] : [])];
+    const reports = [
+      ...this.#closed,
+      ...(this.#current ? [this.#current.meter.report({ settledOnly: true })] : []),
+    ];
     const { usd, unpriced } = sumUsd(reports);
+    const tokens = reports.reduce((n, r) => n + r.total.input_tokens + r.total.output_tokens, 0);
     return {
       usd,
       ...(unpriced ? { unpriced } : {}),
-      tokens: reports.reduce((n, r) => n + r.total.input_tokens + r.total.output_tokens, 0),
-      calls: reports.reduce((n, r) => n + r.total.calls, 0),
+      tokens:
+        reports.some((r) => !r.usage_complete) || !Number.isSafeInteger(tokens) ? null : tokens,
+      calls:
+        reports.reduce((n, r) => n + r.total.calls, 0) + (this.#current?.meter.pendingCalls ?? 0),
       wall_ms: this.#now() - this.#startedAt,
     };
   }
@@ -191,7 +203,7 @@ export class RunBudget {
       hit = stop(
         "max_usd",
         null,
-        `max_usd ${fmtUsd(max_usd)} cannot be enforced: no rate on file for ${s.unpriced ?? "a model"}`,
+        `max_usd ${fmtUsd(max_usd)} cannot be enforced: no rate on file for ${s.unpriced ?? "a model"}, or incomplete usage`,
       );
     } else if (max_usd !== undefined && s.usd !== null && s.usd >= max_usd) {
       hit = stop(
@@ -199,7 +211,9 @@ export class RunBudget {
         s.usd,
         `spent ${fmtUsd(s.usd)} (API-equivalent) of max_usd ${fmtUsd(max_usd)}`,
       );
-    } else if (max_tokens !== undefined && s.tokens >= max_tokens) {
+    } else if (max_tokens !== undefined && s.tokens === null) {
+      hit = stop("max_tokens", null, "max_tokens cannot be enforced: incomplete token usage");
+    } else if (max_tokens !== undefined && s.tokens !== null && s.tokens >= max_tokens) {
       hit = stop("max_tokens", s.tokens, `spent ${s.tokens} tokens of max_tokens ${max_tokens}`);
     } else if (max_calls !== undefined && s.calls >= max_calls) {
       hit = stop("max_calls", s.calls, `made ${s.calls} calls of max_calls ${max_calls}`);
