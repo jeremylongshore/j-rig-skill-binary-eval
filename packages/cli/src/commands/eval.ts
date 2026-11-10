@@ -1627,6 +1627,13 @@ export function registerEvalCommand(program: Command): void {
                   }
                 : {}),
               scoreCard,
+              // Exact per-case verdicts for downstream frozen-input scoring.
+              // Deliberately omit model text and judge explanations.
+              criterion_results: allJudgments.map((judgment) => ({
+                criterion_id: judgment.criterion_id,
+                test_case_id: judgment.test_case_id,
+                verdict: judgment.verdict,
+              })),
               decision,
               report,
               // Exactly one of these is present. An incomplete evaluation

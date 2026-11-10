@@ -284,13 +284,38 @@ The significance test is a two-sample z-test on the difference of means using th
 
 ```ts
 function coverage(evalSet: EvalSet): CoverageResult;
+function capabilityCoverage(evalSet: EvalSet, manifest: CapabilityManifest): CapabilityCoverageResult;
 function leakage(setA: readonly EvalItem[], setB: readonly EvalItem[]): LeakageResult;
 function calibration(predictions: readonly CalibrationPrediction[]): CalibrationResult;
-function adversarialPassRate(results: readonly ItemResult[], items: readonly AdversarialEvalItem[]): AdversarialPassRateResult;
+function adversarialPassRate(items: readonly AdversarialEvalItem[], results: readonly ItemResult[]): AdversarialPassRateResult;
 function evaluateEvalSet(evalSet: EvalSet, opts?: EvaluateEvalSetOptions): EvalSetQualityReport;
 ```
 
-Pure eval-set quality measurement (bead `214c.11`): `coverage` (stratification breakdown), `leakage` (train/held-out overlap), `calibration` (predicted-vs-observed reliability), `adversarialPassRate` (robustness on adversarial items), and `evaluateEvalSet` (the roll-up quality report). These gate whether an eval-set is trustworthy enough to derive an accept verdict against.
+Pure eval-set quality measurement (beads `214c.11`, `214c.13`): `coverage`
+(legacy observed-category entropy), `capabilityCoverage` (declared sampling
+completeness), `leakage` (train/held-out overlap), `calibration`
+(predicted-vs-observed reliability), `adversarialPassRate` (robustness on
+adversarial items), and `evaluateEvalSet` (the roll-up quality report).
+The adapter's `assessProposal` / `refine assess` workflow (section 8.6) enforces
+these quality preconditions. Computing this report or calling the pure
+statistical `accept` predicate alone does not enforce them.
+
+`CapabilityManifest` contains `skillId`, `evalSetHash`, `capabilities` (unique
+`id` plus positive integer `minimumItems`), and `assignments` (`itemId` plus
+distinct declared `capabilityIds`). It is reviewed input, not an inference from
+prompt text or item names. The separate manifest preserves historical EvalSet
+hashes. `evaluateEvalSet(..., { capabilityManifest })` adds a
+`capabilityCoverage` result; without declarations the result is absent.
+Consumers must also validate the eval-set content hash before trusting its
+binding label.
+
+`completeness` is the fraction of declared strata meeting their minimum count.
+`strata` includes zero-count capabilities and each stratum's shortfall.
+`complete` additionally requires every item to have a reviewed assignment;
+`unassignedItemIds` lists those lacking one. Unknown or duplicate assignments,
+duplicate declarations, and mismatched skill/hash bindings throw. A uniform
+observed distribution can have entropy one while declared completeness is less
+than one; these are different measurements.
 
 `leakage` matches canonical prompts (trimmed and lowercased) one-to-one across
 distinct arrays. Its ratio is the multiset intersection count divided by the
@@ -442,6 +467,40 @@ text-only `SkillDoc` boundary. This repair is `bd_000-projects-214c.14` /
 It does not prove the separate capability-quality integration required by
 `bd_000-projects-214c.13` /
 [issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
+
+The additive `scoreWithEvidence` adapter returns a `ScoreRecord` and complete
+per-item results after validating frozen criterion/case identities and agreement
+with the evaluator aggregate. Adversarial items require these verdicts even on
+the legacy `score` path, and add an `adversarial_pass_rate` dimension with the
+subset's passing fraction, Bernoulli variance, and sample count. Higher means
+more adversarial cases satisfied their explicit expected behavior; `unsure`
+does not pass. Sets with no adversarial items have no adversarial dimension.
+These observations provide evidence for the acceptance-quality integration;
+the assessment workflow below enforces its quality preconditions.
+
+### 8.6 Reviewed quality before acceptance (214c.13)
+
+`assessProposal(inputs, runner, validator?)` requires a frozen document, proposal,
+eval set, explicit clock, scoring options, `AcceptanceQualityEvidence`, and
+`AcceptanceQualityPolicy`. The adapter snapshots inputs, checks content/identity,
+requires complete declared coverage, evaluates leakage and calibration against
+explicit policy, and refuses absent/expired review evidence or refresh-due sets.
+Calibration evidence identifies the exact judge provider/model; actual paired
+scoring must agree. Reference items and calibration labels are reviewed caller
+evidence, not independently authenticated facts. Policy has no default quality
+thresholds. See the Refiner README for the complete JSON field contract.
+
+Only after preconditions pass does it apply the proposal, freshly score both
+versions on the same frozen items, and invoke the existing `decide` gate. The
+adversarial dimension participates in non-regression. No historical ScoreRecord
+can substitute for a fresh run. Schema-invalid improvements retain the existing
+schema-revision-candidate outcome rather than becoming accepts.
+
+`refine assess` stores completed assessments with both documents, proposal,
+eval-set content, item observations, quality evidence, and policy. Blocked
+preconditions write no assessment. The best pointer remains human-gated. This
+additive artifact does not alter existing EvalSet hashes, the pure `accept`
+signature, or signed predicate schemas, and it is not a signed pass by itself.
 
 ## 9. Build and test
 

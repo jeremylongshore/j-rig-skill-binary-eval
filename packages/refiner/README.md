@@ -100,9 +100,69 @@ pass rate produces no `ScoreRecord`. Historical scores and stored hashes are not
 rewritten. Existing records created before this fix do not establish execution
 identity retroactively; rerun the reviewed inputs before relying on them.
 
+Items may carry `adversarial: true` inside their hashed content. For these sets,
+scoring requires one evaluator verdict for each frozen criterion/case pair and
+checks that the number of passing items agrees with the aggregate. The
+`adversarial_pass_rate` dimension reports the passing fraction, Bernoulli
+variance, and sample count over the adversarial subset. Passing means satisfying
+the explicit expected behavior (for example, rejecting an injected instruction),
+so higher is better. Missing adversarial items produce no dimension, not a
+synthetic zero. An `unsure` verdict is not a pass.
+
+The exported `scoreWithEvidence` adapter always requires full per-item verdicts
+and returns `{ record, itemResults }` for acceptance orchestration. The existing
+`score` API retains aggregate-only compatibility for non-adversarial sets.
+`j-rig eval --json` exposes `criterion_results` with criterion IDs, test-case IDs,
+and verdicts only; it adds no raw model output or judge explanations.
+
 Tracked by `bd_000-projects-214c.14`, [issue #393](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/393).
 Capability coverage and acceptance-quality integration remain separate work in
 `bd_000-projects-214c.13`, [issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
+
+## Quality-gated proposal assessment
+
+```bash
+j-rig refine assess ./my-skill --proposal <stored-proposal-hash> \
+  --eval-set-file reviewed-eval-set.json --quality-file quality.json \
+  --provider minimax --model MiniMax-M3 --json
+```
+
+`quality.json` contains `evidence` and `policy`. Evidence contains:
+
+- `evalSetHash` and the reviewed capability `manifest` (skill/hash binding,
+  declared capabilities with `minimumItems`, and item-to-capability assignments).
+- Nonempty `referenceItems` from the training/proposal exposure corpus, used for
+  exact canonical-prompt leakage checks. This detects exact overlap, not semantic
+  paraphrases or an undisclosed exposure corpus.
+- `predictions`: calibration observations `{ confidence, correct }` against
+  independently established labels, plus the exact calibrated
+  `judge: { provider, model }`. Both scoring runs must use that judge identity.
+- `verifiedEvalSet: true`, `reviewedAt`, and `expiresAt`. These record the
+  caller's review assertion; the library does not authenticate a human reviewer
+  or independently establish calibration-label truth.
+
+Policy explicitly sets `maxLeakage`, `maxDuplicateRatio`, `maxBrierScore`, and
+`maxEce` in `[0,1]`, plus positive integer `minCalibrationSamples` and
+`minAdversarialItems`. There are no default quality thresholds. The assessment
+requires complete declared capability sampling, sufficient reviewed calibration
+and adversarial samples, a future eval-set refresh date, and unexpired review
+evidence. Missing or unacceptable evidence blocks before evaluator calls.
+
+The exported `assessProposal(inputs, runner, validator?)` snapshots all inputs,
+applies the proposal immutably, and scores baseline and candidate afresh using
+`scoreWithEvidence`. It then invokes the existing `decide` schema/statistical
+gate, including non-regression on the independently measured adversarial
+dimension. A different actual judge blocks the assessment; provider failures
+produce no decision. Historical ScoreRecords cannot be supplied in place of
+these fresh observations. The default validator uses the kernel schema.
+
+The CLI stores an immutable `acceptance-assessment` only for completed paired
+evaluation, including both documents, the proposal, frozen eval set, per-item
+observations, reviewed evidence, explicit policy, and their content hashes.
+Blocked preconditions write no assessment. Exit status is 0 for `ACCEPT`, 2 for
+blocked/rejected/schema-revision outcomes, and 1 for malformed inputs or evaluator
+failure. Every outcome leaves the best pointer unchanged; promotion still
+requires human action. This command does not sign an evidence bundle.
 
 ## Not in this wave (gated / later)
 

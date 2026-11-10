@@ -72,6 +72,31 @@ can be trusted. See `packages/refiner/README.md` and API doc 029 §8.5.
 Tracked by `bd_000-projects-214c.14` / GitHub #393. Capability coverage and
 acceptance-quality integration remain in `bd_000-projects-214c.13` / #394.
 
+`capabilityCoverage(evalSet, manifest)` measures completeness against reviewed
+declared capabilities and explicit minimum sample counts. The manifest binds to
+the skill ID and eval-set hash; item assignments must name known, unique items
+and declared capabilities. `evaluateEvalSet` accepts it as `capabilityManifest`
+and reports `capabilityCoverage` separately from legacy ID-prefix entropy.
+Absence of this report is missing evidence, not proof of completeness. This is
+the declared measurement required by #394.
+
+`scoreWithEvidence` requires and returns complete per-item verdict evidence.
+Frozen items tagged `adversarial: true` produce an `adversarial_pass_rate`
+dimension from that subset, with its own sample count and variance. The evaluator
+JSON's additive `criterion_results` contains IDs and verdicts only. Criterion
+identity, test-case identity, uniqueness, and aggregate agreement are checked;
+`unsure` is not a pass. See the Refiner README for compatibility boundaries.
+
+`j-rig refine assess <skill-dir> --proposal <stored-hash> --eval-set-file <json>
+--quality-file <json>` enforces explicit reviewed quality evidence and policy
+before fresh paired scoring. Quality JSON contains `evidence` and `policy` as
+documented in `packages/refiner/README.md`. The actual judge must match the
+calibration evidence. It composes the existing schema/statistical `decide`,
+persists completed assessments with full inputs, and never moves the best
+pointer. Missing/poor quality yields no evaluator calls and no stored assessment.
+`assessProposal` is the exported injectable orchestration API; its clock is
+explicit and the default schema validator is the kernel validator.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

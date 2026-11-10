@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { RefinerStore, type FileSystem } from "./store.js";
 import { registerRefineCommand } from "./cli.js";
-import { makeSkillDoc, bootstrap } from "@intentsolutions/refiner-core";
+import { makeSkillDoc, bootstrap, hashValue } from "@intentsolutions/refiner-core";
+import type { EvalInvocation } from "./score.js";
 
 /** Shared in-memory FileSystem so every command in a test sees the same store. */
 class MemoryFileSystem implements FileSystem {
@@ -29,7 +30,7 @@ class MemoryFileSystem implements FileSystem {
  * Build a program with the refine group registered against ONE shared
  * memory-fs store, plus a real on-disk skill dir for SKILL.md reads.
  */
-function setup(): {
+function setup(assessmentRuntime: Parameters<typeof registerRefineCommand>[2] = {}): {
   program: Command;
   store: RefinerStore;
   skillDir: string;
@@ -39,7 +40,7 @@ function setup(): {
   const store = new RefinerStore({ fs, root: "/proj", clock: () => "2026-06-17T00:00:00.000Z" });
   const program = new Command();
   program.exitOverride(); // throw instead of process.exit on parse errors
-  registerRefineCommand(program, () => store);
+  registerRefineCommand(program, () => store, assessmentRuntime);
 
   const dir = mkdtempSync(join(tmpdir(), "refiner-cli-"));
   const skillDir = join(dir, "demo-skill");
@@ -57,17 +58,154 @@ async function run(program: Command, argv: string[]): Promise<void> {
 }
 
 describe("registerRefineCommand — registration shape (build-order step 7)", () => {
-  it("registers a `refine` group with the 6 documented subcommands", () => {
+  it("registers the documented refine subcommands", () => {
     const { program, cleanup } = setup();
     try {
       const refine = program.commands.find((c) => c.name() === "refine");
       expect(refine).toBeDefined();
       const subs = refine!.commands.map((c) => c.name()).sort();
-      expect(subs).toEqual(["apply", "bootstrap", "propose", "render-report", "score", "status"]);
+      expect(subs).toEqual([
+        "apply",
+        "assess",
+        "bootstrap",
+        "propose",
+        "render-report",
+        "score",
+        "status",
+      ]);
     } finally {
       cleanup();
     }
   });
+});
+
+describe("`j-rig refine assess` — quality gate and durable assessment", () => {
+  it.each([false, true])(
+    "runs the real orchestration with reviewed evidence=%s",
+    async (reviewed) => {
+      const now = "2026-11-10T12:00:00Z";
+      const runner = {
+        run: vi.fn(async (input: EvalInvocation) => {
+          const improved = input.doc.text.includes("precisely");
+          const rows = input.evalSet.items.map((item, i) => ({
+            criterion_id: `refiner-item-${i}`,
+            test_case_id: item.id,
+            verdict: (i < 10 ? i < 5 : i < (improved ? 40 : 15)) ? "yes" : "no",
+          }));
+          const passed = rows.filter((r) => r.verdict === "yes").length;
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({
+              model: {
+                ground_truth: true,
+                judge_provider: "test-judge",
+                judge_model: "judge-v1",
+                criterion_results: rows,
+                scoreCard: { total_criteria: rows.length, passed, pass_rate: passed / rows.length },
+              },
+            }),
+          };
+        }),
+      };
+      const { program, store, skillDir, cleanup } = setup({ runner, now: () => now });
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      const previousExitCode = process.exitCode;
+      vi.stubEnv("OPENAI_API_KEY", "test-key-not-used");
+      try {
+        const doc = makeSkillDoc("demo-skill", readFileSync(join(skillDir, "SKILL.md"), "utf8"));
+        const best = store.putSkillDoc(doc);
+        store.setBest(doc.skillId, best);
+        const proposal = store.putEditProposal({
+          parent: doc.hash,
+          ops: [{ kind: "replace", target: "carefully", content: "precisely" }],
+          refinerModel: "test",
+          refinerStrategyId: "test",
+          rationale: "Test",
+        });
+        const base = bootstrap(doc, { now });
+        const items = Array.from({ length: 40 }, (_, i) => ({
+          id: `case-${i}`,
+          prompt: `Prompt ${i}`,
+          expectation: `Expected ${i}`,
+          adversarial: i < 10,
+        }));
+        const { skillId, source, evalSetVersion, lineageParent, refreshDueAt } = base;
+        const evalSet = {
+          ...base,
+          items,
+          hash: hashValue({ skillId, source, items, evalSetVersion, lineageParent, refreshDueAt }),
+        };
+        const evidence = {
+          evalSetHash: evalSet.hash,
+          verifiedEvalSet: true,
+          reviewedAt: "2026-11-09T00:00:00Z",
+          expiresAt: "2026-11-11T00:00:00Z",
+          judge: { provider: "test-judge", model: "judge-v1" },
+          referenceItems: [{ id: "ref", prompt: "Training reference" }],
+          predictions: Array.from({ length: 10 }, () => ({ confidence: 1, correct: true })),
+          manifest: {
+            skillId,
+            evalSetHash: evalSet.hash,
+            capabilities: [{ id: "task", minimumItems: 40 }],
+            assignments: items.map((item) => ({ itemId: item.id, capabilityIds: ["task"] })),
+          },
+        };
+        writeFileSync(join(skillDir, "eval.json"), JSON.stringify(evalSet));
+        writeFileSync(
+          join(skillDir, "quality.json"),
+          JSON.stringify({
+            evidence: reviewed ? evidence : undefined,
+            policy: {
+              maxLeakage: 0,
+              maxDuplicateRatio: 0,
+              maxBrierScore: 0.1,
+              maxEce: 0.1,
+              minCalibrationSamples: 10,
+              minAdversarialItems: 10,
+            },
+          }),
+        );
+        const before = store.readLog().length;
+        await run(program, [
+          "refine",
+          "assess",
+          skillDir,
+          "--proposal",
+          proposal,
+          "--eval-set-file",
+          join(skillDir, "eval.json"),
+          "--quality-file",
+          join(skillDir, "quality.json"),
+          "--provider",
+          "openai",
+          "--json",
+        ]);
+        const result = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+        expect(store.getBest(doc.skillId)).toBe(best);
+        if (reviewed) {
+          expect(result.status).toBe("evaluated");
+          expect(runner.run).toHaveBeenCalledTimes(2);
+          expect(store.get(result.stored)).toMatchObject({
+            baselineDoc: doc,
+            evalSet,
+            qualityEvidence: evidence,
+          });
+          expect(store.readLog().length).toBe(before + 1);
+        } else {
+          expect(result).toEqual({ status: "blocked", reasons: ["missing-quality-evidence"] });
+          expect(runner.run).not.toHaveBeenCalled();
+          expect(store.readLog().length).toBe(before);
+          expect(process.exitCode).toBe(2);
+        }
+      } finally {
+        process.exitCode = previousExitCode;
+        vi.unstubAllEnvs();
+        log.mockRestore();
+        cleanup();
+      }
+    },
+  );
 });
 
 describe("`j-rig refine render-report` — deterministic markdown → HTML", () => {

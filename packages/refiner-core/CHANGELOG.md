@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Declared-capability sampling completeness via `capabilityCoverage` and the
+  optional `evaluateEvalSet` capability manifest. Detects missing strata and
+  unmet sample requirements independently of legacy entropy. Existing eval-set
+  content hashes and the legacy coverage result remain unchanged.
+
 ### Fixed
 
 - Count cross-set prompt leakage with one-to-one matches so duplicate prompts
