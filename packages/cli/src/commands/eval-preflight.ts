@@ -62,7 +62,10 @@ export function resolveExecutionParameters(
   }
 }
 
-/** Resolve loaded-spec options in CLI refusal order, before opening the database. */
+/** Resolve loaded-spec options in CLI refusal order, before opening the database.
+ * The spec has already passed loadSkillEvalSpec and its schema sample bounds.
+ * CLI override validation and its existing error messages remain unchanged.
+ */
 export function resolveSpecOptions(
   opts: Pick<
     EvalOptions,

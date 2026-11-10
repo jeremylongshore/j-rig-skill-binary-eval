@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +14,8 @@ import {
 const opts = { models: " flag-a, flag-b " };
 const spec = { models: ["spec-a", "spec-b"], samples: 3 };
 const env = { DEEPSEEK_API_KEY: "fixture-not-a-real-key" };
+// Exercise current CLI wiring even when a caller has stale bundled output.
+const tsxLoader = createRequire(import.meta.url).resolve("tsx");
 
 describe("eval preflight", () => {
   it.each([false, true])("preserves explicit model precedence (%s)", (explicit) => {
@@ -104,11 +107,16 @@ describe("eval preflight", () => {
     const root = mkdtempSync(join(tmpdir(), "jrig-spec-preflight-"));
     try {
       const db = join(root, "must-not-exist.db");
-      const cli = fileURLToPath(new URL("../../dist/index.js", import.meta.url));
+      const cli = fileURLToPath(new URL("../index.ts", import.meta.url));
       const skill = fileURLToPath(new URL("../../../../skill", import.meta.url));
       const result = spawnSync(
         process.execPath,
         [
+          // Match the version constant normally injected by tsup.
+          "--import",
+          'data:text/javascript,globalThis.__CLI_VERSION__="preflight-test"',
+          "--import",
+          tsxLoader,
           cli,
           "eval",
           skill,
@@ -137,10 +145,15 @@ describe("eval preflight", () => {
     const root = mkdtempSync(join(tmpdir(), "jrig-preflight-"));
     try {
       const db = join(root, "must-not-exist.db");
-      const cli = fileURLToPath(new URL("../../dist/index.js", import.meta.url));
+      const cli = fileURLToPath(new URL("../index.ts", import.meta.url));
       const result = spawnSync(
         process.execPath,
         [
+          // Match the version constant normally injected by tsup.
+          "--import",
+          'data:text/javascript,globalThis.__CLI_VERSION__="preflight-test"',
+          "--import",
+          tsxLoader,
           cli,
           "eval",
           join(root, "missing-skill"),
