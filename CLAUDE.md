@@ -475,11 +475,14 @@ Key commands: `bd prime` (LLM context), `bd ready`, `bd list --status in_progres
 
 This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CLAUDE.md` § "Intent Solutions Testing SOP" and the VPS-as-the-home program (`OPS-5nm`, Priority 6).
 
-**Installed**: `@intentsolutions/audit-harness v0.1.0` vendored at `.audit-harness/` with wrapper at `scripts/audit-harness`.
+**Installed**: `@intentsolutions/audit-harness v1.4.0` vendored at `.audit-harness/` with wrapper at `scripts/audit-harness`.
 
 **Commands**: `scripts/audit-harness {verify, init, list, escape-scan --staged}`.
 
-**Next step**: run `/audit-tests` to produce `TEST_AUDIT.md`. See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
+**Audit**: see `TEST_AUDIT.md` for measured coverage and remaining verification gaps.
+`pnpm run verify:workspace` checks workspace architecture and inventories the
+Vitest test corpus for advisory bias scanning; absent Gherkin features are N/A.
+TypeScript CRAP remains incomplete (bead `bd_000-projects-h08j.6.7`). See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
 
 **Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
 
