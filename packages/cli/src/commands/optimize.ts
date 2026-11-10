@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import { RefinerStore } from "@intentsolutions/refiner";
+import { RefinerStore, loadSkillDoc } from "@intentsolutions/refiner";
 import {
   hashValue,
-  makeSkillDoc,
   type EditProposal,
   type EvalSet,
   type ChangeProposal,
@@ -152,10 +150,7 @@ export function registerOptimizeCommand(
               sourceRun.skill_name !== opts.skill
             )
               throw new Error("Source run must be completed and belong to the requested skill");
-            const doc = makeSkillDoc(
-              basename(resolve(opts.skillDir!)),
-              readFileSync(join(opts.skillDir!, "SKILL.md"), "utf8"),
-            );
+            const doc = loadSkillDoc(opts.skillDir!);
             // Legacy rows retain a 16-character digest, not a full Refiner content identity.
             if (sourceRun.skill_md_hash !== doc.hash.slice(0, 16))
               throw new Error("Source run skill digest differs from the current baseline");

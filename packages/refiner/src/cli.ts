@@ -25,16 +25,15 @@ import { bootstrapReviewedSource } from "./bootstrap-sources.js";
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve, posix } from "node:path";
+import { resolve } from "node:path";
+import { loadSkillDoc } from "./skill-doc.js";
 import type { Command } from "commander";
 import {
-  makeSkillDoc,
   bootstrap,
   hashValue,
   validateEvalSet,
   type EvalSet,
   applyEdit,
-  type SkillDoc,
   type EditProposal,
   type RefinerExperiment,
 } from "@intentsolutions/refiner-core";
@@ -59,15 +58,6 @@ import {
   type RefinerStrategy,
 } from "@intentsolutions/refiner-core";
 import { renderReportHtml, ReportRenderError } from "./report-render.js";
-
-/** Load the SKILL.md in `skillDir` into a content-addressed SkillDoc. */
-function loadSkillDoc(skillDir: string): SkillDoc {
-  const path = join(skillDir, "SKILL.md");
-  const text = readFileSync(path, "utf8");
-  // skillId = directory basename (the conventional skill slug).
-  const skillId = posix.basename(skillDir) || skillDir;
-  return makeSkillDoc(skillId, text);
-}
 
 /** Select a strategy by id, defaulting to the SkillOpt-style refiner. */
 function selectStrategy(id?: string): RefinerStrategy {

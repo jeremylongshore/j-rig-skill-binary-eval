@@ -273,6 +273,9 @@ j-rig refine assess ./demo --experiment <optimizer-experiment-hash> \
   --eval-set-file reviewed.json --quality-file quality.json --provider openai --json
 ```
 
+Both commands use `loadSkillDoc` to derive the skill ID from the resolved directory
+basename, including when invoked with `.`.
+
 All six bridge options are required together. Without them, `optimize` retains
 its analysis-only behavior. The selected source run must be completed and belong
 to the requested skill, with its legacy 16-character digest matching the current

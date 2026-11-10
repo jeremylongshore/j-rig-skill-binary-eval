@@ -99,3 +99,5 @@ export {
 export { bootstrapReviewedSource } from "./bootstrap-sources.js";
 
 export { assessOptimizerExperiment, type OptimizerAssessment } from "./optimizer.js";
+
+export { loadSkillDoc } from "./skill-doc.js";
