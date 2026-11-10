@@ -227,18 +227,24 @@ source cases and assign expected behavior independently of the observed output:
   "sourceHash": "<hashValue of source JSON>",
   "reviewed": true,
   "reviewedAt": "2026-11-10T00:00:00Z",
-  "items": [{ "id": "gold-1", "expectation": "The required behavior" }]
+  "items": [{ "id": "gold-1", "expectation": "The required behavior", "adversarial": true }]
 }
 ```
 
 For harvested cases, review IDs are `run-<runId>:<outcome.id>`. The source and
 review must match the supplied skill exactly. Duplicate or unknown cases,
-missing expectations, future/invalid review times, and unreviewed input fail
+missing expectations, non-boolean adversarial labels, future/invalid review times, and unreviewed input fail
 before storage. Review declarations are caller attestations, not authenticated
 reviewer identities. Observed output is never copied into expectations.
 
+Optional boolean `adversarial` labels come from the review and remain in hashed
+items, allowing imported sets to participate in the existing assessment quality
+gate. Source annotations do not override reviewed labels.
+
 Source and review objects are retained unchanged as `bootstrap-source` store
-records. Each item carries their hashes and its source case ID; harvested items
+records. The default filesystem store creates files with mode 0600 and store
+directories with mode 0700, tightening existing store directories before import.
+Each item carries their hashes and its source case ID; harvested items
 also carry run/model identity. Provenance participates in the existing EvalSet
 hash through its items. Identical inputs and clock produce identical hashes;
 synthetic hash preimages remain unchanged.

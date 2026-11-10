@@ -158,3 +158,21 @@ describe("RefinerStore — append-only event log", () => {
     expect(raw.trim().split("\n")).toHaveLength(1);
   });
 });
+
+it("keeps imported source bytes private even in an existing permissive store directory", async () => {
+  const { mkdtempSync, mkdirSync, statSync, rmSync, chmodSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const root = mkdtempSync(`${tmpdir()}/refiner-private-`);
+  try {
+    const directory = `${root}/.j-rig/refiner/store`;
+    mkdirSync(directory, { recursive: true, mode: 0o755 });
+    chmodSync(directory, 0o755);
+    const store = new RefinerStore({ root });
+    const hash = store.put("bootstrap-source", { privateTrace: "retained observation" });
+    expect(statSync(directory).mode & 0o777).toBe(0o700);
+    expect(statSync(`${root}/.j-rig/refiner`).mode & 0o777).toBe(0o700);
+    expect(statSync(`${directory}/${hash}`).mode & 0o777).toBe(0o600);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

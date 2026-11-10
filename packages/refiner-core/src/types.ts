@@ -131,6 +131,8 @@ export interface EvalItem {
   readonly prompt: string;
   /** Optional expected-behavior note (golden trace / acceptance criterion). */
   readonly expectation?: string;
+  /** Explicit reviewed adversarial membership, included in the content hash. */
+  readonly adversarial?: boolean;
   /** Source/review content addresses; included in the item and EvalSet hash. */
   readonly provenance?: {
     readonly sourceHash: Sha256;

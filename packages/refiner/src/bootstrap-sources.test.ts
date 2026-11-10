@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hashValue, makeSkillDoc } from "@intentsolutions/refiner-core";
+import { assessProposal } from "./assess.js";
+import type { EvalInvocation } from "./score.js";
 import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 
 const doc = makeSkillDoc("demo", "# Demo\nFollow explicit instructions.");
@@ -122,4 +124,94 @@ describe("reviewed source bootstrap", () => {
       bootstrapReviewedSource(doc, source, fixture("golden").review, "golden", opts),
     ).toThrow();
   });
+});
+
+it.each(["golden", "harvested"] as const)(
+  "carries reviewed adversarial labels from %s into assessment",
+  async (kind) => {
+    const { source, review } = fixture(kind);
+    const reviewed = {
+      ...review,
+      items: review.items.map((item) => ({ ...item, adversarial: true })),
+    };
+    const set = bootstrapReviewedSource(doc, source, reviewed, kind, opts);
+    expect(set.items[0].adversarial).toBe(true);
+    expect(set.hash).not.toBe(bootstrapReviewedSource(doc, source, review, kind, opts).hash);
+    const result = await assessProposal(
+      {
+        doc,
+        evalSet: set,
+        now: opts.now,
+        proposal: {
+          parent: doc.hash,
+          ops: [{ kind: "replace", target: "explicit", content: "precise" }],
+          refinerModel: "m",
+          refinerStrategyId: "test",
+          rationale: "test",
+        },
+        scoreOptions: { skillDir: "/unused", modelTier: "m" },
+        policy: {
+          maxLeakage: 0,
+          maxDuplicateRatio: 0,
+          maxBrierScore: 0,
+          maxEce: 0,
+          minCalibrationSamples: 1,
+          minAdversarialItems: 1,
+        },
+        quality: {
+          evalSetHash: set.hash,
+          verifiedEvalSet: true,
+          reviewedAt: review.reviewedAt,
+          expiresAt: "2026-12-01T00:00:00Z",
+          judge: { provider: "fixture", model: "judge" },
+          referenceItems: [{ id: "ref", prompt: "Different reference prompt" }],
+          predictions: [{ confidence: 1, correct: true }],
+          manifest: {
+            skillId: doc.skillId,
+            evalSetHash: set.hash,
+            capabilities: [{ id: "task", minimumItems: 1 }],
+            assignments: [{ itemId: set.items[0].id, capabilityIds: ["task"] }],
+          },
+        },
+      },
+      {
+        run: async (invocation: EvalInvocation) => ({
+          exitCode: 0,
+          stderr: "",
+          stdout: JSON.stringify({
+            m: {
+              ground_truth: true,
+              judge_provider: "fixture",
+              judge_model: "judge",
+              criterion_results: [
+                {
+                  criterion_id: "refiner-item-0",
+                  test_case_id: invocation.evalSet.items[0].id,
+                  verdict: "yes",
+                },
+              ],
+              scoreCard: { total_criteria: 1, passed: 1, pass_rate: 1 },
+            },
+          }),
+        }),
+      },
+      { validate: () => ({ valid: true }) },
+    );
+    expect(result.status).toBe("evaluated");
+    if (result.status !== "evaluated") throw new Error("expected paired evaluation");
+    expect(result.baseline.record.dimensions.adversarial_pass_rate.n).toBe(1);
+  },
+);
+
+it("rejects non-boolean adversarial review labels", () => {
+  const { source, review } = fixture("golden");
+  expect(() =>
+    bootstrapReviewedSource(
+      doc,
+      source,
+      { ...review, items: review.items.map((item) => ({ ...item, adversarial: "true" })) },
+      "golden",
+      opts,
+    ),
+  ).toThrow(/boolean/);
 });

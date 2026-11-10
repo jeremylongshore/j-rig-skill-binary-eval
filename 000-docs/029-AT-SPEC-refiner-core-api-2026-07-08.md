@@ -176,7 +176,7 @@ A bounded edit op is a SkillOpt-style add / delete / replace, each anchored to a
 
 ### 3.5 `EvalItem`, `EvalSet`, and `EvalSetRef`
 
-`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation` and `provenance`). Provenance binds canonical source/review hashes, source case ID, and optional run/model identity.
+`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation`, `adversarial`, and `provenance`). Provenance binds canonical source/review hashes, source case ID, and optional run/model identity.
 
 `EvalSetSource` is `"synthetic" | "harvested" | "golden" | "hybrid"`. This package ships the `"synthetic"` source via `bootstrap`; harvested + golden ingestion are I/O adapters.
 
@@ -527,7 +527,10 @@ expected labels implicitly. A review selects a nonempty subset of unique source
 cases; foreign, missing, duplicated, failed, stub, or unreviewed input is refused.
 The README defines the versioned input schemas and exact CLI examples.
 
-The bootstrap CLI persists both source objects and the set immutably. Provenance
+The bootstrap CLI persists both source objects and the set immutably. The default
+store creates files mode 0600 and directories mode 0700, tightening existing
+store directories. Optional boolean adversarial review labels are retained in
+hashed items so the result can enter assessment. Provenance
 hashes resolve to the stored source and review; run IDs are scoped by the source
 hash. `--parent-set-file` validates parent schema/hash/skill identity and preserves
 its lineage; `--eval-set-version` must change for a child. Freshness follows the

@@ -86,6 +86,7 @@ export const EvalItemSchema = z.object({
   id: z.string().min(1, "id must be non-empty"),
   prompt: z.string().min(1, "prompt must be non-empty"),
   expectation: z.string().optional(),
+  adversarial: z.boolean().optional(),
   provenance: z
     .object({
       sourceHash: sha256Z,

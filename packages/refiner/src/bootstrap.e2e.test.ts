@@ -113,6 +113,11 @@ describe("retained rollout to reviewed bootstrap (actual CLI)", { timeout: 60000
       expect(set.items[0].provenance?.sourceHash).toBe(hashValue(source));
       expect(existsSync(join(root, ".j-rig/refiner/store", hashValue(source)))).toBe(true);
       expect(existsSync(join(root, ".j-rig/refiner/store", hashValue(review)))).toBe(true);
+      expect(statSync(join(root, ".j-rig/refiner/store", hashValue(source))).mode & 0o777).toBe(
+        0o600,
+      );
+      expect(statSync(join(root, ".j-rig/refiner/store")).mode & 0o777).toBe(0o700);
+      expect(statSync(join(root, ".j-rig/refiner")).mode & 0o777).toBe(0o700);
       const golden = {
         schema: "j-rig/golden-traces/v1",
         skillId: source.skillId,
@@ -220,7 +225,8 @@ describe("retained rollout to reviewed bootstrap (actual CLI)", { timeout: 60000
       ).rejects.toMatchObject({ code: 1 });
 
       source.runs[0].status = "failed";
-      writeFileSync(sourcePath, JSON.stringify(source));
+      const invalidSourcePath = join(root, "invalid-source.json");
+      writeFileSync(invalidSourcePath, JSON.stringify(source), { flag: "wx", mode: 0o600 });
       writeFileSync(reviewPath, JSON.stringify({ ...review, sourceHash: hashValue(source) }));
       await expect(
         invoke([
@@ -228,7 +234,7 @@ describe("retained rollout to reviewed bootstrap (actual CLI)", { timeout: 60000
           "bootstrap",
           skill,
           "--harvest-file",
-          sourcePath,
+          invalidSourcePath,
           "--review-file",
           reviewPath,
         ]),

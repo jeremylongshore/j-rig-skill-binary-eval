@@ -100,11 +100,14 @@ export function bootstrapReviewedSource(
     const candidate = candidates.get(id);
     if (!candidate || seen.has(id))
       throw new Error("bootstrap source: unknown or duplicate reviewed item");
+    if (label.adversarial !== undefined && typeof label.adversarial !== "boolean")
+      throw new Error("bootstrap source: adversarial review labels must be boolean");
     seen.add(id);
     return {
       id,
       prompt: candidate.prompt,
       expectation: text(label.expectation),
+      ...(label.adversarial === undefined ? {} : { adversarial: label.adversarial }),
       provenance: {
         sourceHash,
         reviewHash,
