@@ -678,9 +678,10 @@ rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in
 
 The `claude-code` adapter records each launch attempt after local preflight and
 before process launch. Its `onAttempt` observer returns the settlement callback;
-failed launches, crashes and subscription-policy refusals after launch retain an
-unknown failed call. Time/turn/budget interruptions retain any valid reported
-usage and an interrupted outcome. Preflight refusals incur no launch record.
+failed launches, crashes and subscription-policy refusals after launch retain a
+failed call. Without usable result usage, its measurement is unknown; if a valid
+result arrived before failure, the measured usage is retained. Time/turn/budget
+interruptions retain any valid reported usage and an interrupted outcome. Preflight refusals incur no launch record.
 Settlement precedes artifact collection, so later local failures cannot erase the
 process measurement. A nonzero process exit remains an execution error even if a
 result event arrived first. The legacy `onUsage` observer receives only measured
