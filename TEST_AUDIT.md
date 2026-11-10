@@ -24,7 +24,7 @@ refiner-core 19, db 5, migrate 4, pr-comment 2 and rollout-gate 2.
 Two root tests and three script tests complete the baseline inventory.
 `packages/dashboard` contains a placeholder README and package manifest,
 not implemented dashboard behavior requiring a retrospective test waiver.
-The new verification regression suites add 28 tests. On the changed tree,
+The initial verification regression suites added 28 tests. At `7af8d5f`,
 `pnpm run check` and `pnpm run test:coverage` both passed: **148 files,
 2353 passed and 1 existing skip**. Aggregate coverage remained **83.41% lines
 and statements, 87.51% branches and 91.27% functions**. The final workspace
@@ -80,7 +80,9 @@ The old architecture command was unconfigured, not a zero-violation measurement.
 **TypeScript CRAP is incomplete.** The vendored command returned exit 0 and
 `pass: true` while scoring zero production and zero test methods. That result
 must not be consumed as measurement evidence. Upstream strict Python support
-landed in harness PR 234, but explicitly does not measure TypeScript.
+landed in harness PR 234; PR 235 subsequently added TypeScript measurement
+with a file-statement coverage proxy. These additions remain unreleased and
+unadopted here, and complete test-coverage collection is still outstanding.
 `bd_000-projects-h08j.6.7` tracks a real TypeScript complexity/coverage join;
 this bead remains open until that work and consumer integration are complete.
 Installing a legacy JavaScript complexity tool alone is not evidence of correct
