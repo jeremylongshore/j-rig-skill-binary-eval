@@ -188,48 +188,7 @@ export function registerOptimizeCommand(
             store.put("optimizer-source", evidence);
             optimizer = { experiment, stored: store.put("optimizer-experiment", experiment) };
           }
-          if (opts.json) {
-            console.log(
-              JSON.stringify(
-                { runId, clusters, weakest, ...(optimizer ? { optimizer } : {}) },
-                null,
-                2,
-              ),
-            );
-          } else {
-            if (optimizer)
-              console.log(
-                `Proposed optimizer experiment: ${optimizer.stored}\nAssess with refine assess --experiment ${optimizer.stored}`,
-              );
-            console.log(header(`Optimization Analysis: ${opts.skill} (Run #${runId})`));
-
-            if (clusters.length === 0) {
-              console.log(chalk.green("\n  No failures to cluster. All criteria passed."));
-            } else {
-              console.log("\n  Failure Clusters:");
-              for (const c of clusters) {
-                const color =
-                  c.severity === "critical"
-                    ? chalk.red
-                    : c.severity === "high"
-                      ? chalk.yellow
-                      : chalk.dim;
-                console.log(
-                  `    ${color(`[${c.severity.toUpperCase()}]`)} ${c.pattern} (${c.criterion_ids.length} criteria)`,
-                );
-                for (const id of c.criterion_ids) {
-                  console.log(`      - ${id}`);
-                }
-              }
-            }
-
-            if (weakest != null) {
-              console.log(`\n  Weakest Criterion: ${chalk.red.bold(weakest)}`);
-              console.log(chalk.dim("  Focus improvement efforts here first."));
-            } else {
-              console.log(chalk.dim("\n  No single weakest criterion identified."));
-            }
-          }
+          reportOptimization(opts, runId, clusters, weakest, optimizer);
         } catch (err) {
           console.error(`Error: ${err instanceof Error ? err.message : err}`);
           process.exitCode = 1;
@@ -238,4 +197,48 @@ export function registerOptimizeCommand(
         }
       },
     );
+}
+
+/** Render the completed analysis without changing experiment persistence or exit status. */
+function reportOptimization(
+  opts: { skill: string; json?: boolean },
+  runId: number,
+  clusters: FailureCluster[],
+  weakest: string | null,
+  optimizer: { experiment: ReturnType<typeof createRefinerExperiment>; stored: string } | undefined,
+): void {
+  if (opts.json) {
+    console.log(
+      JSON.stringify({ runId, clusters, weakest, ...(optimizer ? { optimizer } : {}) }, null, 2),
+    );
+  } else {
+    if (optimizer)
+      console.log(
+        `Proposed optimizer experiment: ${optimizer.stored}\nAssess with refine assess --experiment ${optimizer.stored}`,
+      );
+    console.log(header(`Optimization Analysis: ${opts.skill} (Run #${runId})`));
+
+    if (clusters.length === 0) {
+      console.log(chalk.green("\n  No failures to cluster. All criteria passed."));
+    } else {
+      console.log("\n  Failure Clusters:");
+      for (const c of clusters) {
+        const color =
+          c.severity === "critical" ? chalk.red : c.severity === "high" ? chalk.yellow : chalk.dim;
+        console.log(
+          `    ${color(`[${c.severity.toUpperCase()}]`)} ${c.pattern} (${c.criterion_ids.length} criteria)`,
+        );
+        for (const id of c.criterion_ids) {
+          console.log(`      - ${id}`);
+        }
+      }
+    }
+
+    if (weakest != null) {
+      console.log(`\n  Weakest Criterion: ${chalk.red.bold(weakest)}`);
+      console.log(chalk.dim("  Focus improvement efforts here first."));
+    } else {
+      console.log(chalk.dim("\n  No single weakest criterion identified."));
+    }
+  }
 }
