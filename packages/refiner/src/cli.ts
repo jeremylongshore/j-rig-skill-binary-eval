@@ -53,6 +53,7 @@ import {
   assessProposal,
   type AcceptanceQualityEvidence,
   type AcceptanceQualityPolicy,
+  type ProposalAssessment,
 } from "./assess.js";
 import {
   createCompletionClient,
@@ -519,22 +520,7 @@ export function registerRefineCommand(
             fail("Governed cost mode requires the native subprocess runner");
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
-          if (Boolean(opts.proposal) === Boolean(opts.experiment))
-            fail("choose exactly one of --proposal or --experiment");
-          if (
-            [opts.proposal, opts.experiment].some(
-              (value) => value !== undefined && !/^[0-9a-f]{64}$/.test(value),
-            )
-          )
-            fail("invalid content hash");
-          const experiment = opts.experiment
-            ? store.get<RefinerExperiment>(opts.experiment)
-            : undefined;
-          if (opts.experiment && (!experiment || hashValue(experiment) !== opts.experiment))
-            fail("optimizer experiment missing or content hash mismatch");
-          const proposal = experiment?.editProposal ?? store.get<EditProposal>(opts.proposal!);
-          if (!proposal || (opts.proposal && hashValue(proposal) !== opts.proposal))
-            fail("proposal missing or content hash mismatch");
+          const { experiment, proposal } = loadAssessmentProposal(store, opts);
           const evalSet = JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<
             typeof bootstrap
           >;
@@ -542,13 +528,7 @@ export function registerRefineCommand(
             evidence?: AcceptanceQualityEvidence;
             policy: AcceptanceQualityPolicy;
           };
-          const resolved = resolveProvider({ provider: opts.provider });
-          const modelTier =
-            opts.model ?? (resolved.format === "anthropic" ? "sonnet" : resolved.defaultModel);
-          if (!modelTier) fail("pass --model for a provider without a default model");
-          if (resolved.format === "anthropic" && !["haiku", "sonnet"].includes(modelTier)) {
-            fail("assessment scoring requires haiku or sonnet on Anthropic");
-          }
+          const { resolved, modelTier } = resolveAssessmentModel(opts);
           const inputs = {
             doc,
             proposal,
@@ -576,21 +556,7 @@ export function registerRefineCommand(
             ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
             : undefined;
           const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
-          const costDecision =
-            result.status === "blocked"
-              ? "blocked"
-              : result.decision.outcome === "ACCEPT" &&
-                  (!optimizer || optimizer.experiment?.experiment.status === "accepted")
-                ? "accepted"
-                : "rejected";
-          cost?.ledger.assertOutcome({
-            attemptId: cost.context.attemptId,
-            fileId: cost.context.fileId,
-            decision:
-              result.status === "evaluated" && result.decision.outcome === "ACCEPT"
-                ? "accepted"
-                : costDecision,
-          });
+          const costDecision = validateAssessmentCostOutcome(cost, result, optimizer);
           const hash =
             result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
           if (runner.attemptCount > 0)
@@ -608,36 +574,7 @@ export function registerRefineCommand(
           const experimentHash = optimizer?.experiment
             ? store.put("optimizer-experiment", optimizer.experiment)
             : undefined;
-          if (opts.json)
-            console.log(
-              JSON.stringify(
-                {
-                  ...result,
-                  ...(hash ? { stored: hash } : {}),
-                  ...(optimizer
-                    ? { optimizer: { experiment: optimizer.experiment, stored: experimentHash } }
-                    : {}),
-                },
-                null,
-                2,
-              ),
-            );
-          else if (result.status === "blocked")
-            console.log(`Assessment blocked: ${result.reasons.join(", ")}`);
-          else
-            console.log(
-              `Assessment: ${result.decision.outcome}\n  stored: ${hash}\n  Best pointer requires human promotion.`,
-            );
-          if (optimizer?.experiment && !opts.json)
-            console.log(
-              `Optimizer: ${optimizer.experiment.experiment.status}\n  stored: ${experimentHash}\n  reasons: ${optimizer.experiment.resolution!.reasons.join(", ") || "all gates passed"}`,
-            );
-          if (
-            result.status === "blocked" ||
-            result.decision.outcome !== "ACCEPT" ||
-            (optimizer && optimizer.experiment?.experiment.status !== "accepted")
-          )
-            process.exitCode = 2;
+          reportAssessment(opts, result, hash, optimizer, experimentHash);
         } catch (error) {
           finishCost(cost, "failed");
           fail(error instanceof Error ? error.message : String(error));
@@ -735,4 +672,104 @@ export function registerRefineCommand(
         fail(err instanceof Error ? err.message : String(err));
       }
     });
+}
+
+type OptimizerAssessment = Awaited<ReturnType<typeof assessOptimizerExperiment>>;
+
+/** Resolve the selected immutable proposal before reading scoring inputs. */
+function loadAssessmentProposal(
+  store: RefinerStore,
+  opts: { proposal?: string; experiment?: string },
+) {
+  if (Boolean(opts.proposal) === Boolean(opts.experiment))
+    fail("choose exactly one of --proposal or --experiment");
+  if (
+    [opts.proposal, opts.experiment].some(
+      (value) => value !== undefined && !/^[0-9a-f]{64}$/.test(value),
+    )
+  )
+    fail("invalid content hash");
+  const experiment = opts.experiment ? store.get<RefinerExperiment>(opts.experiment) : undefined;
+  if (opts.experiment && (!experiment || hashValue(experiment) !== opts.experiment))
+    fail("optimizer experiment missing or content hash mismatch");
+  const proposal = experiment?.editProposal ?? store.get<EditProposal>(opts.proposal!);
+  if (!proposal || (opts.proposal && hashValue(proposal) !== opts.proposal))
+    fail("proposal missing or content hash mismatch");
+  return { experiment, proposal };
+}
+
+/** Check the ledger admission outcome before storing assessment evidence. */
+function validateAssessmentCostOutcome(
+  cost: CostSession | undefined,
+  result: ProposalAssessment,
+  optimizer: OptimizerAssessment | undefined,
+): "blocked" | "accepted" | "rejected" {
+  const costDecision =
+    result.status === "blocked"
+      ? "blocked"
+      : result.decision.outcome === "ACCEPT" &&
+          (!optimizer || optimizer.experiment?.experiment.status === "accepted")
+        ? "accepted"
+        : "rejected";
+  cost?.ledger.assertOutcome({
+    attemptId: cost.context.attemptId,
+    fileId: cost.context.fileId,
+    decision:
+      result.status === "evaluated" && result.decision.outcome === "ACCEPT"
+        ? "accepted"
+        : costDecision,
+  });
+  return costDecision;
+}
+
+/** Report already-persisted assessment evidence and preserve the CLI exit contract. */
+function reportAssessment(
+  opts: { json?: boolean },
+  result: ProposalAssessment,
+  hash: string | undefined,
+  optimizer: OptimizerAssessment | undefined,
+  experimentHash: string | undefined,
+): void {
+  if (opts.json)
+    console.log(
+      JSON.stringify(
+        {
+          ...result,
+          ...(hash ? { stored: hash } : {}),
+          ...(optimizer
+            ? { optimizer: { experiment: optimizer.experiment, stored: experimentHash } }
+            : {}),
+        },
+        null,
+        2,
+      ),
+    );
+  else if (result.status === "blocked")
+    console.log(`Assessment blocked: ${result.reasons.join(", ")}`);
+  else
+    console.log(
+      `Assessment: ${result.decision.outcome}\n  stored: ${hash}\n  Best pointer requires human promotion.`,
+    );
+  if (optimizer?.experiment && !opts.json)
+    console.log(
+      `Optimizer: ${optimizer.experiment.experiment.status}\n  stored: ${experimentHash}\n  reasons: ${optimizer.experiment.resolution!.reasons.join(", ") || "all gates passed"}`,
+    );
+  if (
+    result.status === "blocked" ||
+    result.decision.outcome !== "ACCEPT" ||
+    (optimizer && optimizer.experiment?.experiment.status !== "accepted")
+  )
+    process.exitCode = 2;
+}
+
+/** Resolve the execution model before constructing the assessment request. */
+function resolveAssessmentModel(opts: { provider?: string; model?: string }) {
+  const resolved = resolveProvider({ provider: opts.provider });
+  const modelTier =
+    opts.model ?? (resolved.format === "anthropic" ? "sonnet" : resolved.defaultModel);
+  if (!modelTier) fail("pass --model for a provider without a default model");
+  if (resolved.format === "anthropic" && !["haiku", "sonnet"].includes(modelTier)) {
+    fail("assessment scoring requires haiku or sonnet on Anthropic");
+  }
+  return { resolved, modelTier };
 }
