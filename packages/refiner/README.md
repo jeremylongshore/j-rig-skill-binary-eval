@@ -313,9 +313,9 @@ Library callers can use `proposeWithEvidence` with a `RefinerStore`; ordinary
 `propose` remains available without persistence. `CompletionResult.usage` is now
 nullable, so cost consumers must handle unmeasured responses explicitly.
 Receipts omit raw prompts, responses, credentials and endpoint URLs. Selected
-numeric billing fields do not constitute a USD policy. Assessment usage, cost
-rollups, dollar admission, quarantine and telemetry remain tracked in 214c.18 /
-issue #403. See API doc 029 §8.9 for receipt semantics and protocol references.
+numeric billing fields do not constitute a USD policy. See explicit cost admission
+below and API029 §8.12 for governed pricing, rollups and quarantine
+(214c.18 / #403), and §8.9 for proposer receipt semantics and protocol references.
 
 ### Scoring usage evidence
 
@@ -331,13 +331,13 @@ Reported evidence may contain unmeasured calls, whose `usage` is null. The
 `evaluation-usage/v1` schema is shared through refiner-core. CLI JSON score output
 remains a ScoreRecord. Library users requiring durable cost records must wrap
 their runner with `createAccountingEvalRunner`. API029 §8.10 documents limits;
-priced rollups and hard USD admission remain in 214c.18 / issue #403.
+§8.12 describes the additional governed pricing and hard admission boundary.
 
-### Explicit cost admission (in development)
+### Explicit cost admission
 
 `refine propose`, `refine score` and `refine assess` accept `--cost-policy policy.json --cost-file-id stable-id` and
 optional `--cost-ledger path` (default `audit/wave-b-cost-ledger.jsonl`). Native proposer, scoring and assessment transports share this policy, including
-independent judges and MiniMax wire retries. This work remains under review in
+independent judges and MiniMax wire retries. Tracked by
 `bd_000-projects-214c.18` / #403; no Wave B execution is authorized by these flags.
 
 The `refiner-cost-policy/v1` schema pins provider/requested-model rates and an

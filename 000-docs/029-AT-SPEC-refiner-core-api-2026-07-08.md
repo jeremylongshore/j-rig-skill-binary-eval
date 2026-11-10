@@ -622,8 +622,9 @@ remains the proposal object. Historical objects are not rewritten. The original
 must use `proposeWithEvidence`.
 
 Tracked under `bd_000-projects-214c.18` / #403. Evaluator call evidence is now
-captured as described in §8.10. Complete priced per-accept/file rollups, USD
-admission, Wave B 80%/100% stops, quarantine and Refiner OTel joins remain open. This measurement delivery does not authorize paid Wave B.
+captured as described in §8.10. Governed priced rollups, USD admission, Wave B
+stops, quarantine and Refiner OTel joins are described in §8.12. Measurement
+alone does not authorize paid Wave B.
 
 ### 8.10 Evaluator usage evidence and scoring receipts
 
@@ -669,10 +670,10 @@ Existing evaluator token/USD soft caps stop after unknown settled usage, includi
 when the last call in a phase is unmeasured. Provider failures retain exit 2 and
 error evidence when no call was budget-refused; later phases are skipped.
 In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
-dollar reservations. Internal retry costs,
-explicit reproducible pricing, dollar reservations, per-accept/file priced
-rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in
-`bd_000-projects-214c.18` / #403. No paid Wave B run is part of this change.
+dollar reservations. The additional governed native transport in §8.12 provides
+explicit pricing, wire-retry accounting, reservations, rollups, quarantine and
+telemetry correlation (`bd_000-projects-214c.18` / #403). No paid Wave B run
+is part of this change.
 
 ### 8.11 Subscription execution measurements
 
@@ -700,30 +701,10 @@ Subscription execution emits cost JSON even when the other provider legs are
 stubbed. Tests use the repository-owned executable fixture and synthetic
 credentials, never a live subscription. Parser, adapter/meter/budget and actual
 CLI tests cover failures, unknown versus zero usage, cache buckets and process
-interruptions. Full pricing/rollup/ledger/quarantine requirements remain open in
-`bd_000-projects-214c.18` / #403. See CLI README and budget spec 047.
+interruptions. The governed hard-cost mode in §8.12 refuses subscription
+execution. See CLI README and budget spec 047.
 
-## 9. Build and test
-
-```bash
-pnpm --filter @intentsolutions/refiner-core run build
-pnpm run test:coverage:refiner-core
-```
-
-Every export above has a co-located `*.test.ts` in `packages/refiner-core/src/`. The package is I/O-free, so tests inject deterministic stubs for the only non-pure seams (the clock and the `RefinerModel`).
-
----
-
-## 10. References
-
-- `intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md` — THE PLAN (§ 4 API surface).
-- `intent-eval-lab/000-docs/028-AT-DECR-isedc-council-session-7-skill-refiner-plan-ratification-2026-05-27.md` — DR-028 (P0-RATIFY-1, -3, -5, -6; T1, T3 bindings).
-- `intent-eval-lab/specs/skill-refiner-evidence-report/v1.0.0-draft/SPEC.md` — the Evidence Report contract the accept verdict is rendered into.
-- `000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md` — the wave-1 (`0.1.0`) foundation surface this doc grows from.
-- `packages/refiner-core/src/` — the authoritative source; each export's JSDoc is normative.
-- `packages/refiner-core/README.md` — the foundation overview.
-
-### 8.12 Explicit cost policy and durable admission (in development)
+### 8.12 Explicit cost policy and durable admission
 
 Tracked by `bd_000-projects-214c.18` / GitHub #403. Pure `CostPolicySchema`,
 `priceCostUsage`, `reserveCost` and `replayCostLedger` define reproducible integer
@@ -746,8 +727,7 @@ The `cost.record.scope` attribute separates whole Refiner attempts from nested
 evaluator runs; never sum these two levels. See the Refiner README for unknown
 usage, planned-cohort means and provider-bound assumptions. Paired accept/reject,
 quality-blocked, parse-failure, concurrency and retry tests use local fixtures.
-No paid Wave B run or production cost calibration has been performed. Final
-validation/review remain required for bead closure. Optional per-file and
+No paid Wave B run or production cost calibration has been performed. Optional per-file and
 whole-scope token/attempt limits use the same durable reservations as USD limits;
 zero caps deny all applicable calls. Attempt counts include each admitted retry,
 failed call and zero-priced call. Pending token reservations cannot be reset by
@@ -765,3 +745,23 @@ bounds, and at least one call must have completed. Measured failed calls followe
 by successful recovery remain in the accepted attempt's cost. Unknown usage or a
 provider-bound overrun prevents publishing an accepted assessment; the failed
 outcome retains its cost and quarantine/P0 evidence.
+
+## 9. Build and test
+
+```bash
+pnpm --filter @intentsolutions/refiner-core run build
+pnpm run test:coverage:refiner-core
+```
+
+Every export above has a co-located `*.test.ts` in `packages/refiner-core/src/`. The package is I/O-free, so tests inject deterministic stubs for the only non-pure seams (the clock and the `RefinerModel`).
+
+---
+
+## 10. References
+
+- `intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md` — THE PLAN (§ 4 API surface).
+- `intent-eval-lab/000-docs/028-AT-DECR-isedc-council-session-7-skill-refiner-plan-ratification-2026-05-27.md` — DR-028 (P0-RATIFY-1, -3, -5, -6; T1, T3 bindings).
+- `intent-eval-lab/specs/skill-refiner-evidence-report/v1.0.0-draft/SPEC.md` — the Evidence Report contract the accept verdict is rendered into.
+- `000-docs/026-AT-SPEC-refiner-core-api-2026-06-20.md` — the wave-1 (`0.1.0`) foundation surface this doc grows from.
+- `packages/refiner-core/src/` — the authoritative source; each export's JSDoc is normative.
+- `packages/refiner-core/README.md` — the foundation overview.
