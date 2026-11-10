@@ -191,23 +191,7 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
         if (failExecution) {
           await expect(action).rejects.toThrow("provider infrastructure failure");
           expect(calls).toBe(1);
-          const state = session!.ledger.snapshot();
-          expect(state.calls.size).toBe(1);
-          expect(state.total).toMatchObject({
-            knownMicros: measuredFailure ? 3 : 0,
-            unknownCalls: measuredFailure ? 0 : 1,
-          });
-          const receiptEvent = store.readLog().at(-1)!;
-          if (receiptEvent.type !== "stored") throw new Error("missing receipt");
-          const receipt = store.get<{
-            status: string;
-            usage: { evidence: EvaluationUsageEvidence };
-          }>(receiptEvent.hash)!;
-          expect(receipt.status).toBe("failed");
-          expect(receipt.usage.evidence.calls[0]).toMatchObject({
-            phase: "execution",
-            outcome: "failed",
-          });
+          assertFailedExecutionReceipt(session!, store, measuredFailure);
           return;
         }
         if (denyJudge) await expect(action).rejects.toThrow("evaluation budget exhausted");
@@ -220,34 +204,9 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
         }
         expect(calls).toBe(denyJudge ? 1 : 2);
         if (session) {
-          const state = session.ledger.snapshot();
-          expect(state.calls.size).toBe(denyJudge ? 1 : 2);
-          expect(state.total.knownMicros).toBe(failJudge || denyJudge ? 3 : 6);
-          expect(state.total.unknownCalls).toBe(failJudge ? 1 : 0);
-          expect([...state.calls.values()].map((c) => c.reservation.phase)).toEqual(
-            denyJudge ? ["execution"] : ["execution", "judge"],
-          );
-          expect(state.files.demo?.quarantined).toBe(failJudge || denyJudge);
+          assertGovernedScoreLedger(session, failJudge, denyJudge);
         }
-        const receiptEvent = store.readLog().at(-1)!;
-        if (receiptEvent.type !== "stored") throw new Error("missing receipt");
-        const receipt = store.get<{ status: string; usage: { evidence: EvaluationUsageEvidence } }>(
-          receiptEvent.hash,
-        )!;
-        expect(receipt.status).toBe(failJudge || denyJudge ? "failed" : "completed");
-        const records = receipt.usage.evidence.calls;
-        expect(records[0]).toMatchObject({
-          phase: "execution",
-          requestedModel: "fixture",
-          reportedModel: "actual-fixture",
-          usage: { inputTokens: 3, outputTokens: 2 },
-        });
-        expect(records[1]).toMatchObject(
-          failJudge || denyJudge
-            ? { phase: "judge", outcome: "failed", usage: null }
-            : { phase: "judge", outcome: "completed", usage: { inputTokens: 3, outputTokens: 2 } },
-        );
-        expect(JSON.stringify(receipt)).not.toContain("private fixture error");
+        assertScoreReceipt(store, failJudge, denyJudge);
       } finally {
         await new Promise<void>((done) => server.close(() => done()));
         rmSync(root, { recursive: true, force: true });
@@ -255,3 +214,64 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
     },
   );
 });
+
+function assertFailedExecutionReceipt(
+  session: ReturnType<typeof openCostSession>,
+  store: RefinerStore,
+  measuredFailure: boolean,
+): void {
+  const state = session.ledger.snapshot();
+  expect(state.calls.size).toBe(1);
+  expect(state.total).toMatchObject({
+    knownMicros: measuredFailure ? 3 : 0,
+    unknownCalls: measuredFailure ? 0 : 1,
+  });
+  const receiptEvent = store.readLog().at(-1)!;
+  if (receiptEvent.type !== "stored") throw new Error("missing receipt");
+  const receipt = store.get<{
+    status: string;
+    usage: { evidence: EvaluationUsageEvidence };
+  }>(receiptEvent.hash)!;
+  expect(receipt.status).toBe("failed");
+  expect(receipt.usage.evidence.calls[0]).toMatchObject({
+    phase: "execution",
+    outcome: "failed",
+  });
+}
+
+function assertGovernedScoreLedger(
+  session: ReturnType<typeof openCostSession>,
+  failJudge: boolean,
+  denyJudge: boolean,
+): void {
+  const state = session.ledger.snapshot();
+  expect(state.calls.size).toBe(denyJudge ? 1 : 2);
+  expect(state.total.knownMicros).toBe(failJudge || denyJudge ? 3 : 6);
+  expect(state.total.unknownCalls).toBe(failJudge ? 1 : 0);
+  expect([...state.calls.values()].map((c) => c.reservation.phase)).toEqual(
+    denyJudge ? ["execution"] : ["execution", "judge"],
+  );
+  expect(state.files.demo?.quarantined).toBe(failJudge || denyJudge);
+}
+
+function assertScoreReceipt(store: RefinerStore, failJudge: boolean, denyJudge: boolean): void {
+  const receiptEvent = store.readLog().at(-1)!;
+  if (receiptEvent.type !== "stored") throw new Error("missing receipt");
+  const receipt = store.get<{ status: string; usage: { evidence: EvaluationUsageEvidence } }>(
+    receiptEvent.hash,
+  )!;
+  expect(receipt.status).toBe(failJudge || denyJudge ? "failed" : "completed");
+  const records = receipt.usage.evidence.calls;
+  expect(records[0]).toMatchObject({
+    phase: "execution",
+    requestedModel: "fixture",
+    reportedModel: "actual-fixture",
+    usage: { inputTokens: 3, outputTokens: 2 },
+  });
+  expect(records[1]).toMatchObject(
+    failJudge || denyJudge
+      ? { phase: "judge", outcome: "failed", usage: null }
+      : { phase: "judge", outcome: "completed", usage: { inputTokens: 3, outputTokens: 2 } },
+  );
+  expect(JSON.stringify(receipt)).not.toContain("private fixture error");
+}
