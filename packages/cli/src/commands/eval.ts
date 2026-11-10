@@ -97,14 +97,9 @@ import {
 import {
   CLAUDE_CODE_PROVIDER_NAME,
   ClaudeCodeExecutionProvider,
+  type ClaudeCodeMeasurement,
 } from "../providers/claude-code.js";
-import type {
-  TriggerProvider,
-  ExecutionProvider,
-  JudgeProvider,
-  Provider,
-  TokenUsage,
-} from "@j-rig/core";
+import type { TriggerProvider, ExecutionProvider, JudgeProvider, Provider } from "@j-rig/core";
 import type { HeadroomAssessment } from "@j-rig/core";
 import {
   detectInfrastructureFailure,
@@ -488,7 +483,18 @@ function selectProviders(
         ...cc,
         model,
         ...(extras?.meter
-          ? { onUsage: (m: string, u: TokenUsage) => extras.meter!.record(m, u) }
+          ? {
+              onAttempt: (requestedModel: string) => {
+                const sequence = extras.meter!.begin(requestedModel, CLAUDE_CODE_PROVIDER_NAME);
+                return (measurement: ClaudeCodeMeasurement) =>
+                  extras.meter!.finish(
+                    sequence,
+                    measurement.usage,
+                    measurement.outcome,
+                    measurement.reportedModel ?? undefined,
+                  );
+              },
+            }
           : {}),
       })
     : undefined;
@@ -1579,7 +1585,7 @@ export function registerEvalCommand(program: Command): void {
             // ── Eval cost (Jeremy's ask: "what does it cost to eval this
             // skill, as-is?") — real token usage per phase, × N judge samples,
             // with a best-effort USD estimate. Stub runs record nothing.
-            costReport = providers.real ? costMeter.report() : null;
+            costReport = providers.real || claudeCodeSettings ? costMeter.report() : null;
 
             // ── Infrastructure-failure rule (000-docs/037) ─────────────
             // Blueprint B § 7.4: `error` is "a verdict on the gate's own

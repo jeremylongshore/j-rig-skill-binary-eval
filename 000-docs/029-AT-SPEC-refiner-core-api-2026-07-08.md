@@ -669,10 +669,38 @@ Existing evaluator token/USD soft caps stop after unknown settled usage, includi
 when the last call in a phase is unmeasured. Provider failures retain exit 2 and
 error evidence when no call was budget-refused; later phases are skipped.
 In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
-dollar reservations. The subscription execution callback, internal retry costs,
+dollar reservations. Internal retry costs,
 explicit reproducible pricing, dollar reservations, per-accept/file priced
 rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in
 `bd_000-projects-214c.18` / #403. No paid Wave B run is part of this change.
+
+### 8.11 Subscription execution measurements
+
+The `claude-code` adapter records each launch attempt after local preflight and
+before process launch. Its `onAttempt` observer returns the settlement callback;
+failed launches, crashes and subscription-policy refusals after launch retain an
+unknown failed call. Time/turn/budget interruptions retain any valid reported
+usage and an interrupted outcome. Preflight refusals incur no launch record.
+Settlement precedes artifact collection, so later local failures cannot erase the
+process measurement. A nonzero process exit remains an execution error even if a
+result event arrived first. The legacy `onUsage` observer receives only measured
+results; the evaluator meter uses `onAttempt`.
+
+Stream usage uses the same nullable, cache-aware normalization as native
+Anthropic responses. Missing, invalid or duplicate result usage is unknown;
+explicit zero remains zero. Input totals include cache reads/writes once, and
+reported TTL buckets are retained. Invalid API-equivalent dollar values are
+omitted. Requested and reported model identities remain separate in call
+evidence; subscription classification is applied to report keys for the existing
+API-equivalent versus billed distinction. Cache writes remain unpriced by the
+advisory table. This does not implement hard dollar admission or wire-retry costs.
+
+Subscription execution emits cost JSON even when the other provider legs are
+stubbed. Tests use the repository-owned executable fixture and synthetic
+credentials, never a live subscription. Parser, adapter/meter/budget and actual
+CLI tests cover failures, unknown versus zero usage, cache buckets and process
+interruptions. Full pricing/rollup/ledger/quarantine requirements remain open in
+`bd_000-projects-214c.18` / #403. See CLI README and budget spec 047.
 
 ## 9. Build and test
 

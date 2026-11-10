@@ -23,6 +23,8 @@ import {
   sandboxEnv,
   type ClaudeCodeProviderOptions,
 } from "./claude-code.js";
+import { EvalCostMeter } from "./cost-tracking.js";
+import { RunBudget, BudgetGuardedExecutionProvider } from "./budget.js";
 import { resolveClaudeCodeSettings } from "../commands/eval.js";
 import {
   detectInfrastructureFailure,
@@ -189,7 +191,14 @@ describe("ClaudeCodeExecutionProvider — replayed write-receipt run", () => {
     expect(usage).toEqual([
       [
         "claude-code/claude-haiku-5-5",
-        { inputTokens: 44090, outputTokens: 321, cachedInputTokens: 32766 },
+        {
+          inputTokens: 44090,
+          outputTokens: 321,
+          cachedInputTokens: 32766,
+          cacheCreationInputTokens: 11316,
+          cacheCreation5mInputTokens: 0,
+          cacheCreation1hInputTokens: 11316,
+        },
       ],
     ]);
     // Per-case temp dir is removed.
@@ -508,5 +517,159 @@ describe("j-rig eval --execution-provider flag resolution", () => {
     expect(() =>
       resolveClaudeCodeSettings({ executionProvider: "claude-code", mcpConfig: "x.json" }),
     ).toThrow(/cannot be combined/);
+  });
+});
+
+describe("subscription attempt accounting", () => {
+  function metered(over: Partial<ClaudeCodeProviderOptions> = {}) {
+    const meter = new EvalCostMeter();
+    meter.phase = "execution";
+    const execution = provider({
+      ...over,
+      onAttempt: (model) => {
+        const id = meter.begin(model, "claude-code");
+        return (m) => meter.finish(id, m.usage, m.outcome, m.reportedModel ?? undefined);
+      },
+    });
+    return { meter, execution };
+  }
+
+  it("records intent before the process settles and retains actual identity/cache writes", async () => {
+    const { meter, execution } = metered();
+    const running = execution.execute("FIXTURE write-receipt", ctx());
+    expect(meter.pendingCalls).toBe(1);
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      provider: "claude-code",
+      requestedModel: "haiku",
+      reportedModel: null,
+      phase: "execution",
+      outcome: "interrupted",
+      usage: null,
+    });
+    await running;
+    expect(meter.pendingCalls).toBe(0);
+    const report = meter.report();
+    expect(report.usage_evidence.calls).toHaveLength(1);
+    expect(report.usage_evidence.calls[0]).toMatchObject({
+      requestedModel: "haiku",
+      reportedModel: "claude-haiku-5-5",
+      outcome: "completed",
+      usage: {
+        inputTokens: 44090,
+        outputTokens: 321,
+        cachedInputTokens: 32766,
+        cacheCreationInputTokens: 11316,
+      },
+    });
+    expect(report.by_model[0]).toMatchObject({
+      model: "claude-code/claude-haiku-5-5",
+      billed: false,
+      usd: null,
+    });
+  });
+
+  it.each([
+    { prompt: "FAIL", outcome: "failed", rejects: false },
+    { prompt: "CRASH", outcome: "failed", rejects: true },
+    { prompt: "HANG", outcome: "interrupted", rejects: false },
+    { prompt: "APIKEY", outcome: "failed", rejects: true },
+    { prompt: "MEASUREMENT {}", outcome: "completed", rejects: false },
+    { prompt: 'MEASUREMENT {"usage":{"input_tokens":1}}', outcome: "completed", rejects: false },
+  ])("retains unknown usage for $prompt ($outcome)", async ({ prompt, outcome, rejects }) => {
+    const { meter, execution } = metered({ timeoutMs: 500 });
+    const run = execution.execute(prompt, ctx());
+    if (rejects) await expect(run).rejects.toThrow();
+    else await run;
+    expect(meter.pendingCalls).toBe(0);
+    expect(meter.report()).toMatchObject({
+      unknown_calls: 1,
+      usage_complete: false,
+      estimated_usd: null,
+    });
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({ outcome, usage: null });
+  });
+
+  it("retains known usage on a failed process and does not invent a reported model", async () => {
+    const { meter, execution } = metered();
+    const out = await execution.execute(
+      'MEASUREMENT {"usage":{"input_tokens":2,"output_tokens":3},"exitCode":1,"noInit":true}',
+      ctx(),
+    );
+    expect(out.error).toBeDefined();
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      outcome: "failed",
+      reportedModel: null,
+      requestedModel: "haiku",
+      usage: { inputTokens: 2, outputTokens: 3 },
+    });
+  });
+
+  it("records a failed launch but no call for a preflight refusal", async () => {
+    const failed = metered({ claudeBin: join(scratch, "absent") });
+    await expect(failed.execution.execute("ENV", ctx())).rejects.toThrow();
+    expect(failed.meter.report().usage_evidence.calls[0]).toMatchObject({
+      outcome: "failed",
+      usage: null,
+    });
+    const refused = metered({ credentialsPath: join(scratch, "absent-credentials") });
+    await expect(refused.execution.execute("ENV", ctx())).rejects.toThrow();
+    expect(refused.meter.report().total.calls).toBe(0);
+  });
+  it("counts an in-flight launch toward max_calls and refuses the second launch", async () => {
+    const { meter, execution } = metered({ timeoutMs: 500 });
+    const budget = new RunBudget({ max_calls: 1 });
+    budget.attach(meter, "haiku");
+    const guarded = new BudgetGuardedExecutionProvider(execution, budget);
+    const first = guarded.execute("HANG", ctx());
+    expect(budget.spent().calls).toBe(1);
+    await expect(guarded.execute("ENV", ctx())).rejects.toThrow(/budget exhausted/);
+    await first;
+    expect(meter.report().total.calls).toBe(1);
+  });
+
+  it.each([{ max_tokens: 100 }, { max_usd: 1 }])(
+    "refuses later launches after unknown settled usage: %j",
+    async (limits) => {
+      const { meter, execution } = metered({ model: "claude-haiku-4-5" });
+      const budget = new RunBudget(limits);
+      budget.attach(meter, "claude-haiku-4-5");
+      const guarded = new BudgetGuardedExecutionProvider(execution, budget);
+      await guarded.execute("MEASUREMENT {}", ctx());
+      await expect(guarded.execute("ENV", ctx())).rejects.toThrow(/budget exhausted/);
+      expect(meter.report().total.calls).toBe(1);
+    },
+  );
+
+  it("separates subscription API-equivalent pricing from billed usage", async () => {
+    const { meter, execution } = metered({ model: "claude-haiku-4-5" });
+    await execution.execute(
+      'MEASUREMENT {"noInit":true,"usage":{"input_tokens":10,"output_tokens":2}}',
+      ctx(),
+    );
+    const report = meter.report();
+    expect(report.estimated_usd).toBeGreaterThan(0);
+    expect(report.billed_usd).toBe(0);
+    expect(report.by_model[0]).toMatchObject({ billed: false, rate_key: "claude-haiku-4-5" });
+    expect(report.usage_evidence.calls[0]?.reportedModel).toBeNull();
+  });
+  it("retains measured usage when the turn cap interrupts a result-bearing run", async () => {
+    const { meter, execution } = metered({ maxTurns: 1 });
+    const out = await execution.execute("FIXTURE write-receipt", ctx());
+    expect(out.trajectory?.stop).toBe("max_turns");
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      outcome: "interrupted",
+      usage: { inputTokens: 44090, outputTokens: 321 },
+    });
+  });
+
+  it("refuses launch if the before-attempt observer cannot record intent", async () => {
+    const observer = vi.fn(() => {
+      throw new Error("intent storage failed");
+    });
+    await expect(
+      provider({ onAttempt: observer, claudeBin: join(scratch, "absent") }).execute("ENV", ctx()),
+    ).rejects.toThrow("intent storage failed");
+    expect(observer).toHaveBeenCalledExactlyOnceWith("haiku");
+    expect(jRigTempDirs()).toHaveLength(0);
   });
 });

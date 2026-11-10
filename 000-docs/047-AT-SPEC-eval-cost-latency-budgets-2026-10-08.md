@@ -140,3 +140,10 @@ rate in the advisory table yield unknown USD instead of an input-rate estimate.
 Refiner persists scoring call evidence before accepting/rejecting score output.
 See API029 §8.10 and `bd_000-projects-214c.18` / issue #403 for remaining hard
 pricing, reservation, ledger and quarantine requirements.
+
+Subscription launch attempts now enter the meter before process launch, after
+preflight. Missing/invalid stream usage remains unknown, so token/USD guards can
+stop later launches; in-flight calls count toward `max_calls`. Failed or
+interrupted attempts retain their usage when available. These are process-level
+attempts, not a count of Claude Code's internal model/tool calls. API029 §8.11
+details the measurement boundary; hard USD reservations remain unimplemented.

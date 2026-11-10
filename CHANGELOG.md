@@ -30,6 +30,12 @@
 
 ## Unreleased
 
+- `fix(eval)`: retain subscription launch attempts and nullable usage through
+  crashes, failed launches and interrupted runs. Preserve cache-write TTLs and
+  requested/reported model identities; nonzero exits stay provider errors.
+  Subscription cost JSON now survives stub judge configurations. API029 §8.11;
+  `bd_000-projects-214c.18` / #403 remains open for hard USD and ledger work.
+
 - Preserve nullable evaluator usage and failed/interrupted provider calls in
   shared call evidence; persist Refiner scoring receipts before validation.
   Token/USD soft caps now stop on unknown settled usage, including the final

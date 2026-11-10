@@ -50,7 +50,20 @@ function replay(name) {
 }
 
 const [mode, name] = prompt.split(" ");
-if (mode === "ESCAPEDPIPE") {
+if (mode === "MEASUREMENT") {
+  const data = JSON.parse(prompt.slice("MEASUREMENT ".length));
+  if (!data.noInit) process.stdout.write(init("none"));
+  process.stdout.write(
+    JSON.stringify({
+      type: "result",
+      subtype: "success",
+      result: "measured fixture",
+      is_error: data.error ?? false,
+      ...(data.usage === undefined ? {} : { usage: data.usage }),
+    }) + "\n",
+  );
+  process.exitCode = data.exitCode ?? 0;
+} else if (mode === "ESCAPEDPIPE") {
   // An escaped descendant holds the pipes after its parent/process group dies.
   // The test owns the PID file and kills this fixture in its finally block.
   const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
