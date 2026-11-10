@@ -103,25 +103,35 @@ function jRigTempDirs(): string[] {
   );
 }
 
+function lifecycleScenario(kind: string) {
+  const prompts: Record<string, string> = {
+    success: "FIXTURE write-receipt",
+    failure: "FAIL",
+    timeout: "HANG",
+    crash: "CRASH",
+  };
+  const options: Partial<ClaudeCodeProviderOptions> = {
+    ...(kind === "timeout" ? { timeoutMs: 500 } : {}),
+    ...(kind === "spawn-error" ? { claudeBin: join(scratch, "missing-claude") } : {}),
+    ...(kind === "setup-error" ? { credentialsPath: join(scratch, "missing-credentials") } : {}),
+  };
+  return {
+    prompt: prompts[kind] ?? "FIXTURE write-receipt",
+    options,
+    expectedStop: kind === "failure" ? "error" : kind === "timeout" ? "timeout" : "completed",
+  };
+}
+
 for (const keepWorkspaces of [false, true]) {
   describe(`workspace lifecycle (keepWorkspaces=${keepWorkspaces})`, () => {
     it.each(["success", "failure", "timeout", "crash", "spawn-error", "setup-error"])(
       "%s retains artifacts and follows the requested cleanup policy",
       async (kind) => {
-        const prompts: Record<string, string> = {
-          success: "FIXTURE write-receipt",
-          failure: "FAIL",
-          timeout: "HANG",
-          crash: "CRASH",
-        };
-        const run = provider({
-          keepWorkspaces,
-          ...(kind === "timeout" ? { timeoutMs: 500 } : {}),
-          ...(kind === "spawn-error" ? { claudeBin: join(scratch, "missing-claude") } : {}),
-          ...(kind === "setup-error"
-            ? { credentialsPath: join(scratch, "missing-credentials") }
-            : {}),
-        }).execute(prompts[kind] ?? "FIXTURE write-receipt", ctx());
+        const scenario = lifecycleScenario(kind);
+        const run = provider({ keepWorkspaces, ...scenario.options }).execute(
+          scenario.prompt,
+          ctx(),
+        );
         try {
           if (kind === "crash" || kind === "spawn-error") {
             await expect(run).rejects.toBeInstanceOf(ProviderError);
@@ -129,9 +139,7 @@ for (const keepWorkspaces of [false, true]) {
             await expect(run).rejects.toBeInstanceOf(ClaudeCodeRefusedError);
           } else {
             const out = await run;
-            expect(out.trajectory?.stop).toBe(
-              kind === "failure" ? "error" : kind === "timeout" ? "timeout" : "completed",
-            );
+            expect(out.trajectory?.stop).toBe(scenario.expectedStop);
             if (kind === "success") {
               expect(out.artifacts.find((a) => a.filename === "report.md")?.content).toBe(
                 "hello j-rig",
