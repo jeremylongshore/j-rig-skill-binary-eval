@@ -468,28 +468,7 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
     const home = join(root, "home");
     const started = new Date();
     try {
-      // The stale-workspace reaper also honors explicit debugging retention.
-      if (o.keepWorkspaces) writeFileSync(join(root, ".j-rig-keep"), "");
-      mkdirSync(ws, { recursive: true });
-      if (o.fixturesDir) copyTree(o.fixturesDir, ws, new Set([".claude"]));
-      const files = context.context_hints?.["workspace_files"];
-      if (files !== undefined) {
-        if (typeof files !== "object" || files === null || Array.isArray(files)) {
-          throw new Error("context_hints.workspace_files must be a map of relative path to text");
-        }
-        for (const [p, content] of Object.entries(files as Record<string, unknown>)) {
-          if (typeof content !== "string") {
-            throw new Error(`context_hints.workspace_files["${p}"] must be a string`);
-          }
-          const dest = join(ws, safeWorkspacePath(p));
-          mkdirSync(dirname(dest), { recursive: true });
-          writeFileSync(dest, content);
-        }
-      }
-      // The naked baseline passes an empty body: run the same agent WITHOUT the skill.
-      if (context.skill_body.trim() !== "") {
-        copyTree(o.skillDir, join(ws, ".claude", "skills", o.skillName), SKIP_DIRS, true);
-      }
+      prepareWorkspace(o, context, root, ws);
       const before = snapshot(ws);
 
       writeSandboxCredentials(
@@ -516,82 +495,23 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
       }
       // Settle before artifact collection or failure handling: those can throw
       // after the process has already consumed subscription capacity.
-      finishAttempt?.({
-        usage: run.parsed.result?.usage ? { ...run.parsed.result.usage } : null,
-        reportedModel: run.parsed.init?.model?.trim() ? run.parsed.init.model : null,
-        outcome:
-          run.stop === "completed" && !run.refusal
-            ? "completed"
-            : ["timeout", "max_turns", "budget"].includes(run.stop)
-              ? "interrupted"
-              : "failed",
-      });
+      finishAttempt?.(attemptMeasurement(run));
       if (run.refusal) throw new ClaudeCodeRefusedError(run.refusal);
 
       const after = snapshot(ws);
       const manifest = diffManifests(before, after);
       const completed = new Date();
-      const { parsed } = run;
-      const r = parsed.result;
-
-      if (!r && run.stop === "no_result") {
-        // The CLI died without a result event: an infrastructure failure, not skill behavior.
-        throw new ProviderError({
-          category: /auth|login|credential|unauthori[sz]ed|401/i.test(run.stderrTail)
-            ? "authentication"
-            : "unknown",
-          providerName: CLAUDE_CODE_PROVIDER_NAME,
-          message: `claude exited ${run.exitCode} without a result event: ${run.stderrTail.slice(-500)}`,
-        });
-      }
-
-      const trajectory: Trajectory = {
-        schema: TRAJECTORY_SCHEMA,
-        source: CLAUDE_CODE_PROVIDER_NAME,
-        ...(parsed.init?.model ? { model: parsed.init.model } : {}),
-        steps: parsed.steps,
-        files: manifest,
-        turns: parsed.turns,
-        stop: run.stop,
-      };
-      const usage = r?.usage;
-      const inputTokens = usage?.inputTokens;
-      if (usage && o.onUsage) {
-        o.onUsage(`${CLAUDE_CODE_PROVIDER_NAME}/${parsed.init?.model ?? model}`, { ...usage });
-      }
-
-      const error =
-        run.stop === "max_turns"
-          ? `claude-code turn budget exhausted (${maxTurns} turns); the trajectory is truncated and is not graded`
-          : run.stop === "timeout"
-            ? `claude-code wall-clock budget exhausted (${timeoutMs} ms); the trajectory is truncated and is not graded`
-            : run.stop === "budget"
-              ? `claude-code --max-budget-usd exhausted; the trajectory is truncated and is not graded`
-              : run.stop === "error"
-                ? `claude-code run ended in error (${r?.subtype ?? "unknown"})`
-                : undefined;
-
-      return {
-        text: r?.text ?? parsed.lastText,
-        artifacts: producedArtifacts(manifest, after),
-        tool_calls: parsed.steps.length,
-        trajectory,
-        ...(error ? { error } : {}),
-        meta: {
-          started_at: started.toISOString(),
-          completed_at: completed.toISOString(),
-          duration_ms: completed.getTime() - started.getTime(),
-          ...(usage
-            ? {
-                input_tokens: inputTokens,
-                output_tokens: usage.outputTokens,
-                total_tokens: (inputTokens ?? 0) + usage.outputTokens,
-              }
-            : {}),
-          ...(r?.totalCostUsd !== undefined ? { estimated_cost_usd: r.totalCostUsd } : {}),
-          timed_out: run.stop === "timeout",
-        },
-      };
+      return buildExecutionOutput(
+        run,
+        manifest,
+        after,
+        started,
+        completed,
+        o,
+        model,
+        timeoutMs,
+        maxTurns,
+      );
     } finally {
       if (o.keepWorkspaces) process.stderr.write(`  [claude-code] kept workspace ${root}\n`);
       else rmSync(root, { recursive: true, force: true });
@@ -701,4 +621,124 @@ export class ClaudeCodeExecutionProvider implements ExecutionProvider {
       child.on("close", finish);
     });
   }
+}
+
+/** Prepare the same isolated files before credentials are checked or a process starts. */
+function prepareWorkspace(
+  o: ClaudeCodeProviderOptions,
+  context: ExecutionContext,
+  root: string,
+  ws: string,
+): void {
+  // The stale-workspace reaper also honors explicit debugging retention.
+  if (o.keepWorkspaces) writeFileSync(join(root, ".j-rig-keep"), "");
+  mkdirSync(ws, { recursive: true });
+  if (o.fixturesDir) copyTree(o.fixturesDir, ws, new Set([".claude"]));
+  const files = context.context_hints?.["workspace_files"];
+  if (files !== undefined) {
+    if (typeof files !== "object" || files === null || Array.isArray(files)) {
+      throw new Error("context_hints.workspace_files must be a map of relative path to text");
+    }
+    for (const [p, content] of Object.entries(files as Record<string, unknown>)) {
+      if (typeof content !== "string") {
+        throw new Error(`context_hints.workspace_files["${p}"] must be a string`);
+      }
+      const dest = join(ws, safeWorkspacePath(p));
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, content);
+    }
+  }
+  // The naked baseline passes an empty body: run the same agent WITHOUT the skill.
+  if (context.skill_body.trim() !== "") {
+    copyTree(o.skillDir, join(ws, ".claude", "skills", o.skillName), SKIP_DIRS, true);
+  }
+}
+
+/** Settle the launch attempt before any artifact processing can fail. */
+function attemptMeasurement(run: RunOutcome): ClaudeCodeMeasurement {
+  return {
+    usage: run.parsed.result?.usage ? { ...run.parsed.result.usage } : null,
+    reportedModel: run.parsed.init?.model?.trim() ? run.parsed.init.model : null,
+    outcome:
+      run.stop === "completed" && !run.refusal
+        ? "completed"
+        : ["timeout", "max_turns", "budget"].includes(run.stop)
+          ? "interrupted"
+          : "failed",
+  };
+}
+
+/** Preserve result, trajectory and usage reporting after the process has settled. */
+function buildExecutionOutput(
+  run: RunOutcome,
+  manifest: TrajectoryFile[],
+  after: Map<string, ManifestEntry>,
+  started: Date,
+  completed: Date,
+  o: ClaudeCodeProviderOptions,
+  model: string,
+  timeoutMs: number,
+  maxTurns: number,
+): ExecutionOutput & { meta: ExecutionMeta } {
+  const { parsed } = run;
+  const r = parsed.result;
+
+  if (!r && run.stop === "no_result") {
+    // The CLI died without a result event: an infrastructure failure, not skill behavior.
+    throw new ProviderError({
+      category: /auth|login|credential|unauthori[sz]ed|401/i.test(run.stderrTail)
+        ? "authentication"
+        : "unknown",
+      providerName: CLAUDE_CODE_PROVIDER_NAME,
+      message: `claude exited ${run.exitCode} without a result event: ${run.stderrTail.slice(-500)}`,
+    });
+  }
+
+  const trajectory: Trajectory = {
+    schema: TRAJECTORY_SCHEMA,
+    source: CLAUDE_CODE_PROVIDER_NAME,
+    ...(parsed.init?.model ? { model: parsed.init.model } : {}),
+    steps: parsed.steps,
+    files: manifest,
+    turns: parsed.turns,
+    stop: run.stop,
+  };
+  const usage = r?.usage;
+  const inputTokens = usage?.inputTokens;
+  if (usage && o.onUsage) {
+    o.onUsage(`${CLAUDE_CODE_PROVIDER_NAME}/${parsed.init?.model ?? model}`, { ...usage });
+  }
+
+  const error =
+    run.stop === "max_turns"
+      ? `claude-code turn budget exhausted (${maxTurns} turns); the trajectory is truncated and is not graded`
+      : run.stop === "timeout"
+        ? `claude-code wall-clock budget exhausted (${timeoutMs} ms); the trajectory is truncated and is not graded`
+        : run.stop === "budget"
+          ? `claude-code --max-budget-usd exhausted; the trajectory is truncated and is not graded`
+          : run.stop === "error"
+            ? `claude-code run ended in error (${r?.subtype ?? "unknown"})`
+            : undefined;
+
+  return {
+    text: r?.text ?? parsed.lastText,
+    artifacts: producedArtifacts(manifest, after),
+    tool_calls: parsed.steps.length,
+    trajectory,
+    ...(error ? { error } : {}),
+    meta: {
+      started_at: started.toISOString(),
+      completed_at: completed.toISOString(),
+      duration_ms: completed.getTime() - started.getTime(),
+      ...(usage
+        ? {
+            input_tokens: inputTokens,
+            output_tokens: usage.outputTokens,
+            total_tokens: (inputTokens ?? 0) + usage.outputTokens,
+          }
+        : {}),
+      ...(r?.totalCostUsd !== undefined ? { estimated_cost_usd: r.totalCostUsd } : {}),
+      timed_out: run.stop === "timeout",
+    },
+  };
 }
