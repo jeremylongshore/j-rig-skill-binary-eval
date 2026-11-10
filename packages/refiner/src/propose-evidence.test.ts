@@ -150,6 +150,26 @@ describe("durable proposal accounting", () => {
     expect(completed[0].value.runId).toBe(completed[1].value.runId);
     expect(completed[0].value.promptHash).not.toBe(completed[1].value.promptHash);
   });
+  it("distinguishes skills with identical content in successful and failed receipts", async () => {
+    const { store, records } = setup();
+    const other = makeSkillDoc("other-skill", doc.text);
+    expect(other.hash).toBe(doc.hash);
+    await proposeWithEvidence(strategy, { doc, rollouts: [] }, client(proposal), store, opts);
+    await expect(
+      proposeWithEvidence(strategy, { doc: other, rollouts: [] }, client("invalid"), store, opts),
+    ).rejects.toThrow();
+    const receipts = records().filter(
+      (r) => r.kind === "completion-attempt" || r.kind === "proposal-attempt",
+    );
+    expect(receipts.map((r) => r.value.skillId)).toEqual([
+      "demo",
+      "demo",
+      "demo",
+      "other-skill",
+      "other-skill",
+      "other-skill",
+    ]);
+  });
   it("keeps missing usage explicit and distinct calls distinct", async () => {
     const { store, records } = setup();
     for (let i = 0; i < 2; i++)
