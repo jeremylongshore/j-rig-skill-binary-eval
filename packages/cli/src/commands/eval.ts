@@ -81,6 +81,7 @@ import {
 } from "../providers/anthropic.js";
 import {
   RealAnthropicProvider,
+  resolveAnthropicModel,
   AnthropicTriggerProvider,
   AnthropicExecutionProvider,
   AnthropicJudgeProvider,
@@ -324,7 +325,7 @@ export function selectJudgeOverride(
       throw new Error("--judge-provider anthropic requires ANTHROPIC_API_KEY");
     }
     const provider = wrap(new RealAnthropicProvider({ apiKey }));
-    const modelId = judgeModel || targetModel;
+    const modelId = resolveAnthropicModel(judgeModel || targetModel);
     return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
   }
 
@@ -347,7 +348,7 @@ export function selectJudgeOverride(
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey && apiKey.length >= 8) {
       const provider = wrap(new RealAnthropicProvider({ apiKey }));
-      const modelId = judgeModel || targetModel;
+      const modelId = resolveAnthropicModel(judgeModel || targetModel);
       return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
     }
     // `--judge-model` alone with NO real key anywhere: fall back to the stub
@@ -456,11 +457,11 @@ function selectProviders(
       return {
         trigger: new AnthropicTriggerProvider(model, provider),
         execution: new AnthropicExecutionProvider(model, provider),
-        judge: new AnthropicJudgeProvider(model, provider),
+        judge: new AnthropicJudgeProvider(resolveAnthropicModel(model), provider),
         real: true,
         providerName: "anthropic",
         judgeProviderName: "anthropic",
-        judgeModelId: model,
+        judgeModelId: resolveAnthropicModel(model),
       };
     }
 

@@ -97,6 +97,15 @@ pointer. Missing/poor quality yields no evaluator calls and no stored assessment
 `assessProposal` is the exported injectable orchestration API; its clock is
 explicit and the default schema validator is the kernel validator.
 
+Assessment requires 1–8 operations (the shared `MAX_OPS_PER_PROPOSAL` bound)
+before evaluator I/O. Both score invocations pin `judgeProvider`/`judgeModel`
+from reviewed quality evidence, overriding caller scoring options. The subprocess
+forwards `--judge-provider`/`--judge-model`; Anthropic metadata reports the
+resolved transport model ID. Calibration must name that concrete ID, since a
+tier alias does not match the runtime identity. Ordinary scoring can still use
+execution tiers. Tracked by `bd_000-projects-214c.16` /
+[issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

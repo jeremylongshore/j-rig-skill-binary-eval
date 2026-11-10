@@ -408,6 +408,8 @@ describe("frozen scoring integrity", () => {
       skillDir: "/does-not-exist",
       modelTier: "sonnet",
       provider: "openai",
+      judgeProvider: "anthropic",
+      judgeModel: "claude-sonnet-4-6",
     });
     expect(result.exitCode).toBe(0);
     const { proof } = JSON.parse(result.stdout).sonnet;
@@ -427,6 +429,8 @@ describe("frozen scoring integrity", () => {
     );
     expect(proof.args).toContain("--no-trigger");
     expect(proof.args).toContain("openai");
+    expect(proof.args[proof.args.indexOf("--judge-provider") + 1]).toBe("anthropic");
+    expect(proof.args[proof.args.indexOf("--judge-model") + 1]).toBe("claude-sonnet-4-6");
     expect(proof.mode).toBe(0o700);
     expect(existsSync(proof.root)).toBe(false);
     const record = await score(doc, evalSet, runner, { skillDir: "/does-not-exist" });
