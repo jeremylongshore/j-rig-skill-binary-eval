@@ -112,10 +112,18 @@ describe("fresh item-level scoring evidence", () => {
   });
 
   it("refuses nonboolean adversarial flags before evaluation", async () => {
-    const invalid = withItems(evalSet.items.map((item) => ({ ...item, adversarial: "yes" })));
+    // Deliberately malformed external JSON: the public type now declares this flag.
+    const invalid = withItems(
+      evalSet.items.map((item) => ({
+        ...item,
+        adversarial: "yes",
+      })) as unknown as typeof baseSet.items,
+    );
     const runner = fakeRunner({ stdout: evidenceJson() });
     const spy = vi.spyOn(runner, "run");
-    await expect(score(doc, invalid, runner, { skillDir: "/d" })).rejects.toThrow(/boolean/);
+    await expect(score(doc, invalid, runner, { skillDir: "/d" })).rejects.toThrow(
+      ScoreAdapterError,
+    );
     expect(spy).not.toHaveBeenCalled();
   });
 });
