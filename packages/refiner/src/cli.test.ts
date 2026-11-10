@@ -191,7 +191,17 @@ describe("`j-rig refine assess` — quality gate and durable assessment", () => 
             evalSet,
             qualityEvidence: evidence,
           });
-          expect(store.readLog().length).toBe(before + 1);
+          const newEvents = store.readLog().slice(before);
+          expect(
+            newEvents.filter((e) => e.type === "stored" && e.kind === "evaluation-attempt"),
+          ).toHaveLength(4);
+          const outcome = newEvents.find(
+            (e) => e.type === "stored" && e.kind === "evaluation-outcome",
+          );
+          expect(outcome?.type === "stored" ? store.get(outcome.hash) : null).toMatchObject({
+            assessmentHash: result.stored,
+            status: "evaluated",
+          });
         } else {
           expect(result).toEqual({ status: "blocked", reasons: ["missing-quality-evidence"] });
           expect(runner.run).not.toHaveBeenCalled();

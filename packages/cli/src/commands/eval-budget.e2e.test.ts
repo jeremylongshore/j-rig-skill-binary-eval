@@ -22,7 +22,9 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-async function fixtureServer(): Promise<{ server: Server; port: number; calls: () => number }> {
+async function fixtureServer(
+  omitUsage = false,
+): Promise<{ server: Server; port: number; calls: () => number }> {
   let calls = 0;
   const server = createServer(async (request, response) => {
     // Local port probes are not model completions and must not be parsed as JSON.
@@ -45,7 +47,7 @@ async function fixtureServer(): Promise<{ server: Server; port: number; calls: (
     response.end(
       JSON.stringify({
         choices: [{ finish_reason: "stop", message: { content } }],
-        usage: { prompt_tokens: 3, completion_tokens: 2 },
+        ...(omitUsage ? {} : { usage: { prompt_tokens: 3, completion_tokens: 2 } }),
       }),
     );
   });
@@ -212,6 +214,35 @@ describe("j-rig eval budgets (actual CLI)", { timeout: 30000 }, () => {
       server.close();
     }
   });
+
+  it.each(["--max-tokens", "--max-usd"])(
+    "checks missing usage on the final call at the phase boundary (%s)",
+    async (flag) => {
+      const { server, port, calls } = await fixtureServer(true);
+      try {
+        const r = await runEval(
+          port,
+          (spec) => {
+            spec.test_cases = (spec.test_cases as unknown[]).slice(0, 1);
+          },
+          ["--no-functional", flag, "100"],
+          "deepseek-v4-flash",
+        );
+        expect(calls()).toBe(1);
+        expect(r.exitCode).toBe(3);
+        const row = r.out["deepseek-v4-flash"]!;
+        expect(row.budget_stop).toMatchObject({ observed: null });
+        expect(row.cost).toMatchObject({
+          unknown_calls: 1,
+          usage_complete: false,
+          estimated_usd: null,
+        });
+        expect(row).not.toHaveProperty("decision");
+      } finally {
+        server.close();
+      }
+    },
+  );
 
   it("rejects a malformed budget flag before any call", async () => {
     const { server, port, calls } = await fixtureServer();

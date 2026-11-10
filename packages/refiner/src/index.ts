@@ -109,3 +109,6 @@ export {
   type CompletionMeasurement,
   type MeasuredCompletion,
 } from "./completion-usage.js";
+
+export { createAccountingEvalRunner } from "./score-evidence.js";
+export { readEvaluationUsage, type EvaluationUsageMeasurement } from "./score.js";

@@ -101,7 +101,7 @@ describe("LiteLlmProvider.complete — EC-1 single completion", () => {
       model: "openai/gpt-4o",
       messages: [{ role: "user", content: "q" }],
     });
-    expect(result.usage.cachedInputTokens).toBe(4);
+    expect(result.usage?.cachedInputTokens).toBe(4);
   });
 
   it("throws schema_violation when responseSchema requested but output is not JSON", async () => {
@@ -402,7 +402,7 @@ describe("LiteLlmProvider — normalization edge cases (branch coverage)", () =>
     expect(result.finishReason).toBe("stop");
   });
 
-  it("treats a missing message content as empty text and zero usage", async () => {
+  it("treats a missing message content as empty text and unknown usage", async () => {
     const { transport } = fakeTransport(() => ({
       status: 200,
       json: { choices: [{ message: {}, finish_reason: "stop" }] },
@@ -413,7 +413,7 @@ describe("LiteLlmProvider — normalization edge cases (branch coverage)", () =>
       messages: [{ role: "user", content: "q" }],
     });
     expect(result.text).toBe("");
-    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(result.usage).toBeNull();
   });
 
   it("strips a trailing slash from a custom baseUrl", async () => {

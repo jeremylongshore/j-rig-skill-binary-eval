@@ -25,7 +25,13 @@ import type {
   AdversarialEvalItem,
   ItemResult,
 } from "@intentsolutions/refiner-core";
-import { hashSkillDoc, hashValue, validateEvalSet } from "@intentsolutions/refiner-core";
+import {
+  EvaluationUsageEvidenceSchema,
+  type EvaluationUsageEvidence,
+  hashSkillDoc,
+  hashValue,
+  validateEvalSet,
+} from "@intentsolutions/refiner-core";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -121,6 +127,7 @@ export async function score(
 
 /** Fresh scoring evidence for quality-gated orchestration; aggregate-only output is refused. */
 export interface ScoredEvaluation {
+  readonly usage: EvaluationUsageMeasurement;
   readonly record: ScoreRecord;
   readonly itemResults: readonly ItemResult[];
   readonly judge: { readonly provider: string; readonly model: string };
@@ -134,7 +141,12 @@ export async function scoreWithEvidence(
 ): Promise<ScoredEvaluation> {
   const result = await runScore(doc, evalSet, runner, opts, true);
   // extractScoreCard requires complete item evidence on this path.
-  return { record: result.record, itemResults: result.itemResults!, judge: result.judge! };
+  return {
+    record: result.record,
+    itemResults: result.itemResults!,
+    judge: result.judge!,
+    usage: result.usage,
+  };
 }
 
 async function runScore(
@@ -145,6 +157,7 @@ async function runScore(
   requireItemResults: boolean,
 ): Promise<{
   record: ScoreRecord;
+  usage: EvaluationUsageMeasurement;
   itemResults?: readonly ItemResult[];
   judge?: { provider: string; model: string };
 }> {
@@ -178,6 +191,7 @@ async function runScore(
   const scoreCard = extractScoreCard(result.stdout, modelTier, frozenSet, requireItemResults);
   return {
     record: mapToScoreRecord(frozenDoc, frozenSet, scoreCard),
+    usage: readEvaluationUsage(result.stdout, modelTier),
     itemResults: scoreCard.itemResults,
     judge: scoreCard.judge,
   };
@@ -536,4 +550,28 @@ export function checkedInputs(
     }
   }
   return { doc: { ...doc }, evalSet: structuredClone(evalSet) };
+}
+
+export interface EvaluationUsageMeasurement {
+  readonly status: "reported" | "missing" | "invalid";
+  readonly evidence: EvaluationUsageEvidence | null;
+}
+
+/** Select the same per-model output as scoring, including nonzero-exit evidence. */
+export function readEvaluationUsage(stdout: string, model: string): EvaluationUsageMeasurement {
+  const json = parseLastJsonObject(stdout);
+  if (!json) return { status: "missing", evidence: null };
+  const values = Object.values(json);
+  const row = json[model] ?? (values.length === 1 ? values[0] : undefined);
+  if (!row || typeof row !== "object" || Array.isArray(row))
+    return { status: "invalid", evidence: null };
+  const cost = (row as Record<string, unknown>).cost;
+  if (cost === undefined || cost === null) return { status: "missing", evidence: null };
+  if (typeof cost !== "object" || Array.isArray(cost)) return { status: "invalid", evidence: null };
+  const raw = (cost as Record<string, unknown>).usage_evidence;
+  if (raw === undefined) return { status: "missing", evidence: null };
+  const parsed = EvaluationUsageEvidenceSchema.safeParse(raw);
+  return parsed.success
+    ? { status: "reported", evidence: parsed.data }
+    : { status: "invalid", evidence: null };
 }

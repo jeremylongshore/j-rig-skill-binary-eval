@@ -193,8 +193,8 @@ describe("RealOpenAICompatProvider.complete — wire format", () => {
 
     expect(result.text).toBe("hello world");
     expect(result.finishReason).toBe("stop");
-    expect(result.usage.inputTokens).toBe(10);
-    expect(result.usage.outputTokens).toBe(5);
+    expect(result.usage?.inputTokens).toBe(10);
+    expect(result.usage?.outputTokens).toBe(5);
   });
 
   it("maps finish_reason=length to finishReason=length", async () => {
@@ -656,7 +656,7 @@ describe("RealOpenAICompatProvider — streaming, batch, normalization", () => {
       model: "m",
       messages: [{ role: "user", content: "x" }],
     });
-    expect(result.usage.cachedInputTokens).toBe(4);
+    expect(result.usage?.cachedInputTokens).toBe(4);
   });
 
   it("threads a tool-result (role:tool) message into the wire shape", async () => {

@@ -1115,8 +1115,8 @@ export function registerEvalCommand(program: Command): void {
             executionProvider: providers.providerName,
             judgeProvider: providers.judgeProviderName,
           });
-          if (runBudget.stop) {
-            stopForBudget(runBudget.stop);
+          if (runBudget.check()) {
+            stopForBudget(runBudget.stop!);
             break;
           }
 
@@ -1312,8 +1312,8 @@ export function registerEvalCommand(program: Command): void {
               );
             }
 
-            if (runBudget.stop) {
-              stopForBudget(runBudget.stop);
+            if (runBudget.check()) {
+              stopForBudget(runBudget.stop!);
               break;
             }
 
@@ -1458,8 +1458,8 @@ export function registerEvalCommand(program: Command): void {
             }
             // The naked-baseline pass spends too; a stop there leaves the
             // skill pass's criterion results stored but the run unverdicted.
-            if (runBudget.stop) {
-              stopForBudget(runBudget.stop);
+            if (runBudget.check()) {
+              stopForBudget(runBudget.stop!);
               break;
             }
 
@@ -1890,7 +1890,7 @@ export function registerEvalCommand(program: Command): void {
             const { total, phases } = costReport;
             console.log(
               `  Eval cost: ${total.input_tokens} in / ${total.output_tokens} out tokens, ` +
-                `${total.calls} calls ` +
+                `${total.calls} calls (${costReport.unknown_calls} unmeasured; tokens are known subtotals) ` +
                 `(trigger ${phases.trigger.calls}, execution ${phases.execution.calls}, ` +
                 `judge ${phases.judge.calls})`,
             );
@@ -1925,6 +1925,9 @@ export function registerEvalCommand(program: Command): void {
                 inputTokens: p.input_tokens,
                 outputTokens: p.output_tokens,
                 calls: p.calls,
+                unknownCalls: costReport.usage_evidence.calls.filter(
+                  (call) => call.phase === phase && call.usage === null,
+                ).length,
                 ...(phase === CostPhaseName.JUDGE ? { judgeSamples: judgeSamples ?? 1 } : {}),
               });
             }
@@ -1933,6 +1936,8 @@ export function registerEvalCommand(program: Command): void {
               totalOutputTokens: costReport.total.output_tokens,
               totalCalls: costReport.total.calls,
               estimatedUsd: costReport.estimated_usd,
+              usageComplete: costReport.usage_complete,
+              unknownCalls: costReport.unknown_calls,
             });
           }
 

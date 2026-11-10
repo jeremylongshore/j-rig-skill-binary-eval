@@ -383,7 +383,7 @@ describe("VercelAiProvider — normalization edge cases (branch coverage)", () =
     expect(result.finishReason).toBe("stop");
   });
 
-  it("treats a missing text field as empty and missing usage as zero", async () => {
+  it("treats a missing text field as empty and missing usage as unknown", async () => {
     const { transport } = fakeTransport(() => ({ status: 200, json: { finishReason: "stop" } }));
     const p = new VercelAiProvider({ apiKey: KEY, transport });
     const result = await p.complete({
@@ -391,7 +391,7 @@ describe("VercelAiProvider — normalization edge cases (branch coverage)", () =
       messages: [{ role: "user", content: "q" }],
     });
     expect(result.text).toBe("");
-    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(result.usage).toBeNull();
   });
 
   it('coerces a non-object string tool arg (e.g. "5") to an empty object', async () => {

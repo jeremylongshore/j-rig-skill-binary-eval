@@ -161,6 +161,8 @@ export function emitCostRunRecorded(
     totalOutputTokens: number;
     totalCalls: number;
     estimatedUsd: number | null;
+    usageComplete?: boolean;
+    unknownCalls?: number;
   },
 ): void {
   emitOtelEvent(OtelEvents.COST_RUN_RECORDED, {
@@ -169,6 +171,12 @@ export function emitCostRunRecorded(
     [OtelAttrs.COST_RUN_TOTAL_OUTPUT_TOKENS]: payload.totalOutputTokens,
     [OtelAttrs.COST_RUN_TOTAL_CALLS]: payload.totalCalls,
     [OtelAttrs.COST_RUN_USD_KNOWN]: payload.estimatedUsd !== null,
+    ...(payload.usageComplete !== undefined
+      ? { [OtelAttrs.COST_RUN_USAGE_COMPLETE]: payload.usageComplete }
+      : {}),
+    ...(payload.unknownCalls !== undefined
+      ? { [OtelAttrs.COST_RUN_UNKNOWN_CALLS]: payload.unknownCalls }
+      : {}),
     ...(payload.estimatedUsd !== null
       ? { [OtelAttrs.COST_RUN_ESTIMATED_USD]: payload.estimatedUsd }
       : {}),
@@ -189,6 +197,7 @@ export function emitCostPhaseRecorded(
     outputTokens: number;
     calls: number;
     judgeSamples?: number;
+    unknownCalls?: number;
   },
 ): void {
   emitOtelEvent(OtelEvents.COST_PHASE_RECORDED, {
@@ -197,6 +206,9 @@ export function emitCostPhaseRecorded(
     [OtelAttrs.COST_PHASE_INPUT_TOKENS]: payload.inputTokens,
     [OtelAttrs.COST_PHASE_OUTPUT_TOKENS]: payload.outputTokens,
     [OtelAttrs.COST_PHASE_CALLS]: payload.calls,
+    ...(payload.unknownCalls !== undefined
+      ? { [OtelAttrs.COST_PHASE_UNKNOWN_CALLS]: payload.unknownCalls }
+      : {}),
     ...(payload.judgeSamples !== undefined
       ? { [OtelAttrs.COST_PHASE_JUDGE_SAMPLES]: payload.judgeSamples }
       : {}),

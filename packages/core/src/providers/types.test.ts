@@ -95,7 +95,7 @@ describe("CleanProvider conformance", () => {
     expect(r.finishReason).toBe("stop");
     expect(r.model).toBe("synthetic/test");
     expect(typeof r.text).toBe("string");
-    expect(r.usage.inputTokens).toBe(0);
+    expect(r.usage?.inputTokens).toBe(0);
   });
 
   it("completeStream yields text_delta then finish", async () => {

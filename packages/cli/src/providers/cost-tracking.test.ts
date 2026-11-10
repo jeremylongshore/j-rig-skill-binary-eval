@@ -144,13 +144,15 @@ describe("EvalCostMeter", () => {
     expect(r.total.input_tokens).toBe(5 + 1 + 1);
   });
 
-  it("ignores a missing usage object instead of propagating NaN", () => {
+  it("counts missing usage as unknown instead of fabricating zero", () => {
     const meter = new EvalCostMeter();
     meter.record("m", undefined as unknown as import("@j-rig/core").TokenUsage);
     meter.record("m", {} as import("@j-rig/core").TokenUsage);
 
     const r = meter.report();
-    expect(r.total.calls).toBe(1); // the {} usage counts as a call with 0 tokens
+    expect(r.total.calls).toBe(2);
+    expect(r.unknown_calls).toBe(2);
+    expect(r.estimated_usd).toBeNull();
     expect(r.total.input_tokens).toBe(0);
     expect(Number.isNaN(r.total.input_tokens)).toBe(false);
   });
@@ -265,5 +267,159 @@ describe("model rates (MiniMax + Claude)", () => {
     expect(r.estimated_usd).toBeNull();
     expect(r.billed_usd).toBeNull();
     expect(r.by_model[0]).toMatchObject({ usd: null, rate_key: null, billed: false });
+  });
+});
+
+describe("complete evaluator usage evidence", () => {
+  it.each([
+    null,
+    {},
+    { inputTokens: -1, outputTokens: 2 },
+    { inputTokens: 1.1, outputTokens: 2 },
+    { inputTokens: NaN, outputTokens: 2 },
+    { inputTokens: 3, outputTokens: 2, cachedInputTokens: 4 },
+    { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 1 },
+  ])("keeps malformed usage unknown: %j", (usage) => {
+    const meter = new EvalCostMeter();
+    meter.record("deepseek-v4-flash", usage as never);
+    expect(meter.report()).toMatchObject({
+      usage_complete: false,
+      unknown_calls: 1,
+      estimated_usd: null,
+    });
+  });
+  it("does not overflow accumulated totals or expose mutable internal receipts", () => {
+    const meter = new EvalCostMeter();
+    meter.record("m", { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 0 });
+    meter.record("m", { inputTokens: 1, outputTokens: 0 });
+    const report = meter.report();
+    expect(report.unknown_calls).toBe(1);
+    expect(report.total.input_tokens).toBe(Number.MAX_SAFE_INTEGER);
+    report.usage_evidence.calls[0].usage!.inputTokens = 0;
+    expect(meter.report().total.input_tokens).toBe(Number.MAX_SAFE_INTEGER);
+  });
+  it("preserves the starting phase and distinct requested/reported models", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("alias");
+    inner.complete = async () => {
+      meter.phase = "judge";
+      return { ...completion("alias", 10, 2), reportedModel: "actual" };
+    };
+    await new CostTrackingProvider(inner, meter).complete(req("alias"));
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      phase: "trigger",
+      requestedModel: "alias",
+      reportedModel: "actual",
+    });
+  });
+  it("retains rejected complete/tool/batch calls as unknown with no error payload", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.complete =
+      inner.callTool =
+      inner.batch =
+        async () => {
+          throw new Error("secret");
+        };
+    const provider = new CostTrackingProvider(inner, meter);
+    await expect(provider.complete(req())).rejects.toThrow();
+    await expect(provider.callTool({ ...req(), tools: [] })).rejects.toThrow();
+    await expect(provider.batch([req(), req()])).rejects.toThrow();
+    expect(meter.report().unknown_calls).toBe(4);
+    expect(meter.report().usage_evidence.calls.every((c) => c.outcome === "failed")).toBe(true);
+    expect(JSON.stringify(meter.report())).not.toContain("secret");
+  });
+  it("records truncated and duplicate-finish streams without fabricating measurements", async () => {
+    for (const duplicate of [false, true]) {
+      const meter = new EvalCostMeter();
+      const inner = fakeProvider("m");
+      inner.completeStream = async function* () {
+        yield { type: "text_delta", delta: "partial" };
+        if (duplicate)
+          for (let i = 0; i < 2; i++)
+            yield {
+              type: "finish",
+              finishReason: "stop",
+              usage: { inputTokens: 2, outputTokens: 3 },
+            };
+      };
+      const consume = async () => {
+        for await (const chunk of new CostTrackingProvider(inner, meter).completeStream(req()))
+          void chunk;
+      };
+      if (duplicate) await expect(consume()).rejects.toThrow("Duplicate");
+      else await consume();
+      expect(meter.report().unknown_calls).toBe(1);
+      expect(meter.report().total.calls).toBe(1);
+    }
+  });
+  it("retains usage if a stream fails after its valid terminal measurement", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.completeStream = async function* () {
+      yield { type: "finish", finishReason: "stop", usage: { inputTokens: 2, outputTokens: 3 } };
+      throw new Error("end");
+    };
+    await expect(
+      (async () => {
+        for await (const chunk of new CostTrackingProvider(inner, meter).completeStream(req()))
+          void chunk;
+      })(),
+    ).rejects.toThrow();
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      outcome: "failed",
+      usage: { inputTokens: 2, outputTokens: 3 },
+    });
+  });
+  it("counts missing batch entries and does not hide in-band errors", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.batch = async () => [completion("m", 1, 2)];
+    await new CostTrackingProvider(inner, meter).batch([req(), req()]);
+    expect(meter.report()).toMatchObject({
+      unknown_calls: 1,
+      total: { calls: 2, input_tokens: 1, output_tokens: 2 },
+    });
+  });
+  it("counts malformed batch elements as unknown without losing the remaining results", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.batch = async () => [7 as never, completion("m", 1, 2)];
+    const results = await new CostTrackingProvider(inner, meter).batch([req(), req()]);
+    expect(results).toHaveLength(2);
+    expect(meter.report()).toMatchObject({
+      unknown_calls: 1,
+      total: { calls: 2, input_tokens: 1, output_tokens: 2 },
+    });
+  });
+  it("refuses double settlement and invalid phase/identity", () => {
+    const meter = new EvalCostMeter();
+    expect(() => {
+      meter.phase = "other" as never;
+    }).toThrow();
+    expect(() => meter.begin("")).toThrow();
+    const call = meter.begin("m");
+    meter.finish(call, null, "interrupted");
+    expect(() => meter.finish(call, null)).toThrow();
+  });
+  it("does not clamp invalid cache counts or price unpriced writes", () => {
+    expect(
+      priceUsage(
+        { input: 1, output: 1 },
+        { input_tokens: 1, output_tokens: 1, cached_input_tokens: 2 },
+      ),
+    ).toBeNull();
+    expect(
+      priceUsage(
+        { input: 1, output: 1 },
+        {
+          input_tokens: 10,
+          output_tokens: 1,
+          cached_input_tokens: 0,
+          cache_creation_input_tokens: 5,
+        },
+      ),
+    ).toBeNull();
+    expect(lookupModelRate("constructor")).toBeNull();
   });
 });

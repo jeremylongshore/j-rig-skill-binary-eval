@@ -62,7 +62,9 @@ export type RefinerRecordKind =
   | "optimizer-source"
   | "optimizer-experiment"
   | "completion-attempt"
-  | "proposal-attempt";
+  | "proposal-attempt"
+  | "evaluation-attempt"
+  | "evaluation-outcome";
 
 /** A single line in the append-only event log. */
 export type RefinerEvent =

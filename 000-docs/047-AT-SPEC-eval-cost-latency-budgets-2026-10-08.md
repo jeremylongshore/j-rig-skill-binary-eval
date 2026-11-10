@@ -123,3 +123,17 @@ figure, so a subscription run is capped at list price too.
   later model skipped), spec budget tightened by flag, unpriced `--max-usd`,
   a run within budget, a malformed flag.
 - `packages/core/src/schemas/skill-eval-spec.test.ts`: the `budget` field.
+
+## Usage completeness repair (214c.18)
+
+Provider-interface calls now retain ordered usage evidence, including failed and
+interrupted calls. Missing/invalid usage is null; numeric report totals are known
+subtotals with explicit completeness and unknown-call counts. Token and USD
+limits stop on unknown settled usage. Phase boundaries actively check limits,
+including a final call that leaves usage unknown without another admission.
+In-flight requests retain the existing soft-cap semantics and count toward the
+call limit; this is not a hard USD reservation system. Cache writes without a
+rate in the advisory table yield unknown USD instead of an input-rate estimate.
+Refiner persists scoring call evidence before accepting/rejecting score output.
+See API029 §8.10 and `bd_000-projects-214c.18` / issue #403 for remaining hard
+pricing, reservation, ledger and quarantine requirements.

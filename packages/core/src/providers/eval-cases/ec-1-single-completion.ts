@@ -107,8 +107,10 @@ async function runOne(
       metric: {
         verdict: obj.verdict,
         reasoning_length: obj.reasoning.length,
-        input_tokens: result.usage.inputTokens,
-        output_tokens: result.usage.outputTokens,
+        usage_known: result.usage !== null,
+        ...(result.usage
+          ? { input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens }
+          : {}),
         finish_reason: result.finishReason,
       },
     };

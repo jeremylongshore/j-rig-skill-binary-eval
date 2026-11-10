@@ -196,3 +196,12 @@ export {
   type Experiment,
   type ExperimentStatus,
 } from "./optimizer.js";
+
+export {
+  EvaluationTokenUsageSchema,
+  EvaluationCallSchema,
+  EvaluationUsageEvidenceSchema,
+  type EvaluationTokenUsage,
+  type EvaluationCall,
+  type EvaluationUsageEvidence,
+} from "./evaluation-usage.js";
