@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { makeSkillDoc, bootstrap, hashValue } from "@intentsolutions/refiner-core";
 import {
   score,
+  scoreWithEvidence,
   createSubprocessEvalRunner,
   ScoreAdapterError,
   type EvalRunner,
@@ -28,6 +29,96 @@ const evalSet = withItems(
     expectation: `The response contains only the number ${i}.`,
   })),
 );
+
+const adversarialSet = withItems(
+  evalSet.items.map((item, index) => ({ ...item, adversarial: index < 2 })),
+);
+function itemEvidence(verdicts: readonly string[] = ["yes", "no", "yes", "yes"]) {
+  return verdicts.map((verdict, index) => ({
+    criterion_id: `refiner-item-${index}`,
+    test_case_id: evalSet.items[index].id,
+    verdict,
+  }));
+}
+function evidenceJson(rows: unknown = itemEvidence()): string {
+  const parsed = JSON.parse(jrigJson("sonnet", 3, 4));
+  parsed.sonnet.criterion_results = rows;
+  return JSON.stringify(parsed);
+}
+
+describe("fresh item-level scoring evidence", () => {
+  it("computes the adversarial dimension from the subset, not the aggregate", async () => {
+    const result = await scoreWithEvidence(
+      doc,
+      adversarialSet,
+      fakeRunner({ stdout: evidenceJson() }),
+      { skillDir: "/d" },
+    );
+    expect(result.record.behavioral.value).toBe(0.75);
+    expect(result.record.dimensions.adversarial_pass_rate).toEqual({
+      value: 0.5,
+      variance: 0.25,
+      n: 2,
+    });
+    expect(result.itemResults).toEqual([
+      { itemId: "case-0", passed: true },
+      { itemId: "case-1", passed: false },
+      { itemId: "case-2", passed: true },
+      { itemId: "case-3", passed: true },
+    ]);
+  });
+
+  it("requires item evidence for adversarial sets and for the orchestration API", async () => {
+    const runner = fakeRunner({ stdout: jrigJson("sonnet", 3, 4) });
+    await expect(score(doc, adversarialSet, runner, { skillDir: "/d" })).rejects.toThrow(
+      /per-item/,
+    );
+    await expect(scoreWithEvidence(doc, evalSet, runner, { skillDir: "/d" })).rejects.toThrow(
+      /per-item/,
+    );
+    expect(
+      (await score(doc, evalSet, runner, { skillDir: "/d" })).dimensions.adversarial_pass_rate,
+    ).toBeUndefined();
+  });
+
+  it("accepts reordered evidence and treats unsure as not passed", async () => {
+    const rows = itemEvidence(["yes", "unsure", "yes", "yes"]).reverse();
+    const result = await scoreWithEvidence(
+      doc,
+      adversarialSet,
+      fakeRunner({ stdout: evidenceJson(rows) }),
+      { skillDir: "/d" },
+    );
+    expect(result.record.dimensions.adversarial_pass_rate.value).toBe(0.5);
+  });
+
+  it.each([
+    null,
+    [],
+    itemEvidence().slice(0, 3),
+    [null, ...itemEvidence().slice(1)],
+    [itemEvidence()[0], itemEvidence()[0], ...itemEvidence().slice(2)],
+    [{ ...itemEvidence()[0], criterion_id: "foreign" }, ...itemEvidence().slice(1)],
+    [{ ...itemEvidence()[0], test_case_id: "foreign" }, ...itemEvidence().slice(1)],
+    [{ ...itemEvidence()[0], verdict: ["yes"] }, ...itemEvidence().slice(1)],
+    [{ ...itemEvidence()[0], verdict: "invalid" }, ...itemEvidence().slice(1)],
+    itemEvidence(["no", "no", "yes", "yes"]),
+  ])("refuses incomplete, foreign, or inconsistent evidence %#", async (rows) => {
+    await expect(
+      scoreWithEvidence(doc, adversarialSet, fakeRunner({ stdout: evidenceJson(rows) }), {
+        skillDir: "/d",
+      }),
+    ).rejects.toThrow(ScoreAdapterError);
+  });
+
+  it("refuses nonboolean adversarial flags before evaluation", async () => {
+    const invalid = withItems(evalSet.items.map((item) => ({ ...item, adversarial: "yes" })));
+    const runner = fakeRunner({ stdout: evidenceJson() });
+    const spy = vi.spyOn(runner, "run");
+    await expect(score(doc, invalid, runner, { skillDir: "/d" })).rejects.toThrow(/boolean/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
 
 /** Build a fake EvalRunner that returns canned `j-rig eval --json` output. */
 function fakeRunner(
@@ -377,6 +468,10 @@ describe("frozen scoring integrity", () => {
     const result = JSON.parse(raw.stdout).sonnet;
     expect(result.ground_truth).toBe(false);
     expect(result.scoreCard.total_criteria).toBe(evalSet.items.length);
+    expect(result.criterion_results).toHaveLength(evalSet.items.length);
+    expect(
+      result.criterion_results.map((row: { test_case_id: string }) => row.test_case_id),
+    ).toEqual(evalSet.items.map((item) => item.id));
     await expect(score(validDoc, evalSet, fakeRunner(raw), { skillDir: "/d" })).rejects.toThrow(
       /real-provider evidence/,
     );

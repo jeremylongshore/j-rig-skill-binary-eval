@@ -467,6 +467,16 @@ It does not prove the separate capability-quality integration required by
 `bd_000-projects-214c.13` /
 [issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
 
+The additive `scoreWithEvidence` adapter returns a `ScoreRecord` and complete
+per-item results after validating frozen criterion/case identities and agreement
+with the evaluator aggregate. Adversarial items require these verdicts even on
+the legacy `score` path, and add an `adversarial_pass_rate` dimension with the
+subset's passing fraction, Bernoulli variance, and sample count. Higher means
+more adversarial cases satisfied their explicit expected behavior; `unsure`
+does not pass. Sets with no adversarial items have no adversarial dimension.
+These observations provide evidence for the acceptance-quality integration;
+they do not themselves enforce its quality preconditions.
+
 ## 9. Build and test
 
 ```bash

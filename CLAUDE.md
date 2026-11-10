@@ -80,6 +80,13 @@ and reports `capabilityCoverage` separately from legacy ID-prefix entropy.
 Absence of this report is missing evidence, not proof of completeness. This is
 the measurement stage of #394; acceptance orchestration remains in progress.
 
+`scoreWithEvidence` requires and returns complete per-item verdict evidence.
+Frozen items tagged `adversarial: true` produce an `adversarial_pass_rate`
+dimension from that subset, with its own sample count and variance. The evaluator
+JSON's additive `criterion_results` contains IDs and verdicts only. Criterion
+identity, test-case identity, uniqueness, and aggregate agreement are checked;
+`unsure` is not a pass. See the Refiner README for compatibility boundaries.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

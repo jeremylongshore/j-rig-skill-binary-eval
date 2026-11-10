@@ -100,6 +100,21 @@ pass rate produces no `ScoreRecord`. Historical scores and stored hashes are not
 rewritten. Existing records created before this fix do not establish execution
 identity retroactively; rerun the reviewed inputs before relying on them.
 
+Items may carry `adversarial: true` inside their hashed content. For these sets,
+scoring requires one evaluator verdict for each frozen criterion/case pair and
+checks that the number of passing items agrees with the aggregate. The
+`adversarial_pass_rate` dimension reports the passing fraction, Bernoulli
+variance, and sample count over the adversarial subset. Passing means satisfying
+the explicit expected behavior (for example, rejecting an injected instruction),
+so higher is better. Missing adversarial items produce no dimension, not a
+synthetic zero. An `unsure` verdict is not a pass.
+
+The exported `scoreWithEvidence` adapter always requires full per-item verdicts
+and returns `{ record, itemResults }` for acceptance orchestration. The existing
+`score` API retains aggregate-only compatibility for non-adversarial sets.
+`j-rig eval --json` exposes `criterion_results` with criterion IDs, test-case IDs,
+and verdicts only; it adds no raw model output or judge explanations.
+
 Tracked by `bd_000-projects-214c.14`, [issue #393](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/393).
 Capability coverage and acceptance-quality integration remain separate work in
 `bd_000-projects-214c.13`, [issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).

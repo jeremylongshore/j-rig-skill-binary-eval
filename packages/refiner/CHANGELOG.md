@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- `scoreWithEvidence` returns a freshly scored record and complete per-item
+  results. Adversarial eval items produce an independently measured
+  `adversarial_pass_rate` dimension; missing or inconsistent item evidence fails
+  before producing a score.
+
 ### Fixed
 
 - Bind scoring to the supplied frozen document and eval-set content instead of

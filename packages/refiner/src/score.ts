@@ -17,7 +17,14 @@
  * without invoking the real evaluator (no live model key, no subprocess).
  */
 
-import type { SkillDoc, EvalSet, ScoreRecord, ScoreDimension } from "@intentsolutions/refiner-core";
+import type {
+  SkillDoc,
+  EvalSet,
+  ScoreRecord,
+  ScoreDimension,
+  AdversarialEvalItem,
+  ItemResult,
+} from "@intentsolutions/refiner-core";
 import { hashSkillDoc, hashValue, validateEvalSet } from "@intentsolutions/refiner-core";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -103,6 +110,33 @@ export async function score(
   runner: EvalRunner,
   opts: ScoreOptions,
 ): Promise<ScoreRecord> {
+  return (await runScore(doc, evalSet, runner, opts, false)).record;
+}
+
+/** Fresh scoring evidence for quality-gated orchestration; aggregate-only output is refused. */
+export interface ScoredEvaluation {
+  readonly record: ScoreRecord;
+  readonly itemResults: readonly ItemResult[];
+}
+
+export async function scoreWithEvidence(
+  doc: SkillDoc,
+  evalSet: EvalSet,
+  runner: EvalRunner,
+  opts: ScoreOptions,
+): Promise<ScoredEvaluation> {
+  const result = await runScore(doc, evalSet, runner, opts, true);
+  // extractScoreCard requires complete item evidence on this path.
+  return { record: result.record, itemResults: result.itemResults! };
+}
+
+async function runScore(
+  doc: SkillDoc,
+  evalSet: EvalSet,
+  runner: EvalRunner,
+  opts: ScoreOptions,
+  requireItemResults: boolean,
+): Promise<{ record: ScoreRecord; itemResults?: readonly ItemResult[] }> {
   const { doc: frozenDoc, evalSet: frozenSet } = checkedInputs(doc, evalSet);
   const modelTier: string = opts.modelTier ?? "sonnet";
   const result = await runner.run({
@@ -128,8 +162,11 @@ export async function score(
     );
   }
 
-  const scoreCard = extractScoreCard(result.stdout, modelTier, frozenSet.items.length);
-  return mapToScoreRecord(frozenDoc, frozenSet, scoreCard);
+  const scoreCard = extractScoreCard(result.stdout, modelTier, frozenSet, requireItemResults);
+  return {
+    record: mapToScoreRecord(frozenDoc, frozenSet, scoreCard),
+    itemResults: scoreCard.itemResults,
+  };
 }
 
 /** The subset of `j-rig eval --json` output the refiner consumes. */
@@ -137,6 +174,7 @@ interface JRigScoreCard {
   readonly total_criteria: number;
   readonly passed: number;
   readonly pass_rate: number;
+  readonly itemResults?: readonly ItemResult[];
 }
 
 /**
@@ -147,7 +185,13 @@ interface JRigScoreCard {
  * differs (the OpenAI-compatible path substitutes a vendor model id for the
  * short alias — so a single-entry object is taken as-is).
  */
-function extractScoreCard(stdout: string, modelTier: string, expectedCount: number): JRigScoreCard {
+function extractScoreCard(
+  stdout: string,
+  modelTier: string,
+  evalSet: EvalSet,
+  requireItemResults: boolean,
+): JRigScoreCard {
+  const expectedCount = evalSet.items.length;
   const json = parseLastJsonObject(stdout);
   if (json === null) {
     throw new ScoreAdapterError("j-rig eval produced no parseable JSON object on stdout");
@@ -205,7 +249,42 @@ function extractScoreCard(stdout: string, modelTier: string, expectedCount: numb
   ) {
     throw new ScoreAdapterError("j-rig eval scoreCard has an inconsistent pass_rate");
   }
-  return { total_criteria: total, passed, pass_rate: passRate };
+  const adversarial = evalSet.items.some(
+    (item) => (item as AdversarialEvalItem).adversarial === true,
+  );
+  if (picked.criterion_results === undefined && !adversarial && !requireItemResults) {
+    return { total_criteria: total, passed, pass_rate: passRate };
+  }
+  const rows = picked.criterion_results;
+  if (!Array.isArray(rows) || rows.length !== expectedCount) {
+    throw new ScoreAdapterError("complete per-item verdict evidence is required");
+  }
+  const byCriterion = new Map<string, Record<string, unknown>>();
+  for (const row of rows as unknown[]) {
+    if (row === null || typeof row !== "object")
+      throw new ScoreAdapterError("invalid per-item verdict");
+    const value = row as Record<string, unknown>;
+    if (typeof value.criterion_id !== "string" || byCriterion.has(value.criterion_id)) {
+      throw new ScoreAdapterError("per-item criterion identities must be unique");
+    }
+    byCriterion.set(value.criterion_id, value);
+  }
+  const itemResults = evalSet.items.map((item, index) => {
+    const row = byCriterion.get(`refiner-item-${index}`);
+    if (
+      !row ||
+      row.test_case_id !== item.id ||
+      typeof row.verdict !== "string" ||
+      !["yes", "no", "unsure"].includes(row.verdict)
+    ) {
+      throw new ScoreAdapterError("per-item verdict does not match the frozen criterion and case");
+    }
+    return { itemId: item.id, passed: row.verdict === "yes" };
+  });
+  if (itemResults.filter((item) => item.passed).length !== passed) {
+    throw new ScoreAdapterError("per-item verdicts disagree with the aggregate scorecard");
+  }
+  return { total_criteria: total, passed, pass_rate: passRate, itemResults };
 }
 
 /**
@@ -223,6 +302,16 @@ function mapToScoreRecord(doc: SkillDoc, evalSet: EvalSet, card: JRigScoreCard):
   const p = card.pass_rate;
   const behavioral: ScoreDimension = { value: p, variance: p * (1 - p), n };
   const passCount: ScoreDimension = { value: card.passed, variance: 0, n };
+  const adversarialIds = new Set(
+    evalSet.items
+      .filter((item) => (item as AdversarialEvalItem).adversarial === true)
+      .map((item) => item.id),
+  );
+  const adversarialResults =
+    card.itemResults?.filter((item) => adversarialIds.has(item.itemId)) ?? [];
+  const adversarialN = adversarialResults.length;
+  const adversarialRate =
+    adversarialN > 0 ? adversarialResults.filter((item) => item.passed).length / adversarialN : 0;
 
   return {
     skill: doc.hash,
@@ -231,6 +320,15 @@ function mapToScoreRecord(doc: SkillDoc, evalSet: EvalSet, card: JRigScoreCard):
     dimensions: {
       behavioral,
       pass_count: passCount,
+      ...(adversarialN > 0
+        ? {
+            adversarial_pass_rate: {
+              value: adversarialRate,
+              variance: adversarialRate * (1 - adversarialRate),
+              n: adversarialN,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -391,6 +489,10 @@ function checkedInputs(doc: SkillDoc, evalSet: EvalSet): { doc: SkillDoc; evalSe
   }
   const ids = new Set<string>();
   for (const item of items) {
+    const adversarial = (item as AdversarialEvalItem).adversarial;
+    if (adversarial !== undefined && typeof adversarial !== "boolean") {
+      throw new ScoreAdapterError("adversarial item flags must be boolean");
+    }
     if (ids.has(item.id) || !item.prompt.trim()) {
       throw new ScoreAdapterError("eval-set items must have unique ids and non-empty prompts");
     }

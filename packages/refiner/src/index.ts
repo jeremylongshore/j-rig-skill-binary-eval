@@ -33,6 +33,8 @@ export {
 // score() adapter (step 5)
 export {
   score,
+  scoreWithEvidence,
+  type ScoredEvaluation,
   createSubprocessEvalRunner,
   ScoreAdapterError,
   type ScoreModelTier,
