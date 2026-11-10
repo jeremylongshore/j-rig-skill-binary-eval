@@ -84,9 +84,13 @@ this bead remains open until that work and consumer integration are complete.
 Installing a legacy JavaScript complexity tool alone is not evidence of correct
 TypeScript parsing, workspace scope or coverage joins.
 
-The frozen toolchain currently loads Vitest 3.2.4 with coverage-v8 3.2.7
-and warns that mixed versions are unsupported. `bd_000-projects-h08j.6.8`
-tracks alignment and revalidation; passing baseline numbers retain this limit.
+The historical baseline loaded Vitest 3.2.4 with coverage-v8 3.2.7 and
+warned that mixed versions were unsupported. For `bd_000-projects-h08j.6.8`,
+both are now pinned to 3.2.7. Frozen installs, fullcheck and both coverage gates
+passed without the warning: 148 files, 2353 passing tests and one existing skip;
+aggregate lines/statements 83.41%, branches 87.52%, functions 91.27%.
+Refiner-core remains 428 passing tests, 98.15% lines/statements, 94.02% branches
+and 100% functions. Coverage floors are unchanged.
 
 Mutation testing and current requirements/persona/journey traceability remain
 unverified. The classifier is unavailable through the vendored wrapper and its
