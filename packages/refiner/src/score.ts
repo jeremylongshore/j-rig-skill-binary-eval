@@ -117,6 +117,7 @@ export async function score(
 export interface ScoredEvaluation {
   readonly record: ScoreRecord;
   readonly itemResults: readonly ItemResult[];
+  readonly judge: { readonly provider: string; readonly model: string };
 }
 
 export async function scoreWithEvidence(
@@ -127,7 +128,7 @@ export async function scoreWithEvidence(
 ): Promise<ScoredEvaluation> {
   const result = await runScore(doc, evalSet, runner, opts, true);
   // extractScoreCard requires complete item evidence on this path.
-  return { record: result.record, itemResults: result.itemResults! };
+  return { record: result.record, itemResults: result.itemResults!, judge: result.judge! };
 }
 
 async function runScore(
@@ -136,7 +137,11 @@ async function runScore(
   runner: EvalRunner,
   opts: ScoreOptions,
   requireItemResults: boolean,
-): Promise<{ record: ScoreRecord; itemResults?: readonly ItemResult[] }> {
+): Promise<{
+  record: ScoreRecord;
+  itemResults?: readonly ItemResult[];
+  judge?: { provider: string; model: string };
+}> {
   const { doc: frozenDoc, evalSet: frozenSet } = checkedInputs(doc, evalSet);
   const modelTier: string = opts.modelTier ?? "sonnet";
   const result = await runner.run({
@@ -166,6 +171,7 @@ async function runScore(
   return {
     record: mapToScoreRecord(frozenDoc, frozenSet, scoreCard),
     itemResults: scoreCard.itemResults,
+    judge: scoreCard.judge,
   };
 }
 
@@ -175,6 +181,7 @@ interface JRigScoreCard {
   readonly passed: number;
   readonly pass_rate: number;
   readonly itemResults?: readonly ItemResult[];
+  readonly judge?: { provider: string; model: string };
 }
 
 /**
@@ -284,7 +291,19 @@ function extractScoreCard(
   if (itemResults.filter((item) => item.passed).length !== passed) {
     throw new ScoreAdapterError("per-item verdicts disagree with the aggregate scorecard");
   }
-  return { total_criteria: total, passed, pass_rate: passRate, itemResults };
+  if (
+    requireItemResults &&
+    (typeof picked.judge_provider !== "string" ||
+      !picked.judge_provider.trim() ||
+      typeof picked.judge_model !== "string" ||
+      !picked.judge_model.trim())
+  )
+    throw new ScoreAdapterError("judge identity is required for calibrated scoring evidence");
+  const judge =
+    typeof picked.judge_provider === "string" && typeof picked.judge_model === "string"
+      ? { provider: picked.judge_provider, model: picked.judge_model }
+      : undefined;
+  return { total_criteria: total, passed, pass_rate: passRate, itemResults, judge };
 }
 
 /**
@@ -464,7 +483,10 @@ function parseLastJsonObject(text: string): Record<string, unknown> | null {
 }
 
 /** Validate and snapshot inputs before any evaluator I/O. */
-function checkedInputs(doc: SkillDoc, evalSet: EvalSet): { doc: SkillDoc; evalSet: EvalSet } {
+export function checkedInputs(
+  doc: SkillDoc,
+  evalSet: EvalSet,
+): { doc: SkillDoc; evalSet: EvalSet } {
   if (typeof doc.text !== "string" || hashSkillDoc(doc.text) !== doc.hash) {
     throw new ScoreAdapterError("skill document hash does not match its content");
   }

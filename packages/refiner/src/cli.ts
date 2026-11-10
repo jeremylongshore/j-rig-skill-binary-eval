@@ -33,7 +33,12 @@ import {
   type EditProposal,
 } from "@intentsolutions/refiner-core";
 import { RefinerStore } from "./store.js";
-import { score, createSubprocessEvalRunner } from "./score.js";
+import { score, createSubprocessEvalRunner, type EvalRunner } from "./score.js";
+import {
+  assessProposal,
+  type AcceptanceQualityEvidence,
+  type AcceptanceQualityPolicy,
+} from "./assess.js";
 import {
   propose,
   createCompletionClient,
@@ -90,6 +95,7 @@ function fail(message: string): never {
 export function registerRefineCommand(
   program: Command,
   storeFactory: (root: string) => RefinerStore = (root) => new RefinerStore({ root }),
+  assessmentRuntime: { runner?: EvalRunner; now?: () => string } = {},
 ): void {
   const refine = program
     .command("refine")
@@ -314,6 +320,77 @@ export function registerRefineCommand(
     );
 
   // ── apply ────────────────────────────────────────────────────────────────
+  refine
+    .command("assess")
+    .description("Assess a proposal with reviewed quality evidence and fresh paired scores")
+    .argument("<skill-dir>", "Skill directory containing the baseline SKILL.md")
+    .requiredOption("--proposal <hash>", "Stored EditProposal hash")
+    .requiredOption("--eval-set-file <path>", "Frozen EvalSet JSON")
+    .requiredOption("--quality-file <path>", "JSON with explicit evidence and policy")
+    .option("--provider <name>", "Evaluation provider")
+    .option("--model <id>", "Scoring model (haiku/sonnet on Anthropic)")
+    .option("--json", "Output assessment as JSON")
+    .action(
+      async (
+        skillDir: string,
+        opts: {
+          proposal: string;
+          evalSetFile: string;
+          qualityFile: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+        },
+      ) => {
+        try {
+          const doc = loadSkillDoc(skillDir);
+          const store = storeFactory(process.cwd());
+          const proposal = store.get<EditProposal>(opts.proposal);
+          if (!proposal) fail(`proposal ${opts.proposal} not found in the refiner store`);
+          const evalSet = JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<
+            typeof bootstrap
+          >;
+          const quality = JSON.parse(readFileSync(opts.qualityFile, "utf8")) as {
+            evidence?: AcceptanceQualityEvidence;
+            policy: AcceptanceQualityPolicy;
+          };
+          const resolved = resolveProvider({ provider: opts.provider });
+          const modelTier =
+            opts.model ?? (resolved.format === "anthropic" ? "sonnet" : resolved.defaultModel);
+          if (!modelTier) fail("pass --model for a provider without a default model");
+          if (resolved.format === "anthropic" && !["haiku", "sonnet"].includes(modelTier)) {
+            fail("assessment scoring requires haiku or sonnet on Anthropic");
+          }
+          const result = await assessProposal(
+            {
+              doc,
+              proposal,
+              evalSet,
+              quality: quality.evidence,
+              policy: quality.policy,
+              now: assessmentRuntime.now?.() ?? new Date().toISOString(),
+              scoreOptions: { skillDir, provider: resolved.name, modelTier },
+            },
+            assessmentRuntime.runner ?? createSubprocessEvalRunner(),
+          );
+          const hash =
+            result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
+          if (opts.json)
+            console.log(JSON.stringify({ ...result, ...(hash ? { stored: hash } : {}) }, null, 2));
+          else if (result.status === "blocked")
+            console.log(`Assessment blocked: ${result.reasons.join(", ")}`);
+          else
+            console.log(
+              `Assessment: ${result.decision.outcome}\n  stored: ${hash}\n  Best pointer requires human promotion.`,
+            );
+          if (result.status === "blocked" || result.decision.outcome !== "ACCEPT")
+            process.exitCode = 2;
+        } catch (error) {
+          fail(error instanceof Error ? error.message : String(error));
+        }
+      },
+    );
+
   refine
     .command("apply")
     .description("Apply a stored EditProposal to a SKILL.md → a new immutable version")

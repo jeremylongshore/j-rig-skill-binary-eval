@@ -23,6 +23,13 @@
 
 // Persistence (step 4)
 export {
+  assessProposal,
+  type AssessProposalInputs,
+  type AcceptanceQualityEvidence,
+  type AcceptanceQualityPolicy,
+  type ProposalAssessment,
+} from "./assess.js";
+export {
   RefinerStore,
   createNodeFileSystem,
   type FileSystem,

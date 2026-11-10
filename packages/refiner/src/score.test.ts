@@ -139,6 +139,8 @@ function jrigJson(model: string, passed: number, total: number): string {
     [model]: {
       provider: "stub",
       model,
+      judge_provider: "test-judge",
+      judge_model: "judge-v1",
       ground_truth: true,
       scoreCard: {
         total_criteria: total,

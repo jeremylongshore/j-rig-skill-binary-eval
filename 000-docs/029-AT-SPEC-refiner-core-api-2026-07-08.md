@@ -296,8 +296,9 @@ Pure eval-set quality measurement (beads `214c.11`, `214c.13`): `coverage`
 completeness), `leakage` (train/held-out overlap), `calibration`
 (predicted-vs-observed reliability), `adversarialPassRate` (robustness on
 adversarial items), and `evaluateEvalSet` (the roll-up quality report).
-Acceptance integration is being implemented under `214c.13`; computing this
-report alone does not enforce the acceptance precondition.
+The adapter's `assessProposal` / `refine assess` workflow (section 8.6) enforces
+these quality preconditions. Computing this report or calling the pure
+statistical `accept` predicate alone does not enforce them.
 
 `CapabilityManifest` contains `skillId`, `evalSetHash`, `capabilities` (unique
 `id` plus positive integer `minimumItems`), and `assignments` (`itemId` plus
@@ -475,7 +476,31 @@ subset's passing fraction, Bernoulli variance, and sample count. Higher means
 more adversarial cases satisfied their explicit expected behavior; `unsure`
 does not pass. Sets with no adversarial items have no adversarial dimension.
 These observations provide evidence for the acceptance-quality integration;
-they do not themselves enforce its quality preconditions.
+the assessment workflow below enforces its quality preconditions.
+
+### 8.6 Reviewed quality before acceptance (214c.13)
+
+`assessProposal(inputs, runner, validator?)` requires a frozen document, proposal,
+eval set, explicit clock, scoring options, `AcceptanceQualityEvidence`, and
+`AcceptanceQualityPolicy`. The adapter snapshots inputs, checks content/identity,
+requires complete declared coverage, evaluates leakage and calibration against
+explicit policy, and refuses absent/expired review evidence or refresh-due sets.
+Calibration evidence identifies the exact judge provider/model; actual paired
+scoring must agree. Reference items and calibration labels are reviewed caller
+evidence, not independently authenticated facts. Policy has no default quality
+thresholds. See the Refiner README for the complete JSON field contract.
+
+Only after preconditions pass does it apply the proposal, freshly score both
+versions on the same frozen items, and invoke the existing `decide` gate. The
+adversarial dimension participates in non-regression. No historical ScoreRecord
+can substitute for a fresh run. Schema-invalid improvements retain the existing
+schema-revision-candidate outcome rather than becoming accepts.
+
+`refine assess` stores completed assessments with both documents, proposal,
+eval-set content, item observations, quality evidence, and policy. Blocked
+preconditions write no assessment. The best pointer remains human-gated. This
+additive artifact does not alter existing EvalSet hashes, the pure `accept`
+signature, or signed predicate schemas, and it is not a signed pass by itself.
 
 ## 9. Build and test
 

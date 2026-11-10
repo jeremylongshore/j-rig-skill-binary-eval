@@ -4,6 +4,11 @@
 
 ### Added
 
+- `assessProposal` and `refine assess` enforce reviewed capability, leakage,
+  calibration, and freshness evidence before fresh paired scoring. Completed
+  assessments retain their full inputs and policy; the existing schema and
+  statistical decision gate decides acceptance without moving the best pointer.
+
 - `scoreWithEvidence` returns a freshly scored record and complete per-item
   results. Adversarial eval items produce an independently measured
   `adversarial_pass_rate` dimension; missing or inconsistent item evidence fails
