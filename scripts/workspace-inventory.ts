@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 // Shared with Vitest so quality scanning cannot silently retain a root-only scope.
@@ -39,9 +39,20 @@ export function snapshot(root: string, files: string[]) {
       current = join(current, part);
       if (lstatSync(current).isSymbolicLink()) throw new Error(`Symlink in inventory: ${path}`);
     }
-    if (!lstatSync(current).isFile()) throw new Error(`Non-file in inventory: ${path}`);
-    const bytes = readFileSync(current);
-    return { path, bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+    // Inspect and read the same descriptor. O_NOFOLLOW rejects a final-path
+    // symlink swapped in after the inventory walk; O_NONBLOCK avoids opening
+    // a substituted FIFO as a blocking read before its type can be checked.
+    const descriptor = openSync(
+      current,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    try {
+      if (!fstatSync(descriptor).isFile()) throw new Error(`Non-file in inventory: ${path}`);
+      const bytes = readFileSync(descriptor);
+      return { path, bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+    } finally {
+      closeSync(descriptor);
+    }
   });
 }
 
