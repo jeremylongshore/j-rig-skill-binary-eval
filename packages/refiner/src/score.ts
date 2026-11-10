@@ -224,7 +224,36 @@ function extractScoreCard(
   evalSet: EvalSet,
   requireItemResults: boolean,
 ): JRigScoreCard {
-  const expectedCount = evalSet.items.length;
+  const picked = selectScoreResult(stdout, modelTier);
+  const {
+    total_criteria: total,
+    passed,
+    pass_rate: passRate,
+  } = validateScoreAggregate(picked, modelTier, evalSet.items.length);
+  const adversarial = evalSet.items.some(
+    (item) => (item as AdversarialEvalItem).adversarial === true,
+  );
+  if (picked.criterion_results === undefined && !adversarial && !requireItemResults) {
+    return { total_criteria: total, passed, pass_rate: passRate };
+  }
+  const itemResults = extractItemResults(picked, evalSet, passed);
+  if (
+    requireItemResults &&
+    (typeof picked.judge_provider !== "string" ||
+      !picked.judge_provider.trim() ||
+      typeof picked.judge_model !== "string" ||
+      !picked.judge_model.trim())
+  )
+    throw new ScoreAdapterError("judge identity is required for calibrated scoring evidence");
+  const judge =
+    typeof picked.judge_provider === "string" && typeof picked.judge_model === "string"
+      ? { provider: picked.judge_provider, model: picked.judge_model }
+      : undefined;
+  return { total_criteria: total, passed, pass_rate: passRate, itemResults, judge };
+}
+
+/** Select a completed real-provider result before interpreting its score. */
+function selectScoreResult(stdout: string, modelTier: string): Record<string, unknown> {
   const json = parseLastJsonObject(stdout);
   if (json === null) {
     throw new ScoreAdapterError("j-rig eval produced no parseable JSON object on stdout");
@@ -254,6 +283,15 @@ function extractScoreCard(
   ) {
     throw new ScoreAdapterError("j-rig eval did not produce completed real-provider evidence");
   }
+  return picked;
+}
+
+/** Verify that aggregate counts account for the frozen set before using item evidence. */
+function validateScoreAggregate(
+  picked: Record<string, unknown>,
+  modelTier: string,
+  expectedCount: number,
+): Pick<JRigScoreCard, "total_criteria" | "passed" | "pass_rate"> {
   const card = picked.scoreCard as Record<string, unknown> | undefined;
   if (card === undefined || card === null || typeof card !== "object" || Array.isArray(card)) {
     throw new ScoreAdapterError(`j-rig eval result for '${modelTier}' had no scoreCard`);
@@ -282,12 +320,16 @@ function extractScoreCard(
   ) {
     throw new ScoreAdapterError("j-rig eval scoreCard has an inconsistent pass_rate");
   }
-  const adversarial = evalSet.items.some(
-    (item) => (item as AdversarialEvalItem).adversarial === true,
-  );
-  if (picked.criterion_results === undefined && !adversarial && !requireItemResults) {
-    return { total_criteria: total, passed, pass_rate: passRate };
-  }
+  return { total_criteria: total, passed, pass_rate: passRate };
+}
+
+/** Bind each verdict to its frozen criterion and case, then reconcile the aggregate. */
+function extractItemResults(
+  picked: Record<string, unknown>,
+  evalSet: EvalSet,
+  passed: number,
+): ItemResult[] {
+  const expectedCount = evalSet.items.length;
   const rows = picked.criterion_results;
   if (!Array.isArray(rows) || rows.length !== expectedCount) {
     throw new ScoreAdapterError("complete per-item verdict evidence is required");
@@ -317,19 +359,7 @@ function extractScoreCard(
   if (itemResults.filter((item) => item.passed).length !== passed) {
     throw new ScoreAdapterError("per-item verdicts disagree with the aggregate scorecard");
   }
-  if (
-    requireItemResults &&
-    (typeof picked.judge_provider !== "string" ||
-      !picked.judge_provider.trim() ||
-      typeof picked.judge_model !== "string" ||
-      !picked.judge_model.trim())
-  )
-    throw new ScoreAdapterError("judge identity is required for calibrated scoring evidence");
-  const judge =
-    typeof picked.judge_provider === "string" && typeof picked.judge_model === "string"
-      ? { provider: picked.judge_provider, model: picked.judge_model }
-      : undefined;
-  return { total_criteria: total, passed, pass_rate: passRate, itemResults, judge };
+  return itemResults;
 }
 
 /**
