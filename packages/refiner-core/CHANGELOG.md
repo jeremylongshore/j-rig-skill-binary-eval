@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Validate cost-meter caps, identities, usage and exact totals before recording;
+  isolate input, attempt, budget and quarantine snapshots from external mutation.
+  Record calls once; pending-to-accepted is not a second cost event. Runtime
+  accounting remains tracked separately. Refs `bd_000-projects-214c.18.1` / #404.
+
 - Share legacy optimizer contracts and bind atomic experiments to immutable Refiner inputs with explicit source and target identities. Refs `bd_000-projects-214c.17` / #401.
 
 ### Added

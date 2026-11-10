@@ -126,6 +126,14 @@ consumes them, and its legacy evaluator refuses Refiner-bound values. No automat
 promotion. Historical source digest checks are limited to the DB's 16-character
 hash; new documents use full content identities. API029 §8.8 / 214c.17 / #401.
 
+Refiner `createCostMeter(skillHash, budget)` now validates nonnegative safe-integer
+caps/usage, matching skill identity and outcomes, and snapshots inputs/outputs.
+Invalid or overflowing records leave accounting unchanged. Record a call once;
+`record` is append-only, while `checkBudget` is the admission decision. This pure
+helper does not enforce runtime USD limits: live proposer usage/ledger/telemetry
+integration remains open in 214c.18 / #403. Integrity repair: 214c.18.1 / #404,
+API029 §7.1.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):

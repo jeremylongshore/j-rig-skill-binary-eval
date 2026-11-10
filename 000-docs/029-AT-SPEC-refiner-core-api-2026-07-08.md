@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15`, `bd_000-projects-214c.17` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397`, `jeremylongshore/j-rig-skill-binary-eval#401` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15`, `bd_000-projects-214c.17`, `bd_000-projects-214c.18.1` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397`, `jeremylongshore/j-rig-skill-binary-eval#401`, `jeremylongshore/j-rig-skill-binary-eval#404` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -355,11 +355,31 @@ function parseFrontmatterYaml(yamlBlock: string): Record<string, unknown> | null
 ### 7.1 Cost meter
 
 ```ts
-function createCostMeter(config: BudgetConfig): CostMeter;
+function createCostMeter(skillHash: SkillDocHash, config: BudgetConfig): CostMeter;
 function totalTokens(usage: ModelUsage): number;
 ```
 
-I/O-free per-attempt token accounting (bead `jqam`): record each `propose()` attempt's `ModelUsage`, query the per-accept `AcceptRollup`, and enforce hard caps. When a token or attempt ceiling fires, the work is **not** silently dropped — it is routed to a quarantine queue as a `QuarantineRecord` carrying the reason + accumulated usage. The pipeline MUST check `CostMeter.checkBudget` before each attempt and stop on `{ continue: false }`. Real token counts come from the adapter layer; tests feed deterministic stubs.
+I/O-free per-attempt token accounting (original bead `jqam`). Construction validates
+a SHA-256 skill identity and nonnegative safe-integer caps. `record` validates the
+matching skill, nonempty model, outcome and nonnegative safe-integer usage. Unsafe
+combined or accumulated totals throw before any accounting changes. Inputs and
+returned budget, attempt and quarantine snapshots are detached; changing one
+cannot alter accounting or later admission decisions.
+
+`acceptRollup` totals **all** recorded calls, including rejected/pending calls;
+`acceptedAttempts` counts accepted records without filtering the cost total.
+Record a call exactly once. `record` appends and does not change an earlier
+outcome. `checkBudget` returns a quarantine value when accumulated usage or
+attempts meet (`>=`) a cap; attempt limits take priority. Zero caps deny admission.
+The caller must check before starting another call. `record` still accepts valid
+already-incurred usage after a cap, so accounting cannot silently discard spend.
+
+This helper does not execute requests, persist a queue, price USD or enforce
+runtime admission by itself. The current `createRefinerModel` adapter still emits
+zero-usage placeholders and does not invoke this meter. Full provider accounting,
+USD budget policy, ledger/quarantine and OTel integration remain explicitly open
+in `bd_000-projects-214c.18` / #403. The input/snapshot integrity repair is
+`bd_000-projects-214c.18.1` / #404; it does not settle that broader requirement.
 
 ### 7.2 Kernel- and judge-version contracts
 
