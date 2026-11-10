@@ -12,7 +12,7 @@ const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-function setup() {
+function setup(format: "anthropic" | "openai" = "openai") {
   const dir = mkdtempSync(join(tmpdir(), "cost-wire-"));
   dirs.push(dir);
   const policy: CostPolicy = {
@@ -26,7 +26,7 @@ function setup() {
         provider: "fixture",
         model: "test",
         reportedModels: ["test"],
-        format: "openai",
+        format,
         maxInputTokens: 1000,
         maxOutputTokens: 100,
         protocolOverheadTokens: 0,
@@ -150,4 +150,58 @@ it("enforces shared admission on a real HTTP completion client", async () => {
       server.close((error) => (error ? reject(error) : resolve())),
     );
   }
+});
+
+it("prices native Anthropic cache creation TTLs without losing measured input", async () => {
+  const ledger = setup("anthropic");
+  const send = createCostTransport(
+    async () => ({
+      status: 200,
+      json: {
+        model: "test",
+        content: [],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 2,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 5,
+          cache_creation: { ephemeral_5m_input_tokens: 2, ephemeral_1h_input_tokens: 3 },
+        },
+      },
+    }),
+    ledger,
+    { ...context, format: "anthropic" },
+  );
+  await send(request());
+  expect(ledger.snapshot().total.knownMicros).toBe(20);
+  expect([...ledger.snapshot().calls.values()][0]?.settlement?.usage).toEqual({
+    inputTokens: 18,
+    outputTokens: 2,
+    cachedInputTokens: 3,
+    cacheCreationInputTokens: 5,
+    cacheCreation5mInputTokens: 2,
+    cacheCreation1hInputTokens: 3,
+  });
+});
+it("retains a reservation when individually valid cache subsets overlap", async () => {
+  const ledger = setup();
+  await createCostTransport(
+    async () => ({
+      status: 200,
+      json: {
+        model: "test",
+        usage: {
+          prompt_tokens: 1000,
+          completion_tokens: 1,
+          prompt_tokens_details: { cached_tokens: 600, cache_write_tokens: 600 },
+        },
+      },
+    }),
+    ledger,
+    context,
+  )(request());
+  expect(ledger.snapshot()).toMatchObject({
+    stopped: true,
+    total: { unknownCalls: 1, committedMicros: 1100 },
+  });
 });

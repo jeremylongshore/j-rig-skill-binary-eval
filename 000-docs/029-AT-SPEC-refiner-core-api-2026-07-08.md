@@ -733,8 +733,19 @@ wire attempt and settles it before response parsing. `refine propose` accepts
 explicit policy, ledger and stable file identity flags. See the Refiner README
 for pricing units, token-bound assumptions, fixed Wave B limits and recovery.
 
-This implementation remains incomplete: score/assess integration, cross-process
-concurrency evidence, per-accept runtime receipts and existing OTel correlation
-must be delivered before the runtime-cost bead can close or Wave B can run.
-The current ledger supports outcome rollups and persistent quarantine/stop state;
-this is not evidence of a completed assessment or an executed Wave B cohort.
+Native score/assess subprocesses now carry the explicit shared cost context.
+All native evaluator providers and independent judges wrap their innermost wire
+transport, inside MiniMax recovery. Admission refusals take the no-verdict budget
+stop path. Unsupported subscription execution is refused in governed mode.
+
+`recordCostOutcome` snapshots cumulative file and global costs at the outcome
+boundary. CLI attempts store these reports, quarantine/manual-review entries and
+P0 findings, and emit existing `cost.run.recorded` events with Refiner correlation.
+The `cost.record.scope` attribute separates whole Refiner attempts from nested
+evaluator runs; never sum these two levels. See the Refiner README for unknown
+usage, planned-cohort means and provider-bound assumptions. Paired accept/reject,
+quality-blocked, parse-failure, concurrency and retry tests use local fixtures.
+No paid Wave B run or production cost calibration has been performed. Final
+validation/review and cumulative token/attempt-cap reconciliation remain required
+for bead closure. Outer evaluator attempts and admitted wire calls have distinct
+counts; refusal does not add a wire reservation or charge.

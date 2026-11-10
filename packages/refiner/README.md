@@ -335,11 +335,10 @@ priced rollups and hard USD admission remain in 214c.18 / issue #403.
 
 ### Explicit cost admission (in development)
 
-`refine propose` accepts `--cost-policy policy.json --cost-file-id stable-id` and
-optional `--cost-ledger path` (default `audit/wave-b-cost-ledger.jsonl`). This
-branch connects the proposer transport; score/assessment enforcement and OTel
-correlation are still being implemented under `bd_000-projects-214c.18` / #403.
-Do not use this partial integration to launch Wave B.
+`refine propose`, `refine score` and `refine assess` accept `--cost-policy policy.json --cost-file-id stable-id` and
+optional `--cost-ledger path` (default `audit/wave-b-cost-ledger.jsonl`). Native proposer, scoring and assessment transports share this policy, including
+independent judges and MiniMax wire retries. This work remains under review in
+`bd_000-projects-214c.18` / #403; no Wave B execution is authorized by these flags.
 
 The `refiner-cost-policy/v1` schema pins provider/requested-model rates and an
 explicit allowlist of reported model IDs, source metadata, allowed file IDs,
@@ -367,3 +366,35 @@ manual-review state in the ledger; it does not move skill files. Exclusive
 writer locks fail closed on contention. A leftover lock, partial record, or
 policy mismatch requires investigation; no timeout automatically releases funds.
 See API document 029 §8.12 for the implementation boundary.
+
+Scoring subprocesses receive a validated explicit context; inherited ambient cost
+context is removed when none was supplied. Governed assessment uses the native
+subprocess runner. Subscription execution, stub providers and unsupported request
+shapes are refused in governed mode. A native evaluator admission refusal exits
+with budget exhaustion and no verdict; `refine score/assess` consequently produces
+no score/accepted assessment for that failed evaluation.
+
+Each terminal Refiner attempt stores a `cost-outcome` receipt with attempt, file,
+policy and scope identities, measured token totals, known cost, unknown count,
+cumulative file/global commitments and per-accept cost. Mean tracking explicitly
+uses the policy cohort and reports whether usage is complete. Quarantined files
+also get `cost-quarantine` manual-review records; overruns get a
+`cost-governance-finding` record with severity P0. The ledger remains the authority
+if a process stops before these derived receipts are written.
+
+The existing `cost.run.recorded` OTel event carries Refiner attempt/file/policy
+correlation and file commitments. `cost.record.scope=refiner-attempt` identifies
+whole-attempt summaries; nested evaluator events use `evaluator-run`. These are
+two aggregation levels of the same work and must not be summed together. Unknown
+attempt cost omits the USD estimate. Telemetry is best effort; durable accounting
+and admission do not depend on a collector.
+
+Evaluator `usage_evidence` counts outer provider attempts, while this ledger counts
+admitted wire calls. A hard refusal can therefore appear as a failed outer
+attempt without a ledger reservation or charge. MiniMax retries have separate
+wire reservations even when they belong to one outer provider attempt.
+
+The governed policy currently bounds per-call tokens and cumulative USD.
+Reconciliation of the historical pure meter's cumulative token/attempt caps is
+still open in 214c.18; the evaluator's existing per-invocation soft caps are a
+separate mechanism. Do not treat this implementation as closure of that full bead.

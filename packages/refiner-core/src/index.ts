@@ -221,3 +221,4 @@ export {
   type CostLedgerState,
   type CostRollup,
 } from "./cost-ledger.js";
+export { CostContextSchema, type CostContext } from "./cost-policy.js";

@@ -114,3 +114,12 @@ export { createAccountingEvalRunner } from "./score-evidence.js";
 export { readEvaluationUsage, type EvaluationUsageMeasurement } from "./score.js";
 export { CostLedger } from "./cost-ledger.js";
 export { createCostTransport, type CostCallContext } from "./cost-transport.js";
+export {
+  openCostSession,
+  costSessionFromOptions,
+  recordCostOutcome,
+  type CostSession,
+  type CostOptions,
+} from "./cost-context.js";
+
+export type { CostOutcomeReport } from "./cost-context.js";

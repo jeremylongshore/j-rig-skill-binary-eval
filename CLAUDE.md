@@ -483,8 +483,10 @@ This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CL
 
 > **Note**: this repo IS the seven-layer binary eval harness for Claude Skills. The audit-harness install adds a complementary 7-layer testing taxonomy gate at the repo level — independent of the skill-eval harness, applied to this repo's own code.
 
-Cost admission work in progress: `refine propose --cost-policy ... --cost-file-id ...`
-uses a shared synced reservation ledger and explicitly supplied rates. The pure
-policy/replay contracts live in refiner-core; filesystem/transport adapters live
-in refiner. Score/assess integration and OTel remain outstanding in 214c.18/#403.
-See API029 §8.12 and the Refiner README before using the partial runtime path.
+Cost admission under review: `refine propose/score/assess --cost-policy ...
+--cost-file-id ...` share a synced reservation ledger with explicit rates. Native
+execution and judge transports admit each wire attempt, including retries;
+subscription execution is refused in governed mode. Pure contracts live in
+refiner-core, I/O in refiner. Cost-outcome/quarantine/P0 receipts and existing OTel
+correlation retain accepted, rejected and failed attempts. Final closure review
+remains in 214c.18/#403. See API029 §8.12 and the Refiner README; no paid Wave B run.

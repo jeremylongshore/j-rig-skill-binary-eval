@@ -12,6 +12,7 @@ export interface CostCallContext {
   provider: string;
   format: "anthropic" | "openai";
   phase: string | (() => string);
+  onAdmissionRefused?: () => void;
 }
 /** Wrap the innermost transport, inside any retry layer: one reservation per wire attempt. */
 export function createCostTransport<
@@ -24,65 +25,74 @@ export function createCostTransport<
 ): (request: Request) => Promise<Response> {
   const pinned = { ...context };
   return async (request) => {
-    const body = request.body as Record<string, unknown> | null;
-    if (
-      !body ||
-      typeof body !== "object" ||
-      Array.isArray(body) ||
-      typeof body.model !== "string" ||
-      Object.keys(body).some(
-        (key) =>
-          ![
-            "model",
-            "messages",
-            "max_tokens",
-            "system",
-            "stream",
-            "n",
-            "temperature",
-            "top_p",
-            "stop",
-            "response_format",
-            "reasoning_effort",
-          ].includes(key),
-      ) ||
-      body.stream ||
-      (body.n !== undefined && body.n !== 1) ||
-      !Array.isArray(body.messages) ||
-      body.messages.some(
-        (message: unknown) =>
-          !message ||
-          typeof message !== "object" ||
-          !("content" in message) ||
-          typeof message.content !== "string",
-      ) ||
-      (body.system !== undefined && typeof body.system !== "string")
-    )
-      throw new Error("Cost admission requires bounded non-streaming text requests");
-    const rate = ledger
-      .snapshot()
-      .policy.rates.find((r) => r.provider === pinned.provider && r.model === body.model);
-    if (!rate || rate.format !== pinned.format)
-      throw new Error("Missing explicit cost rate for transport");
-    if (
-      typeof body.max_tokens !== "number" ||
-      !Number.isSafeInteger(body.max_tokens) ||
-      body.max_tokens < 1 ||
-      body.max_tokens > rate.maxOutputTokens ||
-      BigInt(Buffer.byteLength(JSON.stringify(body), "utf8")) +
-        BigInt(rate.protocolOverheadTokens) >
-        BigInt(rate.maxInputTokens)
-    )
-      throw new Error("Request exceeds reviewed cost token bounds");
-    const callId = ledger.reserve({
-      fileId: pinned.fileId,
-      attemptId: pinned.attemptId,
-      provider: pinned.provider,
-      model: body.model,
-      phase: typeof pinned.phase === "function" ? pinned.phase() : pinned.phase,
-      outputLimit: body.max_tokens,
-      requestHash: hashValue(body),
-    });
+    const admit = (): string => {
+      const body = request.body as Record<string, unknown> | null;
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        typeof body.model !== "string" ||
+        Object.keys(body).some(
+          (key) =>
+            ![
+              "model",
+              "messages",
+              "max_tokens",
+              "system",
+              "stream",
+              "n",
+              "temperature",
+              "top_p",
+              "stop",
+              "response_format",
+              "reasoning_effort",
+            ].includes(key),
+        ) ||
+        body.stream ||
+        (body.n !== undefined && body.n !== 1) ||
+        !Array.isArray(body.messages) ||
+        body.messages.some(
+          (message: unknown) =>
+            !message ||
+            typeof message !== "object" ||
+            !("content" in message) ||
+            typeof message.content !== "string",
+        ) ||
+        (body.system !== undefined && typeof body.system !== "string")
+      )
+        throw new Error("Cost admission requires bounded non-streaming text requests");
+      const rate = ledger
+        .snapshot()
+        .policy.rates.find((r) => r.provider === pinned.provider && r.model === body.model);
+      if (!rate || rate.format !== pinned.format)
+        throw new Error("Missing explicit cost rate for transport");
+      if (
+        typeof body.max_tokens !== "number" ||
+        !Number.isSafeInteger(body.max_tokens) ||
+        body.max_tokens < 1 ||
+        body.max_tokens > rate.maxOutputTokens ||
+        BigInt(Buffer.byteLength(JSON.stringify(body), "utf8")) +
+          BigInt(rate.protocolOverheadTokens) >
+          BigInt(rate.maxInputTokens)
+      )
+        throw new Error("Request exceeds reviewed cost token bounds");
+      return ledger.reserve({
+        fileId: pinned.fileId,
+        attemptId: pinned.attemptId,
+        provider: pinned.provider,
+        model: body.model,
+        phase: typeof pinned.phase === "function" ? pinned.phase() : pinned.phase,
+        outputLimit: body.max_tokens,
+        requestHash: hashValue(body),
+      });
+    };
+    let callId: string;
+    try {
+      callId = admit();
+    } catch (error) {
+      pinned.onAdmissionRefused?.();
+      throw error;
+    }
     let response: Response;
     try {
       response = await inner(request);

@@ -127,6 +127,14 @@ export const OtelAttrs = {
   GATE_POLICY_REF: "gate.policy_ref",
 
   // cost.run.recorded payload (minted here — see the cost.* note on OtelEvents).
+  REFINER_ATTEMPT_ID: "refiner.attempt_id",
+  REFINER_FILE_ID: "refiner.file_id",
+  REFINER_POLICY_HASH: "refiner.policy_hash",
+  COST_RECORD_SCOPE: "cost.record.scope",
+  COST_FILE_KNOWN_USD: "cost.file.known_usd",
+  COST_FILE_COMMITTED_USD: "cost.file.committed_usd",
+  COST_OUTCOME: "cost.outcome",
+  COST_P0: "cost.p0",
   COST_RUN_TOTAL_INPUT_TOKENS: "cost.run.total_input_tokens",
   COST_RUN_TOTAL_OUTPUT_TOKENS: "cost.run.total_output_tokens",
   COST_RUN_TOTAL_CALLS: "cost.run.total_calls",

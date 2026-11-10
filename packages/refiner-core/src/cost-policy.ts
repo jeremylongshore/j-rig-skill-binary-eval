@@ -119,3 +119,13 @@ export function costStopMicros(policy: CostPolicy): number {
   const p = CostPolicySchema.parse(policy);
   return safeMicros((BigInt(p.maxTotalMicros) * BigInt(p.stopBasisPoints)) / 10000n);
 }
+/** Explicit parent-to-evaluator cost context, containing no provider credentials. */
+export const CostContextSchema = z
+  .object({
+    policyPath: z.string().min(1),
+    ledgerPath: z.string().min(1),
+    fileId: identity,
+    attemptId: identity,
+  })
+  .strict();
+export type CostContext = z.infer<typeof CostContextSchema>;

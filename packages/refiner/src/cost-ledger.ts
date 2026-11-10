@@ -1,11 +1,11 @@
 import {
   closeSync,
   constants,
-  existsSync,
   fsyncSync,
   mkdirSync,
   openSync,
-  readFileSync,
+  readSync,
+  fstatSync,
   rmdirSync,
   writeFileSync,
 } from "node:fs";
@@ -45,29 +45,38 @@ export class CostLedger {
     const lock = `${this.path}.lock`;
     mkdirSync(lock, { mode: 0o700 });
     try {
-      if (!existsSync(this.path)) {
-        const event: CostEvent = { kind: "policy", policy: this.#policy };
-        const fd = openSync(
-          this.path,
-          constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-          0o600,
-        );
-        try {
+      let fd: number;
+      let created = false;
+      const flags = constants.O_RDWR | constants.O_APPEND | constants.O_NOFOLLOW;
+      try {
+        fd = openSync(this.path, flags | constants.O_CREAT | constants.O_EXCL, 0o600);
+        created = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        fd = openSync(this.path, flags);
+      }
+      try {
+        if (created) {
+          const event: CostEvent = { kind: "policy", policy: this.#policy };
           writeFileSync(fd, this.#line(event, null));
           fsyncSync(fd);
-        } finally {
-          closeSync(fd);
+          const dir = openSync(dirname(this.path), constants.O_RDONLY);
+          try {
+            fsyncSync(dir);
+          } finally {
+            closeSync(dir);
+          }
         }
-        const dir = openSync(dirname(this.path), constants.O_RDONLY);
-        try {
-          fsyncSync(dir);
-        } finally {
-          closeSync(dir);
+        const stat = fstatSync(fd);
+        if (!stat.isFile()) throw new Error("Cost ledger must be a regular file");
+        const buffer = Buffer.alloc(stat.size);
+        let offset = 0;
+        while (offset < buffer.length) {
+          const read = readSync(fd, buffer, offset, buffer.length - offset, offset);
+          if (!read) throw new Error("Cost ledger changed while reading");
+          offset += read;
         }
-      }
-      const fd = openSync(this.path, constants.O_RDWR | constants.O_APPEND | constants.O_NOFOLLOW);
-      try {
-        const text = readFileSync(fd, "utf8");
+        const text = buffer.toString("utf8");
         if (!text.endsWith("\n")) throw new Error("Truncated cost ledger");
         let previous: string | null = null;
         const events: CostEvent[] = [];
@@ -151,9 +160,10 @@ export class CostLedger {
       events.push(CostEventSchema.parse({ ...input, kind: "settle" }));
     });
   }
-  outcome(input: OutcomeInput): void {
-    this.#transaction((events) => {
+  outcome(input: OutcomeInput): CostLedgerState {
+    return this.#transaction((events) => {
       events.push(CostEventSchema.parse({ ...input, kind: "outcome" }));
+      return replayCostLedger(events);
     });
   }
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
@@ -198,4 +198,15 @@ it("serializes competing process admission against the same remaining budget", a
     pendingCalls: 1,
     committedMicros: 150,
   });
+});
+
+it("refuses a symlink ledger without reading or modifying its target", () => {
+  const { path, p } = setup();
+  const target = `${path}.target`;
+  const secret = "private target must stay untouched";
+  writeFileSync(target, secret);
+  rmSync(path);
+  symlinkSync(target, path);
+  expect(() => new CostLedger(path, p)).toThrow();
+  expect(readFileSync(target, "utf8")).toBe(secret);
 });
