@@ -95,3 +95,5 @@ export {
   type ParsedReport,
   type ScoreRow,
 } from "./report-render.js";
+
+export { bootstrapReviewedSource } from "./bootstrap-sources.js";

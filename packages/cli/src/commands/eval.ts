@@ -1,3 +1,4 @@
+import { retainRolloutRun, writeRolloutExport, type RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
 import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
@@ -133,6 +134,7 @@ interface EvalOptions {
   functional?: boolean;
   provider?: string;
   emitBundle?: string;
+  rolloutFile?: string;
   traceBoundary?: boolean;
   mcpConfig?: string;
   executionReasoningEffort?: string;
@@ -677,6 +679,10 @@ export function registerEvalCommand(program: Command): void {
     )
     .option("--db <path>", "SQLite DB path", "j-rig.db")
     .option("--json", "Output as JSON")
+    .option(
+      "--rollout-file <path>",
+      "Retain actual functional prompts and outputs for reviewed bootstrap; creates a private file without overwriting",
+    )
     .option("--no-trigger", "Skip trigger tests")
     .option("--no-functional", "Skip functional tests")
     .option(
@@ -918,6 +924,7 @@ export function registerEvalCommand(program: Command): void {
 
         // ── Phase 3: Per-model evaluation ────────────────────────────────
         const allResults: Record<string, unknown> = {};
+        const retainedRollouts: RetainedRolloutRun[] = [];
 
         // Evidence Bundle accumulation (opt-in via --emit-bundle): one
         // gate-result/v1 in-toto Statement per model decision, paired with the
@@ -1839,6 +1846,23 @@ export function registerEvalCommand(program: Command): void {
               console.log("");
             }
 
+            if (opts.rolloutFile) {
+              retainedRollouts.push(
+                retainRolloutRun(
+                  {
+                    runId,
+                    model,
+                    provider: claudeCodeSettings
+                      ? CLAUDE_CODE_PROVIDER_NAME
+                      : providers.providerName,
+                    groundTruth: providers.real,
+                    status: infraFailure ? "failed" : "completed",
+                  },
+                  outcomes,
+                ),
+              );
+            }
+
             if (infraFailure) {
               transitionRun(database, runId, "failed", JSON.stringify(infraFailure));
             } else {
@@ -2010,6 +2034,21 @@ export function registerEvalCommand(program: Command): void {
               ),
             );
           }
+        }
+
+        if (opts.rolloutFile) {
+          writeRolloutExport(resolve(opts.rolloutFile), {
+            skillId: basename(absDir),
+            skillHash: skillSnapshotSha.slice("sha256:".length),
+            spec,
+            status:
+              !infrastructureFailureSeen &&
+              !budgetStopSeen &&
+              retainedRollouts.length === models.length
+                ? "completed"
+                : "incomplete",
+            runs: retainedRollouts,
+          });
         }
 
         // ── Phase 4: Final output ─────────────────────────────────────────

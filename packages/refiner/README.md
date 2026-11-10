@@ -68,7 +68,7 @@ are runtime inputs and are never committed.
 JSON value. `--eval-set <store-hash>` remains available for stored values; the
 selectors are mutually exclusive. Every item must have a unique ID, a non-empty
 prompt, and an explicit `expectation` describing the independently judged
-behavior. Bootstrap emits draft prompts without expectations, so its output must
+behavior. Synthetic bootstrap emits draft prompts without expectations, so its output must
 be reviewed and annotated before scoring. The adapter refuses missing
 expectations before starting an evaluator or storing a score.
 
@@ -180,3 +180,74 @@ evidence emission, the Claude Code plugin + 3-layer hooks, and the synchronized
 npm release ceremony are all gated to later waves.
 
 License: Apache-2.0.
+
+## Bootstrap from retained rollouts or golden traces
+
+Synthetic bootstrap remains the default and produces draft prompts needing
+expectations. Two reviewed source paths are now available:
+
+```bash
+j-rig eval ./my-skill --spec reviewed.yaml --provider openai \
+  --rollout-file rollouts.json --json
+j-rig refine bootstrap ./my-skill --harvest-file rollouts.json \
+  --review-file review.json --json
+j-rig refine bootstrap ./my-skill --golden-file golden.json \
+  --review-file golden-review.json --json
+```
+
+`--rollout-file` explicitly retains functional prompts and model output in a new
+mode-0600 file. It never overwrites an existing file. The `j-rig/rollouts/v1`
+export contains the skill directory ID, exact SKILL.md hash, loaded spec, overall
+completion status, and per-model run IDs, providers, real-provider flags, and
+observed outcomes. Failed, partial, budget-stopped, nonfunctional, and stub
+exports cannot become harvested sets. Historical verdict-only output is not a
+rollout source. The export is local evidence, not a signed attestation.
+
+Golden input is human-nominated trace JSON:
+
+```json
+{
+  "schema": "j-rig/golden-traces/v1",
+  "skillId": "my-skill",
+  "skillHash": "<bare SHA-256 of exact SKILL.md text>",
+  "items": [{ "id": "gold-1", "prompt": "A request", "output": "Observed trace" }]
+}
+```
+
+Both paths require a separate explicit review. Compute `sourceHash` with
+`hashValue(JSON.parse(sourceText))` from `@intentsolutions/refiner-core` (canonical
+JSON hashing, not a file-byte hash). Review items select a nonempty subset of
+source cases and assign expected behavior independently of the observed output:
+
+```json
+{
+  "schema": "j-rig/bootstrap-review/v1",
+  "skillId": "my-skill",
+  "skillHash": "<bare SHA-256 of exact SKILL.md text>",
+  "sourceHash": "<hashValue of source JSON>",
+  "reviewed": true,
+  "reviewedAt": "2026-11-10T00:00:00Z",
+  "items": [{ "id": "gold-1", "expectation": "The required behavior" }]
+}
+```
+
+For harvested cases, review IDs are `run-<runId>:<outcome.id>`. The source and
+review must match the supplied skill exactly. Duplicate or unknown cases,
+missing expectations, future/invalid review times, and unreviewed input fail
+before storage. Review declarations are caller attestations, not authenticated
+reviewer identities. Observed output is never copied into expectations.
+
+Source and review objects are retained unchanged as `bootstrap-source` store
+records. Each item carries their hashes and its source case ID; harvested items
+also carry run/model identity. Provenance participates in the existing EvalSet
+hash through its items. Identical inputs and clock produce identical hashes;
+synthetic hash preimages remain unchanged.
+
+Use `--eval-set-version 1.1.0 --parent-set-file prior-set.json` for a new version
+that retains the parent's lineage ID and names its content hash. The parent must
+have a valid schema, hash, matching skill ID, and a different version. Default
+refresh is 90 days from bootstrap; `--quick` leaves it null, which prevents
+quality-gated assessment until refreshed. Import does not establish held-out
+independence or calibration: assessment still requires its separate quality
+checks. Refs `bd_000-projects-214c.15` /
+[issue #397](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/397).

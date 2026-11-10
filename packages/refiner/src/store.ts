@@ -43,7 +43,12 @@ export interface FileSystem {
 
 /** The kind of value an entry in the store / event log carries. */
 export type RefinerRecordKind =
-  "skill-doc" | "edit-proposal" | "score-record" | "eval-set" | "acceptance-assessment";
+  | "skill-doc"
+  | "edit-proposal"
+  | "score-record"
+  | "eval-set"
+  | "acceptance-assessment"
+  | "bootstrap-source";
 
 /** A single line in the append-only event log. */
 export type RefinerEvent =

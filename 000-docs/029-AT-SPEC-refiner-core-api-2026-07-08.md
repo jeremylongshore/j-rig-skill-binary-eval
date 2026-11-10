@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -68,7 +68,7 @@ import {
 
   // ── pure operations ──
   applyEdit, makeSkillDoc, EditApplicationError,
-  bootstrap, type BootstrapOptions,
+  bootstrap, bootstrapFromItems, type BootstrapOptions,
   accept, isSignificantImprovement, isSignificantRegression,
 
   // ── cost meter ──
@@ -176,7 +176,7 @@ A bounded edit op is a SkillOpt-style add / delete / replace, each anchored to a
 
 ### 3.5 `EvalItem`, `EvalSet`, and `EvalSetRef`
 
-`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation`).
+`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation` and `provenance`). Provenance binds canonical source/review hashes, source case ID, and optional run/model identity.
 
 `EvalSetSource` is `"synthetic" | "harvested" | "golden" | "hybrid"`. This package ships the `"synthetic"` source via `bootstrap`; harvested + golden ingestion are I/O adapters.
 
@@ -510,6 +510,29 @@ eval-set content, item observations, quality evidence, and policy. Blocked
 preconditions write no assessment. The best pointer remains human-gated. This
 additive artifact does not alter existing EvalSet hashes, the pure `accept`
 signature, or signed predicate schemas, and it is not a signed pass by itself.
+
+### 8.7 Reviewed bootstrap sources (214c.15)
+
+`bootstrapFromItems(doc, source, items, opts)` is the pure content-addressed
+constructor used by synthetic bootstrap and validated adapters. Its hash preimage
+is unchanged; optional item provenance is content-bearing. `EvalItemSchema`
+preserves and validates source/review hashes, source case ID, and optional run/model.
+
+`bootstrapReviewedSource(doc, source, review, kind, opts)` accepts harvested or
+golden input only after matching skill identity, canonical source hash, review
+time, explicit expectations, and source completion. Harvested sources come from
+`j-rig eval --rollout-file`: an opt-in private, non-overwriting export of actual
+functional observations. Golden traces are human-nominated. Outputs never become
+expected labels implicitly. A review selects a nonempty subset of unique source
+cases; foreign, missing, duplicated, failed, stub, or unreviewed input is refused.
+The README defines the versioned input schemas and exact CLI examples.
+
+The bootstrap CLI persists both source objects and the set immutably. Provenance
+hashes resolve to the stored source and review; run IDs are scoped by the source
+hash. `--parent-set-file` validates parent schema/hash/skill identity and preserves
+its lineage; `--eval-set-version` must change for a child. Freshness follows the
+existing 90-day/quick-mode contract. These local records do not authenticate a
+reviewer or prove held-out independence; acceptance-quality checks still apply.
 
 ## 9. Build and test
 

@@ -351,3 +351,13 @@ workspace dependencies as well as the packed CLI: consumer `npm audit` cannot
 inspect modules inlined into a bundle. No advisory is ignored or suppressed.
 
 Refs bead `bd_000-projects-code`.
+
+## Retain rollouts for reviewed bootstrap
+
+`j-rig eval <skill-dir> --rollout-file <new-file.json>` explicitly retains actual
+functional prompts and outputs in a mode-0600 file without overwriting existing
+evidence. The export includes skill/spec identity, run/model/provider identity,
+and completion states. It is local evidence, not a signed statement. Failed,
+partial, budget-stopped, and stub exports are refused by harvested bootstrap.
+Use `j-rig refine bootstrap --harvest-file <file> --review-file <review>` with
+independently reviewed expectations; see [the Refiner source schemas](../refiner/README.md#bootstrap-from-retained-rollouts-or-golden-traces).

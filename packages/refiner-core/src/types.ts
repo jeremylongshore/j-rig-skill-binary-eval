@@ -131,6 +131,14 @@ export interface EvalItem {
   readonly prompt: string;
   /** Optional expected-behavior note (golden trace / acceptance criterion). */
   readonly expectation?: string;
+  /** Source/review content addresses; included in the item and EvalSet hash. */
+  readonly provenance?: {
+    readonly sourceHash: Sha256;
+    readonly reviewHash: Sha256;
+    readonly sourceItemId: string;
+    readonly runId?: number;
+    readonly model?: string;
+  };
 }
 
 /** Provenance of an eval set's items (plan 027 § 4 / AC-6). */
