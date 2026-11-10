@@ -1,4 +1,5 @@
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -190,14 +191,26 @@ describe("workspace architecture", () => {
     symlinkSync(join(root, "packages/b/src"), join(root, "packages/a/src"));
     expect(rules(root)).toContain("incomplete-inventory");
   });
-  it("returns a failing CLI exit for an unmeasured workspace", () => {
+  it.each([
+    { measured: false, status: 1, result: "FAIL", production_files: 0 },
+    { measured: true, status: 0, result: "PASS", production_files: 1 },
+  ])("returns $result and exit $status through the TypeScript CLI runner", (expected) => {
     const root = workspace();
+    if (expected.measured) pkg(root, "a", "a", "export const value = 1;");
     const child = spawnSync(
       process.execPath,
-      ["--experimental-strip-types", resolve("scripts/workspace-architecture.ts"), root],
+      [
+        createRequire(import.meta.url).resolve("tsx/cli"),
+        resolve("scripts/workspace-architecture.ts"),
+        root,
+      ],
       { encoding: "utf8" },
     );
-    expect(child.status).toBe(1);
-    expect(JSON.parse(child.stdout)).toMatchObject({ result: "FAIL", production_files: 0 });
+    expect(child.error).toBeUndefined();
+    expect(child.status).toBe(expected.status);
+    expect(JSON.parse(child.stdout)).toMatchObject({
+      result: expected.result,
+      production_files: expected.production_files,
+    });
   });
 });
