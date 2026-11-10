@@ -130,8 +130,11 @@ Refiner `createCostMeter(skillHash, budget)` now validates nonnegative safe-inte
 caps/usage, matching skill identity and outcomes, and snapshots inputs/outputs.
 Invalid or overflowing records leave accounting unchanged. Record a call once;
 `record` is append-only, while `checkBudget` is the admission decision. This pure
-helper does not enforce runtime USD limits: live proposer usage/ledger/telemetry
-integration remains open in 214c.18 / #403. Integrity repair: 214c.18.1 / #404,
+helper does not enforce runtime USD limits. Native proposer usage now reaches
+`createRefinerModel` (null means missing/invalid), and `refine propose` persists
+pre-call intent and post-call measurement through `proposeWithEvidence`. Parser
+failures retain usage. Assessment accounting, rollups, USD admission, quarantine
+and telemetry remain open in 214c.18 / #403; see API029 §8.9. Integrity repair: 214c.18.1 / #404,
 API029 §7.1.
 
 ## Architecture

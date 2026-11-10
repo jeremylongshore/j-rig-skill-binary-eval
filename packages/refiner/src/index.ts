@@ -63,6 +63,7 @@ export {
   ProposeAdapterError,
   type ProposeModelTier,
   type CompletionClient,
+  type CompletionRequest,
   type CompletionTransport,
   type ProposeModelOptions,
   type AnthropicCompletionClientOptions,
@@ -101,3 +102,10 @@ export { bootstrapReviewedSource } from "./bootstrap-sources.js";
 export { assessOptimizerExperiment, type OptimizerAssessment } from "./optimizer.js";
 
 export { loadSkillDoc } from "./skill-doc.js";
+
+export { proposeWithEvidence } from "./propose-evidence.js";
+export {
+  readCompletionMeasurement,
+  type CompletionMeasurement,
+  type MeasuredCompletion,
+} from "./completion-usage.js";
