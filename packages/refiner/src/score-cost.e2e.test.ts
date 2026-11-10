@@ -19,6 +19,10 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
       const root = mkdtempSync(join(tmpdir(), "refiner-eval-cost-"));
       let calls = 0;
       const server = createServer(async (request, response) => {
+        if (request.method !== "POST" || request.url !== "/chat/completions") {
+          response.writeHead(404).end();
+          return;
+        }
         const chunks: Buffer[] = [];
         for await (const chunk of request) chunks.push(Buffer.from(chunk));
         const prompt = Buffer.concat(chunks).toString().toLowerCase();
@@ -50,6 +54,9 @@ describe("actual evaluator cost to Refiner receipt", { timeout: 30000 }, () => {
       const address = server.address();
       if (!address || typeof address === "string") throw new Error("no fixture port");
       try {
+        // Health/port probes must not be counted as model completions.
+        expect((await fetch(`http://127.0.0.1:${address.port}/`)).status).toBe(404);
+        expect(calls).toBe(0);
         const doc = makeSkillDoc(
           "demo",
           "---\nname: demo\ndescription: Return the requested number.\n---\n\nReturn the number requested by the user.\n",
