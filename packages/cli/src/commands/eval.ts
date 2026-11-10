@@ -1115,7 +1115,9 @@ export function registerEvalCommand(program: Command): void {
             executionProvider: providers.providerName,
             judgeProvider: providers.judgeProviderName,
           });
-          if (runBudget.check()) {
+          // A refused call keeps the budget-stop path. A provider failure with
+          // unknown usage must still reach the signed infrastructure-error path.
+          if (runBudget.stop || (!triggerFailure && runBudget.check())) {
             stopForBudget(runBudget.stop!);
             break;
           }
@@ -1128,20 +1130,18 @@ export function registerEvalCommand(program: Command): void {
           // ── Functional tests + judgment ────────────────────────────────
           if (opts.functional !== false) {
             costMeter.phase = "execution";
-            const outcomes: ObservedOutcome[] = await runFunctionalTests(
-              spec.test_cases,
-              skill,
-              providers.execution,
-              {
-                model,
-                // Pin execution to greedy decoding unless the spec opts into
-                // sampling: at the API default (~1.0) the OUTPUT being judged
-                // is a fresh random draw every run — verdict variance that no
-                // amount of judge stabilization can absorb.
-                temperature: spec.execution_temperature ?? 0,
-                ...(toolConfig ? { tool_runtime: toolConfig.runtime } : {}),
-              },
-            );
+            const outcomes: ObservedOutcome[] =
+              runBudget.active && triggerFailure
+                ? []
+                : await runFunctionalTests(spec.test_cases, skill, providers.execution, {
+                    model,
+                    // Pin execution to greedy decoding unless the spec opts into
+                    // sampling: at the API default (~1.0) the OUTPUT being judged
+                    // is a fresh random draw every run — verdict variance that no
+                    // amount of judge stabilization can absorb.
+                    temperature: spec.execution_temperature ?? 0,
+                    ...(toolConfig ? { tool_runtime: toolConfig.runtime } : {}),
+                  });
             const toolReceipts = toolConfig
               ? [
                   storeToolExecutionEvidence(
@@ -1215,12 +1215,11 @@ export function registerEvalCommand(program: Command): void {
             const allJudgments: JudgmentResult[] = [];
 
             costMeter.phase = "judge";
+            const executionFailed = outcomes.some(isFailedExecution);
             for (const outcome of outcomes) {
-              // Spent budget: judging further cases is refused call by call.
-              if (runBudget.stop) break;
-              // A failed provider call is not a model response. Judging it
-              // would spend judge tokens grading an error string as if it were
-              // skill behavior; the run is signed `error` below instead.
+              // Preserve an execution failure without spending on a later phase
+              // or turning its unknown usage into a budget refusal.
+              if (runBudget.stop || (runBudget.active && executionFailed)) break;
               if (isFailedExecution(outcome)) continue;
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
@@ -1312,7 +1311,14 @@ export function registerEvalCommand(program: Command): void {
               );
             }
 
-            if (runBudget.check()) {
+            const skillFailure = detectInfrastructureFailure({
+              triggers: triggerResults,
+              outcomes,
+              judgments: allJudgments,
+              executionProvider: providers.providerName,
+              judgeProvider: providers.judgeProviderName,
+            });
+            if (runBudget.stop || (!skillFailure && runBudget.check())) {
               stopForBudget(runBudget.stop!);
               break;
             }
@@ -1384,7 +1390,7 @@ export function registerEvalCommand(program: Command): void {
             // to the same infrastructure-failure rule as the skill pass.
             let baselineOutcomes: ObservedOutcome[] = [];
             let baselineJudgments: JudgmentResult[] = [];
-            if (opts.baselineCheck) {
+            if (opts.baselineCheck && (!runBudget.active || !skillFailure)) {
               ranBaseline = true;
               costMeter.phase = "execution";
               const nakedOutcomes = await runFunctionalTests(
@@ -1416,7 +1422,9 @@ export function registerEvalCommand(program: Command): void {
                 );
               }
               baselineJudgments = nakedJudgments;
+              const baselineExecutionFailed = nakedOutcomes.some(isFailedExecution);
               for (const outcome of nakedOutcomes) {
+                if (runBudget.active && baselineExecutionFailed) break;
                 if (isFailedExecution(outcome)) continue;
                 const testCase = testCaseById.get(outcome.test_case_id);
                 if (!testCase) continue;
@@ -1458,7 +1466,14 @@ export function registerEvalCommand(program: Command): void {
             }
             // The naked-baseline pass spends too; a stop there leaves the
             // skill pass's criterion results stored but the run unverdicted.
-            if (runBudget.check()) {
+            const evaluationFailure = detectInfrastructureFailure({
+              triggers: triggerResults,
+              outcomes: [...outcomes, ...baselineOutcomes],
+              judgments: [...allJudgments, ...baselineJudgments],
+              executionProvider: providers.providerName,
+              judgeProvider: providers.judgeProviderName,
+            });
+            if (runBudget.stop || (!evaluationFailure && runBudget.check())) {
               stopForBudget(runBudget.stop!);
               break;
             }
@@ -1577,13 +1592,7 @@ export function registerEvalCommand(program: Command): void {
             // This generalizes the 2026-09 dead-judge override (conference
             // audit, "make it lie" #E), which fired only when EVERY judgment
             // died and ignored execution failures entirely.
-            const infraFailure = detectInfrastructureFailure({
-              triggers: triggerResults,
-              outcomes: [...outcomes, ...baselineOutcomes],
-              judgments: [...allJudgments, ...baselineJudgments],
-              executionProvider: providers.providerName,
-              judgeProvider: providers.judgeProviderName,
-            });
+            const infraFailure = evaluationFailure;
             const infraFailureReason = infraFailure
               ? infrastructureFailureReason(infraFailure)
               : null;

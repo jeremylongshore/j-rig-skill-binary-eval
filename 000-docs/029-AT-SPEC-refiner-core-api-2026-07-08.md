@@ -627,7 +627,9 @@ admission, Wave B 80%/100% stops, quarantine and Refiner OTel joins remain open.
 
 ### 8.10 Evaluator usage evidence and scoring receipts
 
-The shared `evaluation-usage/v1` contract lives in refiner-core. Its ordered calls
+The evaluator-specific `evaluation-usage/v1` contract lives in refiner-core.
+It is local to the Refiner/evaluator boundary; it does not replace kernel
+Evidence Bundle, ScoreRecord or acceptance schemas. Its ordered calls
 record provider, requested/reported model, starting phase, outcome and nullable
 usage. Counts must be nonnegative safe integers; cache subsets and TTL splits
 must reconcile. Nullable evaluator `TokenUsage` replaces fabricated zero values.
@@ -639,27 +641,34 @@ internal transport retries are not separate call records.
 Reports include `usage_complete`, `unknown_calls` and `usage_evidence`; numeric
 totals are known subtotals. Returned records are detached. The advisory USD table
 returns null for missing/invalid usage or cache writes without explicit rates;
-it no longer clamps malformed counts. Actual response models are preserved
-separately from request aliases. Existing `cost.run.recorded` and
-`cost.phase.recorded` events carry completeness/unknown-call attributes.
+it no longer clamps malformed counts. OpenAI-compatible, Anthropic and LiteLLM
+adapters preserve exposed cache buckets and actual response models separately
+from request aliases. The Vercel prototype retains aggregate token usage only;
+cache buckets and reported model are unavailable through that adapter.
+`cost.run.recorded` gains usage-complete and unknown-call attributes;
+`cost.phase.recorded` gains an unknown-call attribute.
 
 `createAccountingEvalRunner(inner, store, context?, runtime?)` writes intent
 before subprocess I/O and a linked outcome before score parsing. The CLI uses it
 for both score and assess, including optimizer assessments. Failed exits retain
 valid call evidence; thrown runners and started-only records remain unknown.
 Storage failure before intent prevents the call. Receipts omit raw stdout,
-stderr, prompts and filesystem paths. Completed/blocked assessments that made
-calls get an `evaluation-outcome` joining the run ID to the decision and stored
-assessment. Quality rejection before scoring incurs no calls or receipts.
+stderr, prompts and filesystem paths. Evaluated assessments that made calls get
+an `evaluation-outcome` joining the run ID to the decision and stored assessment.
+Blocked outcomes after calls retain run ID and status with null decision and
+assessment hash. Quality rejection before scoring incurs no calls or receipts.
 
-`scoreWithEvidence` returns `usage: { status, evidence }`; legacy output is
-missing, malformed output invalid. A reported evidence object can contain null
+`scoreWithEvidence` returns `usage: { status, evidence }`; non-JSON or legacy
+output is missing. Parseable output with malformed or ambiguous usage evidence
+is invalid. A reported evidence object can contain null
 usage calls: reported does not mean complete. Historical records are unchanged.
-Known baseline costs survive a later candidate failure through the runner receipts.
+A later runner failure does not erase earlier attempt receipts; this retention
+is covered at the runner boundary.
 
 Existing evaluator token/USD soft caps stop after unknown settled usage, including
-when the last call in a phase is unmeasured. In-flight requests retain the existing
-soft-cap behavior, with calls counted before I/O; this does not implement hard
+when the last call in a phase is unmeasured. Provider failures retain exit 2 and
+error evidence when no call was budget-refused; later phases are skipped.
+In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
 dollar reservations. The subscription execution callback, internal retry costs,
 explicit reproducible pricing, dollar reservations, per-accept/file priced
 rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in

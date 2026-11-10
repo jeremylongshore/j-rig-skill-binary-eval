@@ -131,6 +131,9 @@ interrupted calls. Missing/invalid usage is null; numeric report totals are know
 subtotals with explicit completeness and unknown-call counts. Token and USD
 limits stop on unknown settled usage. Phase boundaries actively check limits,
 including a final call that leaves usage unknown without another admission.
+An actual provider failure with no budget-refused call retains the provider-error
+exit (2), failed-run evidence and, for functional runs, the error bundle. Later
+phases are skipped. A call refused by the budget retains exit 3 and no verdict.
 In-flight requests retain the existing soft-cap semantics and count toward the
 call limit; this is not a hard USD reservation system. Cache writes without a
 rate in the advisory table yield unknown USD instead of an input-rate estimate.
