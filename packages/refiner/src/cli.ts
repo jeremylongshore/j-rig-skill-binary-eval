@@ -128,7 +128,11 @@ export function registerRefineCommand(
     .command("score")
     .description("Score a skill by delegating to `j-rig eval` (any provider)")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
-    .option("--eval-set <hash>", "Eval-set hash to score against (defaults to bootstrap)")
+    .option("--eval-set <hash>", "Stored eval-set hash (requires explicit item expectations)")
+    .option(
+      "--eval-set-file <path>",
+      "Frozen EvalSet JSON with reviewed expectations and valid content hash",
+    )
     .option(
       "--provider <name>",
       "LLM backend: nvidia | deepseek | groq | openai | minimax | anthropic | kimi | openrouter " +
@@ -143,7 +147,13 @@ export function registerRefineCommand(
     .action(
       async (
         skillDir: string,
-        opts: { evalSet?: string; provider?: string; model?: string; json?: boolean },
+        opts: {
+          evalSet?: string;
+          evalSetFile?: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+        },
       ) => {
         try {
           // Resolve the backend the SAME way propose() does, so `refine score`
@@ -183,22 +193,26 @@ export function registerRefineCommand(
 
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
-          // Resolve the eval set: an explicit --eval-set hash from the store, else
-          // a fresh deterministic bootstrap so `score` works standalone.
-          const evalSet = opts.evalSet
-            ? store.get<ReturnType<typeof bootstrap>>(opts.evalSet)
-            : bootstrap(doc, { now: new Date().toISOString() });
+          // Resolve reviewed frozen inputs. A fallback bootstrap remains a draft
+          // and fails the expectation check until the caller reviews it.
+          if (opts.evalSet && opts.evalSetFile)
+            fail("choose --eval-set or --eval-set-file, not both");
+          const evalSet = opts.evalSetFile
+            ? (JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<typeof bootstrap>)
+            : opts.evalSet
+              ? store.get<ReturnType<typeof bootstrap>>(opts.evalSet)
+              : bootstrap(doc, { now: new Date().toISOString() });
           if (evalSet === null) {
             fail(`eval set ${opts.evalSet} not found in the refiner store`);
           }
-          store.putSkillDoc(doc);
-          store.putEvalSet(evalSet);
           const runner = createSubprocessEvalRunner();
           const record = await score(doc, evalSet, runner, {
             skillDir,
             modelTier,
             provider: resolved.name,
           });
+          store.putSkillDoc(doc);
+          store.putEvalSet(evalSet);
           store.putScoreRecord(record);
           if (opts.json) {
             console.log(JSON.stringify(record, null, 2));

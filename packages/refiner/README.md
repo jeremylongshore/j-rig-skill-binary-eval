@@ -45,7 +45,7 @@ Every side-effecting boundary is injected:
 
 ```bash
 j-rig refine bootstrap <skill-dir>   # synthesize a held-out eval set (offline)
-j-rig refine score <skill-dir>       # delegate scoring to `j-rig eval` (needs a model key)
+j-rig refine score <skill-dir> --eval-set-file reviewed.json  # reviewed inputs + model key
 j-rig refine propose <skill-dir>     # propose a bounded edit (needs ANTHROPIC_API_KEY)
 j-rig refine apply <skill-dir> --proposal <hash>   # apply a stored proposal → new version (offline)
 j-rig refine status <skill-id>       # show the store + event log (offline)
@@ -56,11 +56,53 @@ j-rig refine status <skill-id>       # show the store + event log (offline)
 and pin `MiniMax-M3` explicitly:
 
 ```bash
-j-rig refine score ./my-skill --provider minimax --model MiniMax-M3
+j-rig refine score ./my-skill --eval-set-file reviewed.json --provider minimax --model MiniMax-M3
 ```
 
 The registry resolves MiniMax through `https://api.minimax.io/v1`; credentials
 are runtime inputs and are never committed.
+
+## Frozen scoring inputs
+
+`refine score --eval-set-file ./reviewed-eval-set.json` reads a complete `EvalSet`
+JSON value. `--eval-set <store-hash>` remains available for stored values; the
+selectors are mutually exclusive. Every item must have a unique ID, a non-empty
+prompt, and an explicit `expectation` describing the independently judged
+behavior. Bootstrap emits draft prompts without expectations, so its output must
+be reviewed and annotated before scoring. The adapter refuses missing
+expectations before starting an evaluator or storing a score.
+
+After reviewing a draft, set its new version/lineage fields and recompute the
+existing content hash with the pure core API (preserve the old object):
+
+```ts
+import { hashValue } from "@intentsolutions/refiner-core";
+const { skillId, source, items, evalSetVersion, lineageParent, refreshDueAt } = reviewed;
+const frozen = {
+  ...reviewed,
+  hash: hashValue({ skillId, source, items, evalSetVersion, lineageParent, refreshDueAt }),
+};
+```
+
+Scoring checks the document text hash, eval-set content hash, and shared skill ID.
+It writes the supplied `SKILL.md` and a generated evaluation spec into a private
+temporary directory, invokes the existing J-Rig evaluator, then removes the
+scratch directory and its database on success or failure. The generated spec
+runs each exact prompt against its own expectation with trigger tests disabled;
+its criteria count must match the returned scorecard. It does not substitute the
+source directory's `eval-spec.yaml` or its on-disk skill text. `SkillDoc` describes
+text only: directory assets are not part of that frozen contract, and unresolved
+package references fail the existing package checks rather than silently drawing
+on untracked files.
+
+A nonzero evaluator exit, stub evidence, empty/inconsistent counts, or invalid
+pass rate produces no `ScoreRecord`. Historical scores and stored hashes are not
+rewritten. Existing records created before this fix do not establish execution
+identity retroactively; rerun the reviewed inputs before relying on them.
+
+Tracked by `bd_000-projects-214c.14`, [issue #393](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/393).
+Capability coverage and acceptance-quality integration remain separate work in
+`bd_000-projects-214c.13`, [issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
 
 ## Not in this wave (gated / later)
 
