@@ -622,8 +622,9 @@ remains the proposal object. Historical objects are not rewritten. The original
 must use `proposeWithEvidence`.
 
 Tracked under `bd_000-projects-214c.18` / #403. Evaluator call evidence is now
-captured as described in §8.10. Complete priced per-accept/file rollups, USD
-admission, Wave B 80%/100% stops, quarantine and Refiner OTel joins remain open. This measurement delivery does not authorize paid Wave B.
+captured as described in §8.10. Governed priced rollups, USD admission, Wave B
+stops, quarantine and Refiner OTel joins are described in §8.12. Measurement
+alone does not authorize paid Wave B.
 
 ### 8.10 Evaluator usage evidence and scoring receipts
 
@@ -669,10 +670,10 @@ Existing evaluator token/USD soft caps stop after unknown settled usage, includi
 when the last call in a phase is unmeasured. Provider failures retain exit 2 and
 error evidence when no call was budget-refused; later phases are skipped.
 In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
-dollar reservations. Internal retry costs,
-explicit reproducible pricing, dollar reservations, per-accept/file priced
-rollups, Wave B ledger/quarantine and Refiner telemetry correlation remain in
-`bd_000-projects-214c.18` / #403. No paid Wave B run is part of this change.
+dollar reservations. The additional governed native transport in §8.12 provides
+explicit pricing, wire-retry accounting, reservations, rollups, quarantine and
+telemetry correlation (`bd_000-projects-214c.18` / #403). No paid Wave B run
+is part of this change.
 
 ### 8.11 Subscription execution measurements
 
@@ -700,8 +701,50 @@ Subscription execution emits cost JSON even when the other provider legs are
 stubbed. Tests use the repository-owned executable fixture and synthetic
 credentials, never a live subscription. Parser, adapter/meter/budget and actual
 CLI tests cover failures, unknown versus zero usage, cache buckets and process
-interruptions. Full pricing/rollup/ledger/quarantine requirements remain open in
-`bd_000-projects-214c.18` / #403. See CLI README and budget spec 047.
+interruptions. The governed hard-cost mode in §8.12 refuses subscription
+execution. See CLI README and budget spec 047.
+
+### 8.12 Explicit cost policy and durable admission
+
+Tracked by `bd_000-projects-214c.18` / GitHub #403. Pure `CostPolicySchema`,
+`priceCostUsage`, `reserveCost` and `replayCostLedger` define reproducible integer
+micro-USD arithmetic and record replay. Public adapter `CostLedger` performs
+exclusive, synced append-only reservations; `createCostTransport` admits each
+wire attempt and settles it before response parsing. `refine propose` accepts
+explicit policy, ledger and stable file identity flags. See the Refiner README
+for pricing units, token-bound assumptions, fixed Wave B limits and recovery.
+
+Native score/assess subprocesses now carry the explicit shared cost context.
+All native evaluator providers and independent judges wrap their innermost wire
+transport, inside MiniMax recovery. Admission refusals take the no-verdict budget
+stop path. Unsupported subscription execution is refused in governed mode.
+
+`recordCostOutcome` snapshots cumulative file and global costs at the outcome
+boundary. CLI attempts store these reports, quarantine/manual-review entries and
+P0 findings, and emit existing `cost.run.recorded` events with Refiner correlation,
+file accepted counts and cumulative per-accept USD (omitted when unknown).
+The `cost.record.scope` attribute separates whole Refiner attempts from nested
+evaluator runs; never sum these two levels. See the Refiner README for unknown
+usage, planned-cohort means and provider-bound assumptions. Paired accept/reject,
+quality-blocked, parse-failure, concurrency and retry tests use local fixtures.
+No paid Wave B run or production cost calibration has been performed. Optional per-file and
+whole-scope token/attempt limits use the same durable reservations as USD limits;
+zero caps deny all applicable calls. Attempt counts include each admitted retry,
+failed call and zero-priced call. Pending token reservations cannot be reset by
+restarting the process. Outer evaluator attempts and admitted wire calls have distinct
+counts; refusal does not add a wire reservation or charge.
+
+Governed native execution latches unrecovered outer provider failures before
+further wire admission. Later refusals cannot replace the original infrastructure
+error with budget exhaustion. `CostAdmissionError` stays distinct through native
+provider adapters; measured MiniMax recovery remains a separately reserved retry.
+
+Governed assessment validates its financial outcome before storing an accepted
+assessment. Every wire call must have settled, priced usage within its reserved
+bounds, and at least one call must have completed. Measured failed calls followed
+by successful recovery remain in the accepted attempt's cost. Unknown usage or a
+provider-bound overrun prevents publishing an accepted assessment; the failed
+outcome retains its cost and quarantine/P0 evidence.
 
 ## 9. Build and test
 

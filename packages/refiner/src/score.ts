@@ -1,3 +1,4 @@
+import { CostContextSchema, type CostContext } from "@intentsolutions/refiner-core";
 /**
  * score() adapter — delegate scoring to the existing j-rig evaluator (plan 027
  * § 4 Phase A build-order step 5; "Reuses existing infrastructure": the Phase A
@@ -71,6 +72,7 @@ export interface EvalInvocation {
   /** Explicit judge selection, independent of the execution provider/model. */
   readonly judgeProvider?: string;
   readonly judgeModel?: string;
+  readonly costContext?: CostContext;
 }
 
 /**
@@ -103,6 +105,7 @@ export interface ScoreOptions {
   /** Explicit judge selection, independent of the execution provider/model. */
   readonly judgeProvider?: string;
   readonly judgeModel?: string;
+  readonly costContext?: CostContext;
 }
 
 /**
@@ -171,6 +174,7 @@ async function runScore(
     ...(opts.provider ? { provider: opts.provider } : {}),
     ...(opts.judgeProvider ? { judgeProvider: opts.judgeProvider } : {}),
     ...(opts.judgeModel ? { judgeModel: opts.judgeModel } : {}),
+    ...(opts.costContext ? { costContext: CostContextSchema.parse(opts.costContext) } : {}),
   });
 
   if (result.exitCode !== 0) {
@@ -431,9 +435,13 @@ export function createSubprocessEvalRunner(
         if (invocation.provider) args.push("--provider", invocation.provider);
         if (invocation.judgeProvider) args.push("--judge-provider", invocation.judgeProvider);
         if (invocation.judgeModel) args.push("--judge-model", invocation.judgeModel);
+        const env = { ...(opts.env ?? process.env) };
+        delete env.JRIG_COST_CONTEXT;
+        if (invocation.costContext)
+          env.JRIG_COST_CONTEXT = JSON.stringify(CostContextSchema.parse(invocation.costContext));
         return await new Promise<EvalRunnerResult>((resolvePromise, rejectPromise) => {
           const child = spawn(command, args, {
-            env: opts.env ?? process.env,
+            env,
             stdio: ["ignore", "pipe", "pipe"],
           });
           let stdout = "";

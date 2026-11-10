@@ -50,7 +50,7 @@ export interface BudgetStop {
   /** The spent value that reached the limit; null when USD could not be priced. */
   observed: number | null;
   /** Where the limit's value came from. */
-  source: "spec" | "run";
+  source: "spec" | "run" | "cost-policy";
   phase: EvalPhase;
   model: string;
   /** Milliseconds since the budget started. */

@@ -205,3 +205,20 @@ export {
   type EvaluationCall,
   type EvaluationUsageEvidence,
 } from "./evaluation-usage.js";
+export {
+  CostPolicySchema,
+  CostRateSchema,
+  priceCostUsage,
+  reserveCost,
+  costStopMicros,
+  safeMicros,
+} from "./cost-policy.js";
+export type { CostPolicy, CostRate } from "./cost-policy.js";
+export {
+  CostEventSchema,
+  replayCostLedger,
+  type CostEvent,
+  type CostLedgerState,
+  type CostRollup,
+} from "./cost-ledger.js";
+export { CostContextSchema, type CostContext } from "./cost-policy.js";

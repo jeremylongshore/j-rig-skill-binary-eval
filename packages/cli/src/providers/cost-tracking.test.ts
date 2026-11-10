@@ -423,3 +423,19 @@ describe("complete evaluator usage evidence", () => {
     expect(lookupModelRate("constructor")).toBeNull();
   });
 });
+
+it("retains failed usage before notifying the run controller of an outer failure", async () => {
+  const meter = new EvalCostMeter();
+  const inner = fakeProvider("m");
+  const error = new Error("fixture failure");
+  inner.complete = async () => {
+    throw error;
+  };
+  let observed: unknown;
+  const provider = new CostTrackingProvider(inner, meter, (failure) => {
+    observed = failure;
+    expect(meter.report()).toMatchObject({ unknown_calls: 1, total: { calls: 1 } });
+  });
+  await expect(provider.complete(req())).rejects.toBe(error);
+  expect(observed).toBe(error);
+});

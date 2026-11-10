@@ -133,8 +133,9 @@ Invalid or overflowing records leave accounting unchanged. Record a call once;
 helper does not enforce runtime USD limits. Native proposer usage now reaches
 `createRefinerModel` (null means missing/invalid), and `refine propose` persists
 pre-call intent and post-call measurement through `proposeWithEvidence`. Parser
-failures retain usage. Assessment accounting, rollups, USD admission, quarantine
-and telemetry remain open in 214c.18 / #403; see API029 §8.9. Integrity repair: 214c.18.1 / #404,
+failures retain usage. Governed assessment accounting, rollups, USD admission,
+quarantine and telemetry are described in API029 §8.12 (214c.18 / #403).
+Proposer receipts: API029 §8.9. Integrity repair: 214c.18.1 / #404,
 API029 §7.1.
 
 Evaluator usage is nullable and validated, with ordered per-call evidence in
@@ -143,15 +144,16 @@ unknown call counts and completeness; failed/interrupted calls are retained.
 `refine score/assess` use `createAccountingEvalRunner` to persist intent and
 outcome before score parsing, so candidate failures cannot erase baseline spend.
 The existing evaluator soft caps stop on unknown settled usage and check at
-phase boundaries. Hard reservations and Wave B USD governance remain open in
-214c.18 / #403. See API029 §8.10 and budget spec 047.
+phase boundaries. Explicit governed native reservations and Wave B USD policy
+are described in API029 §8.12 (214c.18 / #403). See §8.10 and budget spec 047
+for the separate evaluator soft caps.
 
 Subscription execution uses `onAttempt` to meter before process launch and settle
 all outcomes before artifact collection. Stream usage is nullable and cache-aware;
 nonzero exits stay provider errors even after a result event. The CLI retains
 subscription cost JSON with stub provider legs. Tests use the local executable
-fixture, not live Claude. See API029 §8.11 and CLI README; 214c.18 / #403 remains
-open for pricing, reservations, rollups and the Wave B ledger.
+fixture, not live Claude. See API029 §8.11 and CLI README. Governed hard-cost
+mode (§8.12) refuses subscription execution.
 
 ## Architecture
 
@@ -482,3 +484,13 @@ This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CL
 **Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
 
 > **Note**: this repo IS the seven-layer binary eval harness for Claude Skills. The audit-harness install adds a complementary 7-layer testing taxonomy gate at the repo level — independent of the skill-eval harness, applied to this repo's own code.
+
+Cost admission: `refine propose/score/assess --cost-policy ...
+--cost-file-id ...` share a synced reservation ledger with explicit rates. Native
+execution and judge transports admit each wire attempt, including retries;
+subscription execution is refused in governed mode. Pure contracts live in
+refiner-core, I/O in refiner. Cost-outcome/quarantine/P0 receipts and existing OTel
+correlation retain accepted, rejected and failed attempts. Optional per-file and
+whole-scope token/attempt caps persist across invocations; zero caps refuse all
+applicable calls. Unknown usage retains its reserved tokens. Tracked by
+214c.18/#403. See API029 §8.12 and the Refiner README; no paid Wave B run.

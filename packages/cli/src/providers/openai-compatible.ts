@@ -1,3 +1,4 @@
+import { CostAdmissionError } from "@intentsolutions/refiner";
 import { mapProviderUsage, reportedModel } from "./usage.js";
 import { createMiniMaxPlanTransport } from "./minimax-plan.js";
 import { formatJudgeObservations } from "@j-rig/core";
@@ -597,6 +598,7 @@ export class RealOpenAICompatProvider implements Provider {
         signal,
       });
     } catch (err) {
+      if (err instanceof CostAdmissionError) throw err;
       throw errorForThrow(this.name, err);
     }
   }

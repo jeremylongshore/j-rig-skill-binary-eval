@@ -1,3 +1,11 @@
+import { costStopMicros, hashValue as hashRefinerValue } from "@intentsolutions/refiner-core";
+import {
+  createCostTransport,
+  CostAdmissionError,
+  openCostSession,
+  type CostSession,
+} from "@intentsolutions/refiner";
+import { createFetchTransport } from "../providers/transport.js";
 import { retainRolloutRun, writeRolloutExport, type RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
 import { storeTriggerEvidence } from "./trigger-evidence.js";
@@ -28,6 +36,7 @@ import {
   compareBaseline,
   isObsoleteCandidate,
   uuidv7,
+  ProviderError,
   emitRuntimeRunStarted,
   emitRuntimeRunFinished,
   emitRuntimeCriterionEvaluated,
@@ -279,7 +288,12 @@ interface SelectedProviders {
 }
 
 /** Extra provider-selection inputs: cost metering + judge decoupling. */
+interface GovernedCostSession extends CostSession {
+  providerFailed?: boolean;
+  refused?: { phase: "trigger" | "execution" | "judge" };
+}
 interface ProviderExtras {
+  costSession?: GovernedCostSession;
   executionReasoningEffort?: ReasoningEffort;
   meter?: EvalCostMeter;
   /** Pre-call spend/latency guard; wraps outside the meter (providers/budget.ts). */
@@ -297,8 +311,39 @@ interface ProviderExtras {
  */
 /** Meter every real provider call, then guard it with the budget (a refused call is never spend). */
 function wrapMetered(p: Provider, extras: ProviderExtras | undefined): Provider {
-  const metered = extras?.meter ? new CostTrackingProvider(p, extras.meter) : p;
+  const metered = extras?.meter
+    ? new CostTrackingProvider(p, extras.meter, (error) => {
+        if (
+          extras.costSession &&
+          !(error instanceof CostAdmissionError) &&
+          !(error instanceof ProviderError && error.originalError instanceof CostAdmissionError)
+        )
+          extras.costSession.providerFailed = true;
+      })
+    : p;
   return extras?.budget ? new BudgetGuardedProvider(metered, extras.budget) : metered;
+}
+
+function costTransport(
+  extras: ProviderExtras | undefined,
+  provider: string,
+  format: "anthropic" | "openai",
+) {
+  if (!extras?.costSession) return undefined;
+  const session = extras.costSession;
+  return createCostTransport(createFetchTransport(), session.ledger, {
+    ...session.context,
+    provider,
+    format,
+    phase: () => extras.meter?.phase ?? "execution",
+    beforeAdmission: () => {
+      if (session.providerFailed)
+        throw new CostAdmissionError("Stopped after a provider failure; no further wire calls");
+    },
+    onAdmissionRefused: () => {
+      session.refused ??= { phase: extras.meter?.phase ?? "execution" };
+    },
+  });
 }
 
 export function selectJudgeOverride(
@@ -312,6 +357,7 @@ export function selectJudgeOverride(
   const wrap = (p: Provider): Provider => wrapMetered(p, extras);
 
   if (judgeProvider === "stub") {
+    if (extras?.costSession) throw new Error("Governed cost mode requires a real native judge");
     const modelId = judgeModel || targetModel;
     return { judge: new StubJudgeProvider(modelId), name: "stub", modelId };
   }
@@ -321,7 +367,12 @@ export function selectJudgeOverride(
     if (!apiKey || apiKey.length < 8) {
       throw new Error("--judge-provider anthropic requires ANTHROPIC_API_KEY");
     }
-    const provider = wrap(new RealAnthropicProvider({ apiKey }));
+    const provider = wrap(
+      new RealAnthropicProvider({
+        apiKey,
+        transport: costTransport(extras, "anthropic", "anthropic"),
+      }),
+    );
     const modelId = resolveAnthropicModel(judgeModel || targetModel);
     return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
   }
@@ -335,6 +386,7 @@ export function selectJudgeOverride(
         apiKey: cfg.apiKey,
         baseUrl: cfg.baseUrl,
         name: cfg.name,
+        transport: costTransport(extras, cfg.name, "openai"),
         minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
       }),
     );
@@ -344,10 +396,16 @@ export function selectJudgeOverride(
   if (!judgeProvider) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey && apiKey.length >= 8) {
-      const provider = wrap(new RealAnthropicProvider({ apiKey }));
+      const provider = wrap(
+        new RealAnthropicProvider({
+          apiKey,
+          transport: costTransport(extras, "anthropic", "anthropic"),
+        }),
+      );
       const modelId = resolveAnthropicModel(judgeModel || targetModel);
       return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
     }
+    if (extras?.costSession) throw new Error("Governed cost mode requires a real native judge");
     // `--judge-model` alone with NO real key anywhere: fall back to the stub
     // judge (its constructor enforces the J_RIG_ALLOW_STUB opt-in gate) so
     // the flag composes with stub/test environments, mirroring
@@ -385,12 +443,15 @@ function selectProviders(
   preferred?: string,
   extras?: ProviderExtras,
 ): SelectedProviders {
+  if (extras?.costSession && extras.claudeCode)
+    throw new Error("Subscription execution cannot enforce native wire reservations");
   const want = preferred?.trim().toLowerCase();
   const wrap = (p: Provider): Provider => wrapMetered(p, extras);
 
   const base = ((): SelectedProviders => {
     // Explicit stub request — let the stub constructors enforce the opt-in gate.
     if (want === "stub") {
+      if (extras?.costSession) throw new Error("Governed cost mode requires native providers");
       if (extras?.executionReasoningEffort !== undefined) {
         throw new Error("--execution-reasoning-effort is unavailable with stub execution");
       }
@@ -422,6 +483,7 @@ function selectProviders(
             apiKey: cfg.apiKey,
             baseUrl: cfg.baseUrl,
             name: cfg.name,
+            transport: costTransport(extras, cfg.name, "openai"),
             minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
           }),
         );
@@ -450,7 +512,12 @@ function selectProviders(
     // 2. Real Anthropic path.
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey && apiKey.length >= 8) {
-      const provider = wrap(new RealAnthropicProvider({ apiKey }));
+      const provider = wrap(
+        new RealAnthropicProvider({
+          apiKey,
+          transport: costTransport(extras, "anthropic", "anthropic"),
+        }),
+      );
       return {
         trigger: new AnthropicTriggerProvider(model, provider),
         execution: new AnthropicExecutionProvider(model, provider),
@@ -462,6 +529,7 @@ function selectProviders(
       };
     }
 
+    if (extras?.costSession) throw new Error("Governed cost mode requires native providers");
     // 3. No real key — stub providers (each constructor re-asserts the opt-in gate).
     return {
       trigger: new StubTriggerProvider(model),
@@ -993,6 +1061,11 @@ export function registerEvalCommand(program: Command): void {
         // One budget spans every model and phase of this invocation. The
         // wall clock starts here, after load and package integrity.
         const runBudget = new RunBudget(budgetLimits.limits, budgetLimits.sources);
+        const costSession: GovernedCostSession | undefined = process.env.JRIG_COST_CONTEXT
+          ? openCostSession(JSON.parse(process.env.JRIG_COST_CONTEXT))
+          : undefined;
+        if (costSession && claudeCodeSettings)
+          throw new Error("Subscription execution cannot enforce native wire reservations");
         let budgetStopSeen = false;
         for (const model of models) {
           const modelStart = Date.now();
@@ -1011,6 +1084,7 @@ export function registerEvalCommand(program: Command): void {
           runBudget.attach(costMeter, model);
           const providers = selectProviders(model, opts.provider, {
             meter: costMeter,
+            costSession,
             ...(runBudget.active ? { budget: runBudget } : {}),
             executionReasoningEffort: executionParameters?.reasoning_effort,
             judgeProvider: opts.judgeProvider,
@@ -1029,7 +1103,17 @@ export function registerEvalCommand(program: Command): void {
           // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
           // (067 § 1.1). The DB integer runId stays the storage key; the
           // UUIDv7 is the cross-emitter idempotency key / lineage anchor.
-          const correlation: EvalCorrelation = { evalRunId: uuidv7() };
+          const correlation: EvalCorrelation = {
+            evalRunId: uuidv7(),
+            ...(costSession
+              ? {
+                  refinerAttemptId: costSession.context.attemptId,
+                  refinerFileId: costSession.context.fileId,
+                  refinerPolicyHash: hashRefinerValue(costSession.ledger.snapshot().policy),
+                  costRecordScope: "evaluator-run" as const,
+                }
+              : {}),
+          };
           emitRuntimeRunStarted(correlation, {
             specContentHash,
             skillSnapshotSha,
@@ -1044,6 +1128,40 @@ export function registerEvalCommand(program: Command): void {
           // Bundle row (an `error` row means a provider failed, which this is
           // not); the run is stored `failed` with the stop as its reason, and
           // the remaining models are not started.
+          const costStop = (): BudgetStop | null => {
+            if (!costSession?.refused) return null;
+            const state = costSession.ledger.snapshot();
+            const halt =
+              state.lastHalt?.fileId === costSession.context.fileId &&
+              (state.lastHalt.scope === "wave" || !state.stopped)
+                ? state.lastHalt
+                : undefined;
+            const wave = halt ? halt.scope === "wave" : state.stopped;
+            const spent = wave ? state.total : state.files[costSession.context.fileId]!;
+            const tokens = halt?.reason.endsWith("tokens");
+            const attempts = halt?.reason.endsWith("attempts");
+            const max = tokens
+              ? (wave ? state.policy.maxTotalTokens : state.policy.maxFileTokens)!
+              : attempts
+                ? (wave ? state.policy.maxAttempts : state.policy.maxFileAttempts)!
+                : (wave ? costStopMicros(state.policy) : state.policy.maxFileMicros) / 1_000_000;
+            return {
+              limit: tokens ? "max_tokens" : attempts ? "max_calls" : "max_usd",
+              max,
+              observed: tokens
+                ? spent.committedTokens
+                : attempts
+                  ? spent.calls
+                  : spent.unknownCalls
+                    ? null
+                    : spent.committedMicros / 1_000_000,
+              source: "cost-policy",
+              phase: costSession.refused.phase,
+              model,
+              elapsed_ms: Date.now() - modelStart,
+              reason: "Shared cost admission refused; inspect the pinned ledger",
+            };
+          };
           const stopForBudget = (stop: BudgetStop): void => {
             budgetStopSeen = true;
             transitionRun(
@@ -1123,8 +1241,11 @@ export function registerEvalCommand(program: Command): void {
           });
           // A refused call keeps the budget-stop path. A provider failure with
           // unknown usage must still reach the signed infrastructure-error path.
-          if (runBudget.stop || (!triggerFailure && runBudget.check())) {
-            stopForBudget(runBudget.stop!);
+          if (
+            !costSession?.providerFailed &&
+            (costSession?.refused || runBudget.stop || (!triggerFailure && runBudget.check()))
+          ) {
+            stopForBudget(costStop() ?? runBudget.stop!);
             break;
           }
 
@@ -1137,7 +1258,7 @@ export function registerEvalCommand(program: Command): void {
           if (opts.functional !== false) {
             costMeter.phase = "execution";
             const outcomes: ObservedOutcome[] =
-              runBudget.active && triggerFailure
+              (runBudget.active || costSession) && triggerFailure
                 ? []
                 : await runFunctionalTests(spec.test_cases, skill, providers.execution, {
                     model,
@@ -1225,7 +1346,12 @@ export function registerEvalCommand(program: Command): void {
             for (const outcome of outcomes) {
               // Preserve an execution failure without spending on a later phase
               // or turning its unknown usage into a budget refusal.
-              if (runBudget.stop || (runBudget.active && executionFailed)) break;
+              if (
+                costSession?.refused ||
+                runBudget.stop ||
+                ((runBudget.active || costSession) && executionFailed)
+              )
+                break;
               if (isFailedExecution(outcome)) continue;
               const testCase = testCaseById.get(outcome.test_case_id);
               // Every outcome originates from a spec test case (runFunctionalTests
@@ -1324,8 +1450,11 @@ export function registerEvalCommand(program: Command): void {
               executionProvider: providers.providerName,
               judgeProvider: providers.judgeProviderName,
             });
-            if (runBudget.stop || (!skillFailure && runBudget.check())) {
-              stopForBudget(runBudget.stop!);
+            if (
+              !costSession?.providerFailed &&
+              (costSession?.refused || runBudget.stop || (!skillFailure && runBudget.check()))
+            ) {
+              stopForBudget(costStop() ?? runBudget.stop!);
               break;
             }
 
@@ -1396,7 +1525,7 @@ export function registerEvalCommand(program: Command): void {
             // to the same infrastructure-failure rule as the skill pass.
             let baselineOutcomes: ObservedOutcome[] = [];
             let baselineJudgments: JudgmentResult[] = [];
-            if (opts.baselineCheck && (!runBudget.active || !skillFailure)) {
+            if (opts.baselineCheck && (!(runBudget.active || costSession) || !skillFailure)) {
               ranBaseline = true;
               costMeter.phase = "execution";
               const nakedOutcomes = await runFunctionalTests(
@@ -1479,8 +1608,11 @@ export function registerEvalCommand(program: Command): void {
               executionProvider: providers.providerName,
               judgeProvider: providers.judgeProviderName,
             });
-            if (runBudget.stop || (!evaluationFailure && runBudget.check())) {
-              stopForBudget(runBudget.stop!);
+            if (
+              !costSession?.providerFailed &&
+              (costSession?.refused || runBudget.stop || (!evaluationFailure && runBudget.check()))
+            ) {
+              stopForBudget(costStop() ?? runBudget.stop!);
               break;
             }
 

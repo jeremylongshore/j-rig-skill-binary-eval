@@ -313,9 +313,9 @@ Library callers can use `proposeWithEvidence` with a `RefinerStore`; ordinary
 `propose` remains available without persistence. `CompletionResult.usage` is now
 nullable, so cost consumers must handle unmeasured responses explicitly.
 Receipts omit raw prompts, responses, credentials and endpoint URLs. Selected
-numeric billing fields do not constitute a USD policy. Assessment usage, cost
-rollups, dollar admission, quarantine and telemetry remain tracked in 214c.18 /
-issue #403. See API doc 029 §8.9 for receipt semantics and protocol references.
+numeric billing fields do not constitute a USD policy. See explicit cost admission
+below and API029 §8.12 for governed pricing, rollups and quarantine
+(214c.18 / #403), and §8.9 for proposer receipt semantics and protocol references.
 
 ### Scoring usage evidence
 
@@ -331,4 +331,94 @@ Reported evidence may contain unmeasured calls, whose `usage` is null. The
 `evaluation-usage/v1` schema is shared through refiner-core. CLI JSON score output
 remains a ScoreRecord. Library users requiring durable cost records must wrap
 their runner with `createAccountingEvalRunner`. API029 §8.10 documents limits;
-priced rollups and hard USD admission remain in 214c.18 / issue #403.
+§8.12 describes the additional governed pricing and hard admission boundary.
+
+### Explicit cost admission
+
+`refine propose`, `refine score` and `refine assess` accept `--cost-policy policy.json --cost-file-id stable-id` and
+optional `--cost-ledger path` (default `audit/wave-b-cost-ledger.jsonl`). Native proposer, scoring and assessment transports share this policy, including
+independent judges and MiniMax wire retries. Tracked by
+`bd_000-projects-214c.18` / #403; no Wave B execution is authorized by these flags.
+
+The `refiner-cost-policy/v1` schema pins provider/requested-model rates and an
+explicit allowlist of reported model IDs, source metadata, allowed file IDs,
+input/output token bounds, protocol overhead, and limits in integer micro-USD.
+Rates are integer micro-USD per million tokens for input, output, cache reads,
+generic cache writes and 5-minute/1-hour writes. No live prices are inferred.
+Charges round up once per wire attempt. Reservations use the full reviewed input
+bound at the highest input/cache rate and the request's bounded output limit.
+Text request byte size plus declared protocol overhead must fit the input bound;
+streaming and unsupported request shapes fail before I/O. Bounds and model
+aliases require operator review against the chosen provider's contract.
+
+The append-only JSONL ledger pins the policy and hashes its record chain. It
+syncs reservations to disk before I/O, recomputes priced totals on replay, and
+retains reservations for missing usage or unrecognized reported models. Such
+unknown settlements stop the wave. Admission failures durably quarantine the
+file or stop the wave; no automatic release or retry clears that decision.
+Actual overruns remain recorded and raise a P0 state. Accepted outcomes roll up
+cumulative file cost; a cost-per-accept remains null while usage is unresolved.
+The hash chain detects corruption, not malicious rewriting by a filesystem owner.
+
+The Wave B profile fixes $200/file, $35,000 total, an 80% stop, and $50/file mean
+tracking. The mean uses the explicit policy cohort. Quarantine is a durable
+manual-review state in the ledger; it does not move skill files. Exclusive
+writer locks fail closed on contention. A leftover lock, partial record, or
+policy mismatch requires investigation; no timeout automatically releases funds.
+See API document 029 §8.12 for the implementation boundary.
+
+Scoring subprocesses receive a validated explicit context; inherited ambient cost
+context is removed when none was supplied. Governed assessment uses the native
+subprocess runner. Subscription execution, stub providers and unsupported request
+shapes are refused in governed mode. A native evaluator admission refusal exits
+with budget exhaustion and no verdict; `refine score/assess` consequently produces
+no score/accepted assessment for that failed evaluation.
+
+Each terminal Refiner attempt stores a `cost-outcome` receipt with attempt, file,
+policy and scope identities, measured token totals, known cost, unknown count,
+cumulative file/global commitments and per-accept cost. Mean tracking explicitly
+uses the policy cohort and reports whether usage is complete. Quarantined files
+also get `cost-quarantine` manual-review records; overruns get a
+`cost-governance-finding` record with severity P0. The ledger remains the authority
+if a process stops before these derived receipts are written.
+
+The existing `cost.run.recorded` OTel event carries Refiner attempt/file/policy
+correlation, file commitments, accepted counts and cumulative cost per accept.
+The per-accept USD attribute is omitted while that value is unknown. `cost.record.scope=refiner-attempt` identifies
+whole-attempt summaries; nested evaluator events use `evaluator-run`. These are
+two aggregation levels of the same work and must not be summed together. Unknown
+attempt cost omits the USD estimate. Telemetry is best effort; durable accounting
+and admission do not depend on a collector.
+
+Evaluator `usage_evidence` counts outer provider attempts, while this ledger counts
+admitted wire calls. A hard refusal can therefore appear as a failed outer
+attempt without a ledger reservation or charge. MiniMax retries have separate
+wire reservations even when they belong to one outer provider attempt.
+
+The policy also accepts optional `maxFileTokens`, `maxTotalTokens`,
+`maxFileAttempts` and `maxAttempts`. Zero refuses all applicable calls. Token
+admission reserves the full input bound plus output limit; settlement releases
+only measured excess. Pending/missing usage keeps its token reservation. Attempt
+caps count admitted wire calls (including failed calls, zero-priced calls and
+retries), across processes and Refiner invocations sharing the ledger. Per-file
+caps quarantine that file; whole-run caps stop the scope. Receipts expose known
+and committed tokens plus admitted call counts alongside USD.
+
+These durable limits implement the historical pure CostMeter token/attempt
+contract in the native runtime. The old measured-only in-memory helper remains
+available for compatibility; it cannot represent unknown usage or cross-process
+reservations. The evaluator's existing per-invocation soft caps remain separate.
+
+An unrecovered native provider failure stops further wire calls in that governed
+invocation. Its infrastructure-error evidence takes precedence over later
+refusals; a refusal must not relabel actual failed work as an unspent budget stop.
+`CostAdmissionError` preserves the distinction through the native adapters.
+MiniMax recovery remains inside one provider call and reserves each retry before
+sending it; successful recovery does not latch an outer provider failure.
+
+Governed assessment validates its financial outcome before storing an accepted
+assessment. Every wire call must have settled, priced usage within its reserved
+bounds, and at least one call must have completed. Measured failed calls followed
+by successful recovery remain in the accepted attempt's cost. Unknown usage or a
+provider-bound overrun prevents publishing an accepted assessment; the failed
+outcome retains its cost and quarantine/P0 evidence.

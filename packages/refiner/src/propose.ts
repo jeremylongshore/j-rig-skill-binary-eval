@@ -262,7 +262,7 @@ export class AnthropicCompletionClient implements CompletionClient {
   constructor(opts: AnthropicCompletionClientOptions) {
     this.#apiKey = opts.apiKey;
     this.#baseUrl = opts.baseUrl ?? DEFAULT_MESSAGES_URL;
-    this.#transport = opts.transport ?? createFetchTransport();
+    this.#transport = opts.transport ?? createCompletionFetchTransport();
   }
 
   async complete(req: CompletionRequest): Promise<string> {
@@ -347,7 +347,7 @@ export class OpenAICompatCompletionClient implements CompletionClient {
     // js/polynomial-redos); a scan is O(n) with no backtracking.
     this.#baseUrl = stripTrailingSlashes(opts.baseUrl);
     this.#name = opts.name ?? "openai-compatible";
-    this.#transport = opts.transport ?? createFetchTransport();
+    this.#transport = opts.transport ?? createCompletionFetchTransport();
   }
 
   async complete(req: CompletionRequest): Promise<string> {
@@ -415,7 +415,7 @@ function extractChatCompletionText(json: unknown): string {
 }
 
 /** Real `fetch`-backed {@link CompletionTransport}. */
-function createFetchTransport(): CompletionTransport {
+export function createCompletionFetchTransport(): CompletionTransport {
   return async (req) => {
     const response = await fetch(req.url, {
       method: "POST",

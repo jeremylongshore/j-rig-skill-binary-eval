@@ -1,3 +1,10 @@
+import {
+  costSessionFromOptions,
+  recordCostOutcome,
+  type CostSession,
+  type CostOptions,
+  type CostOutcomeReport,
+} from "./cost-context.js";
 import { createAccountingEvalRunner } from "./score-evidence.js";
 import { proposeWithEvidence } from "./propose-evidence.js";
 import { assessOptimizerExperiment } from "./optimizer.js";
@@ -28,6 +35,7 @@ import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createCostTransport } from "./cost-transport.js";
 import { loadSkillDoc } from "./skill-doc.js";
 import type { Command } from "commander";
 import {
@@ -48,6 +56,7 @@ import {
 } from "./assess.js";
 import {
   createCompletionClient,
+  createCompletionFetchTransport,
   resolveProvider,
   NoProviderError,
   type ProposeModelTier,
@@ -92,8 +101,44 @@ function fail(message: string): never {
 export function registerRefineCommand(
   program: Command,
   storeFactory: (root: string) => RefinerStore = (root) => new RefinerStore({ root }),
-  assessmentRuntime: { runner?: EvalRunner; now?: () => string } = {},
+  assessmentRuntime: {
+    runner?: EvalRunner;
+    now?: () => string;
+    onCostOutcome?: (report: CostOutcomeReport) => void;
+  } = {},
 ): void {
+  const finishCost = (
+    session: CostSession | undefined,
+    decision: CostOutcomeReport["decision"],
+  ): void => {
+    const report = recordCostOutcome(session, decision);
+    if (!report) return;
+    const store = storeFactory(process.cwd());
+    const receiptHash = store.put("cost-outcome", report);
+    if (report.file.quarantined)
+      store.put("cost-quarantine", {
+        schema: "refiner-cost-quarantine/v1",
+        fileId: report.fileId,
+        scopeId: report.scopeId,
+        policyHash: report.policyHash,
+        receiptHash,
+        status: "manual-review-required",
+      });
+    if (report.p0)
+      store.put("cost-governance-finding", {
+        schema: "refiner-cost-finding/v1",
+        severity: "P0",
+        scopeId: report.scopeId,
+        policyHash: report.policyHash,
+        receiptHash,
+        reason: "provider-bound-or-total-cost-limit-violation",
+      });
+    try {
+      assessmentRuntime.onCostOutcome?.(report);
+    } catch {
+      /* Telemetry is best effort. */
+    }
+  };
   const refine = program
     .command("refine")
     .description("Eval-guided SKILL.md improvement loop (Skill Refiner)");
@@ -221,11 +266,14 @@ export function registerRefineCommand(
       "Scoring model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
         "providers: a raw vendor model id (defaults to the provider's default).",
     )
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger")
+    .option("--cost-file-id <id>", "Stable file identity from cost policy")
     .option("--json", "Output as JSON")
     .action(
       async (
         skillDir: string,
-        opts: {
+        opts: CostOptions & {
           evalSet?: string;
           evalSetFile?: string;
           provider?: string;
@@ -233,7 +281,9 @@ export function registerRefineCommand(
           json?: boolean;
         },
       ) => {
+        let cost: CostSession | undefined;
         try {
+          cost = costSessionFromOptions(opts);
           // Resolve the backend the SAME way propose() does, so `refine score`
           // never hard-requires Anthropic and agrees with `j-rig eval`.
           let resolved;
@@ -283,15 +333,22 @@ export function registerRefineCommand(
           if (evalSet === null) {
             fail(`eval set ${opts.evalSet} not found in the refiner store`);
           }
-          const runner = createAccountingEvalRunner(createSubprocessEvalRunner(), store);
+          const runner = createAccountingEvalRunner(
+            createSubprocessEvalRunner(),
+            store,
+            {},
+            cost ? { id: () => cost!.context.attemptId } : {},
+          );
           const record = await score(doc, evalSet, runner, {
             skillDir,
             modelTier,
             provider: resolved.name,
+            ...(cost ? { costContext: cost.context } : {}),
           });
           store.putSkillDoc(doc);
           store.putEvalSet(evalSet);
           store.putScoreRecord(record);
+          finishCost(cost, "scored");
           if (opts.json) {
             console.log(JSON.stringify(record, null, 2));
           } else {
@@ -301,6 +358,7 @@ export function registerRefineCommand(
             );
           }
         } catch (err) {
+          finishCost(cost, "failed");
           fail(err instanceof Error ? err.message : String(err));
         }
       },
@@ -322,13 +380,26 @@ export function registerRefineCommand(
       "Propose model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
         "providers: a raw vendor model id (defaults to the provider's default).",
     )
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger (default: audit/wave-b-cost-ledger.jsonl)")
+    .option("--cost-file-id <id>", "Stable file identity from the cost policy")
     .option("--json", "Output as JSON")
     .action(
       async (
         skillDir: string,
-        opts: { strategy?: string; provider?: string; model?: string; json?: boolean },
+        opts: {
+          strategy?: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+          costPolicy?: string;
+          costLedger?: string;
+          costFileId?: string;
+        },
       ) => {
+        let cost: CostSession | undefined;
         try {
+          cost = costSessionFromOptions(opts);
           // PROVIDER-AGNOSTIC: resolve a backend from --provider / LLM_* / the
           // first present key (preferring free/cheap). No Anthropic requirement.
           let resolved;
@@ -371,18 +442,29 @@ export function registerRefineCommand(
           store.putSkillDoc(doc);
           // Build the client that matches the resolved provider's wire format
           // (Anthropic Messages vs OpenAI Chat Completions).
-          const client = createCompletionClient(resolved);
+          const transport = cost
+            ? createCostTransport(createCompletionFetchTransport(), cost.ledger, {
+                fileId: cost.context.fileId,
+                attemptId: cost.context.attemptId,
+                provider: resolved.name,
+                format: resolved.format,
+                phase: "propose",
+              })
+            : undefined;
+          const client = createCompletionClient(resolved, transport);
           // No scored rollouts on the CLI path yet (harvest is wave 2+); the
           // strategies tolerate an empty rollout set (single-pass proposal).
+          const costAttemptId = cost?.context.attemptId;
           const { proposal } = await proposeWithEvidence(
             strategy,
             { doc, rollouts: [] },
             client,
             store,
             proposeOpts,
-            { provider: resolved.name },
+            { provider: resolved.name, ...(costAttemptId ? { id: () => costAttemptId } : {}) },
           );
           const hash = store.putEditProposal(proposal);
+          finishCost(cost, "proposed");
           if (opts.json) {
             console.log(JSON.stringify(proposal, null, 2));
           } else {
@@ -393,6 +475,7 @@ export function registerRefineCommand(
             console.log(`  stored:   .j-rig/refiner/store/${hash.slice(0, 12)}…`);
           }
         } catch (err) {
+          finishCost(cost, "failed");
           fail(err instanceof Error ? err.message : String(err));
         }
       },
@@ -412,11 +495,14 @@ export function registerRefineCommand(
     .requiredOption("--quality-file <path>", "JSON with explicit evidence and policy")
     .option("--provider <name>", "Evaluation provider")
     .option("--model <id>", "Scoring model (haiku/sonnet on Anthropic)")
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger")
+    .option("--cost-file-id <id>", "Stable file identity from cost policy")
     .option("--json", "Output assessment as JSON")
     .action(
       async (
         skillDir: string,
-        opts: {
+        opts: CostOptions & {
           proposal?: string;
           experiment?: string;
           evalSetFile: string;
@@ -426,7 +512,11 @@ export function registerRefineCommand(
           json?: boolean;
         },
       ) => {
+        let cost: CostSession | undefined;
         try {
+          cost = costSessionFromOptions(opts);
+          if (cost && assessmentRuntime.runner)
+            fail("Governed cost mode requires the native subprocess runner");
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
           if (Boolean(opts.proposal) === Boolean(opts.experiment))
@@ -466,7 +556,12 @@ export function registerRefineCommand(
             quality: quality.evidence,
             policy: quality.policy,
             now: assessmentRuntime.now?.() ?? new Date().toISOString(),
-            scoreOptions: { skillDir, provider: resolved.name, modelTier },
+            scoreOptions: {
+              skillDir,
+              provider: resolved.name,
+              modelTier,
+              ...(cost ? { costContext: cost.context } : {}),
+            },
           };
           const runner = createAccountingEvalRunner(
             assessmentRuntime.runner ?? createSubprocessEvalRunner(),
@@ -475,12 +570,27 @@ export function registerRefineCommand(
               proposalHash: hashValue(proposal),
               ...(opts.experiment ? { experimentHash: opts.experiment } : {}),
             },
-            { now: assessmentRuntime.now },
+            { now: assessmentRuntime.now, ...(cost ? { id: () => cost!.context.attemptId } : {}) },
           );
           const optimizer = experiment
             ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
             : undefined;
           const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
+          const costDecision =
+            result.status === "blocked"
+              ? "blocked"
+              : result.decision.outcome === "ACCEPT" &&
+                  (!optimizer || optimizer.experiment?.experiment.status === "accepted")
+                ? "accepted"
+                : "rejected";
+          cost?.ledger.assertOutcome({
+            attemptId: cost.context.attemptId,
+            fileId: cost.context.fileId,
+            decision:
+              result.status === "evaluated" && result.decision.outcome === "ACCEPT"
+                ? "accepted"
+                : costDecision,
+          });
           const hash =
             result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
           if (runner.attemptCount > 0)
@@ -494,6 +604,7 @@ export function registerRefineCommand(
               status: result.status,
               decision: result.status === "evaluated" ? result.decision.outcome : null,
             });
+          finishCost(cost, costDecision);
           const experimentHash = optimizer?.experiment
             ? store.put("optimizer-experiment", optimizer.experiment)
             : undefined;
@@ -528,6 +639,7 @@ export function registerRefineCommand(
           )
             process.exitCode = 2;
         } catch (error) {
+          finishCost(cost, "failed");
           fail(error instanceof Error ? error.message : String(error));
         }
       },
