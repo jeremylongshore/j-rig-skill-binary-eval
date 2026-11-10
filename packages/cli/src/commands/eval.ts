@@ -1,3 +1,4 @@
+import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 import { reportEvalCost } from "./eval-cost-report.js";
 import { buildVoteEvidence } from "./eval-vote-evidence.js";
 import {
@@ -31,9 +32,6 @@ import {
   runTriggerTests,
   computeMetrics,
   runFunctionalTests,
-  runSelfTest,
-  toSelfTestJudgment,
-  buildSelfTestCriterion,
   judgeCriteria,
   selectCriteriaForTestCase,
   computeScoreCard,
@@ -65,7 +63,6 @@ import type {
   JudgmentResult,
   ObservedOutcome,
   EvidenceStatement,
-  Criterion,
   Regression,
   BaselineComparison,
   TriggerResult,
@@ -957,27 +954,11 @@ export function registerEvalCommand(program: Command): void {
         // under-score" gap: a completion-only eval grades the model reading
         // SKILL.md, never the deterministic script that actually produces the
         // correct verdicts (design principle #3 — observed outranks claimed).
-        let selfTestJudgment: JudgmentResult | undefined;
-        let selfTestCriterion: Criterion | undefined;
-        if (spec.self_test) {
-          if (opts.runSelfTest) {
-            const st = runSelfTest(spec.self_test, absDir);
-            selfTestJudgment = toSelfTestJudgment(st);
-            selfTestCriterion = buildSelfTestCriterion(spec.self_test);
-            if (!opts.json) {
-              const mark = st.passed ? icon("pass") : icon("error");
-              console.log(
-                `  Self-test: ${mark} ${selfTestJudgment.reasoning}` +
-                  (selfTestCriterion.blocker ? " (blocker)" : ""),
-              );
-            }
-          } else if (!opts.json) {
-            console.log(
-              "  Self-test: skill declares a self_test; re-run with --run-self-test to " +
-                "execute it as a deterministic criterion.",
-            );
-          }
-        }
+        const { selfTestJudgment, selfTestCriterion } = evaluateDeclaredSelfTest(
+          spec.self_test,
+          absDir,
+          opts,
+        );
 
         // Set when the infrastructure-failure override fires for ANY model:
         // that model was not (fully) evaluated, so the process must not exit 0
