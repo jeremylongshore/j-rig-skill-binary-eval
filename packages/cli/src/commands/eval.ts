@@ -4,7 +4,7 @@ import { evaluateOutcomeJudgments } from "./eval-judgments.js";
 import { finalizeEvaluation } from "./eval-finalize.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 import { reportEvalCost } from "./eval-cost-report.js";
-import { buildEvaluationStatement } from "./eval-statement.js";
+import { recordEvaluatedModelCompletion } from "./eval-model-completion.js";
 import {
   positiveNumber,
   resolveExecutionParameters,
@@ -19,7 +19,7 @@ import {
   type CostSession,
 } from "@intentsolutions/refiner";
 import { createFetchTransport } from "../providers/transport.js";
-import { retainRolloutRun, type RetainedRolloutRun } from "./rollout-export.js";
+import type { RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
 import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
@@ -46,7 +46,6 @@ import {
   emitRuntimeRunStarted,
   emitRuntimeRunFinished,
   emitRuntimeCriterionEvaluated,
-  emitGateDecisionEmitted,
   buildSkillPromotionEvidence,
   hashCanonicalJson,
   RuntimeTerminalState,
@@ -71,7 +70,7 @@ import {
 } from "@j-rig/db";
 import { openDb } from "../lib/db.js";
 import { loadSkillEvalSpec, loadSkillMd } from "../lib/loaders.js";
-import { printReport, header, formatDecision, formatScore, icon } from "../lib/output.js";
+import { printReport, header, formatScore, icon } from "../lib/output.js";
 import {
   StubTriggerProvider,
   StubExecutionProvider,
@@ -1568,91 +1567,43 @@ export function registerEvalCommand(program: Command): void {
               runHadFailure = true;
             }
             if (infraFailure) infrastructureFailureSeen = true;
-            if (infraFailureReason && !opts.json) {
-              console.log(`  ${icon("error")} ${infraFailureReason}`);
-            }
-            emitGateDecisionEmitted(correlation, {
-              gateName: "j-rig-rollout-gate",
-              decision: gateDecisionValue,
-              policyRef: specContentHash,
+            recordEvaluatedModelCompletion({
+              gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
+              infraFailure,
+              infraFailureReason,
+              promotionEvidence,
+              report,
+              triggerEvidence,
+              allJudgments,
+              scoringCriteria,
+              spec,
+              judgeSamples,
+              scoreCard,
+              ranRegression,
+              ranBaseline,
+              specContentHash,
+              skillSnapshotSha,
+              modelStart,
+              jrigVersion,
+              commit,
+              executionMetadata,
+              model,
+              providers,
+              toolConfig,
+              toolReceipts,
+              headroom,
+              batchLineage,
+              opts,
+              correlation,
+              gateDecisionValue,
+              database,
+              runId,
+              bundleRows,
+              bundleRunIds,
+              retainedRollouts,
+              outcomes,
+              subscriptionExecution: Boolean(claudeCodeSettings),
             });
-
-            // ── Evidence Bundle row (opt-in via --emit-bundle) ─────────
-            // Compose a real, kernel-validated gate-result/v1 in-toto Statement
-            // from this model's rollout decision. composeStatement fail-closes
-            // (throws) on any invalid field, so a successfully written bundle is
-            // proof-by-construction that every row is kernel-valid and directly
-            // consumable by intent-rollout-gate. Reuses the same
-            // promotion evidence → pass|fail|advisory mapping as the OTel emit.
-            if (opts.emitBundle) {
-              const statement = buildEvaluationStatement({
-                gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
-                infraFailure,
-                infraFailureReason,
-                promotionEvidence,
-                report,
-                triggerEvidence,
-                allJudgments,
-                scoringCriteria,
-                spec,
-                judgeSamples,
-                scoreCard,
-                ranRegression,
-                ranBaseline,
-                specContentHash,
-                skillSnapshotSha,
-                modelStart,
-                jrigVersion,
-                commit,
-                executionMetadata,
-                model,
-                providers,
-                toolConfig,
-                toolReceipts,
-                headroom,
-                batchLineage,
-              });
-              bundleRows.push(statement);
-              bundleRunIds.push(runId);
-            }
-
-            if (!opts.json) {
-              console.log(`  Decision: ${formatDecision(report.decision)}`);
-              if (report.blockers.length > 0) {
-                for (const b of report.blockers) {
-                  console.log(`    ${icon("error")} ${b}`);
-                }
-              }
-              if (report.warnings.length > 0) {
-                for (const w of report.warnings) {
-                  console.log(`    ${icon("warning")} ${w}`);
-                }
-              }
-              console.log("");
-            }
-
-            if (opts.rolloutFile) {
-              retainedRollouts.push(
-                retainRolloutRun(
-                  {
-                    runId,
-                    model,
-                    provider: claudeCodeSettings
-                      ? CLAUDE_CODE_PROVIDER_NAME
-                      : providers.providerName,
-                    groundTruth: providers.real,
-                    status: infraFailure ? "failed" : "completed",
-                  },
-                  outcomes,
-                ),
-              );
-            }
-
-            if (infraFailure) {
-              transitionRun(database, runId, "failed", JSON.stringify(infraFailure));
-            } else {
-              transitionRun(database, runId, "completed");
-            }
           } else {
             if (triggerFailure) {
               infrastructureFailureSeen = true;
