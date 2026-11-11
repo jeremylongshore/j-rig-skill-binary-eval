@@ -4,7 +4,7 @@ import { evaluateOutcomeJudgments } from "./eval-judgments.js";
 import { finalizeEvaluation } from "./eval-finalize.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 import { reportEvalCost } from "./eval-cost-report.js";
-import { buildVoteEvidence } from "./eval-vote-evidence.js";
+import { buildEvaluationStatement } from "./eval-statement.js";
 import {
   positiveNumber,
   resolveExecutionParameters,
@@ -48,7 +48,6 @@ import {
   emitRuntimeCriterionEvaluated,
   emitGateDecisionEmitted,
   buildSkillPromotionEvidence,
-  composeStatement,
   hashCanonicalJson,
   RuntimeTerminalState,
   CriterionOutcome,
@@ -1586,105 +1585,32 @@ export function registerEvalCommand(program: Command): void {
             // consumable by intent-rollout-gate. Reuses the same
             // promotion evidence → pass|fail|advisory mapping as the OTel emit.
             if (opts.emitBundle) {
-              const gateDecision = infraFailure ? "error" : promotionEvidence.gate_decision;
-              const gateReasons = [
-                ...new Set([
-                  ...report.blockers,
-                  ...report.warnings,
-                  // Promotion reasons describe a verdict; an `error` row has none.
-                  ...(infraFailure ? [] : promotionEvidence.promotion_reasons),
-                ]),
-              ];
-              if (infraFailureReason) gateReasons.unshift(infraFailureReason);
-              if (gateReasons.length === 0) {
-                gateReasons.push(report.reasoning || "all criteria met");
-              }
-              const triggerRan = triggerEvidence.status === "complete";
-              // Vote evidence (audit-substrate review, finding 1): the signed
-              // predicate must carry the FOLD INPUTS — per-judgment samples,
-              // agreement, and per-sample verdicts — plus the aggregation rule
-              // in force, so a verifier can re-derive the verdict from the
-              // signed bytes ("majority of these N recorded votes", never
-              // "the judge said so"). `stability` is present IFF multi-
-              // sampling actually ran, so absence unambiguously means "no
-              // stability evidence" — never a fake measured-0.
-              const voteEvidence = buildVoteEvidence({
+              const statement = buildEvaluationStatement({
+                gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
+                infraFailure,
+                infraFailureReason,
+                promotionEvidence,
+                report,
+                triggerEvidence,
                 allJudgments,
                 scoringCriteria,
                 spec,
                 judgeSamples,
                 scoreCard,
-              });
-              const hasJudgeCriteria = allJudgments.some((j) => j.method === "judge");
-              const statement = composeStatement({
-                gateId: `j-rig:local:${sanitizeSegment(skillName, "skill")}.${sanitizeSegment(model, "model")}`,
-                gateDecision,
-                gateName: "rollout",
-                gateVersion: jrigVersion,
-                gateReasons,
-                coverage: {
-                  dimensionsEvaluated: [
-                    ...(triggerRan ? ["trigger"] : []),
-                    "functional",
-                    "behavioral",
-                    ...(ranRegression ? ["regression"] : []),
-                    ...(ranBaseline ? ["baseline"] : []),
-                  ],
-                  dimensionsSkipped: [
-                    ...(triggerRan ? [] : ["trigger"]),
-                    ...(ranRegression ? [] : ["regression"]),
-                    ...(ranBaseline ? [] : ["baseline"]),
-                  ],
-                },
-                policyRef: `${specContentHash}:eval-spec.yaml`,
-                policyHash: specContentHash,
-                inputHash: skillSnapshotSha,
-                evaluatedAt: new Date(modelStart).toISOString(),
-                runner: `j-rig@${jrigVersion}`,
-                commitSha: commit.sha,
-                metadata: {
-                  ...executionMetadata,
-                  trigger: triggerEvidence,
-                  model,
-                  provider: providers.providerName,
-                  ground_truth: providers.real,
-                  ...(toolConfig
-                    ? {
-                        tool_execution: {
-                          transport: "mcp-stdio",
-                          configuration_sha256: toolConfig.fingerprint,
-                          session_scope: "fresh_process_per_case",
-                          baseline_same_capabilities: true,
-                          receipts: toolReceipts,
-                        },
-                      }
-                    : {}),
-                  pass_rate: scoreCard.pass_rate,
-                  passed: scoreCard.passed,
-                  total_criteria: scoreCard.total_criteria,
-                  commit_sha_source: commit.source,
-                  // Blueprint B § 7.4 SHOULD: structured detail for `error`.
-                  // Mutually exclusive with promotion evidence (see above).
-                  ...(infraFailure ? { error_detail: infraFailure } : promotionEvidence),
-                  ...(headroom ? { headroom } : {}),
-                  ...batchLineage,
-                  ...voteEvidence,
-                },
-                // Honest replay-fidelity claim: an un-seeded API judge caps the
-                // statement below RF-2 (the OTel llm_no_seed classification) —
-                // the fold is replayable from the recorded votes above, the
-                // votes are not reproducible from scratch. Pure-deterministic
-                // runs make no claim rather than guessing a higher level.
-                ...(hasJudgeCriteria ? { replayFidelityLevel: "RF-1" as const } : {}),
-                ...(gateDecision === "fail"
-                  ? {
-                      failureMode:
-                        report.blockers[0] ??
-                        promotionEvidence.promotion_reasons.at(-1) ??
-                        "promotion-evidence-failed",
-                    }
-                  : {}),
-                ...(gateDecision === "advisory" ? { advisorySeverity: "warn" as const } : {}),
+                ranRegression,
+                ranBaseline,
+                specContentHash,
+                skillSnapshotSha,
+                modelStart,
+                jrigVersion,
+                commit,
+                executionMetadata,
+                model,
+                providers,
+                toolConfig,
+                toolReceipts,
+                headroom,
+                batchLineage,
               });
               bundleRows.push(statement);
               bundleRunIds.push(runId);
