@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import ts from "typescript";
 import { checkWorkspaceArchitecture } from "./workspace-architecture.js";
 
 const roots: string[] = [];
@@ -11,6 +12,10 @@ function workspace(): string {
   const root = mkdtempSync(join(tmpdir(), "jrig-architecture-"));
   roots.push(root);
   mkdirSync(join(root, "packages"));
+  writeFileSync(
+    join(root, "tsconfig.json"),
+    JSON.stringify({ compilerOptions: { module: "ESNext", verbatimModuleSyntax: true } }),
+  );
   writeFileSync(join(root, "pnpm-workspace.yaml"), 'packages:\n  - "packages/*"\n');
   return root;
 }
@@ -156,10 +161,10 @@ describe("workspace architecture", () => {
     expect(rules(root)).toContain("unresolved-dynamic-import");
   });
   it.each([
-    ['import { type Stats } from "node:fs";', 0],
+    ['import { type Stats } from "node:fs";', 1],
     ['import defaultFs, { type Stats } from "node:fs";', 1],
     ['import { type Stats, readFile } from "node:fs";', 1],
-    ['export { type Stats } from "node:fs";', 0],
+    ['export { type Stats } from "node:fs";', 1],
     ['export type * from "node:fs";', 0],
     ['export {} from "node:fs";', 1],
     ['export { type Stats, readFile } from "node:fs";', 1],
@@ -168,7 +173,7 @@ describe("workspace architecture", () => {
     ['type Stats = import("node:fs").Stats;', 0],
     ['import "node:fs";', 1],
     ["void import(`node:fs`);", 1],
-  ])("preserves type-only versus runtime module references: %s", (source, ioCount) => {
+  ])("classifies type-only versus runtime module references: %s", (source, ioCount) => {
     const root = workspace();
     pkg(root, "refiner-core", "@intentsolutions/refiner-core", source);
     const report = checkWorkspaceArchitecture(root);
@@ -220,6 +225,98 @@ describe("workspace architecture", () => {
         { line: 4, rule: "refiner-core-no-io", detail: "WebSocket" },
       ].map((violation) => ({ file: "packages/refiner-core/src/index.ts", ...violation })),
     });
+  });
+  it.each([false, true])(
+    "matches configured compiler emission for inline module syntax (verbatim=%s)",
+    (verbatim) => {
+      const sources = [
+        'import { type Stats } from "node:fs";',
+        'export { type Stats } from "node:fs";',
+        'import type { Stats } from "node:fs";',
+        'export type { Stats } from "node:fs";',
+        'import fs, { type Stats } from "node:fs"; void fs;',
+        'import { type Stats, readFile } from "node:fs"; void readFile;',
+        'export { type Stats, readFile } from "node:fs";',
+        'import "node:fs";',
+      ];
+      for (const source of sources) {
+        const root = workspace();
+        pkg(root, "refiner-core", "@intentsolutions/refiner-core", source);
+        const config = join(root, "packages/refiner-core/tsconfig.json");
+        writeFileSync(
+          config,
+          JSON.stringify({
+            extends: "../../tsconfig.json",
+            compilerOptions: { verbatimModuleSyntax: verbatim },
+          }),
+        );
+        const parsed = ts.getParsedCommandLineOfConfigFile(
+          config,
+          {},
+          {
+            ...ts.sys,
+            onUnRecoverableConfigFileDiagnostic: () => {
+              throw new Error("invalid oracle config");
+            },
+          },
+        )!;
+        expect(parsed.errors).toEqual([]);
+        const emitted = ts.transpileModule(source, { compilerOptions: parsed.options }).outputText;
+        const hasRuntimeImport = /(?:from\s*|import\s*)["']node:fs["']/.test(emitted);
+        const report = checkWorkspaceArchitecture(root);
+        expect(report.import_edges).toBe(1);
+        expect(report.violations, emitted).toEqual(
+          hasRuntimeImport
+            ? [
+                {
+                  file: "packages/refiner-core/src/index.ts",
+                  line: 1,
+                  rule: "refiner-core-no-io",
+                  detail: "node:fs",
+                },
+              ]
+            : [],
+        );
+      }
+    },
+  );
+  it.each([
+    'import { type Shape } from "@intentsolutions/jrig-cli";',
+    'export { type Shape } from "@intentsolutions/jrig-cli";',
+  ])("retains runtime workspace edges and CLI leaf enforcement for inline types: %s", (source) => {
+    const root = workspace();
+    pkg(root, "core", "@j-rig/core", source, {
+      dependencies: { "@intentsolutions/jrig-cli": "workspace:*" },
+    });
+    pkg(
+      root,
+      "cli",
+      "@intentsolutions/jrig-cli",
+      'import "@j-rig/core"; export interface Shape {}',
+      { dependencies: { "@j-rig/core": "workspace:*" } },
+    );
+    expect(rules(root)).toEqual(["cli-is-leaf", "workspace-runtime-cycle"]);
+    writeFileSync(
+      join(root, "packages/core/tsconfig.json"),
+      JSON.stringify({
+        extends: "../../tsconfig.json",
+        compilerOptions: { verbatimModuleSyntax: false },
+      }),
+    );
+    expect(rules(root)).toEqual([]);
+  });
+  it.each([
+    undefined,
+    '{"extends":"./absent.json"}',
+    '{"compilerOptions":{"verbatimModuleSyntax":"invalid"}}',
+    "{",
+  ])("refuses absent or invalid compiler configuration: %s", (config) => {
+    const root = workspace();
+    pkg(root, "a", "a", "export const value = 1;");
+    const path = join(root, "tsconfig.json");
+    if (config === undefined) rmSync(path);
+    else writeFileSync(path, config);
+    expect(rules(root)).toEqual(["incomplete-inventory"]);
   });
   it("refuses an empty workspace or new source-less package", () => {
     const root = workspace();
