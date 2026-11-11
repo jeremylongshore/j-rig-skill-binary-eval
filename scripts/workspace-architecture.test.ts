@@ -155,6 +155,72 @@ describe("workspace architecture", () => {
     pkg(root, "a", "a", "void import(process.env.MODULE!);");
     expect(rules(root)).toContain("unresolved-dynamic-import");
   });
+  it.each([
+    ['import { type Stats } from "node:fs";', 0],
+    ['import defaultFs, { type Stats } from "node:fs";', 1],
+    ['import { type Stats, readFile } from "node:fs";', 1],
+    ['export { type Stats } from "node:fs";', 0],
+    ['export type * from "node:fs";', 0],
+    ['export {} from "node:fs";', 1],
+    ['export { type Stats, readFile } from "node:fs";', 1],
+    ['import type Fs = require("node:fs");', 0],
+    ['import Fs = require("node:fs");', 1],
+    ['type Stats = import("node:fs").Stats;', 0],
+    ['import "node:fs";', 1],
+    ["void import(`node:fs`);", 1],
+  ])("preserves type-only versus runtime module references: %s", (source, ioCount) => {
+    const root = workspace();
+    pkg(root, "refiner-core", "@intentsolutions/refiner-core", source);
+    const report = checkWorkspaceArchitecture(root);
+    expect(report.import_edges).toBe(1);
+    expect(report.violations).toEqual(
+      Array.from({ length: ioCount }, () => ({
+        file: "packages/refiner-core/src/index.ts",
+        line: 1,
+        rule: "refiner-core-no-io",
+        detail: "node:fs",
+      })),
+    );
+  });
+  it("preserves preorder diagnostics while visiting children of unresolved imports", () => {
+    const root = workspace();
+    pkg(
+      root,
+      "refiner-core",
+      "@intentsolutions/refiner-core",
+      [
+        'void import(globalThis.fetch("https://example.invalid"));',
+        "require();",
+        "new global.XMLHttpRequest();",
+        'globalThis.WebSocket("wss://example.invalid");',
+        "other.fetch();",
+      ].join("\n"),
+    );
+    const report = checkWorkspaceArchitecture(root);
+    expect(report).toEqual({
+      schema_version: "workspace-architecture/v1",
+      result: "FAIL",
+      packages: 1,
+      production_files: 1,
+      import_edges: 0,
+      placeholders: [],
+      violations: [
+        {
+          line: 1,
+          rule: "unresolved-dynamic-import",
+          detail: "module specifier must be a literal for architecture verification",
+        },
+        { line: 1, rule: "refiner-core-no-io", detail: "fetch" },
+        {
+          line: 2,
+          rule: "unresolved-dynamic-import",
+          detail: "module specifier must be a literal for architecture verification",
+        },
+        { line: 3, rule: "refiner-core-no-io", detail: "XMLHttpRequest" },
+        { line: 4, rule: "refiner-core-no-io", detail: "WebSocket" },
+      ].map((violation) => ({ file: "packages/refiner-core/src/index.ts", ...violation })),
+    });
+  });
   it("refuses an empty workspace or new source-less package", () => {
     const root = workspace();
     expect(rules(root)).toContain("incomplete-inventory");

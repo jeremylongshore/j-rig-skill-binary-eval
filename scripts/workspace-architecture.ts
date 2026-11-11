@@ -99,6 +99,84 @@ function packageName(specifier: string): string {
     : specifier.split("/")[0];
 }
 
+interface ModuleReference {
+  specifier: string;
+  typeOnly: boolean;
+}
+
+function importIsTypeOnly(clause: ts.ImportClause | undefined): boolean {
+  const bindings = clause?.namedBindings;
+  return Boolean(
+    clause?.isTypeOnly ||
+    (!clause?.name &&
+      bindings &&
+      ts.isNamedImports(bindings) &&
+      bindings.elements.length > 0 &&
+      bindings.elements.every((element) => element.isTypeOnly)),
+  );
+}
+
+function exportIsTypeOnly(node: ts.ExportDeclaration): boolean {
+  return (
+    node.isTypeOnly ||
+    Boolean(
+      node.exportClause &&
+      ts.isNamedExports(node.exportClause) &&
+      node.exportClause.elements.length > 0 &&
+      node.exportClause.elements.every((element) => element.isTypeOnly),
+    )
+  );
+}
+
+/** Decode only syntax already covered by the architecture policy. */
+function moduleReference(node: ts.Node): ModuleReference | "unresolved" | undefined {
+  if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier))
+    return { specifier: node.moduleSpecifier.text, typeOnly: importIsTypeOnly(node.importClause) };
+  if (
+    ts.isExportDeclaration(node) &&
+    node.moduleSpecifier &&
+    ts.isStringLiteralLike(node.moduleSpecifier)
+  )
+    return { specifier: node.moduleSpecifier.text, typeOnly: exportIsTypeOnly(node) };
+  if (
+    ts.isImportTypeNode(node) &&
+    ts.isLiteralTypeNode(node.argument) &&
+    ts.isStringLiteralLike(node.argument.literal)
+  )
+    return { specifier: node.argument.literal.text, typeOnly: true };
+  if (
+    ts.isImportEqualsDeclaration(node) &&
+    ts.isExternalModuleReference(node.moduleReference) &&
+    node.moduleReference.expression &&
+    ts.isStringLiteralLike(node.moduleReference.expression)
+  )
+    return { specifier: node.moduleReference.expression.text, typeOnly: node.isTypeOnly };
+  if (
+    ts.isCallExpression(node) &&
+    (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+      (ts.isIdentifier(node.expression) && node.expression.text === "require"))
+  ) {
+    const arg = node.arguments[0];
+    return arg && ts.isStringLiteralLike(arg)
+      ? { specifier: arg.text, typeOnly: false }
+      : "unresolved";
+  }
+  return undefined;
+}
+
+function globalIoName(node: ts.Node): string | undefined {
+  if (!ts.isCallExpression(node) && !ts.isNewExpression(node)) return undefined;
+  const expression = node.expression;
+  const name = ts.isIdentifier(expression)
+    ? expression.text
+    : ts.isPropertyAccessExpression(expression) &&
+        ts.isIdentifier(expression.expression) &&
+        ["globalThis", "global"].includes(expression.expression.text)
+      ? expression.name.text
+      : "";
+  return ["fetch", "WebSocket", "XMLHttpRequest"].includes(name) ? name : undefined;
+}
+
 export function checkWorkspaceArchitecture(root: string): ArchitectureReport {
   root = resolve(root);
   const report: ArchitectureReport = {
@@ -214,73 +292,18 @@ export function checkWorkspaceArchitecture(root: string): ArchitectureReport {
             add(file, line, "refiner-core-no-io", specifier);
         };
         const visit = (node: ts.Node): void => {
-          if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
-            const clause = node.importClause;
-            const bindings = clause?.namedBindings;
-            const onlyTypes = Boolean(
-              clause?.isTypeOnly ||
-              (!clause?.name &&
-                bindings &&
-                ts.isNamedImports(bindings) &&
-                bindings.elements.length > 0 &&
-                bindings.elements.every((element) => element.isTypeOnly)),
+          const reference = moduleReference(node);
+          if (reference === "unresolved")
+            add(
+              file,
+              parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1,
+              "unresolved-dynamic-import",
+              "module specifier must be a literal for architecture verification",
             );
-            checkImport(node, node.moduleSpecifier.text, onlyTypes);
-          } else if (
-            ts.isExportDeclaration(node) &&
-            node.moduleSpecifier &&
-            ts.isStringLiteralLike(node.moduleSpecifier)
-          ) {
-            const onlyTypes =
-              node.isTypeOnly ||
-              Boolean(
-                node.exportClause &&
-                ts.isNamedExports(node.exportClause) &&
-                node.exportClause.elements.length > 0 &&
-                node.exportClause.elements.every((element) => element.isTypeOnly),
-              );
-            checkImport(node, node.moduleSpecifier.text, onlyTypes);
-          } else if (
-            ts.isImportTypeNode(node) &&
-            ts.isLiteralTypeNode(node.argument) &&
-            ts.isStringLiteralLike(node.argument.literal)
-          )
-            checkImport(node, node.argument.literal.text, true);
-          else if (
-            ts.isImportEqualsDeclaration(node) &&
-            ts.isExternalModuleReference(node.moduleReference) &&
-            node.moduleReference.expression &&
-            ts.isStringLiteralLike(node.moduleReference.expression)
-          )
-            checkImport(node, node.moduleReference.expression.text, node.isTypeOnly);
-          else if (
-            ts.isCallExpression(node) &&
-            (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-              (ts.isIdentifier(node.expression) && node.expression.text === "require"))
-          ) {
-            const arg = node.arguments[0];
-            if (arg && ts.isStringLiteralLike(arg)) checkImport(node, arg.text, false);
-            else
-              add(
-                file,
-                parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1,
-                "unresolved-dynamic-import",
-                "module specifier must be a literal for architecture verification",
-              );
-          }
-          if (
-            pkg.name === "@intentsolutions/refiner-core" &&
-            (ts.isCallExpression(node) || ts.isNewExpression(node))
-          ) {
-            const expression = node.expression;
-            const name = ts.isIdentifier(expression)
-              ? expression.text
-              : ts.isPropertyAccessExpression(expression) &&
-                  ts.isIdentifier(expression.expression) &&
-                  ["globalThis", "global"].includes(expression.expression.text)
-                ? expression.name.text
-                : "";
-            if (["fetch", "WebSocket", "XMLHttpRequest"].includes(name))
+          else if (reference) checkImport(node, reference.specifier, reference.typeOnly);
+          if (pkg.name === "@intentsolutions/refiner-core") {
+            const name = globalIoName(node);
+            if (name)
               add(
                 file,
                 parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1,
