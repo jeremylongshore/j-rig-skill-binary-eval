@@ -1,4 +1,5 @@
 import { evaluateNakedBaseline } from "./eval-baseline-phase.js";
+import { evaluateOutcomeJudgments } from "./eval-judgments.js";
 import { finalizeEvaluation } from "./eval-finalize.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 import { reportEvalCost } from "./eval-cost-report.js";
@@ -21,7 +22,7 @@ import { retainRolloutRun, type RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
 import { storeTriggerEvidence } from "./trigger-evidence.js";
 import { loadMcpRuntime } from "../execution/mcp-runtime.js";
-import { getJudgeObservations, storeToolExecutionEvidence } from "../execution/evidence.js";
+import { storeToolExecutionEvidence } from "../execution/evidence.js";
 import type { Command } from "commander";
 import chalk from "chalk";
 import { resolve } from "node:path";
@@ -34,8 +35,6 @@ import {
   runTriggerTests,
   computeMetrics,
   runFunctionalTests,
-  judgeCriteria,
-  selectCriteriaForTestCase,
   computeScoreCard,
   decideRollout,
   buildLaunchReport,
@@ -46,15 +45,12 @@ import {
   emitRuntimeRunStarted,
   emitRuntimeRunFinished,
   emitRuntimeCriterionEvaluated,
-  emitJudgeInvoked,
-  emitJudgeVerdict,
   emitGateDecisionEmitted,
   buildSkillPromotionEvidence,
   composeStatement,
   hashCanonicalJson,
   RuntimeTerminalState,
   CriterionOutcome,
-  JudgeVerdictSource,
   GateDecision,
   type EvalCorrelation,
 } from "@j-rig/core";
@@ -106,7 +102,6 @@ import type { HeadroomAssessment } from "@j-rig/core";
 import {
   detectInfrastructureFailure,
   infrastructureFailureReason,
-  isFailedExecution,
 } from "./eval-infrastructure-failure.js";
 import {
   CostTrackingProvider,
@@ -1237,109 +1232,21 @@ export function registerEvalCommand(program: Command): void {
             // off-topic criterion being judged against an unrelated control
             // prompt — the false-blocker bug that inflated NO-SHIP rates.
             const testCaseById = new Map(spec.test_cases.map((tc) => [tc.id, tc]));
-            const allJudgments: JudgmentResult[] = [];
-
             costMeter.phase = "judge";
-            const executionFailed = outcomes.some(isFailedExecution);
-            for (const outcome of outcomes) {
-              // Preserve an execution failure without spending on a later phase
-              // or turning its unknown usage into a budget refusal.
-              if (
-                costSession?.refused ||
-                runBudget.stop ||
-                ((runBudget.active || costSession) && executionFailed)
-              )
-                break;
-              if (isFailedExecution(outcome)) continue;
-              const testCase = testCaseById.get(outcome.test_case_id);
-              // Every outcome originates from a spec test case (runFunctionalTests
-              // iterates spec.test_cases), so a miss is an internal invariant
-              // break — fail loud rather than silently fall back to ALL criteria.
-              if (!testCase) {
-                throw new Error(
-                  `Outcome references unknown test case id: "${outcome.test_case_id}"`,
-                );
-              }
-              const applicableCriteria = selectCriteriaForTestCase(
-                spec.criteria,
-                testCase.criteria_ids,
-              );
-              const judgments = await judgeCriteria(applicableCriteria, outcome, providers.judge, {
-                ...(toolConfig?.runtime.judgeObservations
-                  ? {
-                      observations: getJudgeObservations(
-                        outcome,
-                        true,
-                        toolConfig.runtime.limits.maxTotalBytes,
-                      ),
-                    }
-                  : {}),
-                // The JUDGE's model id (differs from the eval target when
-                // --judge-provider/--judge-model decouple the judge) — feeds
-                // JudgmentResult.judge_model, evidence, and the OTel modelId.
-                model: providers.judgeModelId,
-                // N-sample majority voting: --samples overrides the spec's
-                // default; a criterion's own `samples` overrides both.
-                samples: judgeSamples,
-                judgeTemperature: spec.judge_temperature,
-                // Per-call judge timeout (engine defaults 120s when unset) and
-                // the per-criterion sample-dispatch bound for rate-limited
-                // judge endpoints.
-                judgeTimeoutMs: spec.judge_timeout_ms,
-                sampleConcurrency: spec.judge_sample_concurrency,
-              });
-
-              // OTel per-criterion events (067 §§ 1.1, 1.2). For judge-method
-              // criteria we emit judge.invoked + judge.verdict; for every
-              // criterion we emit runtime.criterion.evaluated with the binary
-              // outcome mapped to the closed {pass,fail,skip} enum.
-              for (const j of judgments) {
-                if (j.method === "judge") {
-                  // One invoked+verdict pair PER SAMPLE: with multi-sample
-                  // majority voting the per-sample verdicts are the auditable
-                  // trace of the judge noise the majority decision absorbed.
-                  // Single-call results have no sample_verdicts and emit the
-                  // legacy single pair.
-                  for (const sampleVerdict of j.sample_verdicts ?? [j.verdict]) {
-                    emitJudgeInvoked(correlation, {
-                      judgeId: `j-rig:judge:${j.criterion_id}`,
-                      modelId: j.judge_model ?? model,
-                      modelVersion: skillVersion,
-                    });
-                    // A judge with no seed cannot reach RF-2 (066 § 1); j-rig
-                    // judges run un-seeded today, so verdict_source is
-                    // llm_no_seed and the seed attribute is null (omitted).
-                    emitJudgeVerdict(correlation, {
-                      verdict: sampleVerdict,
-                      verdictSource: JudgeVerdictSource.LLM_NO_SEED,
-                      seed: null,
-                    });
-                  }
-                }
-                const criterionOutcome =
-                  j.verdict === "yes"
-                    ? CriterionOutcome.PASS
-                    : j.verdict === "unsure"
-                      ? CriterionOutcome.SKIP
-                      : CriterionOutcome.FAIL;
-                if (criterionOutcome === CriterionOutcome.FAIL) runHadFailure = true;
-                emitRuntimeCriterionEvaluated(correlation, {
-                  matcherClass: j.method,
-                  outcome: criterionOutcome,
-                  // Multi-sample enrichment: agreement is queryable per
-                  // criterion without folding the N judge.verdict events.
-                  samples: j.samples,
-                  agreement: j.agreement,
-                });
-              }
-
-              // Stamp each judgment row with its test case: a criterion judged
-              // on multiple test cases produces one row per case, and the
-              // vote-evidence array is ambiguous without the id.
-              allJudgments.push(
-                ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
-              );
-            }
+            const { allJudgments, runHadFailure: judgmentFailed } = await evaluateOutcomeJudgments({
+              outcomes,
+              spec,
+              testCaseById,
+              providers,
+              model,
+              skillVersion,
+              judgeSamples,
+              correlation,
+              runBudget,
+              costSession,
+              toolConfig,
+            });
+            if (judgmentFailed) runHadFailure = true;
 
             const skillFailure = detectInfrastructureFailure({
               triggers: triggerResults,
