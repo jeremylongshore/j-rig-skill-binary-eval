@@ -2,14 +2,32 @@ import type { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import chalk from "chalk";
-import { parseAndValidateYaml, SkillEvalSpecSchema, EvalContractSchema } from "@j-rig/core";
+import {
+  parseAndValidateYaml,
+  parseYamlRaw,
+  SkillEvalSpecSchema,
+  EvalContractSchema,
+} from "@j-rig/core";
+
+function isContractDocument(content: string): boolean {
+  const parsed = parseYamlRaw(content);
+  // Invalid documents still use the existing diagnostic label; validation
+  // below retains the structured YAML error and failure exit code.
+  if (!parsed.success) return content.includes("contract_version:");
+  return (
+    parsed.data !== null &&
+    typeof parsed.data === "object" &&
+    !Array.isArray(parsed.data) &&
+    Object.hasOwn(parsed.data, "contract_version")
+  );
+}
 
 /**
  * Register the `validate` command on the given Commander program.
  *
  * Validates an eval spec or eval contract YAML file against the appropriate
  * Zod schema.  The document type is auto-detected from the presence of
- * `contract_version:` in the raw content, and can be overridden with
+ * a top-level `contract_version` YAML field, and can be overridden with
  * `--contract`.
  *
  * Exit codes:
@@ -28,7 +46,7 @@ export function registerValidateCommand(program: Command): void {
         const content = readFileSync(resolve(file), "utf-8");
 
         // Auto-detect document type when --contract is not explicitly passed.
-        const isContract = opts.contract === true || content.includes("contract_version:");
+        const isContract = opts.contract === true || isContractDocument(content);
         const label = isContract ? "eval contract" : "eval spec";
 
         // Parse through separate branches so TypeScript can resolve the

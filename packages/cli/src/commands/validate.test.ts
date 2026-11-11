@@ -119,11 +119,76 @@ describe("validate registered command", () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
-  it("preserves raw-content contract detection even inside a comment", async () => {
+  it("ignores contract markers inside YAML comments", async () => {
     const spec = readFileSync(fixture("valid/eval-spec.yaml"), "utf8");
     await invoke(document(`${spec}\n# contract_version: documented marker\n`), ["--json"]);
-    expect(JSON.parse(output())).toMatchObject({ valid: false, type: "eval contract" });
+    expect(JSON.parse(output())).toEqual({ valid: true, type: "eval spec", errors: [] });
+    expectExit(0);
+  });
+
+  it.each([
+    '\ndescription: "Discuss contract_version: as documentation"\n',
+    "\ndescription: Metadata fixture\nmetadata:\n  contract_version: informational\n",
+  ])("ignores non-top-level contract markers %s", async (suffix) => {
+    const spec = readFileSync(fixture("valid/eval-spec.yaml"), "utf8").replace(
+      /^description:.*\n/m,
+      "",
+    );
+    await invoke(document(`${spec}${suffix}`), ["--json"]);
+    expect(JSON.parse(output())).toEqual({ valid: true, type: "eval spec", errors: [] });
+    expectExit(0);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it.each(['"contract_version":', "contract_version :"])(
+    "detects actual YAML key %s",
+    async (key) => {
+      const contract = readFileSync(fixture("valid/eval-contract.yaml"), "utf8");
+      await invoke(document(contract.replace("contract_version:", key)), ["--json"]);
+      expect(JSON.parse(output())).toEqual({ valid: true, type: "eval contract", errors: [] });
+      expectExit(0);
+      expect(console.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['"contract_version: text"', '- contract_version: "1.0"'])(
+    "rejects non-mapping document %s as a spec",
+    async (content) => {
+      await invoke(document(content), ["--json"]);
+      expect(JSON.parse(output())).toMatchObject({ valid: false, type: "eval spec" });
+      expectExit(1);
+      expect(console.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["null", ""])("preserves empty-document diagnostics for %s", async (content) => {
+    await invoke(document(content), ["--json"]);
+    expect(JSON.parse(output())).toEqual({
+      valid: false,
+      type: "eval spec",
+      errors: [{ path: "", message: "YAML document is empty" }],
+    });
     expectExit(1);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("preserves malformed-contract text diagnostics", async () => {
+    await invoke(document("contract_version: ["));
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("Invalid eval contract:"));
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("Invalid YAML:"));
+    expect(console.log).not.toHaveBeenCalled();
+    expectExit(1);
+  });
+
+  it("preserves malformed-contract JSON diagnostics", async () => {
+    await invoke(document("contract_version: ["), ["--json"]);
+    const result = JSON.parse(output());
+    expect(result).toMatchObject({ valid: false, type: "eval contract" });
+    expect(result.errors).toEqual([
+      { path: "", message: expect.stringMatching(/^Invalid YAML: /) },
+    ]);
+    expectExit(1);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it.each(["missing", "directory"])("reports %s read failures as runtime errors", async (kind) => {
