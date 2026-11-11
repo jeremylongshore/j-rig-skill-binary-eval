@@ -1,3 +1,4 @@
+import { evaluateNakedBaseline } from "./eval-baseline-phase.js";
 import { finalizeEvaluation } from "./eval-finalize.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 import { reportEvalCost } from "./eval-cost-report.js";
@@ -40,8 +41,6 @@ import {
   buildLaunchReport,
   assessHeadroom,
   detectRegressions,
-  compareBaseline,
-  isObsoleteCandidate,
   uuidv7,
   ProviderError,
   emitRuntimeRunStarted,
@@ -1426,77 +1425,25 @@ export function registerEvalCommand(program: Command): void {
             let baselineJudgments: JudgmentResult[] = [];
             if (opts.baselineCheck && (!(runBudget.active || costSession) || !skillFailure)) {
               ranBaseline = true;
-              costMeter.phase = "execution";
-              const nakedOutcomes = await runFunctionalTests(
-                spec.test_cases,
-                { ...skill, body: "" },
-                providers.execution,
-                {
+              ({ baselineOutcomes, baselineJudgments, baselineComparisons, isObsolete } =
+                await evaluateNakedBaseline({
+                  spec,
+                  skill,
+                  providers,
                   model,
-                  temperature: spec.execution_temperature ?? 0,
-                  ...(toolConfig ? { tool_runtime: toolConfig.runtime } : {}),
-                },
-              );
-              costMeter.phase = "judge";
-              const nakedJudgments: JudgmentResult[] = [];
-              baselineOutcomes = nakedOutcomes;
-              if (toolConfig) {
-                toolReceipts.push(
-                  storeToolExecutionEvidence(
-                    database,
-                    opts.db,
-                    runId,
-                    "baseline",
-                    toolConfig.fingerprint,
-                    nakedOutcomes,
-                    !!toolConfig.runtime.judgeObservations,
-                    toolConfig.runtime.limits.maxTotalBytes,
-                    executionParameters,
-                  ),
-                );
-              }
-              baselineJudgments = nakedJudgments;
-              const baselineExecutionFailed = nakedOutcomes.some(isFailedExecution);
-              for (const outcome of nakedOutcomes) {
-                if (runBudget.active && baselineExecutionFailed) break;
-                if (isFailedExecution(outcome)) continue;
-                const testCase = testCaseById.get(outcome.test_case_id);
-                if (!testCase) continue;
-                const nakedCriteria = selectCriteriaForTestCase(
-                  spec.criteria,
-                  testCase.criteria_ids,
-                );
-                const judgments = await judgeCriteria(nakedCriteria, outcome, providers.judge, {
-                  ...(toolConfig?.runtime.judgeObservations
-                    ? {
-                        observations: getJudgeObservations(
-                          outcome,
-                          true,
-                          toolConfig.runtime.limits.maxTotalBytes,
-                        ),
-                      }
-                    : {}),
-                  model: providers.judgeModelId,
-                  samples: judgeSamples,
-                  judgeTemperature: spec.judge_temperature,
-                  judgeTimeoutMs: spec.judge_timeout_ms,
-                  sampleConcurrency: spec.judge_sample_concurrency,
-                });
-                nakedJudgments.push(
-                  ...judgments.map((j) => ({ ...j, test_case_id: outcome.test_case_id })),
-                );
-              }
-              baselineComparisons = compareBaseline(allJudgments, nakedJudgments);
-              isObsolete = isObsoleteCandidate(baselineComparisons);
-              if (!opts.json) {
-                const adds = baselineComparisons.filter((c) => c.skill_adds_value).length;
-                console.log(
-                  `  Baseline: skill adds value on ${adds}/${baselineComparisons.length} criteria` +
-                    (isObsolete
-                      ? " — FLAGGED obsolete_review (little value over the naked model)"
-                      : ""),
-                );
-              }
+                  costMeter,
+                  database,
+                  runId,
+                  toolConfig,
+                  toolReceipts,
+                  executionParameters,
+                  testCaseById,
+                  runBudget,
+                  judgeSamples,
+                  allJudgments,
+                  dbPath: opts.db,
+                  json: opts.json,
+                }));
             }
             // The naked-baseline pass spends too; a stop there leaves the
             // skill pass's criterion results stored but the run unverdicted.
