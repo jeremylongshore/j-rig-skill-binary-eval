@@ -241,6 +241,21 @@ describe("emit-refiner-pass — happy path (pipeline mode)", { timeout: SPAWN_TI
   });
 });
 
+describe("emit-refiner-pass — output failure", { timeout: SPAWN_TIMEOUT_MS }, () => {
+  it("exits 2 without a success receipt when the output target is a directory", () => {
+    const directory = mkdtempSync(join(tmpdir(), "j-rig-refiner-output-failure-"));
+    try {
+      const result = runCli([...acceptDirectArgs, "--output", directory]);
+      expect(result.code).toBe(2);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(`failed to write ${directory}:`);
+      expect(result.stderr).not.toContain("emit-refiner-pass: wrote");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe(
   "emit-refiner-pass — fail-closed (never emit an invalid row)",
   { timeout: SPAWN_TIMEOUT_MS },
