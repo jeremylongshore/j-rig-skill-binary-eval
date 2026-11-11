@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createDatabase, createRun, getOrCreateSkillVersion } from "@j-rig/db";
-import { CriterionSchema, type ExecutionProvider } from "@j-rig/core";
+import { CriterionSchema, type ExecutionProvider, type JudgeProvider } from "@j-rig/core";
 import { loadSkillEvalSpec, loadSkillMd } from "../lib/loaders.js";
 import { RunBudget } from "../providers/budget.js";
 import { EvalCostMeter } from "../providers/cost-tracking.js";
@@ -20,6 +20,12 @@ function fixture(failFirst = false) {
       description: "Target",
       method: "judge",
       judge_prompt: "Judge answer",
+    }),
+    CriterionSchema.parse({
+      id: "unrelated",
+      description: "Unrelated criterion must not be judged",
+      method: "judge",
+      judge_prompt: "Unrelated prompt",
     }),
   ];
   spec.test_cases = ["first", "second"].map((id) => ({
@@ -42,7 +48,7 @@ function fixture(failFirst = false) {
       meta: { started_at: "", completed_at: "", duration_ms: 0, timed_out: false },
     };
   });
-  const judge = vi.fn(async () => {
+  const judge = vi.fn<JudgeProvider["judge"]>(async () => {
     phases.push(costMeter.phase);
     return { verdict: "yes" as const, confidence: 1, reasoning: "fixture" };
   });
@@ -88,9 +94,34 @@ it("executes an empty skill body, preserves original inputs, and compares retain
     expect(f.input.skill.body).toBe(originalBody);
     expect(f.phases).toEqual(["execution", "execution", "judge", "judge"]);
     expect(result.baselineOutcomes).toHaveLength(2);
+    expect(f.judge).toHaveBeenCalledTimes(2);
+    expect(f.judge.mock.calls.map((call) => call[0])).toEqual(["Target", "Target"]);
+    expect(result.baselineJudgments.map((j) => j.criterion_id)).toEqual(["target", "target"]);
     expect(result.baselineJudgments.map((j) => j.test_case_id)).toEqual(["first", "second"]);
     expect(result.isObsolete).toBe(true);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("FLAGGED obsolete_review"));
+  } finally {
+    f.dispose();
+  }
+});
+
+it("returns judge failures and execution observations for caller infrastructure classification", async () => {
+  const f = fixture();
+  try {
+    f.judge.mockRejectedValue(new Error("baseline judge unavailable"));
+    const result = await evaluateNakedBaseline(f.input);
+    expect(result.baselineOutcomes.map((outcome) => outcome.test_case_id)).toEqual([
+      "first",
+      "second",
+    ]);
+    expect(result.baselineJudgments).toHaveLength(2);
+    for (const judgment of result.baselineJudgments) {
+      expect(judgment).toMatchObject({
+        criterion_id: "target",
+        verdict: "unsure",
+        judge_error: "baseline judge unavailable",
+      });
+    }
   } finally {
     f.dispose();
   }
