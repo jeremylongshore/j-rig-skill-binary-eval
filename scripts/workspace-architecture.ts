@@ -15,6 +15,7 @@ interface Package {
   runtime: Set<string>;
   development: Set<string>;
   files: string[];
+  verbatimModuleSyntax: boolean;
 }
 export interface ArchitectureViolation {
   file: string;
@@ -99,16 +100,47 @@ function packageName(specifier: string): string {
     : specifier.split("/")[0];
 }
 
+function packageVerbatimModuleSyntax(directory: string): boolean {
+  const config = ts.findConfigFile(directory, ts.sys.fileExists);
+  if (!config) throw new Error(`missing TypeScript configuration: ${directory}`);
+  const fail = (diagnostic: ts.Diagnostic): never => {
+    throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, " "));
+  };
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    config,
+    {},
+    {
+      ...ts.sys,
+      readFile: (path) => {
+        const text = ts.sys.readFile(path);
+        if (text !== undefined) {
+          const parsedText = ts.parseConfigFileTextToJson(path, text);
+          if (parsedText.error) fail(parsedText.error);
+        }
+        return text;
+      },
+      onUnRecoverableConfigFileDiagnostic: fail,
+    },
+  );
+  if (!parsed) throw new Error(`unreadable TypeScript configuration: ${config}`);
+  const error = parsed.errors.find(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+  );
+  if (error) fail(error);
+  return parsed.options.verbatimModuleSyntax === true;
+}
+
 interface ModuleReference {
   specifier: string;
   typeOnly: boolean;
 }
 
-function importIsTypeOnly(clause: ts.ImportClause | undefined): boolean {
+function importIsTypeOnly(clause: ts.ImportClause | undefined, verbatim: boolean): boolean {
   const bindings = clause?.namedBindings;
   return Boolean(
     clause?.isTypeOnly ||
-    (!clause?.name &&
+    (!verbatim &&
+      !clause?.name &&
       bindings &&
       ts.isNamedImports(bindings) &&
       bindings.elements.length > 0 &&
@@ -116,10 +148,11 @@ function importIsTypeOnly(clause: ts.ImportClause | undefined): boolean {
   );
 }
 
-function exportIsTypeOnly(node: ts.ExportDeclaration): boolean {
+function exportIsTypeOnly(node: ts.ExportDeclaration, verbatim: boolean): boolean {
   return (
     node.isTypeOnly ||
     Boolean(
+      !verbatim &&
       node.exportClause &&
       ts.isNamedExports(node.exportClause) &&
       node.exportClause.elements.length > 0 &&
@@ -129,15 +162,21 @@ function exportIsTypeOnly(node: ts.ExportDeclaration): boolean {
 }
 
 /** Decode only syntax already covered by the architecture policy. */
-function moduleReference(node: ts.Node): ModuleReference | "unresolved" | undefined {
+function moduleReference(
+  node: ts.Node,
+  verbatim: boolean,
+): ModuleReference | "unresolved" | undefined {
   if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier))
-    return { specifier: node.moduleSpecifier.text, typeOnly: importIsTypeOnly(node.importClause) };
+    return {
+      specifier: node.moduleSpecifier.text,
+      typeOnly: importIsTypeOnly(node.importClause, verbatim),
+    };
   if (
     ts.isExportDeclaration(node) &&
     node.moduleSpecifier &&
     ts.isStringLiteralLike(node.moduleSpecifier)
   )
-    return { specifier: node.moduleSpecifier.text, typeOnly: exportIsTypeOnly(node) };
+    return { specifier: node.moduleSpecifier.text, typeOnly: exportIsTypeOnly(node, verbatim) };
   if (
     ts.isImportTypeNode(node) &&
     ts.isLiteralTypeNode(node.argument) &&
@@ -227,6 +266,8 @@ export function checkWorkspaceArchitecture(root: string): ArchitectureReport {
         ]),
         development: new Set(dependencies(manifest.devDependencies)),
         files: production,
+        verbatimModuleSyntax:
+          production.length > 0 ? packageVerbatimModuleSyntax(directory) : false,
       });
     }
     if (packages.length === 0) throw new Error("no workspace packages discovered");
@@ -292,7 +333,7 @@ export function checkWorkspaceArchitecture(root: string): ArchitectureReport {
             add(file, line, "refiner-core-no-io", specifier);
         };
         const visit = (node: ts.Node): void => {
-          const reference = moduleReference(node);
+          const reference = moduleReference(node, pkg.verbatimModuleSyntax);
           if (reference === "unresolved")
             add(
               file,
