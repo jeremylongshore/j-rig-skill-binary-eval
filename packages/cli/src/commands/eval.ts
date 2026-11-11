@@ -1,4 +1,5 @@
 import { evaluateNakedBaseline } from "./eval-baseline-phase.js";
+import { buildGraderSnapshot } from "./eval-grader-snapshot.js";
 import { evaluateOutcomeJudgments } from "./eval-judgments.js";
 import { finalizeEvaluation } from "./eval-finalize.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
@@ -1417,28 +1418,14 @@ export function registerEvalCommand(program: Command): void {
             // substrate, so make its effective grader explicit and immutable
             // in the promotion metadata. The snapshot covers every criterion
             // plus the judge/stability settings that influence the fold.
-            const graderSnapshot = {
-              schema: "j-rig/binary-criteria-grader/v1",
-              ...executionMetadata,
-              ...(toolConfig?.runtime.judgeObservations
-                ? {
-                    tool_observations: "jrig-tool-observations/v1",
-                    mcp_configuration_sha256: toolConfig.fingerprint,
-                  }
-                : {}),
-              criteria: scoringCriteria,
-              judge: {
-                provider: providers.judgeProviderName,
-                model: providers.judgeModelId,
-                samples: judgeSamples ?? 1,
-                temperature: spec.judge_temperature ?? 0,
-                timeout_ms: spec.judge_timeout_ms ?? 120000,
-                sample_concurrency: spec.judge_sample_concurrency ?? judgeSamples ?? 1,
-              },
-              stability: {
-                min_blocker_agreement: spec.min_blocker_agreement ?? null,
-              },
-            };
+            const graderSnapshot = buildGraderSnapshot({
+              executionMetadata,
+              toolConfig,
+              scoringCriteria,
+              providers,
+              judgeSamples,
+              spec,
+            });
             const promotionEvidence = buildSkillPromotionEvidence({
               evalRunId: correlation.evalRunId,
               storageRunId: runId,
