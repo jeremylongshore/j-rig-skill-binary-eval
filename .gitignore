@@ -63,3 +63,6 @@ desktop.ini
 skill/eval.smoke.yaml
 evidence/**/eval.stderr.log
 .beads-credential-key
+
+# Immutable CI-only consumer artifact checkout for offline signing tests.
+.ci-verifier-fixture/

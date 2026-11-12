@@ -33,6 +33,9 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ci/emit-evidence/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -106,6 +109,9 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ci/emit-evidence/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -113,6 +119,29 @@ jobs:
       - name: Install standalone nightly kernel for payload contracts
         working-directory: ci/emit-evidence
         run: pnpm install --frozen-lockfile --ignore-workspace
+
+      # Test-only immutable consumer fixture, not a production Action adoption.
+      - name: Checkout reviewed enforcing verifier fixture
+        uses: actions/checkout@v7
+        with:
+          repository: jeremylongshore/intent-rollout-gate
+          ref: 9e0cfa3e8e428d4fde14760a05945ccb39722b24
+          path: .ci-verifier-fixture
+          sparse-checkout: |
+            dist/index.js
+            package.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Verify exact consumer artifact and offline producer interoperability
+        working-directory: ci/emit-evidence
+        env:
+          ROLLOUT_GATE_DIST: ${{ github.workspace }}/.ci-verifier-fixture/dist/index.js
+        run: |
+          expected='bd9287783b3e685829e1a20b8508a5f185c89cd340d9d4e7285a42dbbf2dd047'
+          printf '%s  %s\n' "$expected" "$ROLLOUT_GATE_DIST" | sha256sum --check
+          pnpm run typecheck:signing
+          pnpm run test:signing
 
       # Enforcement wall: the vendored audit-harness wrapper verifies the
       # hash-pinned policy surface (the coverage floor in vitest.config.ts). A
