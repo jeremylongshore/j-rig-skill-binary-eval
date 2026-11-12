@@ -30,6 +30,11 @@
 
 ## Unreleased
 
+- Add explicit Whiteglove authored-eval import with exact source/fixture binding,
+  bounded executable requests and persisted per-assertion deterministic grading.
+  Import performs no execution; descriptive prose remains ungraded.
+  Refs bead `bd_000-projects-dn6j.8`.
+
 - `fix(eval)`: retain subscription launch attempts and nullable usage through
   crashes, failed launches and interrupted runs. Preserve cache-write TTLs and
   requested/reported model identities; nonzero exits stay provider errors.

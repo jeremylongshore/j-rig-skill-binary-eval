@@ -2,7 +2,7 @@
 
 > Release-quality evaluation harness and rollout gate for Claude Skills
 
-**Last Updated:** 2026-08-02
+**Last Updated:** 2026-11-12
 
 ## By Category
 
@@ -134,6 +134,9 @@
 | 046 | AT-SPEC  | [structured-deterministic-checks.md](046-AT-SPEC-structured-deterministic-checks-2026-10-08.md) |
 | 047 | AT-SPEC  | [eval-cost-latency-budgets.md](047-AT-SPEC-eval-cost-latency-budgets-2026-10-08.md) |
 
+| 048 | AT-SPEC | [canonical-dashboard-evidence.md](048-AT-SPEC-canonical-dashboard-evidence-2026-10-12.md) |
+| 049 | PP-PLAN | [lossless-eval-case-import.md](049-PP-PLAN-lossless-eval-case-import-2026-11-12.md) |
+
 ## Epics
 
 Durable epic reference files in [`epics/`](epics/):
@@ -176,7 +179,7 @@ Local, self-contained library of templates, reference standards, agent patterns,
 
 ## Summary
 
-- **Total documents:** 48 numbered docs (`001`–`047`, with two `010`s) + 10 epics + templates & references library
+- **Total documents:** 50 numbered docs (`001`–`049`, with two `010`s) + 10 epics + templates & references library
 - **Categories used:** 6 — PP, AT, OD, TQ, AA, DR
-- **Next sequence number:** 048
+- **Next sequence number:** 050
 - **Note:** every per-doc file in this directory is the canonical source; this index is the navigation layer. Rebuild via `/doc-filing` (or `/validate-consistency`, which flags index drift) when docs are added.

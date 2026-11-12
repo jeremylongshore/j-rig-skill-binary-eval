@@ -16,3 +16,6 @@ export * from "./evidence/index.js";
 export * from "./intentional-mapping/index.js";
 export * from "./providers/index.js";
 export * from "./otel/index.js";
+
+export * from "./importing/scripted-evals.js";
+export * from "./importing/scripted-grader.js";

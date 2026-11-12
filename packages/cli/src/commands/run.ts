@@ -4,6 +4,8 @@ import { dirname, resolve } from "node:path";
 import type { z } from "zod";
 import {
   ExecutableRunner,
+  SCRIPTED_RESULTS,
+  assertScriptedRunAdmission,
   EvalConfigSchema,
   EvalTaskSchema,
   parseAndValidateYaml,
@@ -101,6 +103,7 @@ export async function runGenericEval(options: GenericRunOptions): Promise<Generi
   };
   const runId = deriveRawRunId(lineageFrom({ ...requestWithoutId, run_id: "" }));
   const request: RunnerRequest = { ...requestWithoutId, run_id: runId };
+  if (config.parameters["protocol"] === SCRIPTED_RESULTS) assertScriptedRunAdmission(request);
   const database = openDb(options.db);
 
   try {
