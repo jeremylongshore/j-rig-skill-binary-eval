@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import { createServer } from "node:http";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, cpSync, existsSync } from "node:fs";
+import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +16,11 @@ import { StubExecutionProvider, StubJudgeProvider } from "../providers/anthropic
 import { registerEvalCommand } from "./eval.js";
 import { prepareEvaluationInvocation } from "./eval-runtime-context.js";
 import { evaluateSingleModel } from "./eval-model-run.js";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, readFileSync: vi.fn(actual.readFileSync) };
+});
 
 const skill = fileURLToPath(new URL("../../../../skill", import.meta.url));
 const roots: string[] = [];
@@ -603,3 +609,121 @@ it.each(["summary", "gate"] as const)(
     expect(Object.keys(context.allResults)).toEqual(site === "gate" ? ["sonnet"] : []);
   },
 );
+
+it.each([
+  {
+    name: "UTF-8",
+    original: Buffer.from('[{"criterion_id":"mentions-ship-decision","verdict":"yes"}]\n'),
+  },
+  {
+    name: "replacement-decoded UTF-8",
+    original: Buffer.concat([
+      Buffer.from('[{"criterion_id":"mentions-ship-decision","verdict":"yes","note":"'),
+      Buffer.from([0xff]),
+      Buffer.from('"}]\n'),
+    ]),
+  },
+])(
+  "binds regression evidence to the original $name bytes despite replacement",
+  async ({ original }) => {
+    const p = paths();
+    const previous = join(p.root, "previous.json");
+    const replacement = '[{"criterion_id":"mentions-ship-decision","verdict":"no"}]\n';
+    writeFileSync(previous, original);
+    const realRead = (await vi.importActual<typeof import("node:fs")>("node:fs")).readFileSync;
+    let baselineReads = 0;
+    vi.spyOn(fs, "readFileSync").mockImplementation((path, options) => {
+      const bytes = realRead(path, options);
+      if (path === previous) {
+        baselineReads++;
+        writeFileSync(previous, replacement);
+      }
+      return bytes;
+    });
+    const context = await prepareEvaluationInvocation(
+      skill,
+      {
+        spec: join(skill, "eval.yaml"),
+        db: p.db,
+        models: "sonnet",
+        provider: "stub",
+        json: true,
+        regressionBaseline: previous,
+        emitBundle: p.bundle,
+      },
+      new Command(),
+    );
+    expect(await evaluateSingleModel(context, "sonnet")).toEqual({
+      status: "completed",
+      infrastructureFailureSeen: false,
+    });
+    expect(context.bundleRows[0]!.predicate.metadata?.regression).toMatchObject({
+      enabled: true,
+      baseline_sha256: `sha256:${createHash("sha256").update(original).digest("hex")}`,
+    });
+    expect(baselineReads).toBe(1);
+    expect(realRead(previous, "utf8")).toBe(replacement);
+  },
+);
+
+it("keeps partial-outage diagnostic ship results separate from every authoritative error boundary", async () => {
+  const p = paths();
+  const execution = vi.spyOn(StubExecutionProvider.prototype, "execute").mockRejectedValueOnce(
+    new core.ProviderError({
+      providerName: "fixture",
+      category: "network_timeout",
+      retryable: true,
+      message: "one execution unavailable",
+    }),
+  );
+  const gate = vi.spyOn(core, "emitGateDecisionEmitted");
+  const program = new Command();
+  registerEvalCommand(program);
+  await invoke(
+    program,
+    [
+      "eval",
+      skill,
+      "--spec",
+      join(skill, "eval.yaml"),
+      "--provider",
+      "stub",
+      "--models",
+      "sonnet",
+      "--db",
+      p.db,
+      "--json",
+      "--emit-bundle",
+      p.bundle,
+    ],
+    { from: "user" },
+  );
+  expect(execution).toHaveBeenCalledTimes(4);
+  const output = vi
+    .mocked(console.log)
+    .mock.calls.map(([value]) => value)
+    .find((value) => typeof value === "string" && value.startsWith("{\n"));
+  const results = JSON.parse(String(output));
+  expect(results.sonnet).toMatchObject({
+    gate_decision: "error",
+    decision: "ship",
+    report: { decision: "ship" },
+    evaluation_error: { phase: "execution", affected: 1, total: 4 },
+  });
+  expect(results.sonnet).not.toHaveProperty("promotion");
+  const [statement] = core.EvidenceStatementSchema.array().parse(
+    JSON.parse(readFileSync(p.bundle, "utf8")),
+  );
+  expect(statement!.predicate.gate_decision).toBe("error");
+  expect(statement!.predicate.metadata?.error_detail).toMatchObject({
+    phase: "execution",
+    affected: 1,
+    total: 4,
+  });
+  expect(databases[0]!.sqlite.prepare("SELECT status FROM runs").get()).toEqual({
+    status: "failed",
+  });
+  expect(gate).toHaveBeenCalledTimes(1);
+  expect(gate.mock.calls[0]![1]).toMatchObject({ decision: "error" });
+  expect(process.exitCode).toBe(2);
+});

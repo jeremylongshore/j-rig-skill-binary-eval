@@ -385,6 +385,18 @@ describe("frozen scoring integrity", () => {
     );
   });
 
+  it.each([
+    { evaluation_error: { type: "provider_failure", phase: "execution", affected: 1, total: 3 } },
+    { gate_decision: "error" },
+  ])("refuses diagnostic ship evidence with an authoritative error marker %j", async (marker) => {
+    const evidence = JSON.parse(jrigJson("sonnet", 4, 4));
+    Object.assign(evidence.sonnet, { decision: "ship", report: { decision: "ship" } }, marker);
+    const runner = fakeRunner({ exitCode: 0, stdout: JSON.stringify(evidence) });
+    await expect(
+      score(doc, evalSet, runner, { skillDir: "/d", modelTier: "sonnet" }),
+    ).rejects.toThrow("did not produce completed real-provider evidence");
+  });
+
   it("rejects stub evidence even when every criterion passed", async () => {
     const stdout = jrigJson("sonnet", 4, 4).replace('"ground_truth":true', '"ground_truth":false');
     await expect(score(doc, evalSet, fakeRunner({ stdout }), { skillDir: "/d" })).rejects.toThrow(
