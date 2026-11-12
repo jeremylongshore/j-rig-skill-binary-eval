@@ -38,6 +38,11 @@ on:
     - cron: "30 3 * * *" # daily 03:30 UTC
   workflow_dispatch: # activation / re-run without waiting for the cron
     inputs:
+      emit_verified_rows:
+        description: "Explicit migration trial: additionally publish exact-v1 signed row artifacts after DNSSEC/CAA preflight; does not change legacy dashboard input."
+        type: boolean
+        required: false
+        default: false
       provider:
         description: >-
           Provider preset override (empty = roster.json's provider). The
@@ -95,8 +100,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           # Node >= 22.6 — the emit scripts run under --experimental-strip-types.
-          node-version: "22"
+          node-version: "22.23.1"
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ci/emit-evidence/pnpm-lock.yaml
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
@@ -141,6 +149,60 @@ jobs:
         run: >
           node --experimental-strip-types ci/emit-evidence/emit-evidence.ts
           --roster build/roster --out build/evidence --ref "${GITHUB_REF}"
+
+      # Prepared migration only: schedules and ordinary dispatches retain the
+      # existing dashboard signing path. Enabling this publishes new log entries.
+      - name: Sign exact-v1 rollout rows (explicit migration trial)
+        id: sign-verified-rows
+        if: github.event_name == 'workflow_dispatch' && inputs.emit_verified_rows
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          payloads=(build/evidence/evidence-payload-*.json)
+          [ "${#payloads[@]}" -gt 0 ] || { echo "No evidence payloads to sign"; exit 1; }
+          for payload in "${payloads[@]}"; do
+            node --experimental-strip-types ci/emit-evidence/sign-evidence.ts \
+              --keyless --output "${payload%.json}.signed-rows.json" "$payload"
+          done
+
+      - name: Record migration artifact provenance, including incomplete trials
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.emit_verified_rows
+        env:
+          SIGNING_OUTCOME: ${{ steps.sign-verified-rows.outcome }}
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path("build/evidence")
+          root.mkdir(parents=True, exist_ok=True)
+          payloads = sorted(root.glob("evidence-payload-*.json"))
+          payloads = [path for path in payloads if not path.name.endswith(".signed-rows.json")]
+          signed = sorted(root.glob("evidence-payload-*.signed-rows.json"))
+          complete = os.environ.get("SIGNING_OUTCOME") == "success" and bool(payloads) and {path.stem for path in payloads} == {path.name.removesuffix(".signed-rows.json") for path in signed}
+          receipt = {
+            "schema": "rollout-signing-migration-provenance/v1",
+            "state": "complete" if complete else "incomplete",
+            "signing_step_outcome": os.environ.get("SIGNING_OUTCOME", "unknown"),
+            "repository": os.environ["GITHUB_REPOSITORY"],
+            "source_commit": os.environ["GITHUB_SHA"],
+            "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+            "run_id": os.environ["GITHUB_RUN_ID"],
+            "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+            "files": [{"path": path.name, "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in payloads + signed],
+          }
+          (root / "signed-row-provenance.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PYTHON
+
+      - name: Retain signed rollout rows and provenance
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.emit_verified_rows
+        uses: actions/upload-artifact@v7
+        with:
+          name: rollout-signed-rows-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/evidence/evidence-payload-*.json
+            build/evidence/signed-row-provenance.json
+          retention-days: 14
+          if-no-files-found: error
 
       - name: Sign each EvidenceBundle (cosign keyless -> production Rekor)
         run: |
