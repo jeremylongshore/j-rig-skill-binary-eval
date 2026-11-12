@@ -343,12 +343,15 @@ parsing use the same implementation and schemas. Bundled component copyrights
 and licenses are included in `THIRD_PARTY_LICENSES.txt`; refresh that file when
 updating the bundled parser dependencies.
 
-This removes the affected formatter from the CLI's installed dependency tree;
-it does not patch upstream advisory GHSA-hp3w-g68c-fv3c. The private workspace
-core still declares `gray-matter` as a build/runtime dependency, so workspace
-production audits continue to report that unused CLI chain. Keep auditing the
-workspace dependencies as well as the packed CLI: consumer `npm audit` cannot
-inspect modules inlined into a bundle. No advisory is ignored or suppressed.
+Bundling removes the unused formatter chain from the CLI's installed dependency
+tree without changing the parser. The 2026-10-19 workspace audit still reported
+GHSA-hp3w-g68c-fv3c through the private core's `gray-matter` dependency.
+[GitHub withdrew that advisory](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)
+on 2026-10-22 because exception handling belongs to the calling application.
+Withdrawal is not an upstream patch or a new dependency-audit result. Keep
+auditing workspace dependencies and the packed CLI: consumer `npm audit` cannot
+inspect inlined modules. No advisory suppression or new package publication is
+claimed by this documentation correction.
 
 Refs bead `bd_000-projects-code`.
 

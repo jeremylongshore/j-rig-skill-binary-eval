@@ -24,9 +24,12 @@
 - The nightly roster now budgets the complete serial run and signed-evidence
   processing. Default MiniMax-M3 functional calls start with a 16,384-token
   ceiling; explicit token, model, or gateway settings retain their behavior.
-- The workspace retains the upstream sprintf-js advisory on its unused YAML CLI
-  chain. Consumer audits cannot inspect inlined modules; workspace audits remain
-  required. No advisory is suppressed.
+- The 2026-10-19 workspace audit reported the sprintf-js advisory on the unused
+  YAML CLI chain. [GitHub withdrew GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)
+  on 2026-10-22, citing application responsibility for exception handling. This
+  dated correction does not claim a new clean audit, upstream patch or package
+  publication. Consumer audits cannot inspect inlined modules; workspace audits
+  remain required. No advisory is suppressed.
 
 ## Unreleased
 
