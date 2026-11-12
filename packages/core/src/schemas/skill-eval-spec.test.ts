@@ -470,3 +470,83 @@ describe("SkillEvalSpecSchema budget", () => {
     );
   });
 });
+
+describe("profile ID uniqueness", () => {
+  const criterion = { id: "blocker", description: "Must pass", method: "judge", blocker: true };
+  const testCase = {
+    id: "case-1",
+    description: "Core case",
+    tier: "core",
+    prompt: "Evaluate",
+    criteria_ids: ["blocker"],
+  };
+  const profile = {
+    spec_version: "1.0",
+    skill_name: "test-skill",
+    description: "ID admission",
+    criteria: [criterion],
+    test_cases: [testCase],
+  };
+
+  it("rejects a later case that would overwrite the original criterion scope", () => {
+    const result = SkillEvalSpecSchema.safeParse({
+      ...profile,
+      test_cases: [testCase, { ...testCase, criteria_ids: [] }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ["test_cases", 1, "id"],
+          message: 'duplicate test case id "case-1"',
+        }),
+      );
+  });
+
+  it("rejects a later criterion that would overwrite blocker metadata", () => {
+    const result = SkillEvalSpecSchema.safeParse({
+      ...profile,
+      criteria: [criterion, { ...criterion, blocker: false }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ["criteria", 1, "id"],
+          message: 'duplicate criterion id "blocker"',
+        }),
+      );
+  });
+
+  it("reports every repeated occurrence in both namespaces", () => {
+    const result = SkillEvalSpecSchema.safeParse({
+      ...profile,
+      criteria: [criterion, criterion, criterion],
+      test_cases: [testCase, testCase, testCase],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues.map((issue) => issue.path)).toEqual([
+        ["criteria", 1, "id"],
+        ["criteria", 2, "id"],
+        ["test_cases", 1, "id"],
+        ["test_cases", 2, "id"],
+      ]);
+  });
+
+  it("preserves distinct IDs, ordering, empty scope and independent namespaces", () => {
+    const result = SkillEvalSpecSchema.parse({
+      ...profile,
+      criteria: [criterion, { ...criterion, id: "case-1", blocker: false }],
+      test_cases: [testCase, { ...testCase, id: "blocker", criteria_ids: [] }],
+    });
+    expect(result.criteria.map(({ id, blocker }) => ({ id, blocker }))).toEqual([
+      { id: "blocker", blocker: true },
+      { id: "case-1", blocker: false },
+    ]);
+    expect(result.test_cases.map(({ id, criteria_ids }) => ({ id, criteria_ids }))).toEqual([
+      { id: "case-1", criteria_ids: ["blocker"] },
+      { id: "blocker", criteria_ids: [] },
+    ]);
+  });
+});
