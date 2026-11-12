@@ -39,7 +39,9 @@ on:
   workflow_dispatch: # activation / re-run without waiting for the cron
     inputs:
       emit_verified_rows:
-        description: "Explicit migration trial: additionally publish exact-v1 signed row artifacts after DNSSEC/CAA preflight; does not change legacy dashboard input."
+        description: >-
+          Explicit migration trial: additionally publish exact-v1 signed row artifacts
+          after DNSSEC/CAA preflight; does not change legacy dashboard input.
         type: boolean
         required: false
         default: false
@@ -178,7 +180,12 @@ jobs:
           payloads = sorted(root.glob("evidence-payload-*.json"))
           payloads = [path for path in payloads if not path.name.endswith(".signed-rows.json")]
           signed = sorted(root.glob("evidence-payload-*.signed-rows.json"))
-          complete = os.environ.get("SIGNING_OUTCOME") == "success" and bool(payloads) and {path.stem for path in payloads} == {path.name.removesuffix(".signed-rows.json") for path in signed}
+          complete = (
+            os.environ.get("SIGNING_OUTCOME") == "success"
+            and bool(payloads)
+            and {path.stem for path in payloads}
+            == {path.name.removesuffix(".signed-rows.json") for path in signed}
+          )
           receipt = {
             "schema": "rollout-signing-migration-provenance/v1",
             "state": "complete" if complete else "incomplete",
@@ -188,7 +195,11 @@ jobs:
             "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
             "run_id": os.environ["GITHUB_RUN_ID"],
             "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-            "files": [{"path": path.name, "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in payloads + signed],
+            "files": [
+              {"path": path.name, "bytes": path.stat().st_size,
+               "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+              for path in payloads + signed
+            ],
           }
           (root / "signed-row-provenance.json").write_text(json.dumps(receipt, indent=2) + "\n")
           PYTHON

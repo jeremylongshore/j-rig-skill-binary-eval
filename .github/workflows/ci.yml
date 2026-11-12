@@ -127,7 +127,9 @@ jobs:
           repository: jeremylongshore/intent-rollout-gate
           ref: 9e0cfa3e8e428d4fde14760a05945ccb39722b24
           path: .ci-verifier-fixture
-          sparse-checkout: dist/index.js
+          sparse-checkout: |
+            dist/index.js
+            package.json
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -136,7 +138,8 @@ jobs:
         env:
           ROLLOUT_GATE_DIST: ${{ github.workspace }}/.ci-verifier-fixture/dist/index.js
         run: |
-          printf '%s  %s\n' 'bd9287783b3e685829e1a20b8508a5f185c89cd340d9d4e7285a42dbbf2dd047' "$ROLLOUT_GATE_DIST" | sha256sum --check
+          expected='bd9287783b3e685829e1a20b8508a5f185c89cd340d9d4e7285a42dbbf2dd047'
+          printf '%s  %s\n' "$expected" "$ROLLOUT_GATE_DIST" | sha256sum --check
           pnpm run typecheck:signing
           pnpm run test:signing
 
