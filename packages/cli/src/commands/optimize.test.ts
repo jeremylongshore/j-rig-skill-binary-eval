@@ -65,6 +65,35 @@ async function run(program: Command, argv: string[]): Promise<void> {
   await program.parseAsync(["node", "j-rig", ...argv]);
 }
 
+function sourceRunFixture(
+  skillDir: string,
+  skillText: string,
+  scenario: string,
+): { dbPath: string; runId: number } {
+  const dbPath = join(skillDir, "source.db");
+  const database = createDatabase(dbPath);
+  const version = getOrCreateSkillVersion(
+    database,
+    scenario === "foreign" ? "other" : "demo-skill",
+    "1",
+    scenario === "stale" ? "old text" : skillText,
+  );
+  const runId = createRun(database, version);
+  transitionRun(database, runId, "running");
+  transitionRun(database, runId, scenario === "failed" ? "failed" : "completed");
+  storeCriterionResults(database, runId, [
+    {
+      criterion_id: "legacy-failure",
+      passed: false,
+      severity: "error",
+      message: "Observed failure",
+      method: "deterministic",
+    },
+  ]);
+  database.close();
+  return { dbPath, runId };
+}
+
 describe("optimizer CLI to Refiner assessment", () => {
   it.each([
     "reviewed",
@@ -168,27 +197,7 @@ describe("optimizer CLI to Refiner assessment", () => {
           },
         }),
       );
-      const dbPath = join(skillDir, "source.db");
-      const database = createDatabase(dbPath);
-      const version = getOrCreateSkillVersion(
-        database,
-        scenario === "foreign" ? "other" : "demo-skill",
-        "1",
-        scenario === "stale" ? "old text" : doc.text,
-      );
-      const runId = createRun(database, version);
-      transitionRun(database, runId, "running");
-      transitionRun(database, runId, scenario === "failed" ? "failed" : "completed");
-      storeCriterionResults(database, runId, [
-        {
-          criterion_id: "legacy-failure",
-          passed: false,
-          severity: "error",
-          message: "Observed failure",
-          method: "deterministic",
-        },
-      ]);
-      database.close();
+      const { dbPath, runId } = sourceRunFixture(skillDir, doc.text, scenario);
       registerOptimizeCommand(program, { storeFactory: () => store, now: () => now });
       await run(program, [
         "optimize",
