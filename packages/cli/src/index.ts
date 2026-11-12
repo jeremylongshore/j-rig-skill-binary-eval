@@ -1,3 +1,4 @@
+import { registerImportEvalsCommand } from "./commands/import-evals.js";
 import { Command } from "commander";
 import { registerCheckCommand } from "./commands/check.js";
 import { registerValidateCommand } from "./commands/validate.js";
@@ -47,6 +48,7 @@ function createProgram(): Command {
   registerMigrateCommand(program);
   registerSkillSignalCommands(program);
   registerRunCommand(program);
+  registerImportEvalsCommand(program);
   registerGradeCommand(program);
   registerSamplePlanCommand(program);
   registerBatchCommand(program);

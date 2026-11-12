@@ -2,6 +2,9 @@ import type { Command } from "commander";
 import { readFileSync } from "node:fs";
 import {
   evaluateWithGrader,
+  scriptedGrader,
+  EvalTaskSchema,
+  EvalConfigSchema,
   evaluateWithModelJudge,
   GraderDefinitionSchema,
   hashGraderSnapshot,
@@ -15,7 +18,8 @@ import { selectJudgeOverride } from "./eval.js";
 
 export interface GradeCommandOptions {
   runId: string;
-  graderPath: string;
+  graderPath?: string;
+  scriptedImportPath?: string;
   db: string;
   regrade: boolean;
   provider?: string;
@@ -42,7 +46,11 @@ export function loadGraderDefinition(path: string): GraderDefinition {
 
 /** Grade one completed raw Run and persist an immutable Grade snapshot. */
 export async function runGrade(options: GradeCommandOptions): Promise<GradeCommandResult> {
-  const definition = loadGraderDefinition(options.graderPath);
+  if (!!options.graderPath === !!options.scriptedImportPath)
+    throw new Error("Supply exactly one of --grader or --scripted-import");
+  const legacyDefinition = options.graderPath
+    ? loadGraderDefinition(options.graderPath)
+    : undefined;
   const database = openDb(options.db);
 
   try {
@@ -53,6 +61,30 @@ export async function runGrade(options: GradeCommandOptions): Promise<GradeComma
         `Raw Run ${options.runId} is ${rawRun.status}; only completed Runs can be graded`,
       );
     }
+
+    if (options.scriptedImportPath) {
+      const saved = JSON.parse(rawRun.request_json) as Record<string, unknown>;
+      const task = EvalTaskSchema.parse(saved["task"]);
+      const config = EvalConfigSchema.parse(saved["config"]);
+      if (
+        task.id !== rawRun.task_id ||
+        task.version !== rawRun.task_version ||
+        config.id !== rawRun.config_id ||
+        config.version !== rawRun.config_version ||
+        saved["run_id"] !== rawRun.id ||
+        saved["sample_index"] !== rawRun.sample_index ||
+        saved["model"] !== rawRun.model ||
+        JSON.stringify(saved["task"]) !== rawRun.task_json ||
+        JSON.stringify(saved["config"]) !== rawRun.config_json
+      )
+        throw new Error("stored scripted request identity is inconsistent");
+    }
+    const definition = options.scriptedImportPath
+      ? scriptedGrader(
+          JSON.parse(readFileSync(options.scriptedImportPath, "utf8")),
+          JSON.parse(rawRun.request_json),
+        )
+      : legacyDefinition!;
 
     // Resolve saved evidence and version policy before any provider selection
     // or billable judge call. An unchanged snapshot is a read-only operation,
@@ -122,7 +154,8 @@ export function registerGradeCommand(program: Command): void {
     .command("grade")
     .description("Grade a completed raw Run with a named immutable grader snapshot")
     .requiredOption("--run-id <id>", "Raw Run id")
-    .requiredOption("--grader <path>", "YAML grader definition")
+    .option("--grader <path>", "YAML grader definition")
+    .option("--scripted-import <path>", "Authored import package bound to this stored Run")
     .option("--db <path>", "SQLite DB path", "j-rig.db")
     .option("--regrade", "Allow a new grader version to coexist with an earlier Grade")
     .option("--provider <name>", "Model-judge provider (e.g. minimax, anthropic, stub)")
@@ -130,7 +163,8 @@ export function registerGradeCommand(program: Command): void {
     .action(
       async (opts: {
         runId: string;
-        grader: string;
+        grader?: string;
+        scriptedImport?: string;
         db: string;
         provider?: string;
         regrade?: boolean;
@@ -140,6 +174,7 @@ export function registerGradeCommand(program: Command): void {
           const result = await runGrade({
             runId: opts.runId,
             graderPath: opts.grader,
+            scriptedImportPath: opts.scriptedImport,
             db: opts.db,
             regrade: opts.regrade === true,
             provider: opts.provider,
