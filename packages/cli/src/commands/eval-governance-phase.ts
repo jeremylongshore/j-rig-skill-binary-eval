@@ -67,10 +67,9 @@ export function evaluateModelGovernance(input: GovernanceInput) {
   let regressionBaselineSha256: string | null = null;
   if (opts.regressionBaseline) {
     ranRegression = true;
-    const previousJudgments = loadRegressionBaseline(opts.regressionBaseline);
-    regressionBaselineSha256 =
-      "sha256:" + createHash("sha256").update(readFileSync(opts.regressionBaseline)).digest("hex");
-    regressions = detectRegressions(previousJudgments, allJudgments, scoringCriteria);
+    const baseline = loadRegressionBaselineSnapshot(opts.regressionBaseline);
+    regressionBaselineSha256 = baseline.sha256;
+    regressions = detectRegressions(baseline.judgments, allJudgments, scoringCriteria);
     if (!opts.json) {
       const sacred = regressions.filter((r) => r.is_sacred).length;
       console.log(
@@ -164,9 +163,19 @@ export function sanitizeSegment(raw: string, fallback: string): string {
  * the regression layer — a silent skip would hide a real regression.
  */
 export function loadRegressionBaseline(path: string): JudgmentResult[] {
+  return loadRegressionBaselineSnapshot(path).judgments;
+}
+
+/** Bind the comparison and evidence digest to one exact filesystem snapshot. */
+function loadRegressionBaselineSnapshot(path: string): {
+  judgments: JudgmentResult[];
+  sha256: string;
+} {
   let raw: unknown;
+  let bytes: Buffer;
   try {
-    raw = JSON.parse(readFileSync(path, "utf8"));
+    bytes = readFileSync(path);
+    raw = JSON.parse(bytes.toString("utf8"));
   } catch (e) {
     throw new Error(
       `--regression-baseline: could not read/parse "${path}": ${e instanceof Error ? e.message : String(e)}`,
@@ -178,7 +187,7 @@ export function loadRegressionBaseline(path: string): JudgmentResult[] {
     );
   }
   const validVerdicts = new Set(["yes", "no", "unsure"]);
-  return raw.map((row, i) => {
+  const judgments = raw.map((row, i) => {
     const r = row as { criterion_id?: unknown; verdict?: unknown };
     if (
       typeof r.criterion_id !== "string" ||
@@ -197,6 +206,7 @@ export function loadRegressionBaseline(path: string): JudgmentResult[] {
       method: "judge" as const,
     };
   });
+  return { judgments, sha256: "sha256:" + createHash("sha256").update(bytes).digest("hex") };
 }
 
 /**
