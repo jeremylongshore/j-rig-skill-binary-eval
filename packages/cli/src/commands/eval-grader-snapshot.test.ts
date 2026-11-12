@@ -43,3 +43,24 @@ it.each(fixtures)("preserves snapshot bytes: $name", ({ input, expected, sha256 
   expect(actual).toBe(expected);
   expect(createHash("sha256").update(actual).digest("hex")).toBe(sha256);
 });
+
+it("binds explicit pacing policy to grader identity without changing default snapshots", () => {
+  const base = JSON.parse(fixtures[0]!.input) as Parameters<typeof buildGraderSnapshot>[0];
+  const snapshot = (rpm: number) =>
+    buildGraderSnapshot({
+      ...base,
+      executionMetadata: {
+        request_pacing: {
+          schema: "j-rig/request-pacing/v1",
+          requests_per_minute: rpm,
+          minimum_start_interval_ms: Math.ceil(60000 / rpm),
+          scope: "invocation-selected-judge-endpoints-all-completions",
+        },
+      },
+    });
+  const digest = (value: unknown) =>
+    createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  expect(digest(snapshot(30))).not.toBe(digest(snapshot(60)));
+  expect(digest(snapshot(30))).not.toBe(digest(buildGraderSnapshot(base)));
+  expect(snapshot(30)).toMatchObject({ request_pacing: { requests_per_minute: 30 } });
+});

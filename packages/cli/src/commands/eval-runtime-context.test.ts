@@ -1,3 +1,4 @@
+import { RequestPacer, requestPacingPolicy } from "../providers/request-pacing.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Command } from "commander";
 import {
@@ -8,6 +9,8 @@ import {
   mkdirSync,
   copyFileSync,
   chmodSync,
+  readdirSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, delimiter } from "node:path";
@@ -406,3 +409,158 @@ it.each([false, true])(
   },
   30000,
 );
+
+it("retains one pacing queue across model contexts and records the explicit policy", async () => {
+  nativeEndpoint();
+  const root = directory();
+  const context = await prepareEvaluationInvocation(
+    skill,
+    options(root, { provider: "openai", judgeRequestsPerMinute: "60000" }),
+    new Command(),
+  );
+  expect(context.executionMetadata).toMatchObject({
+    request_pacing: {
+      schema: "j-rig/request-pacing/v1",
+      requests_per_minute: 60000,
+      minimum_start_interval_ms: 1,
+    },
+  });
+  const pacer = context.pacing;
+  startEvaluationModel(context, "fixture-model");
+  startEvaluationModel(context, "another-model");
+  expect(context.pacing).toBe(pacer);
+  expect(pacer).toBeDefined();
+  expect(fetch).not.toHaveBeenCalled();
+});
+it.each(["0", "30\n", "invalid"])("rejects pacing %j before opening a database", async (rate) => {
+  const root = directory();
+  await expect(
+    prepareEvaluationInvocation(
+      skill,
+      options(root, { judgeRequestsPerMinute: rate }),
+      new Command(),
+    ),
+  ).rejects.toThrow(/judge-requests-per-minute/);
+  expect(storage.openDb).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("paces actual native shared execution/judge dispatch across model contexts", async () => {
+  nativeEndpoint();
+  const root = directory();
+  const context = await prepareEvaluationInvocation(
+    skill,
+    options(root, { provider: "openai", judgeRequestsPerMinute: "30" }),
+    new Command(),
+  );
+  let time = 0;
+  context.pacing = new RequestPacer(requestPacingPolicy("30")!, {
+    now: () => time,
+    sleep: async (ms) => {
+      time += ms;
+    },
+  });
+  const starts: number[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      starts.push(time);
+      return new Response(
+        JSON.stringify({
+          model: "fixture-model",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({ verdict: "yes", confidence: 1, reasoning: "synthetic" }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+        }),
+        { status: 200 },
+      );
+    }),
+  );
+  const first = startEvaluationModel(context, "first-model");
+  first.costMeter.phase = "execution";
+  await first.providers.execution.execute("fixture", { skill_body: "fixture" });
+  first.costMeter.phase = "judge";
+  await first.providers.judge.judge("criterion-one", "fixture", "fixture");
+  await first.providers.judge.judge("criterion-two", "fixture", "fixture");
+  const second = startEvaluationModel(context, "second-model");
+  second.costMeter.phase = "judge";
+  await second.providers.judge.judge("criterion-one", "fixture", "fixture");
+  expect(starts).toEqual([0, 2000, 4000, 6000]);
+  expect(first.costMeter.report().total.calls).toBe(3);
+  expect(second.costMeter.report().total.calls).toBe(1);
+});
+
+it("retains exact pacing policy and hash in a private SQLite-linked artifact without bundle output", async () => {
+  nativeEndpoint();
+  const root = directory();
+  const context = await prepareEvaluationInvocation(
+    skill,
+    options(root, { provider: "openai", judgeRequestsPerMinute: "30" }),
+    new Command(),
+  );
+  const model = startEvaluationModel(context, "fixture-model");
+  const row = context.database.sqlite
+    .prepare("SELECT * FROM artifacts WHERE run_id = ? AND artifact_type = 'request-pacing'")
+    .get(model.runId) as { relative_path: string; size_bytes: number; sha256: string };
+  const bytes = readFileSync(row.relative_path);
+  expect(row.size_bytes).toBe(bytes.length);
+  expect(row.sha256).toBe("sha256:" + createHash("sha256").update(bytes).digest("hex"));
+  expect(statSync(row.relative_path).mode & 0o777).toBe(0o600);
+  expect(statSync(dirname(row.relative_path)).mode & 0o777).toBe(0o700);
+  expect(JSON.parse(bytes.toString())).toEqual({
+    schema: "j-rig/request-pacing-receipt/v1",
+    run_id: model.runId,
+    policy: context.executionMetadata.request_pacing,
+    judge: { provider: "openai", model: "fixture-model" },
+  });
+  expect(bytes.toString()).not.toContain("127.0.0.1");
+  expect(bytes.toString()).not.toContain("synthetic-test-key");
+  expect(fetch).not.toHaveBeenCalled();
+});
+it("failed artifact insertion cleans owned output and fails the run before dispatch", async () => {
+  nativeEndpoint();
+  const root = directory();
+  const context = await prepareEvaluationInvocation(
+    skill,
+    options(root, { provider: "openai", judgeRequestsPerMinute: "30" }),
+    new Command(),
+  );
+  context.database.sqlite.exec(
+    "CREATE TRIGGER refuse_pacing BEFORE INSERT ON artifacts BEGIN SELECT RAISE(ABORT, 'fixture artifact refusal'); END",
+  );
+  expect(() => startEvaluationModel(context, "fixture-model")).toThrow(
+    "Unable to retain request pacing policy",
+  );
+  expect(context.database.sqlite.prepare("SELECT status FROM runs").all()).toEqual([
+    { status: "failed" },
+  ]);
+  expect(context.database.sqlite.prepare("SELECT count(*) AS count FROM artifacts").get()).toEqual({
+    count: 0,
+  });
+  expect(readdirSync(root).filter((name) => name.includes(".pacing-"))).toEqual([]);
+  expect(fetch).not.toHaveBeenCalled();
+});
+it("default-off startup does not create policy artifacts or metadata", async () => {
+  nativeEndpoint();
+  const root = directory();
+  const context = await prepareEvaluationInvocation(
+    skill,
+    options(root, { provider: "openai" }),
+    new Command(),
+  );
+  startEvaluationModel(context, "fixture-model");
+  expect(context.executionMetadata).not.toHaveProperty("request_pacing");
+  expect(
+    context.database.sqlite
+      .prepare("SELECT count(*) AS count FROM artifacts WHERE artifact_type = 'request-pacing'")
+      .get(),
+  ).toEqual({ count: 0 });
+  expect(readdirSync(root).filter((name) => name.includes(".pacing-"))).toEqual([]);
+  expect(fetch).not.toHaveBeenCalled();
+});

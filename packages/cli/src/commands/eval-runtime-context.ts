@@ -1,3 +1,5 @@
+import { retainRequestPacing } from "./eval-pacing-evidence.js";
+import { RequestPacer, requestPacingPolicy } from "../providers/request-pacing.js";
 import { evaluateDeclaredSelfTest } from "./eval-self-test.js";
 
 import {
@@ -13,7 +15,11 @@ import {
   openCostSession,
   type CostSession,
 } from "@intentsolutions/refiner";
-import { createFetchTransport } from "../providers/transport.js";
+import {
+  createFetchTransport,
+  type TransportRequest,
+  type Transport,
+} from "../providers/transport.js";
 import type { RetainedRolloutRun } from "./rollout-export.js";
 import type { ReasoningEffort } from "@j-rig/core";
 
@@ -87,6 +93,7 @@ export interface EvalOptions {
   samples?: string;
   judgeProvider?: string;
   judgeModel?: string;
+  judgeRequestsPerMinute?: string;
   baselineCheck?: boolean;
   regressionBaseline?: string;
   executionProvider?: string;
@@ -193,6 +200,7 @@ interface SelectedProviders {
   judgeProviderName: string;
   /** Concrete model id the judge runs on — feeds JudgmentResult.judge_model + OTel. */
   judgeModelId: string;
+  judgeEndpoint?: string;
 }
 
 /** Extra provider-selection inputs: cost metering + judge decoupling. */
@@ -201,6 +209,7 @@ interface GovernedCostSession extends CostSession {
   refused?: { phase: "trigger" | "execution" | "judge" };
 }
 interface ProviderExtras {
+  pacing?: RequestPacer;
   costSession?: GovernedCostSession;
   executionReasoningEffort?: ReasoningEffort;
   meter?: EvalCostMeter;
@@ -232,32 +241,59 @@ function wrapMetered(p: Provider, extras: ProviderExtras | undefined): Provider 
   return extras?.budget ? new BudgetGuardedProvider(metered, extras.budget) : metered;
 }
 
+function pacingAdmission(extras: ProviderExtras | undefined) {
+  return {
+    beforeDispatch: () => {
+      extras?.budget?.assertDispatchWithin();
+      if (extras?.costSession?.providerFailed)
+        throw new CostAdmissionError("Stopped after a provider failure; no further wire calls");
+    },
+    remainingWallMs: () => {
+      const budget = extras?.budget;
+      return budget?.limits.max_wall_ms === undefined
+        ? undefined
+        : budget.limits.max_wall_ms - budget.spent().wall_ms;
+    },
+  };
+}
+function minimaxDispatch(extras: ProviderExtras | undefined, provider: string) {
+  if (!extras?.pacing || provider !== "minimax" || process.env.JRIG_MINIMAX_PLAN_ADMISSION !== "1")
+    return undefined;
+  return (request: TransportRequest, transport: Transport) =>
+    extras.pacing!.dispatch(request, transport, pacingAdmission(extras), 1_000);
+}
 function costTransport(
   extras: ProviderExtras | undefined,
   provider: string,
   format: "anthropic" | "openai",
 ) {
-  if (!extras?.costSession) return undefined;
-  const session = extras.costSession;
-  return createCostTransport(createFetchTransport(), session.ledger, {
-    ...session.context,
-    provider,
-    format,
-    phase: () => extras.meter?.phase ?? "execution",
-    beforeAdmission: () => {
-      if (session.providerFailed)
-        throw new CostAdmissionError("Stopped after a provider failure; no further wire calls");
-    },
-    onAdmissionRefused: () => {
-      session.refused ??= { phase: extras.meter?.phase ?? "execution" };
-    },
-  });
+  if (!extras?.costSession && !extras?.pacing) return undefined;
+  const session = extras?.costSession;
+  const transport = session
+    ? createCostTransport(createFetchTransport(), session.ledger, {
+        ...session.context,
+        provider,
+        format,
+        phase: () => extras?.meter?.phase ?? "execution",
+        beforeAdmission: () => {
+          if (session.providerFailed)
+            throw new CostAdmissionError("Stopped after a provider failure; no further wire calls");
+        },
+        onAdmissionRefused: () => {
+          session.refused ??= { phase: extras?.meter?.phase ?? "execution" };
+        },
+      })
+    : createFetchTransport();
+  // MiniMax's shared dispatch callback combines its floor with this policy once.
+  return extras?.pacing && !minimaxDispatch(extras, provider)
+    ? extras.pacing.wrap(transport, pacingAdmission(extras))
+    : transport;
 }
 
 export function selectJudgeOverride(
   targetModel: string,
   extras?: ProviderExtras,
-): { judge: JudgeProvider; name: string; modelId: string } | null {
+): { judge: JudgeProvider; name: string; modelId: string; endpoint?: string } | null {
   const judgeProvider = extras?.judgeProvider?.trim().toLowerCase();
   const judgeModel = extras?.judgeModel?.trim();
   if (!judgeProvider && !judgeModel) return null;
@@ -282,7 +318,12 @@ export function selectJudgeOverride(
       }),
     );
     const modelId = resolveAnthropicModel(judgeModel || targetModel);
-    return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
+    return {
+      judge: new AnthropicJudgeProvider(modelId, provider),
+      name: "anthropic",
+      modelId,
+      endpoint: "https://api.anthropic.com/v1/messages",
+    };
   }
 
   // Preset / generic OpenAI-compatible path. `--judge-model` alone rides the
@@ -296,10 +337,16 @@ export function selectJudgeOverride(
         name: cfg.name,
         transport: costTransport(extras, cfg.name, "openai"),
         minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
+        minimaxDispatch: minimaxDispatch(extras, cfg.name),
       }),
     );
     const modelId = judgeModel || cfg.defaultModel || targetModel;
-    return { judge: new OpenAICompatJudgeProvider(modelId, provider), name: cfg.name, modelId };
+    return {
+      judge: new OpenAICompatJudgeProvider(modelId, provider),
+      name: cfg.name,
+      modelId,
+      endpoint: `${cfg.baseUrl.replace(/\/+$/, "")}/chat/completions`,
+    };
   }
   if (!judgeProvider) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -311,7 +358,12 @@ export function selectJudgeOverride(
         }),
       );
       const modelId = resolveAnthropicModel(judgeModel || targetModel);
-      return { judge: new AnthropicJudgeProvider(modelId, provider), name: "anthropic", modelId };
+      return {
+        judge: new AnthropicJudgeProvider(modelId, provider),
+        name: "anthropic",
+        modelId,
+        endpoint: "https://api.anthropic.com/v1/messages",
+      };
     }
     if (extras?.costSession) throw new Error("Governed cost mode requires a real native judge");
     // `--judge-model` alone with NO real key anywhere: fall back to the stub
@@ -393,6 +445,7 @@ function selectProviders(
             name: cfg.name,
             transport: costTransport(extras, cfg.name, "openai"),
             minimaxPlanAdmission: process.env.JRIG_MINIMAX_PLAN_ADMISSION === "1",
+            minimaxDispatch: minimaxDispatch(extras, cfg.name),
           }),
         );
         return {
@@ -407,6 +460,7 @@ function selectProviders(
           providerName: cfg.name,
           judgeProviderName: cfg.name,
           judgeModelId: effectiveModel,
+          judgeEndpoint: `${cfg.baseUrl.replace(/\/+$/, "")}/chat/completions`,
         };
       }
     }
@@ -434,6 +488,7 @@ function selectProviders(
         providerName: "anthropic",
         judgeProviderName: "anthropic",
         judgeModelId: resolveAnthropicModel(model),
+        judgeEndpoint: "https://api.anthropic.com/v1/messages",
       };
     }
 
@@ -486,15 +541,21 @@ function selectProviders(
   // Judge decoupling: `--judge-provider` / `--judge-model` swap ONLY the judge
   // leg; trigger + execution stay on the base backend.
   const override = selectJudgeOverride(model, extras);
-  if (override) {
-    return {
-      ...withExecution,
-      judge: override.judge,
-      judgeProviderName: override.name,
-      judgeModelId: override.modelId,
-    };
+  const selected = override
+    ? {
+        ...withExecution,
+        judge: override.judge,
+        judgeProviderName: override.name,
+        judgeModelId: override.modelId,
+        judgeEndpoint: override.endpoint,
+      }
+    : withExecution;
+  if (extras?.pacing) {
+    if (!selected.judgeEndpoint)
+      throw new Error("--judge-requests-per-minute requires a native judge endpoint");
+    extras.pacing.selectEndpoint(selected.judgeEndpoint);
   }
-  return withExecution;
+  return selected;
 }
 
 /**
@@ -583,6 +644,7 @@ export async function prepareEvaluationInvocation(
   // point so the REFUSED error surfaces BEFORE expensive I/O when stub
   // mode is the only path — but ONLY when there is no real key, so a real
   // dogfood run is never gated behind J_RIG_ALLOW_STUB.
+  const pacingPolicy = requestPacingPolicy(opts.judgeRequestsPerMinute);
   const executionParameters = resolveExecutionParameters(opts, process.env);
   let executionMetadata: Record<string, unknown> = executionParameters
     ? { execution_parameters: executionParameters }
@@ -594,7 +656,10 @@ export async function prepareEvaluationInvocation(
       execution_provider: CLAUDE_CODE_PROVIDER_NAME,
     };
   }
+  if (pacingPolicy) executionMetadata = { ...executionMetadata, request_pacing: pacingPolicy };
   const hasRealKey = hasAnyRealKey(opts.provider);
+  if (pacingPolicy && ((!hasRealKey && !opts.judgeProvider) || opts.judgeProvider === "stub"))
+    throw new Error("--judge-requests-per-minute requires a native judge endpoint");
   if (!hasRealKey) assertStubAllowed();
   if (opts.mcpConfig && (!hasRealKey || opts.provider === "stub" || opts.functional === false)) {
     throw new Error("--mcp-config requires real functional execution");
@@ -707,6 +772,7 @@ export async function prepareEvaluationInvocation(
     throw new Error("Subscription execution cannot enforce native wire reservations");
   return {
     opts,
+    pacing: pacingPolicy ? new RequestPacer(pacingPolicy) : undefined,
     executionParameters,
     executionMetadata,
     claudeCodeSettings,
@@ -770,6 +836,7 @@ export function startEvaluationModel(context: EvaluationInvocation, model: strin
   runBudget.attach(costMeter, model);
   const providers = selectProviders(model, opts.provider, {
     meter: costMeter,
+    pacing: context.pacing,
     costSession,
     ...(runBudget.active ? { budget: runBudget } : {}),
     executionReasoningEffort: executionParameters?.reasoning_effort,
@@ -785,6 +852,10 @@ export function startEvaluationModel(context: EvaluationInvocation, model: strin
         }
       : {}),
   });
+
+  if (context.pacing) {
+    retainRequestPacing(database, opts.db, runId, context.pacing.policy, providers);
+  }
 
   // OTel: mint a UUIDv7 EvalRun id and emit runtime.run.started
   // (067 § 1.1). The DB integer runId stays the storage key; the

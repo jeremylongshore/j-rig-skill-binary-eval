@@ -72,6 +72,10 @@ export function registerEvalCommand(program: Command): void {
         "auto-detected one).",
     )
     .option(
+      "--judge-requests-per-minute <n>",
+      "Opt-in completion start limit for selected judge endpoints across this invocation (including shared execution traffic); 1..60000, no account-wide quota claim.",
+    )
+    .option(
       "--samples <n>",
       "Judge samples per judge-method criterion (N-sample majority voting): the verdict is " +
         "the majority vote and `confidence` becomes the measured agreement fraction. " +
