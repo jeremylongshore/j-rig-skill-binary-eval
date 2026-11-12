@@ -385,3 +385,32 @@ when a result event arrived. Subscription report keys distinguish API-equivalent
 cost from billed usage, while call evidence keeps requested and reported model
 identities separate. Cache writes still lack advisory rates; hard USD admission
 and Wave B accounting remain open in 214c.18 / #403. See Refiner API029 §8.11.
+
+### Opt-in judge endpoint pacing
+
+`j-rig eval PATH --judge-requests-per-minute 30` limits completion request
+starts at selected judge endpoints to at least 2,000 ms apart. The explicit
+integer range is 1–60,000 (millisecond scheduling resolution), not a vendor
+quota declaration. With no option, existing dispatch behavior is unchanged.
+One invocation owns the queue across criteria, outcomes, baseline runs and
+models. Trigger/execution requests sharing a selected endpoint also count;
+other endpoints, quota lookups and other processes are outside this limit.
+This does not promise account-wide quota compliance or unlimited throughput.
+
+Admission occurs before wire cost reservation. Waiting consumes the existing
+call timeout and run wall budget; cancellation or exhausted admission refuses
+further sends. Logical attempted-call reporting remains distinct from actual
+wire reservations, including MiniMax's permitted recovery attempt. MiniMax's
+existing quota checks, circuit and single bounded recovery are preserved; its
+one-second start floor combines with the configured interval using the larger
+constraint. Successful completions are never replayed by the pacing layer.
+The exact versioned policy is retained in execution metadata and the selected
+grader snapshot digest. Before provider dispatch, each paced run also records a
+private `request-pacing` artifact in SQLite with the exact versioned policy,
+run ID, judge provider/model, byte count and content hash. File contents are
+published by rename before the database link; caught persistence failures clean
+only their owned directory and mark the run failed. No endpoint or credential
+is stored in that receipt. Default-off runs create no pacing artifact.
+No schedule, provider default, samples, verdict rule or
+paid benchmark is changed. The quality-per-dollar comparison remains separate
+work under `j-rig-binary-eval-6yq.3`.

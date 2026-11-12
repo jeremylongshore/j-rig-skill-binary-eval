@@ -1,6 +1,6 @@
 import { CostAdmissionError } from "@intentsolutions/refiner";
 import { mapProviderUsage, reportedModel } from "./usage.js";
-import { createMiniMaxPlanTransport } from "./minimax-plan.js";
+import { createMiniMaxPlanTransport, type PlanAdmissionOptions } from "./minimax-plan.js";
 import { formatJudgeObservations } from "@j-rig/core";
 import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
@@ -411,6 +411,7 @@ function errorForThrow(name: string, err: unknown): ProviderError {
 export interface RealOpenAICompatProviderOptions {
   /** Opt-in quota admission for the canonical MiniMax endpoint. */
   minimaxPlanAdmission?: boolean;
+  minimaxDispatch?: PlanAdmissionOptions["dispatch"];
   /** API key forwarded as the Bearer token (held privately; never logged — G-1). */
   apiKey: string;
   /** Base URL of the OpenAI-compatible endpoint (no trailing `/chat/completions`). */
@@ -441,7 +442,7 @@ export class RealOpenAICompatProvider implements Provider {
     const transport = opts.transport ?? createFetchTransport();
     this.#transport =
       opts.minimaxPlanAdmission && this.name === "minimax"
-        ? createMiniMaxPlanTransport(transport)
+        ? createMiniMaxPlanTransport(transport, { dispatch: opts.minimaxDispatch })
         : transport;
   }
 

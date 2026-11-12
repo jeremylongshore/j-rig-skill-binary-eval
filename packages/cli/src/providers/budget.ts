@@ -181,7 +181,7 @@ export class RunBudget {
    * Is the budget spent? Latches and returns the stop on the first limit
    * reached (limits checked in a fixed order); null while within budget.
    */
-  check(): BudgetStop | null {
+  check(admittedCall = false): BudgetStop | null {
     if (this.#stop || !this.active) return this.#stop;
     const s = this.spent();
     const phase = this.#current?.meter.phase ?? "trigger";
@@ -215,7 +215,10 @@ export class RunBudget {
       hit = stop("max_tokens", null, "max_tokens cannot be enforced: incomplete token usage");
     } else if (max_tokens !== undefined && s.tokens !== null && s.tokens >= max_tokens) {
       hit = stop("max_tokens", s.tokens, `spent ${s.tokens} tokens of max_tokens ${max_tokens}`);
-    } else if (max_calls !== undefined && s.calls >= max_calls) {
+    } else if (
+      max_calls !== undefined &&
+      (admittedCall ? s.calls > max_calls : s.calls >= max_calls)
+    ) {
       hit = stop("max_calls", s.calls, `made ${s.calls} calls of max_calls ${max_calls}`);
     } else if (max_wall_ms !== undefined && s.wall_ms >= max_wall_ms) {
       hit = stop("max_wall_ms", s.wall_ms, `ran ${s.wall_ms} ms of max_wall_ms ${max_wall_ms}`);
@@ -227,6 +230,12 @@ export class RunBudget {
   /** Guard: throw instead of calling once the budget is spent. */
   assertWithin(): void {
     const stop = this.check();
+    if (stop) throw new BudgetExceededError(stop);
+  }
+
+  /** Recheck an already metered logical call before its first/retried wire attempt. */
+  assertDispatchWithin(): void {
+    const stop = this.check(true);
     if (stop) throw new BudgetExceededError(stop);
   }
 

@@ -77,6 +77,8 @@ export function parsePlanQuota(value: unknown, model: unknown): PlanQuota {
 }
 
 export interface PlanAdmissionOptions {
+  /** Optional shared dispatch admission; must preserve the >=1s start floor. */
+  dispatch?: (req: TransportRequest, transport: Transport) => Promise<TransportResponse>;
   fetchQuota?: (req: TransportRequest) => Promise<unknown>;
   now?: () => number;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -181,10 +183,10 @@ export function createMiniMaxPlanTransport(
     const current = await readQuota(req);
     const reset = blockedUntil(current);
     if (reset !== undefined) await recover(req, Math.max(1_000, reset - now() + 1_000));
-    if (nextStart > now()) await sleep(nextStart - now(), req.signal);
+    if (!options.dispatch && nextStart > now()) await sleep(nextStart - now(), req.signal);
     req.signal?.throwIfAborted();
     nextStart = now() + 1_000;
-    const response = await transport(req);
+    const response = await (options.dispatch ? options.dispatch(req, transport) : transport(req));
     if (response.status === 402) circuit = response;
     const overload = isRejectedOverload(response);
     if (response.status !== 429 && !overload) return response;
@@ -211,7 +213,7 @@ export function createMiniMaxPlanTransport(
     circuit = response;
     req.signal?.throwIfAborted();
     nextStart = now() + 1_000;
-    const retried = await transport(req);
+    const retried = await (options.dispatch ? options.dispatch(req, transport) : transport(req));
     circuit = retried.status >= 200 && retried.status < 300 ? undefined : retried;
     return retried;
   }

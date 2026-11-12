@@ -183,6 +183,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add opt-in invocation-scoped pacing of selected judge completion endpoints, with explicit policy identity and unchanged default admission.
+
 ### Package releases (2026-10-08)
 
 - **`@intentsolutions/jrig-cli` 0.5.0** (tag `jrig-cli-v0.5.0`). Ships everything merged
