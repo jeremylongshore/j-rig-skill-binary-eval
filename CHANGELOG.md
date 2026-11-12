@@ -186,6 +186,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add an explicit fixed-output judge replay command with default planning, human-attested labels, governed transport budgets and private comparison receipts. Live benchmark results remain separate. Refs bead `bd_000-projects-yh7ej`.
+
 - Add opt-in invocation-scoped pacing of selected judge completion endpoints, with explicit policy identity and unchanged default admission.
 
 ### Package releases (2026-10-08)

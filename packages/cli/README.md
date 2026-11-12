@@ -417,3 +417,89 @@ is stored in that receipt. Default-off runs create no pacing artifact.
 No schedule, provider default, samples, verdict rule or
 paid benchmark is changed. The quality-per-dollar comparison remains separate
 work under `j-rig-binary-eval-6yq.3`.
+
+### Fixed-output judge replay (source preparation)
+
+`j-rig judge-replay` compares a selected judge with explicit reviewed labels over
+fixed prompt/output bytes. It never executes the skill or invents a gold verdict.
+This initial lane supports the existing native DeepSeek, Groq and NVIDIA presets,
+one provider/model per invocation. It neither enables a schedule nor changes the
+ordinary evaluator defaults. Other provider families are not accepted by this
+local replay policy.
+
+```bash
+j-rig judge-replay --corpus corpus.json --review review.json \
+  --policy replay-policy.json --output private-plan
+```
+
+The default is **planning only**: no credentials, cost ledger or provider transport
+are opened. A new private output directory retains the exact corpus/review bytes
+and a `planned` receipt. Execution additionally requires `--execute`,
+`--cost-policy`, `--cost-ledger` and `--cost-file-id`. Reusing an existing output
+directory is refused. Live-call authorization is not established merely by
+preparing these inputs.
+
+The CLI-local unsigned corpus uses `j-rig/judge-replay-corpus/v1`, an asserted
+`source` object (`revision`, `artifact_sha256`), and unique `rows`. Each row has
+`id`, `criterion` (`id`, `description`, optional `judge_prompt`), `prompt` and
+`output`. Empty output is valid observed data. Source revision/digest are caller
+assertions: this command does not load or verify the original source artifact.
+The supplied corpus itself is bound by its exact UTF-8 byte digest.
+
+The separate `j-rig/judge-replay-review/v1` document requires that exact
+`corpus_sha256`, nonempty `reviewer`, `reviewed_at`, `reviewed: true`, and exactly
+one label per row: `id`, `expected_verdict` (`yes` or `no`), and `rationale`.
+This is an explicit unsigned human attestation, not proof of reviewer identity.
+A generated fixture is never human-anchored benchmark evidence. Review dates may
+not be in the future; duplicates, missing labels, unknown fields, a UTF-8 BOM, malformed UTF-8
+and documents over 4 MiB are refused.
+
+The policy explicitly declares `provider`, concrete `model`, `samples` (1–25),
+`repeats` (1–100), `temperature` (0–2), `requests_per_minute` (1–60000),
+`judge_timeout_ms` (at most 120000), `max_wall_ms` (at most 86400000), and
+`max_calls` (at most 10000). The planned sample count must fit the call cap.
+No vendor availability, price or account quota is inferred from these values.
+
+Execution uses existing judge majority/error semantics, sequential samples,
+run-scoped transport pacing and governed per-wire reservations. An explicit
+`refiner-cost-policy/v1` must contain an exact provider/model rate and explicit
+file token/attempt bounds. The native judge's existing 2048 output-token ceiling
+also must fit the caller-supplied rate limits. Rates and cost outcomes are caller-supplied-rate
+estimates and reservation evidence, not provider invoices. The policy schema
+does not establish rate-review provenance; verified billing remains unavailable. Missing/unknown usage
+stays unknown in the ledger. No automatic retry layer is added.
+
+`report.json` retains input/policy hashes, configured provider/model and endpoint
+digest (never raw endpoint or credentials), sample observations, majority results,
+planned/completed/unstarted cell counts, failures, repeat disagreements and governed cost
+outcomes. Failed or stopped cells remain in the planned accuracy denominator.
+`provider_invocations` counts entries into the judge adapter, not network calls.
+`admission_refused_samples` includes refusal before entry or inside governed
+transport admission; each sample records whether the provider was invoked.
+`failed_samples` counts other failures after adapter entry. Actual network-bound
+transport invocations are reported separately as `wire_calls`. Unstarted cells
+are not fabricated failed sample observations.
+
+Any missing, refused or failed planned sample makes the replay incomplete.
+`completed_cells` counts fully sampled cells; `judged_cells` includes aggregate
+judgments with surviving samples and `degraded_cells` exposes the difference.
+Partial sample loss remains an `unsure` vote as in the existing engine; its
+aggregate contributes to planned-denominator accuracy but not clean repeat
+stability. Fully failed judgments do not count as judged cells. A completed replay may have zero accuracy:
+exit zero means the measurement completed, not that the judge passed a quality
+gate. No rollout or calibration acceptance threshold is invented here.
+
+Unsupported no-follow or nonblocking file primitives are refused before opening
+inputs; the current qualification target is Linux. Configuration/cost admission
+failures after plan publication retain a separate terminal failure receipt. A plan
+always remains `executed: false`, even when execution was requested.
+
+Files are created mode 0600 under a new mode 0700 directory. Publication is an
+atomic file rename, not a transaction with the separate cost ledger or a crash
+recovery guarantee. If report publication fails after cost sealing, a terminal
+failure receipt preserves the existing `scored` cost outcome: it is never replaced
+or followed by a conflicting `failed` ledger outcome. Cost accounting completion
+is distinct from report publication. Preserve incomplete plans/ledgers after interruption; do not
+promote them to completed benchmark evidence. Human-label review, current model
+and rate verification, and the live comparison remain under
+`j-rig-binary-eval-6yq.3`; source work is `bd_000-projects-yh7ej`.
