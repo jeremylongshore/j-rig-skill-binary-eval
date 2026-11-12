@@ -30,6 +30,10 @@
 
 ## Unreleased
 
+- Add explicit per-repository roster selection with verified clean checkout pins
+  and confined skill inputs; preserve default roster execution settings.
+  Refs bead `bd_000-projects-qkhp`.
+
 - Add explicit Whiteglove authored-eval import with exact source/fixture binding,
   bounded executable requests and persisted per-assertion deterministic grading.
   Import performs no execution; descriptive prose remains ungraded.

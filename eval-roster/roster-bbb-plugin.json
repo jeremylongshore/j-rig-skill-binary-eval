@@ -1,0 +1,20 @@
+{
+  "$comment": "Prepared BBB plugin response-policy roster. Explicit opt-in only; no scheduled activation or model acceptance claimed. Pin includes reviewed profiles.",
+  "source": {
+    "githubRepo": "jeremylongshore/bobs-big-brain-plugin",
+    "ref": "9471787a3f6efda371cb6a2db2277f6d0ecda250"
+  },
+  "provider": "minimax",
+  "models": "MiniMax-M3",
+  "samples": 5,
+  "skills": [
+    {
+      "key": "bbb-plugin-brain",
+      "path": "skills/brain"
+    },
+    {
+      "key": "bbb-plugin-brain-save",
+      "path": "skills/brain-save"
+    }
+  ]
+}

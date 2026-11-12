@@ -103,3 +103,49 @@ plan. No priority service tier, provider fallback, or model migration is enabled
 Refs beads `bd_000-projects-ldri` and `bd_000-projects-fhjl`. Offline recovery tests
 and source fixes do not substitute for the complete signed default-roster run
 required by `bd_000-projects-hlwz`.
+
+## Explicit per-repository roster selection
+
+The default invocation still reads `eval-roster/roster.json`. A separately reviewed
+roster may be selected with `--roster PATH`; relative paths resolve against the
+caller's working directory. Use separate invocations and output directories for
+plugin and Registrar sources. Selection does not enable a workflow or call a
+provider until the runner itself is deliberately executed.
+
+All rosters now require typed unique safe skill keys, confined relative skill
+paths, a 40-hex source pin and a GitHub owner/repository identity. Before output or
+evaluator execution, the runner verifies local source HEAD and normalized origin,
+rejects changed/untracked selected skill directories, checks real paths and exact
+tracked SKILL.md/spec bytes, and ignores inherited Git-routing variables and local
+replacement refs. Git origin metadata is a local identity check, not remote
+attestation. Credentials in remote URLs are never printed by verification errors.
+
+This tightens the old default lane too: copying skill files into an arbitrary
+non-Git directory or editing them after checkout is no longer accepted as a
+pinned source. Use an actual clean source checkout. Existing default roster data,
+provider/model overrides, samples, review requirement and per-skill failure
+reporting remain unchanged. A failed admission produces no roster output.
+
+BBB profiles assess synthetic transcript responses and sibling routing only.
+They do not establish actual MCP writes, governance, provider quality or nightly
+acceptance. Profiles and roster source pins are reviewed separately from any
+scheduler activation. Refs bead `bd_000-projects-qkhp`.
+
+The bead's proposed single `roster-bbb.json` is intentionally split into two
+per-repository configurations, matching its separate-invocation requirement.
+Prepared sources are `roster-bbb-plugin.json` (two skills) and
+`roster-bbb-registrar.json` (three skills). Each pin includes its distinct profiles.
+After separately authorizing provider execution, invoke them independently:
+
+```sh
+node eval-roster/run-roster.mjs --roster eval-roster/roster-bbb-plugin.json \
+  --src "$PLUGIN_PINNED_CHECKOUT" --out build/bbb-plugin
+node eval-roster/run-roster.mjs --roster eval-roster/roster-bbb-registrar.json \
+  --src "$REGISTRAR_PINNED_CHECKOUT" --out build/bbb-registrar
+```
+
+These commands execute models; they are not part of offline schema validation.
+No workflow or scheduled job selects these rosters in this change. Both source
+profile sets passed canonical schema validation, which does not establish that
+any model met their criteria. Revert this additive selection support and stop
+selecting the new files to roll back; existing roster evidence remains retained.
