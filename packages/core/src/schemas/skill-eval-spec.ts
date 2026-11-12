@@ -188,7 +188,16 @@ export const SkillEvalSpecSchema = z
     // `self-test` is a reserved criterion id: when a spec declares `self_test`,
     // j-rig injects a synthetic criterion under this id to score the script's
     // exit-code verdict. A user criterion sharing the id would collide with it.
+    const criterionIds = new Set<string>();
     spec.criteria.forEach((c, ci) => {
+      if (criterionIds.has(c.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate criterion id "${c.id}"`,
+          path: ["criteria", ci, "id"],
+        });
+      }
+      criterionIds.add(c.id);
       if (c.id === SELF_TEST_CRITERION_ID) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -199,7 +208,16 @@ export const SkillEvalSpecSchema = z
     });
 
     const knownCriteria = new Set(spec.criteria.map((c) => c.id));
+    const testCaseIds = new Set<string>();
     spec.test_cases.forEach((tc, ti) => {
+      if (testCaseIds.has(tc.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate test case id "${tc.id}"`,
+          path: ["test_cases", ti, "id"],
+        });
+      }
+      testCaseIds.add(tc.id);
       // An adversarial case that no layer tests used to be skipped silently by
       // the functional runner. Reject it here, before any model spend.
       const scopeIssue = adversarialCaseScopeIssue(tc);
