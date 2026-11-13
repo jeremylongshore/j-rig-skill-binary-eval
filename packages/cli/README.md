@@ -373,6 +373,9 @@ the shared `evaluation-usage/v1` contract. `cost.total` contains known token
 subtotals; inspect `usage_complete` and `unknown_calls` before treating them as
 complete. The advisory price table leaves unmeasured calls and unpriced cache
 writes as null USD. Requested and reported model identities remain distinct.
+DeepSeek V4 Flash legacy aliases now resolve to V4.1-Flash-1017; the advisory
+table uses official peak rates, so its direct API cost estimate is conservative
+for off-peak calls. It does not model the provider's changing peak window.
 
 `--max-tokens` and `--max-usd` stop after unknown settled usage, and phase
 boundaries check the final call as well as subsequent-call admission. These
@@ -422,8 +425,11 @@ work under `j-rig-binary-eval-6yq.3`.
 
 `j-rig judge-replay` compares a selected judge with explicit reviewed labels over
 fixed prompt/output bytes. It never executes the skill or invents a gold verdict.
-This initial lane supports the existing native DeepSeek, Groq and NVIDIA presets,
-one provider/model per invocation. It neither enables a schedule nor changes the
+This lane supports the native DeepSeek, Groq and NVIDIA presets, plus Cloudflare
+Workers AI through its OpenAI-compatible endpoint, one provider/model per
+invocation. Cloudflare uses `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`; the current new-model candidate is
+`@cf/thinkingmachines/inkling-2-small`. It neither enables a schedule nor changes
 ordinary evaluator defaults. Other provider families are not accepted by this
 local replay policy.
 
@@ -438,6 +444,14 @@ and a `planned` receipt. Execution additionally requires `--execute`,
 `--cost-policy`, `--cost-ledger` and `--cost-file-id`. Reusing an existing output
 directory is refused. Live-call authorization is not established merely by
 preparing these inputs.
+
+Cloudflare's documented Inkling 2 Small rate is $0.30/M input, $1.00/M output
+and $0.10/M cached input tokens as of 2026-11-13. It requires Workers Paid or
+prepaid AI Gateway credits; standard Workers Free billing does not provide
+access to this model. Set those rates in the explicit cost policy for an
+authorized replay. Rates can change and the ledger is an estimate, not an
+invoice. See Cloudflare's [model page](https://developers.cloudflare.com/workers-ai/models/inkling-2-small/)
+and [OpenAI-compatible endpoint docs](https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/).
 
 The CLI-local unsigned corpus uses `j-rig/judge-replay-corpus/v1`, an asserted
 `source` object (`revision`, `artifact_sha256`), and unique `rows`. Each row has

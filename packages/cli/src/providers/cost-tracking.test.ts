@@ -91,10 +91,30 @@ describe("EvalCostMeter", () => {
     await p.complete(req("deepseek-v4-flash"));
 
     const r = meter.report();
-    // 100 in @ $0.14/MTok + 10 out @ $0.28/MTok
-    expect(r.estimated_usd).toBeCloseTo((100 * 0.14 + 10 * 0.28) / 1_000_000, 12);
+    // 100 in @ $0.30/MTok + 10 out @ $1.20/MTok (official peak rate).
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1.2) / 1_000_000, 12);
     expect(r.by_model).toHaveLength(1);
     expect(r.by_model[0]!.model).toBe("deepseek-v4-flash");
+  });
+
+  it("prices Cloudflare Inkling 2 Small at its documented token rates", async () => {
+    const model = "@cf/thinkingmachines/inkling-2-small";
+    const meter = new EvalCostMeter();
+    const p = new CostTrackingProvider(fakeProvider(model), meter);
+    await p.complete(req(model));
+
+    const r = meter.report();
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1) / 1_000_000, 12);
+  });
+
+  it("recognizes the current canonical DeepSeek V4.1 Flash model ID", async () => {
+    const model = "deepseek-v4.1-flash-1017";
+    const meter = new EvalCostMeter();
+    const p = new CostTrackingProvider(fakeProvider(model), meter);
+    await p.complete(req(model));
+
+    const r = meter.report();
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1.2) / 1_000_000, 12);
   });
 
   it("reports free-tier judges as $0, not unknown", async () => {

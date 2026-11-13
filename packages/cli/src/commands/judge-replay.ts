@@ -12,7 +12,10 @@ import {
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { openCostSession, recordCostOutcome, type CostSession } from "@intentsolutions/refiner";
-import { resolveOpenAICompatConfig } from "../providers/openai-compatible.js";
+import {
+  resolveOpenAICompatConfig,
+  type OpenAICompatConfig,
+} from "../providers/openai-compatible.js";
 import type { Transport } from "../providers/transport.js";
 import { admitReplay, parseReplayJson, replayDigest } from "./judge-replay-input.js";
 import { prepareReplayProvider } from "./judge-replay-provider.js";
@@ -27,6 +30,26 @@ export interface JudgeReplayOptions {
   costPolicy?: string;
   costLedger?: string;
   costFileId?: string;
+}
+
+/** Resolve the explicitly selected replay backend without provider fallthrough. */
+export function resolveReplayProviderConfig(
+  provider: "deepseek" | "groq" | "nvidia" | "cloudflare",
+  env: NodeJS.ProcessEnv,
+): OpenAICompatConfig | null {
+  if (provider !== "cloudflare") return resolveOpenAICompatConfig(env, provider);
+
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const apiToken = env.CLOUDFLARE_API_TOKEN?.trim();
+  if (!accountId || !/^[a-f0-9]{32}$/i.test(accountId) || !apiToken || apiToken.length < 8) {
+    return null;
+  }
+  return {
+    name: "cloudflare",
+    baseUrl: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+    apiKey: apiToken,
+    defaultModel: "@cf/thinkingmachines/inkling-2-small",
+  };
 }
 
 export function replayReadFlags(
@@ -127,9 +150,9 @@ export async function runJudgeReplay(
   let stage = "provider-configuration";
   let costOutcome: ReturnType<typeof recordCostOutcome>;
   try {
-    const config = resolveOpenAICompatConfig(
-      dependencies.env ?? process.env,
+    const config = resolveReplayProviderConfig(
       input.policy.provider,
+      dependencies.env ?? process.env,
     );
     if (!config) throw new Error("Requested replay provider is not configured");
     stage = "cost-session-admission";

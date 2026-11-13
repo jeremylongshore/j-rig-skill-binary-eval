@@ -103,9 +103,43 @@ export interface ModelRate {
  * Every row names its source and the date it was read; refresh both together.
  */
 export const MODEL_RATES_USD_PER_MTOK: Record<string, ModelRate> = {
-  // DeepSeek (paid)
-  "deepseek-v4-flash": { input: 0.14, output: 0.28 },
-  "deepseek-chat": { input: 0.14, output: 0.28, note: "legacy alias of v4-flash" },
+  // DeepSeek V4 Flash legacy names now route to V4.1-Flash-1017. Use the
+  // official peak rates as a conservative static estimate; direct API off-peak
+  // rates are half and are not represented here.
+  // Source: https://api-docs.deepseek.com/quick_start/pricing (read 2026-11-13).
+  "deepseek-v4-flash": {
+    input: 0.3,
+    output: 1.2,
+    cached_input: 0.006,
+    note: "V4.1-Flash-1017 peak rates; off-peak is half",
+  },
+  "deepseek-chat": {
+    input: 0.3,
+    output: 1.2,
+    cached_input: 0.006,
+    note: "legacy alias of V4.1-Flash-1017; peak rates, off-peak is half",
+  },
+  "deepseek-flash": {
+    input: 0.3,
+    output: 1.2,
+    cached_input: 0.006,
+    note: "V4.1-Flash-1017 peak rates; off-peak is half",
+  },
+  "deepseek-v4.1-flash-1017": {
+    input: 0.3,
+    output: 1.2,
+    cached_input: 0.006,
+    note: "V4.1-Flash-1017 peak rates; off-peak is half",
+  },
+  // Cloudflare Workers AI Inkling 2 Small; paid plan or prepaid credits.
+  // Source: https://developers.cloudflare.com/workers-ai/models/inkling-2-small/
+  // (read 2026-11-13). These estimates are not provider invoices.
+  "@cf/thinkingmachines/inkling-2-small": {
+    input: 0.3,
+    output: 1,
+    cached_input: 0.1,
+    note: "Cloudflare Workers AI list rate; paid plan or prepaid credits",
+  },
   "deepseek-reasoner": { input: 0.55, output: 2.19 },
   // Groq free tier (30 rpm cap)
   "llama-3.3-70b-versatile": { input: 0, output: 0, note: "Groq free tier (retired)" },

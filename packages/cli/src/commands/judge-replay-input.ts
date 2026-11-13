@@ -54,7 +54,7 @@ const ReviewSchema = z
 
 export const ReplayPolicySchema = z
   .object({
-    provider: z.enum(["deepseek", "groq", "nvidia"]),
+    provider: z.enum(["deepseek", "groq", "nvidia", "cloudflare"]),
     model: text,
     samples: z.number().int().min(1).max(25),
     repeats: z.number().int().min(1).max(100),

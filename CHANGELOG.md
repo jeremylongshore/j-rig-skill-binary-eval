@@ -33,6 +33,11 @@
 
 ## Unreleased
 
+- Fixed-output judge replay can now use Cloudflare Workers AI through its
+  OpenAI-compatible endpoint, including Inkling 2 Small, with explicit cost
+  admission. Updated DeepSeek V4 Flash estimates to current V4.1 peak rates and
+  added Cloudflare Inkling 2 Small rates; estimates are not invoices.
+
 - Add explicit per-repository roster selection with verified clean checkout pins
   and confined skill inputs; preserve default roster execution settings.
   Refs bead `bd_000-projects-qkhp`.

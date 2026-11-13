@@ -102,14 +102,14 @@ describe("RunBudget", () => {
   });
 
   it("stops on max_usd from the rate table", async () => {
-    // deepseek-v4-flash: 100 in @ 0.14 + 10 out @ 0.28 per MTok = $0.0000168 per call
-    const { budget, provider, inner } = harness({ max_usd: 0.00003 });
+    // deepseek-v4-flash: 100 in @ 0.30 + 10 out @ 1.20 per MTok = $0.000042 per call
+    const { budget, provider, inner } = harness({ max_usd: 0.00007 });
     await provider.complete(req());
     await provider.complete(req());
     await expect(provider.complete(req())).rejects.toThrow(BudgetExceededError);
     expect(inner.calls).toBe(2);
     expect(budget.stop?.limit).toBe("max_usd");
-    expect(budget.stop?.observed).toBeCloseTo(0.0000336, 10);
+    expect(budget.stop?.observed).toBeCloseTo(0.000084, 10);
   });
 
   it("fails closed on max_usd when a model has no rate on file", async () => {
