@@ -1,4 +1,5 @@
 import { registerImportEvalsCommand } from "./commands/import-evals.js";
+import { registerJudgeReplayCommand } from "./commands/judge-replay.js";
 import { Command } from "commander";
 import { registerCheckCommand } from "./commands/check.js";
 import { registerValidateCommand } from "./commands/validate.js";
@@ -49,6 +50,7 @@ function createProgram(): Command {
   registerSkillSignalCommands(program);
   registerRunCommand(program);
   registerImportEvalsCommand(program);
+  registerJudgeReplayCommand(program);
   registerGradeCommand(program);
   registerSamplePlanCommand(program);
   registerBatchCommand(program);
