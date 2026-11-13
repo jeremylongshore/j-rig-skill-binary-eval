@@ -13,8 +13,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CostPolicy } from "@intentsolutions/refiner-core";
 import type { Transport } from "../providers/transport.js";
-import { replayDigest } from "./judge-replay-input.js";
-import { readReplayDocument, replayReadFlags, runJudgeReplay } from "./judge-replay.js";
+import { ReplayPolicySchema, replayDigest } from "./judge-replay-input.js";
+import {
+  readReplayDocument,
+  replayReadFlags,
+  resolveReplayProviderConfig,
+  runJudgeReplay,
+} from "./judge-replay.js";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -124,6 +129,79 @@ function setup() {
 }
 
 describe("private replay command boundary", () => {
+  it("resolves Cloudflare only from a valid account ID and dedicated API token", () => {
+    const accountId = "a".repeat(32);
+    expect(resolveReplayProviderConfig("cloudflare", {})).toBeNull();
+    expect(
+      resolveReplayProviderConfig("cloudflare", {
+        CLOUDFLARE_ACCOUNT_ID: "invalid",
+        CLOUDFLARE_API_TOKEN: "synthetic-token",
+      }),
+    ).toBeNull();
+    expect(
+      resolveReplayProviderConfig("cloudflare", {
+        CLOUDFLARE_ACCOUNT_ID: accountId,
+        CLOUDFLARE_API_TOKEN: "synthetic-token",
+      }),
+    ).toEqual({
+      name: "cloudflare",
+      baseUrl: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+      apiKey: "synthetic-token",
+      defaultModel: "@cf/thinkingmachines/inkling-2-small",
+    });
+  });
+
+  it("accepts Cloudflare as an explicit comparison provider", () => {
+    expect(
+      ReplayPolicySchema.parse({
+        provider: "cloudflare",
+        model: "@cf/thinkingmachines/inkling-2-small",
+        samples: 1,
+        repeats: 1,
+        temperature: 0,
+        requests_per_minute: 20,
+        judge_timeout_ms: 1000,
+        max_wall_ms: 5000,
+        max_calls: 1,
+      }).provider,
+    ).toBe("cloudflare");
+  });
+
+  it("executes through the Cloudflare OpenAI-compatible route without retaining its secret or URL", async () => {
+    const f = setup();
+    const accountId = "b".repeat(32);
+    const token = "synthetic-cloudflare-token";
+    const model = "@cf/thinkingmachines/inkling-2-small";
+    const policy = JSON.parse(readFileSync(f.options.policy, "utf8")) as Record<string, unknown>;
+    writeFileSync(f.options.policy, JSON.stringify({ ...policy, provider: "cloudflare", model }));
+    f.cost.rates[0] = {
+      ...f.cost.rates[0]!,
+      provider: "cloudflare",
+      model,
+      reportedModels: [model],
+    };
+    writeFileSync(f.options.costPolicy, JSON.stringify(f.cost));
+
+    const result = await runJudgeReplay(
+      { ...f.options, execute: true },
+      {
+        ...f,
+        env: { CLOUDFLARE_ACCOUNT_ID: accountId, CLOUDFLARE_API_TOKEN: token },
+      },
+    );
+
+    expect(result.status).toBe("completed");
+    const request = f.transport.mock.calls[0]![0];
+    expect(request.url).toBe(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`,
+    );
+    expect(request.headers.authorization).toBe(`Bearer ${token}`);
+    const reportBytes = readFileSync(join(f.options.output, "report.json"), "utf8");
+    expect(reportBytes).toContain(model);
+    expect(reportBytes).not.toContain(token);
+    expect(reportBytes).not.toContain(accountId);
+  });
+
   it.each([undefined, 0])(
     "refuses unavailable no-follow/nonblocking flags before opening",
     (flag) => {
