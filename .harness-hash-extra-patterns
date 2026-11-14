@@ -17,3 +17,33 @@
 # refiner-core floor is likewise a HARNESS_TAMPERED event.
 vitest.config.ts
 packages/refiner-core/vitest.config.ts
+
+# Canonical dashboard payload implementations, kernel pin and byte fixture.
+scripts/emit-evidence.ts
+scripts/assemble-manifest.ts
+scripts/canonical-payload.test.ts
+scripts/canonical-payload.fixture.json
+ci/emit-evidence/emit-evidence.ts
+ci/emit-evidence/assemble-manifest.ts
+ci/emit-evidence/package.json
+ci/emit-evidence/pnpm-lock.yaml
+
+# Workspace inventory, architecture rules and CI enforcement.
+scripts/workspace-inventory.ts
+scripts/workspace-quality.ts
+scripts/workspace-quality.test.ts
+scripts/workspace-architecture.ts
+scripts/workspace-architecture.test.ts
+.github/workflows/ci.yml
+package.json
+
+# Inventory and dependency declarations are architecture policy inputs.
+.harness-hash-extra-patterns
+pnpm-workspace.yaml
+packages/*/package.json
+
+# Exact-v1 incoming-verifier producer and its explicit runtime/test contract.
+ci/emit-evidence/sign-evidence.ts
+ci/emit-evidence/tests/sign-evidence.test.ts
+ci/emit-evidence/tests/deny-network.ts
+ci/emit-evidence/tests/migration-provenance.test.ts

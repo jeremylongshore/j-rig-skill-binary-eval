@@ -5,6 +5,19 @@
   "description": "CI-only signed-evidence emitter for the intent-eval-dashboard reports hub (repo row key: jrig). Not a workspace package, never published; installed standalone in .github/workflows/nightly-skill-evals.yml via `pnpm install --ignore-workspace`.",
   "type": "module",
   "dependencies": {
-    "@intentsolutions/core": "0.10.0"
+    "@intentsolutions/core": "0.10.0",
+    "@sigstore/sign": "5.1.0",
+    "@sigstore/bundle": "5.0.1"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "test:signing": "node --experimental-strip-types --import ./tests/deny-network.ts --test ./tests/*.test.ts",
+    "typecheck:signing": "tsc --noEmit --allowImportingTsExtensions --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck sign-evidence.ts tests/sign-evidence.test.ts tests/migration-provenance.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.21",
+    "typescript": "5.9.3"
   }
 }

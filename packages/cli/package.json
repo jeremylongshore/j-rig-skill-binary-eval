@@ -1,6 +1,6 @@
 {
   "name": "@intentsolutions/jrig-cli",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "private": false,
   "description": "J-Rig seven-layer binary eval CLI for Claude Skills — the `j-rig` command: package-integrity, trigger, functional, rollout-safety, and cost scoring by default (the regression + baseline layers are coded and opt-in; each run declares its coverage), plus optimizer and rollout-gate evidence. Self-contained (bundles the internal eval engine).",
   "keywords": [
@@ -44,26 +44,31 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node dist/index.js --version",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_LICENSES.txt",
+    "CHANGELOG.md"
   ],
   "dependencies": {
     "@intentsolutions/core": "0.11.0",
     "@intentsolutions/refiner": "workspace:^",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "ajv": "8.20.0",
     "better-sqlite3": "^13.0.3",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "drizzle-orm": "^0.45.2",
-    "gray-matter": "^4.0.3",
     "yaml": "^2.9.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@intentsolutions/refiner-core": "workspace:*"
   },
   "devDependencies": {
     "@j-rig/core": "workspace:*",

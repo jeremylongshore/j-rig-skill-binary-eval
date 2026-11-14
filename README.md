@@ -1,5 +1,11 @@
 # j-rig-skill-binary-eval
 
+<!-- intent-select-partner:start -->
+<p><a href="https://intentsolutions.io/"><img src="https://raw.githubusercontent.com/intent-solutions-io/.github/b82af5d3e7951d85e39ea9e65cc24ee8278722a7/assets/brand/claude-select-partner.svg" alt="Intent Solutions: Claude Partner Network Select Services Partner" width="300" height="95" /></a></p>
+
+Intent Solutions is a Claude Partner Network Select Services Partner.
+<!-- intent-select-partner:end -->
+
 Part of the **[Intent Eval Platform](https://github.com/intent-solutions-io/intent-eval-platform)** — the umbrella grouping the platform's six repos: five converge via a shared Evidence Bundle schema (`intent-eval-core`, `intent-eval-lab`, `audit-harness`, `j-rig-skill-binary-eval`, `intent-rollout-gate`), plus `intent-eval-dashboard` as a satellite consumer (not part of the convergence taxonomy).
 
 > Software-grade release discipline for Claude Skills
@@ -50,6 +56,14 @@ promotion row rather than a false clean pass. The contract is documented in
 [`042-AT-SPEC-skill-promotion-evidence-2026-08-02.md`](000-docs/042-AT-SPEC-skill-promotion-evidence-2026-08-02.md).
 
 Every criterion is binary (yes/no). The evaluator is always separate from the skill under test. Observed behavior outranks claimed behavior.
+
+For real OpenAI-compatible functional runs, `--execution-reasoning-effort none|low|medium|high|max`
+sets `reasoning_effort` on every skill and naked-baseline execution request, including MCP turns.
+Choose a value supported by the endpoint and model; a provider rejection remains an evaluation
+error. Trigger and judge requests retain their own defaults. The selected value is bound into
+JSON results, portable evidence, private MCP receipts and the grader fingerprint. Omitting the
+flag preserves existing defaults and evidence shape. Stub, Anthropic and `--no-functional`
+combinations are refused before loading skills or MCP configuration.
 
 ### W5
 
@@ -164,6 +178,23 @@ Self-contained library of templates, reference standards, agent patterns, and wo
 **Phase:** Well beyond the initial foundation epic — the monorepo publishes four `@intentsolutions/*` packages (`jrig-cli`, `refiner`, `refiner-core`, `rollout-gate`) with the root semver line at `v2.1.0`. See the [CHANGELOG](CHANGELOG.md) and [Epic Index](000-docs/epics/README.md) for shipped scope.
 
 pnpm monorepo with nine workspace packages — four published to npm (`@intentsolutions/{jrig-cli,refiner,refiner-core,rollout-gate}`) and five internal-only (`@j-rig/{core,dashboard,db,migrate,pr-comment}`, the eval engine plus its `migrate`/`pr-comment` helpers; the `@j-rig` scope is unpublished) — on a TypeScript baseline (tsup builds), with quality guardrails (ESLint, Prettier, Vitest) and CI/CD workflows.
+
+### TypeScript toolchain
+
+The workspace builds with TypeScript 6.0.3. Package imports resolve through
+workspace links and package exports; no `baseUrl` or path aliases are needed.
+Node ambient types are explicit in the shared config and the test config.
+
+`patches/tsup@8.5.1.patch` removes tsup's implicit `baseUrl: "."` from its
+DTS compiler options ([upstream issue](https://github.com/egoist/tsup/issues/1389)).
+The existing options spread still preserves explicitly configured options.
+The patch is version-scoped and hash-pinned in the pnpm lockfile; it does not
+silence deprecations. When upgrading tsup, check whether upstream removed the
+injection before removing or updating the patch. Verify with
+`pnpm install --frozen-lockfile`, `pnpm run build`, and `pnpm run check`.
+TypeScript 7 compatibility has not been established by this change.
+
+Refs bead `j-rig-binary-eval-dnu`.
 
 ### Choosing a provider
 
@@ -297,16 +328,11 @@ to render them. `j-rig suite` plans and executes these same jobs as one
 resumable command (below). See
 [`033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`](000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md).
 
-`j-rig batch` consumes a path-based suite manifest, executes these jobs in
-balanced passes, and resumes from the immutable raw-run ledger. Runner
-failures remain diagnostic observations rather than model grades:
-
-```bash
-node packages/cli/dist/index.js batch \
-  --manifest ./batch.yaml \
-  --db ./j-rig.db \
-  --json
-```
+`j-rig batch` is **deprecated**: use `j-rig suite` (below), which runs the same
+balanced passes and also grades every run and writes an audit file and report.
+`batch` still works and prints a notice; it is removed in the release after the
+one that first ships the notice. See
+[`044-AT-DECR-suite-replaces-batch-2026-10-05.md`](000-docs/044-AT-DECR-suite-replaces-batch-2026-10-05.md).
 
 ### Unified report
 
@@ -488,3 +514,6 @@ Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
 ## Author
 
 **Jeremy Longshore** — [jeremylongshore](https://github.com/jeremylongshore) · Intent Solutions
+
+Dashboard producers and their publication boundaries are documented in
+[Canonical Dashboard Evidence](000-docs/048-AT-SPEC-canonical-dashboard-evidence-2026-10-12.md).

@@ -3,6 +3,7 @@ import {
   type JudgmentResult,
   type ObservedOutcome,
   type ProviderFailure,
+  type TriggerResult,
 } from "@j-rig/core";
 
 /**
@@ -15,7 +16,8 @@ import {
  * whose `gate_reasons[0]` names the error class and whose
  * `metadata.error_detail` carries the typed, credential-free failure.
  *
- * Two failure shapes count, in either the skill or the naked-baseline pass:
+ * Routing errors count before execution and judgment errors. In either the
+ * skill or naked-baseline pass, the following failures also count:
  *  - an execution outcome that did not complete (failed / timed out / carried
  *    a provider error). A completed-but-empty response is NOT a failure: it is
  *    the tool-dependent boundary evidence the eval deliberately keeps.
@@ -30,8 +32,8 @@ import {
  */
 export interface EvalInfrastructureFailure {
   type: "provider_failure";
-  /** The earliest phase that failed; execution failures mask judge ones. */
-  phase: "execution" | "judge";
+  /** The earliest failed phase: trigger, execution, then judge. */
+  phase: "trigger" | "execution" | "judge";
   provider: string;
   category: ProviderFailure["category"];
   retryable: boolean;
@@ -44,6 +46,7 @@ export interface EvalInfrastructureFailure {
 }
 
 export interface InfrastructureFailureInput {
+  triggers?: readonly TriggerResult[];
   outcomes: readonly ObservedOutcome[];
   judgments: readonly JudgmentResult[];
   executionProvider: string;
@@ -58,6 +61,21 @@ export function isFailedExecution(outcome: ObservedOutcome): boolean {
 export function detectInfrastructureFailure(
   input: InfrastructureFailureInput,
 ): EvalInfrastructureFailure | null {
+  const triggers = input.triggers ?? [];
+  const failedTriggers = triggers.filter((result) => result.outcome === "error");
+  if (failedTriggers.length) {
+    const first = failedTriggers[0]!;
+    return {
+      type: "provider_failure",
+      phase: "trigger",
+      provider: first.provider_failure?.providerName ?? input.executionProvider,
+      category: first.provider_failure?.category ?? "unknown",
+      retryable: first.provider_failure?.retryable ?? false,
+      affected: failedTriggers.length,
+      total: triggers.length,
+      message: redactProviderError(first.reasoning),
+    };
+  }
   const failedOutcomes = input.outcomes.filter(isFailedExecution);
   if (failedOutcomes.length > 0) {
     const first = failedOutcomes[0]!;
@@ -100,11 +118,13 @@ export function detectInfrastructureFailure(
  */
 export function infrastructureFailureReason(failure: EvalInfrastructureFailure): string {
   const scope =
-    failure.phase === "judge"
-      ? failure.affected === failure.total
-        ? `judge provider failed on every judged criterion (${failure.affected}/${failure.total}); nothing was evaluated`
-        : `judge provider failed on ${failure.affected} of ${failure.total} judged criteria; the evaluation is incomplete`
-      : `execution provider failed on ${failure.affected} of ${failure.total} test case(s); the skill was not exercised`;
+    failure.phase === "trigger"
+      ? `trigger provider failed on ${failure.affected} of ${failure.total} routing case(s); the evaluation is incomplete`
+      : failure.phase === "judge"
+        ? failure.affected === failure.total
+          ? `judge provider failed on every judged criterion (${failure.affected}/${failure.total}); nothing was evaluated`
+          : `judge provider failed on ${failure.affected} of ${failure.total} judged criteria; the evaluation is incomplete`
+        : `execution provider failed on ${failure.affected} of ${failure.total} test case(s); the skill was not exercised`;
   return `provider_failure/${failure.phase} [${failure.provider} ${failure.category}${
     failure.retryable ? ", retryable" : ""
   }]: ${scope}: ${failure.message}`;

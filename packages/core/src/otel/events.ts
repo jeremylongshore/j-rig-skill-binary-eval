@@ -27,6 +27,10 @@ export interface EvalCorrelation {
   sessionTraceId?: string;
   /** W3C trace-id propagated from ingress — recommended. */
   traceId?: string;
+  refinerAttemptId?: string;
+  refinerFileId?: string;
+  refinerPolicyHash?: string;
+  costRecordScope?: "refiner-attempt" | "evaluator-run";
 }
 
 function correlationAttrs(c: EvalCorrelation): Record<string, string | undefined> {
@@ -34,6 +38,10 @@ function correlationAttrs(c: EvalCorrelation): Record<string, string | undefined
     [OtelAttrs.EVAL_RUN_ID]: c.evalRunId,
     [OtelAttrs.EVAL_SESSION_TRACE_ID]: c.sessionTraceId,
     [OtelAttrs.TRACE_ID]: c.traceId,
+    [OtelAttrs.REFINER_ATTEMPT_ID]: c.refinerAttemptId,
+    [OtelAttrs.REFINER_FILE_ID]: c.refinerFileId,
+    [OtelAttrs.REFINER_POLICY_HASH]: c.refinerPolicyHash,
+    [OtelAttrs.COST_RECORD_SCOPE]: c.costRecordScope,
   };
 }
 
@@ -161,14 +169,34 @@ export function emitCostRunRecorded(
     totalOutputTokens: number;
     totalCalls: number;
     estimatedUsd: number | null;
+    usageComplete?: boolean;
+    unknownCalls?: number;
+    fileKnownUsd?: number;
+    fileCommittedUsd?: number;
+    fileAccepted?: number;
+    filePerAcceptUsd?: number | null;
+    outcome?: string;
+    p0?: boolean;
   },
 ): void {
   emitOtelEvent(OtelEvents.COST_RUN_RECORDED, {
     ...correlationAttrs(c),
+    [OtelAttrs.COST_FILE_KNOWN_USD]: payload.fileKnownUsd,
+    [OtelAttrs.COST_FILE_COMMITTED_USD]: payload.fileCommittedUsd,
+    [OtelAttrs.COST_FILE_ACCEPTED]: payload.fileAccepted,
+    [OtelAttrs.COST_FILE_PER_ACCEPT_USD]: payload.filePerAcceptUsd ?? undefined,
+    [OtelAttrs.COST_OUTCOME]: payload.outcome,
+    [OtelAttrs.COST_P0]: payload.p0,
     [OtelAttrs.COST_RUN_TOTAL_INPUT_TOKENS]: payload.totalInputTokens,
     [OtelAttrs.COST_RUN_TOTAL_OUTPUT_TOKENS]: payload.totalOutputTokens,
     [OtelAttrs.COST_RUN_TOTAL_CALLS]: payload.totalCalls,
     [OtelAttrs.COST_RUN_USD_KNOWN]: payload.estimatedUsd !== null,
+    ...(payload.usageComplete !== undefined
+      ? { [OtelAttrs.COST_RUN_USAGE_COMPLETE]: payload.usageComplete }
+      : {}),
+    ...(payload.unknownCalls !== undefined
+      ? { [OtelAttrs.COST_RUN_UNKNOWN_CALLS]: payload.unknownCalls }
+      : {}),
     ...(payload.estimatedUsd !== null
       ? { [OtelAttrs.COST_RUN_ESTIMATED_USD]: payload.estimatedUsd }
       : {}),
@@ -189,6 +217,7 @@ export function emitCostPhaseRecorded(
     outputTokens: number;
     calls: number;
     judgeSamples?: number;
+    unknownCalls?: number;
   },
 ): void {
   emitOtelEvent(OtelEvents.COST_PHASE_RECORDED, {
@@ -197,6 +226,9 @@ export function emitCostPhaseRecorded(
     [OtelAttrs.COST_PHASE_INPUT_TOKENS]: payload.inputTokens,
     [OtelAttrs.COST_PHASE_OUTPUT_TOKENS]: payload.outputTokens,
     [OtelAttrs.COST_PHASE_CALLS]: payload.calls,
+    ...(payload.unknownCalls !== undefined
+      ? { [OtelAttrs.COST_PHASE_UNKNOWN_CALLS]: payload.unknownCalls }
+      : {}),
     ...(payload.judgeSamples !== undefined
       ? { [OtelAttrs.COST_PHASE_JUDGE_SAMPLES]: payload.judgeSamples }
       : {}),

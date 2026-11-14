@@ -22,6 +22,7 @@
  * other types. Concrete adapters live in `packages/cli/src/providers/`.
  */
 
+import type { EvaluationTokenUsage } from "@intentsolutions/refiner-core";
 import type { ProviderError } from "./errors.js";
 
 // --- Request shape --------------------------------------------------------
@@ -38,7 +39,11 @@ export interface ChatMessage {
   toolName?: string;
   /** For role="tool" or role="assistant": correlation id from a prior tool call. */
   toolCallId?: string;
+  /** Assistant tool requests retained verbatim for the next model turn. */
+  toolCalls?: ModelToolCall[];
 }
+
+export type ReasoningEffort = "none" | "low" | "medium" | "high" | "max";
 
 export interface CompletionRequest {
   /**
@@ -57,6 +62,8 @@ export interface CompletionRequest {
   /** Sampling controls. Adapters MAY clamp to provider-supported ranges. */
   maxTokens?: number;
   temperature?: number;
+  /** Explicit compatible-provider reasoning mode; absent preserves the provider default. */
+  reasoningEffort?: ReasoningEffort;
 
   /**
    * When provided, the model is asked to produce structured output matching
@@ -86,12 +93,7 @@ export interface CompletionRequest {
  */
 export type FinishReason = "stop" | "length" | "tool_use" | "refusal" | "error";
 
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  /** Some providers expose cached-token accounting; advisory only. */
-  cachedInputTokens?: number;
-}
+export type TokenUsage = EvaluationTokenUsage;
 
 export interface CompletionResult {
   text: string;
@@ -99,7 +101,10 @@ export interface CompletionResult {
   structuredOutput?: unknown;
   /** Echo of the request's model identifier for downstream correlation. */
   model: string;
-  usage: TokenUsage;
+  /** Null means absent or invalid measurement, never zero spend. */
+  usage: TokenUsage | null;
+  /** Actual response model, when provided; distinct from requested model. */
+  reportedModel?: string;
   finishReason: FinishReason;
 }
 
@@ -111,7 +116,12 @@ export type StreamChunk =
   | { type: "tool_call_start"; toolCallId: string; toolName: string }
   | { type: "tool_call_delta"; toolCallId: string; argsDelta: string }
   | { type: "tool_call_end"; toolCallId: string }
-  | { type: "finish"; finishReason: FinishReason; usage?: TokenUsage };
+  | {
+      type: "finish";
+      finishReason: FinishReason;
+      usage?: TokenUsage | null;
+      reportedModel?: string;
+    };
 
 // --- Tool calling --------------------------------------------------------
 
@@ -122,7 +132,15 @@ export interface ToolDefinition {
   inputSchema: object;
 }
 
+export interface ModelToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
 export interface ToolCallResult {
+  /** All calls when the provider returned more than one in the same turn. */
+  toolCalls?: ModelToolCall[];
   /** Null when the model declined to call any tool. */
   toolName: string | null;
   /** Null when toolName is null OR when the call had no arguments. */
@@ -132,7 +150,10 @@ export interface ToolCallResult {
   /** Any accompanying text the model produced. May be empty. */
   text: string;
   finishReason: FinishReason;
-  usage: TokenUsage;
+  /** Null means absent or invalid measurement, never zero spend. */
+  usage: TokenUsage | null;
+  /** Actual response model, when provided; distinct from requested model. */
+  reportedModel?: string;
 }
 
 // --- Provider contract ---------------------------------------------------

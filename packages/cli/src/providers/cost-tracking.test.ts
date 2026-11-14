@@ -8,7 +8,13 @@ import type {
   ToolCallResult,
   ToolDefinition,
 } from "@j-rig/core";
-import { CostTrackingProvider, EvalCostMeter } from "./cost-tracking.js";
+import {
+  CostTrackingProvider,
+  EvalCostMeter,
+  lookupModelRate,
+  MODEL_RATES_USD_PER_MTOK,
+  priceUsage,
+} from "./cost-tracking.js";
 
 function completion(model: string, input: number, output: number): CompletionResult {
   return {
@@ -85,10 +91,30 @@ describe("EvalCostMeter", () => {
     await p.complete(req("deepseek-v4-flash"));
 
     const r = meter.report();
-    // 100 in @ $0.14/MTok + 10 out @ $0.28/MTok
-    expect(r.estimated_usd).toBeCloseTo((100 * 0.14 + 10 * 0.28) / 1_000_000, 12);
+    // 100 in @ $0.30/MTok + 10 out @ $1.20/MTok (official peak rate).
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1.2) / 1_000_000, 12);
     expect(r.by_model).toHaveLength(1);
     expect(r.by_model[0]!.model).toBe("deepseek-v4-flash");
+  });
+
+  it("prices Cloudflare Inkling 2 Small at its documented token rates", async () => {
+    const model = "@cf/thinkingmachines/inkling-2-small";
+    const meter = new EvalCostMeter();
+    const p = new CostTrackingProvider(fakeProvider(model), meter);
+    await p.complete(req(model));
+
+    const r = meter.report();
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1) / 1_000_000, 12);
+  });
+
+  it("recognizes the current canonical DeepSeek V4.1 Flash model ID", async () => {
+    const model = "deepseek-v4.1-flash-1017";
+    const meter = new EvalCostMeter();
+    const p = new CostTrackingProvider(fakeProvider(model), meter);
+    await p.complete(req(model));
+
+    const r = meter.report();
+    expect(r.estimated_usd).toBeCloseTo((100 * 0.3 + 10 * 1.2) / 1_000_000, 12);
   });
 
   it("reports free-tier judges as $0, not unknown", async () => {
@@ -138,13 +164,15 @@ describe("EvalCostMeter", () => {
     expect(r.total.input_tokens).toBe(5 + 1 + 1);
   });
 
-  it("ignores a missing usage object instead of propagating NaN", () => {
+  it("counts missing usage as unknown instead of fabricating zero", () => {
     const meter = new EvalCostMeter();
     meter.record("m", undefined as unknown as import("@j-rig/core").TokenUsage);
     meter.record("m", {} as import("@j-rig/core").TokenUsage);
 
     const r = meter.report();
-    expect(r.total.calls).toBe(1); // the {} usage counts as a call with 0 tokens
+    expect(r.total.calls).toBe(2);
+    expect(r.unknown_calls).toBe(2);
+    expect(r.estimated_usd).toBeNull();
     expect(r.total.input_tokens).toBe(0);
     expect(Number.isNaN(r.total.input_tokens)).toBe(false);
   });
@@ -157,4 +185,277 @@ describe("EvalCostMeter", () => {
     expect(p.name).toBe("fake");
     expect(p.version).toBe("0.0.0");
   });
+});
+
+describe("model rates (MiniMax + Claude)", () => {
+  it("carries the current list prices for the estate's MiniMax and Claude models", () => {
+    // MiniMax pay-as-you-go Standard (<= 512k input) and Anthropic first-party
+    // list prices; the source and read date sit beside the table.
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M3"]).toMatchObject({
+      input: 0.3,
+      output: 1.2,
+      cached_input: 0.06,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M2.7-highspeed"]).toMatchObject({
+      input: 0.6,
+      output: 2.4,
+      cached_input: 0.06,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["MiniMax-M2.7"]).toMatchObject({ input: 0.3, output: 1.2 });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-fable-5-1"]).toMatchObject({
+      input: 10,
+      output: 50,
+      cached_input: 0.25,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-opus-5-5"]).toMatchObject({
+      input: 4,
+      output: 20,
+      cached_input: 0.2,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-sonnet-5-5"]).toMatchObject({
+      input: 2,
+      output: 10,
+      cached_input: 0.2,
+    });
+    expect(MODEL_RATES_USD_PER_MTOK["claude-haiku-4-5-20251001"]).toMatchObject({
+      input: 1,
+      output: 5,
+      cached_input: 0.1,
+    });
+  });
+
+  it("looks up exact, case-insensitive and subscription-prefixed ids; never guesses", () => {
+    expect(lookupModelRate("MiniMax-M3")).toMatchObject({ key: "MiniMax-M3", billed: true });
+    expect(lookupModelRate("minimax-m3")).toMatchObject({ key: "MiniMax-M3", billed: true });
+    expect(lookupModelRate("claude-code/claude-sonnet-5-5")).toMatchObject({
+      key: "claude-sonnet-5-5",
+      billed: false,
+    });
+    expect(lookupModelRate("claude-haiku-4-5")?.rate.input).toBe(1);
+    // A model with no verified rate stays unpriced.
+    expect(lookupModelRate("claude-haiku-5-5")).toBeNull();
+    expect(lookupModelRate("claude-code/claude-haiku-5-5")).toBeNull();
+  });
+
+  it("prices cache reads at the cache rate as a subset of input", () => {
+    const rate = MODEL_RATES_USD_PER_MTOK["claude-opus-5-5"]!;
+    // 1M input of which 800k cache reads, 100k output:
+    // 200k * $4 + 800k * $0.20 + 100k * $20 = 0.8 + 0.16 + 2.0
+    expect(
+      priceUsage(rate, {
+        input_tokens: 1_000_000,
+        cached_input_tokens: 800_000,
+        output_tokens: 100_000,
+      }),
+    ).toBeCloseTo(2.96, 10);
+    // A row without a cache rate prices cache reads at the input rate.
+    expect(
+      priceUsage(
+        { input: 1, output: 0 },
+        { input_tokens: 10, cached_input_tokens: 4, output_tokens: 0 },
+      ),
+    ).toBeCloseTo(10 / 1_000_000, 12);
+  });
+
+  it("reports subscription claude-code usage as API-equivalent, not billed", () => {
+    const meter = new EvalCostMeter();
+    meter.phase = "execution";
+    meter.record("claude-code/claude-sonnet-5-5", {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      cachedInputTokens: 1_000_000,
+    });
+    meter.phase = "judge";
+    meter.record("MiniMax-M3", { inputTokens: 1_000_000, outputTokens: 1_000_000 });
+    const r = meter.report();
+    const cc = r.by_model.find((m) => m.model.startsWith("claude-code/"))!;
+    expect(cc).toMatchObject({
+      billed: false,
+      rate_key: "claude-sonnet-5-5",
+      cached_input_tokens: 1_000_000,
+      note: "API-equivalent at list rate; Claude Code subscription run, not billed",
+    });
+    expect(cc.usd).toBeCloseTo(0.2, 10);
+    expect(r.estimated_usd).toBeCloseTo(0.2 + 1.5, 10);
+    expect(r.billed_usd).toBeCloseTo(1.5, 10);
+  });
+
+  it("nulls billed_usd with estimated_usd when a model is unpriced", () => {
+    const meter = new EvalCostMeter();
+    meter.record("claude-code/claude-haiku-5-5", { inputTokens: 1, outputTokens: 1 });
+    const r = meter.report();
+    expect(r.estimated_usd).toBeNull();
+    expect(r.billed_usd).toBeNull();
+    expect(r.by_model[0]).toMatchObject({ usd: null, rate_key: null, billed: false });
+  });
+});
+
+describe("complete evaluator usage evidence", () => {
+  it.each([
+    null,
+    {},
+    { inputTokens: -1, outputTokens: 2 },
+    { inputTokens: 1.1, outputTokens: 2 },
+    { inputTokens: NaN, outputTokens: 2 },
+    { inputTokens: 3, outputTokens: 2, cachedInputTokens: 4 },
+    { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 1 },
+  ])("keeps malformed usage unknown: %j", (usage) => {
+    const meter = new EvalCostMeter();
+    meter.record("deepseek-v4-flash", usage as never);
+    expect(meter.report()).toMatchObject({
+      usage_complete: false,
+      unknown_calls: 1,
+      estimated_usd: null,
+    });
+  });
+  it("does not overflow accumulated totals or expose mutable internal receipts", () => {
+    const meter = new EvalCostMeter();
+    meter.record("m", { inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 0 });
+    meter.record("m", { inputTokens: 1, outputTokens: 0 });
+    const report = meter.report();
+    expect(report.unknown_calls).toBe(1);
+    expect(report.total.input_tokens).toBe(Number.MAX_SAFE_INTEGER);
+    report.usage_evidence.calls[0].usage!.inputTokens = 0;
+    expect(meter.report().total.input_tokens).toBe(Number.MAX_SAFE_INTEGER);
+  });
+  it("preserves the starting phase and distinct requested/reported models", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("alias");
+    inner.complete = async () => {
+      meter.phase = "judge";
+      return { ...completion("alias", 10, 2), reportedModel: "actual" };
+    };
+    await new CostTrackingProvider(inner, meter).complete(req("alias"));
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      phase: "trigger",
+      requestedModel: "alias",
+      reportedModel: "actual",
+    });
+  });
+  it("retains rejected complete/tool/batch calls as unknown with no error payload", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.complete =
+      inner.callTool =
+      inner.batch =
+        async () => {
+          throw new Error("secret");
+        };
+    const provider = new CostTrackingProvider(inner, meter);
+    await expect(provider.complete(req())).rejects.toThrow();
+    await expect(provider.callTool({ ...req(), tools: [] })).rejects.toThrow();
+    await expect(provider.batch([req(), req()])).rejects.toThrow();
+    expect(meter.report().unknown_calls).toBe(4);
+    expect(meter.report().usage_evidence.calls.every((c) => c.outcome === "failed")).toBe(true);
+    expect(JSON.stringify(meter.report())).not.toContain("secret");
+  });
+  it("records truncated and duplicate-finish streams without fabricating measurements", async () => {
+    for (const duplicate of [false, true]) {
+      const meter = new EvalCostMeter();
+      const inner = fakeProvider("m");
+      inner.completeStream = async function* () {
+        yield { type: "text_delta", delta: "partial" };
+        if (duplicate)
+          for (let i = 0; i < 2; i++)
+            yield {
+              type: "finish",
+              finishReason: "stop",
+              usage: { inputTokens: 2, outputTokens: 3 },
+            };
+      };
+      const consume = async () => {
+        for await (const chunk of new CostTrackingProvider(inner, meter).completeStream(req()))
+          void chunk;
+      };
+      if (duplicate) await expect(consume()).rejects.toThrow("Duplicate");
+      else await consume();
+      expect(meter.report().unknown_calls).toBe(1);
+      expect(meter.report().total.calls).toBe(1);
+    }
+  });
+  it("retains usage if a stream fails after its valid terminal measurement", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.completeStream = async function* () {
+      yield { type: "finish", finishReason: "stop", usage: { inputTokens: 2, outputTokens: 3 } };
+      throw new Error("end");
+    };
+    await expect(
+      (async () => {
+        for await (const chunk of new CostTrackingProvider(inner, meter).completeStream(req()))
+          void chunk;
+      })(),
+    ).rejects.toThrow();
+    expect(meter.report().usage_evidence.calls[0]).toMatchObject({
+      outcome: "failed",
+      usage: { inputTokens: 2, outputTokens: 3 },
+    });
+  });
+  it("counts missing batch entries and does not hide in-band errors", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.batch = async () => [completion("m", 1, 2)];
+    await new CostTrackingProvider(inner, meter).batch([req(), req()]);
+    expect(meter.report()).toMatchObject({
+      unknown_calls: 1,
+      total: { calls: 2, input_tokens: 1, output_tokens: 2 },
+    });
+  });
+  it("counts malformed batch elements as unknown without losing the remaining results", async () => {
+    const meter = new EvalCostMeter();
+    const inner = fakeProvider("m");
+    inner.batch = async () => [7 as never, completion("m", 1, 2)];
+    const results = await new CostTrackingProvider(inner, meter).batch([req(), req()]);
+    expect(results).toHaveLength(2);
+    expect(meter.report()).toMatchObject({
+      unknown_calls: 1,
+      total: { calls: 2, input_tokens: 1, output_tokens: 2 },
+    });
+  });
+  it("refuses double settlement and invalid phase/identity", () => {
+    const meter = new EvalCostMeter();
+    expect(() => {
+      meter.phase = "other" as never;
+    }).toThrow();
+    expect(() => meter.begin("")).toThrow();
+    const call = meter.begin("m");
+    meter.finish(call, null, "interrupted");
+    expect(() => meter.finish(call, null)).toThrow();
+  });
+  it("does not clamp invalid cache counts or price unpriced writes", () => {
+    expect(
+      priceUsage(
+        { input: 1, output: 1 },
+        { input_tokens: 1, output_tokens: 1, cached_input_tokens: 2 },
+      ),
+    ).toBeNull();
+    expect(
+      priceUsage(
+        { input: 1, output: 1 },
+        {
+          input_tokens: 10,
+          output_tokens: 1,
+          cached_input_tokens: 0,
+          cache_creation_input_tokens: 5,
+        },
+      ),
+    ).toBeNull();
+    expect(lookupModelRate("constructor")).toBeNull();
+  });
+});
+
+it("retains failed usage before notifying the run controller of an outer failure", async () => {
+  const meter = new EvalCostMeter();
+  const inner = fakeProvider("m");
+  const error = new Error("fixture failure");
+  inner.complete = async () => {
+    throw error;
+  };
+  let observed: unknown;
+  const provider = new CostTrackingProvider(inner, meter, (failure) => {
+    observed = failure;
+    expect(meter.report()).toMatchObject({ unknown_calls: 1, total: { calls: 1 } });
+  });
+  await expect(provider.complete(req())).rejects.toBe(error);
+  expect(observed).toBe(error);
 });

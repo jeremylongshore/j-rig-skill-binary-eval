@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  STRUCTURED_CHECK_NAMES,
+  isStructuredCheck,
+  structuredCheckParamIssues,
+} from "../checks/structured-checks.js";
+import {
+  TRAJECTORY_CHECK_NAMES,
+  isTrajectoryCheck,
+  trajectoryCheckParamIssues,
+} from "../checks/trajectory-checks.js";
 
 /**
  * How a criterion is evaluated.
@@ -56,7 +66,14 @@ export const CriterionSchema = z
     deterministic_check: z
       .string()
       .optional()
-      .describe("Check identifier for deterministic criteria (e.g. 'file_exists', 'regex_match')"),
+      .describe(
+        "Check identifier for deterministic criteria: a text check (contains, not_contains, " +
+          "regex_match, min_length, max_length, not_empty) or a trajectory check (" +
+          TRAJECTORY_CHECK_NAMES.join(", ") +
+          ") graded from the observed tool calls and produced files, or a structured check (" +
+          STRUCTURED_CHECK_NAMES.filter((n) => n !== "exit_code").join(", ") +
+          ") over the response JSON or a produced file",
+      ),
     deterministic_check_params: z
       .record(z.string(), z.unknown())
       .optional()
@@ -74,6 +91,36 @@ export const CriterionSchema = z
   .refine((c) => c.method !== "deterministic" || !!c.deterministic_check, {
     message: "deterministic criteria must define deterministic_check",
     path: ["deterministic_check"],
+  })
+  // Trajectory-check params are typed: validate them at spec-load so a typo'd
+  // or missing param fails `j-rig validate` instead of failing closed mid-run.
+  .superRefine((c, ctx) => {
+    if (c.method !== "deterministic" || !c.deterministic_check) return;
+    const check = c.deterministic_check;
+    // A skill eval case is a model turn, not a process: there is no exit code
+    // to observe, so an exit_code criterion could only ever fail. Refuse it
+    // here; it belongs in a `j-rig grade` grader over a command run.
+    if (check === "exit_code") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "exit_code applies to command runs graded by `j-rig grade`; a skill eval case has no process exit code",
+        path: ["deterministic_check"],
+      });
+      return;
+    }
+    const issues = isTrajectoryCheck(check)
+      ? trajectoryCheckParamIssues(check, c.deterministic_check_params)
+      : isStructuredCheck(check)
+        ? structuredCheckParamIssues(check, c.deterministic_check_params)
+        : [];
+    for (const message of issues) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message,
+        path: ["deterministic_check_params"],
+      });
+    }
   });
 
 export type Criterion = z.infer<typeof CriterionSchema>;

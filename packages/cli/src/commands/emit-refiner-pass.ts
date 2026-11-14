@@ -216,7 +216,7 @@ export function registerEmitRefinerPassCommand(program: Command): void {
 
         if (opts.predicateBodyOnly) {
           writeOut(JSON.stringify(body), opts);
-          process.exit(0);
+          return process.exit(0);
         }
 
         const statement = composeRefinerPassStatement(
@@ -224,11 +224,11 @@ export function registerEmitRefinerPassCommand(program: Command): void {
           opts.subjectName ?? DEFAULT_SUBJECT_NAME,
         );
         writeOut(JSON.stringify(statement), opts);
-        process.exit(0);
+        return process.exit(0);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         process.stderr.write(`j-rig emit-refiner-pass: ${msg}\n`);
-        process.exit(1);
+        return process.exit(1);
       }
     });
 }

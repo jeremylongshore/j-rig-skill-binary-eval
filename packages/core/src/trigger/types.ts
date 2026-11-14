@@ -1,3 +1,5 @@
+import type { ProviderFailure } from "../providers/errors.js";
+
 /**
  * The outcome of a single trigger test case.
  */
@@ -20,6 +22,8 @@ export interface TriggerResult {
   outcome: TriggerOutcome;
   selected_skill: string | null;
   reasoning: string;
+  /** Credential-free classification when the routing provider failed. */
+  provider_failure?: ProviderFailure;
 }
 
 /**

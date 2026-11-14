@@ -42,6 +42,7 @@ import type {
 } from "@intentsolutions/refiner-core";
 import type { EditProposal } from "@intentsolutions/refiner-core";
 import type { ResolvedProvider } from "./providers.js";
+import { readCompletionMeasurement, type MeasuredCompletion } from "./completion-usage.js";
 
 /** Tiers a propose() pass may run on (Anthropic path). `opus` is intentionally absent (AC-5). */
 export type ProposeModelTier = "haiku" | "sonnet";
@@ -61,12 +62,27 @@ const OPUS_MARKER = "opus";
  * smaller than the eval pipeline's `Provider` — propose() only needs single-turn
  * text completion.
  */
+export interface CompletionRequest {
+  readonly model: string;
+  readonly prompt: string;
+  readonly maxTokens?: number;
+}
+
 export interface CompletionClient {
-  complete(req: {
-    readonly model: string;
-    readonly prompt: string;
-    readonly maxTokens?: number;
-  }): Promise<string>;
+  complete(req: CompletionRequest): Promise<string>;
+  /** Native clients expose measurement; legacy text-only clients remain explicitly unmeasured. */
+  completeWithUsage?(req: CompletionRequest): Promise<MeasuredCompletion>;
+}
+
+export async function completeWithMeasurement(
+  client: CompletionClient,
+  req: CompletionRequest,
+): Promise<MeasuredCompletion> {
+  if (client.completeWithUsage) return await client.completeWithUsage(req);
+  return {
+    text: await client.complete(req),
+    measurement: { status: "missing", usage: null, reportedModel: null, billingTokens: {} },
+  };
 }
 
 export class ProposeAdapterError extends Error {
@@ -133,13 +149,8 @@ export interface ProposeModelOptions {
  * vendor model id is used verbatim — the tier discipline / no-opus guard are
  * Anthropic-tier concepts and do not apply.
  *
- * The `complete()` method returns a {@link CompletionResult} carrying both the
- * generated text and the token usage reported by the API. The {@link CompletionClient}
- * result (a plain string) is wrapped into a `CompletionResult` with a zero-usage
- * stub here; real usage will be surfaced when the client is upgraded to return
- * structured usage (wave 2+ / provider-adapter upgrade). The cost meter in
- * `@intentsolutions/refiner-core` will accumulate the usage field regardless — a zero stub
- * means "uncounted" tokens, not "no tokens used".
+ * Native clients preserve API token usage; legacy text-only clients return null
+ * usage. Missing or malformed measurements must never be treated as free calls.
  *
  * @param client The completion client (real Anthropic / OpenAI-compat, or a test fake).
  * @param opts   tier|model + format + maxTokens.
@@ -157,10 +168,8 @@ export function createRefinerModel(
   return {
     id: modelId,
     async complete(prompt: string): Promise<CompletionResult> {
-      const text = await client.complete({ model: modelId, prompt, maxTokens });
-      // Zero-usage stub until the CompletionClient interface is upgraded to
-      // return structured usage (wave 2+ adapter upgrade).
-      return { text, usage: { promptTokens: 0, completionTokens: 0 } };
+      const result = await completeWithMeasurement(client, { model: modelId, prompt, maxTokens });
+      return { text: result.text, usage: result.measurement.usage };
     },
   };
 }
@@ -253,10 +262,14 @@ export class AnthropicCompletionClient implements CompletionClient {
   constructor(opts: AnthropicCompletionClientOptions) {
     this.#apiKey = opts.apiKey;
     this.#baseUrl = opts.baseUrl ?? DEFAULT_MESSAGES_URL;
-    this.#transport = opts.transport ?? createFetchTransport();
+    this.#transport = opts.transport ?? createCompletionFetchTransport();
   }
 
-  async complete(req: { model: string; prompt: string; maxTokens?: number }): Promise<string> {
+  async complete(req: CompletionRequest): Promise<string> {
+    return (await this.completeWithUsage(req)).text;
+  }
+
+  async completeWithUsage(req: CompletionRequest): Promise<MeasuredCompletion> {
     if (this.#apiKey.length < 8) {
       throw new ProposeAdapterError("Anthropic apiKey missing or too short");
     }
@@ -278,7 +291,10 @@ export class AnthropicCompletionClient implements CompletionClient {
     if (res.status < 200 || res.status >= 300) {
       throw new ProposeAdapterError(`Anthropic API returned HTTP ${res.status}`);
     }
-    return extractText(res.json);
+    return {
+      text: extractText(res.json),
+      measurement: readCompletionMeasurement(res.json, "anthropic"),
+    };
   }
 }
 
@@ -331,10 +347,14 @@ export class OpenAICompatCompletionClient implements CompletionClient {
     // js/polynomial-redos); a scan is O(n) with no backtracking.
     this.#baseUrl = stripTrailingSlashes(opts.baseUrl);
     this.#name = opts.name ?? "openai-compatible";
-    this.#transport = opts.transport ?? createFetchTransport();
+    this.#transport = opts.transport ?? createCompletionFetchTransport();
   }
 
-  async complete(req: { model: string; prompt: string; maxTokens?: number }): Promise<string> {
+  async complete(req: CompletionRequest): Promise<string> {
+    return (await this.completeWithUsage(req)).text;
+  }
+
+  async completeWithUsage(req: CompletionRequest): Promise<MeasuredCompletion> {
     if (this.#apiKey.length < 8) {
       throw new ProposeAdapterError(`${this.#name} apiKey missing or too short`);
     }
@@ -366,7 +386,10 @@ export class OpenAICompatCompletionClient implements CompletionClient {
     if (res.status < 200 || res.status >= 300) {
       throw new ProposeAdapterError(`${this.#name} API returned HTTP ${res.status}`);
     }
-    return extractChatCompletionText(res.json);
+    return {
+      text: extractChatCompletionText(res.json),
+      measurement: readCompletionMeasurement(res.json, "openai"),
+    };
   }
 }
 
@@ -392,7 +415,7 @@ function extractChatCompletionText(json: unknown): string {
 }
 
 /** Real `fetch`-backed {@link CompletionTransport}. */
-function createFetchTransport(): CompletionTransport {
+export function createCompletionFetchTransport(): CompletionTransport {
   return async (req) => {
     const response = await fetch(req.url, {
       method: "POST",

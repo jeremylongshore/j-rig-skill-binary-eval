@@ -54,6 +54,107 @@ pnpm --filter @j-rig/core run build
 pnpm --filter @intentsolutions/jrig-cli run build   # builds the bundled CLI
 ```
 
+## Refiner frozen scoring inputs
+
+`j-rig refine score <skill-dir> --eval-set-file reviewed.json` executes the
+supplied document and frozen eval-set items after validating their content
+hashes and shared skill identity. Each item requires an explicit expectation;
+bootstrap drafts need review and annotation before scoring. Stored inputs can
+instead be selected with `--eval-set <hash>`.
+
+The adapter creates a private temporary skill/spec/database, delegates to the
+existing evaluator, and removes temporary state on success or failure. Stub,
+failed, or inconsistent results produce no ScoreRecord. The frozen SkillDoc
+contract covers text only; directory assets are not silently copied. Historical
+scores remain unchanged and require rerunning before their execution identity
+can be trusted. See `packages/refiner/README.md` and API doc 029 §8.5.
+
+Tracked by `bd_000-projects-214c.14` / GitHub #393. Capability coverage and
+acceptance-quality integration remain in `bd_000-projects-214c.13` / #394.
+
+`capabilityCoverage(evalSet, manifest)` measures completeness against reviewed
+declared capabilities and explicit minimum sample counts. The manifest binds to
+the skill ID and eval-set hash; item assignments must name known, unique items
+and declared capabilities. `evaluateEvalSet` accepts it as `capabilityManifest`
+and reports `capabilityCoverage` separately from legacy ID-prefix entropy.
+Absence of this report is missing evidence, not proof of completeness. This is
+the declared measurement required by #394.
+
+`scoreWithEvidence` requires and returns complete per-item verdict evidence.
+Frozen items tagged `adversarial: true` produce an `adversarial_pass_rate`
+dimension from that subset, with its own sample count and variance. The evaluator
+JSON's additive `criterion_results` contains IDs and verdicts only. Criterion
+identity, test-case identity, uniqueness, and aggregate agreement are checked;
+`unsure` is not a pass. See the Refiner README for compatibility boundaries.
+
+`j-rig refine assess <skill-dir> --proposal <stored-hash> --eval-set-file <json>
+--quality-file <json>` enforces explicit reviewed quality evidence and policy
+before fresh paired scoring. Quality JSON contains `evidence` and `policy` as
+documented in `packages/refiner/README.md`. The actual judge must match the
+calibration evidence. It composes the existing schema/statistical `decide`,
+persists completed assessments with full inputs, and never moves the best
+pointer. Missing/poor quality yields no evaluator calls and no stored assessment.
+`assessProposal` is the exported injectable orchestration API; its clock is
+explicit and the default schema validator is the kernel validator.
+
+Assessment requires 1–8 operations (the shared `MAX_OPS_PER_PROPOSAL` bound)
+before evaluator I/O. Both score invocations pin `judgeProvider`/`judgeModel`
+from reviewed quality evidence, overriding caller scoring options. The subprocess
+forwards `--judge-provider`/`--judge-model`; Anthropic metadata reports the
+resolved transport model ID. Calibration must name that concrete ID, since a
+tier alias does not match the runtime identity. Ordinary scoring can still use
+execution tiers. Tracked by `bd_000-projects-214c.16` /
+[issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
+
+`refine bootstrap` accepts `--harvest-file` or `--golden-file` with a
+`--review-file` bound to the source's canonical hash and the exact skill text.
+Reviewed boolean adversarial flags remain in hashed items. The default store
+keeps files mode 0600 and store directories mode 0700. Harvest input comes from opt-in `eval --rollout-file` exports of actual functional
+outcomes. Failed, partial, and stub exports are refused. Reviewed expectations
+are explicit labels, never inferred from model output. Source/review objects
+are retained in the content-addressed store and item provenance participates in
+the EvalSet hash. `--parent-set-file` preserves lineage with an explicit changed
+`--eval-set-version`. See the Refiner README for the schemas and privacy boundary.
+Tracked by `bd_000-projects-214c.15` / #397.
+
+`optimize --refiner-proposal` binds an actual analyzed source run and explicit
+criterion-to-eval-item mapping to an immutable Refiner experiment. All bridge
+flags are required together (see Refiner README). `refine assess --experiment`
+uses fresh paired assessment plus target improvement and per-item nonregression.
+Shared ChangeProposal/Experiment types live in public refiner-core; private core
+consumes them, and its legacy evaluator refuses Refiner-bound values. No automatic
+promotion. Historical source digest checks are limited to the DB's 16-character
+hash; new documents use full content identities. API029 §8.8 / 214c.17 / #401.
+
+Refiner `createCostMeter(skillHash, budget)` now validates nonnegative safe-integer
+caps/usage, matching skill identity and outcomes, and snapshots inputs/outputs.
+Invalid or overflowing records leave accounting unchanged. Record a call once;
+`record` is append-only, while `checkBudget` is the admission decision. This pure
+helper does not enforce runtime USD limits. Native proposer usage now reaches
+`createRefinerModel` (null means missing/invalid), and `refine propose` persists
+pre-call intent and post-call measurement through `proposeWithEvidence`. Parser
+failures retain usage. Governed assessment accounting, rollups, USD admission,
+quarantine and telemetry are described in API029 §8.12 (214c.18 / #403).
+Proposer receipts: API029 §8.9. Integrity repair: 214c.18.1 / #404,
+API029 §7.1.
+
+Evaluator usage is nullable and validated, with ordered per-call evidence in
+`evaluation-usage/v1` (public refiner-core). Cost reports expose known subtotals,
+unknown call counts and completeness; failed/interrupted calls are retained.
+`refine score/assess` use `createAccountingEvalRunner` to persist intent and
+outcome before score parsing, so candidate failures cannot erase baseline spend.
+The existing evaluator soft caps stop on unknown settled usage and check at
+phase boundaries. Explicit governed native reservations and Wave B USD policy
+are described in API029 §8.12 (214c.18 / #403). See §8.10 and budget spec 047
+for the separate evaluator soft caps.
+
+Subscription execution uses `onAttempt` to meter before process launch and settle
+all outcomes before artifact collection. Stream usage is nullable and cache-aware;
+nonzero exits stay provider errors even after a result event. The CLI retains
+subscription cost JSON with stub provider legs. Tests use the local executable
+fixture, not live Claude. See API029 §8.11 and CLI README. Governed hard-cost
+mode (§8.12) refuses subscription execution.
+
 ## Architecture
 
 Seven-layer evaluation stack (bottom to top):
@@ -101,15 +202,16 @@ indices. Grade measurements select the full grader snapshot and report Wilson
 uncertainty without heterogeneous rollups. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
-`j-rig batch` consumes the planned cells in resumable balanced passes. It keeps
-runner failures in the raw-run ledger and never treats them as model grades.
+`j-rig suite` is the one supported way to run a Task × Config evaluation set:
+it executes balanced target-N passes, grades every run with the named grader,
+resumes from the raw-run ledger, and writes an audit file and report. Runner
+failures stay in the ledger and are never treated as model grades.
 
-Two commands have "batch" in the name and live in different files. `j-rig batch`
-(sampling manifest, `commands/batch.ts`) executes generic Task × Config cells.
-`j-rig eval-batch` (`commands/eval-batch.ts`) walks a skills root and runs
-`j-rig eval` per skill. Edit the one you mean. `j-rig suite` also executes
-balanced target-N jobs from a single manifest; whether it should subsume
-`j-rig batch` is an open design question, so do not merge them in passing.
+**`j-rig batch` is deprecated** (decided 2026-10-05, `000-docs/044`): it still
+works unchanged but prints a notice pointing to `suite`, and it is removed in the
+release after the one that first ships the notice. Do not add features to it.
+`j-rig eval-batch` (`commands/eval-batch.ts`) is a different, supported command:
+it walks a skills root and runs `j-rig eval` per skill.
 
 The generic `ExecutableRunner` is bounded: stdout and stderr are each capped at
 the optional `harness.max_output_bytes` (10 MiB default applied at runtime),
@@ -153,9 +255,55 @@ default; runtime default 0.95). The nightly roster prints which skills are
 saturated, and each `j-rig report --unified` cell carries an optional
 `headroom_status` with a matching Headroom column. See `000-docs/043-AT-SPEC-eval-headroom-saturation-signal-2026-09-29.md`.
 
+### Claude Code execution provider (trajectory grading)
+
+`j-rig eval --execution-provider claude-code` swaps only the execution leg for a
+real `claude -p --output-format stream-json` run per test case, in a temp
+workspace holding a copy of the skill plus fixtures. It records
+`ExecutionOutput.trajectory` (ordered tool calls, workspace-relative input
+summaries, a sha256 manifest of produced files) and enables the trajectory
+checks `tool_called`, `tool_not_called`, `order_before`, `file_exists` and
+`file_matches_sha_in` (deterministic criteria; params validated by
+`CriterionSchema`; fail closed without a trajectory). Code:
+`packages/cli/src/providers/claude-code{,-stream}.ts`,
+`packages/core/src/checks/trajectory-checks.ts`. Spec: `000-docs/045`.
+
+- **Subscription only, never in CI.** The provider refuses under `CI` /
+  `GITHUB_ACTIONS`, drops every non-allowlisted env var, copies only the access
+  token (never the refresh token) into a sandbox `HOME`, and aborts on any
+  `apiKeySource` other than `none`. Do not add an API-key path.
+- **Tests replay recorded transcripts** from
+  `packages/cli/src/providers/__fixtures__/claude-code/` through
+  `fake-claude.mjs`. Record new ones locally on the subscription with a cheap
+  model, then scrub (temp root to `__ROOT__`, renumber uuids, drop rate-limit
+  events) before committing.
+- **A budget-exhausted case is not completed** (error, never judged, row signed
+  `error`). Do not grade truncated trajectories.
+- Workspace isolation, not an OS sandbox: the agent keeps the invoking user's
+  network access, `PATH` and filesystem reach. Say so wherever it is described.
+- Trajectory checks also refuse a trajectory whose `stop` is not `completed`,
+  so a direct `judgeCriteria` caller cannot grade a truncated run either.
+
+### Structured checks and eval budgets
+
+- **Structured deterministic checks** (`packages/core/src/checks/structured-checks.ts`,
+  spec `000-docs/046`): `exit_code`, `json_path`, `file_sha256`, `schema_valid` (draft
+  2020-12 pinned). Usable as `j-rig eval` criteria (response JSON or a claude-code
+  produced file; `exit_code` refused at load) and as `j-rig grade` grader checks
+  (stdout, exit code, artifact manifest). `output_contains` grader entries keep their
+  exact shape: do not change it, every saved Grade's snapshot hash depends on it.
+  `harness.completed_exit_codes` must stay default-free (sealed-config snapshots).
+- **Eval budgets** (`packages/cli/src/providers/budget.ts`, spec `000-docs/047`):
+  spec `budget:` and `--max-usd/--max-tokens/--max-wall-ms/--max-calls`, stricter
+  wins, one budget per invocation. A stop means no verdict, no bundle row, run
+  `failed` (`budget_exhausted`), exit 3. Never sign it as an `error` row.
+- **Rates** in `MODEL_RATES_USD_PER_MTOK` carry a source and read date; refresh
+  both together and never guess a price (unknown stays `null`; `max_usd` then
+  fails closed). `claude-code/*` usage is API-equivalent, `billed: false`.
+
 ### Evaluator infrastructure failure (one rule)
 
-Any unrecovered provider failure in `j-rig eval`, execution or judge phase,
+Any unrecovered provider failure in `j-rig eval`, trigger, execution or judge phase,
 skill or naked-baseline pass, partial or total, yields **no verdict** and a
 **signed `gate-result/v1` `error` row**: class-first `gate_reasons[0]`, typed
 credential-free `metadata.error_detail`, run stored `failed`, exit 2 after every
@@ -167,8 +315,11 @@ re-derive it inline in `eval.ts`.
 - A failed test case is never sent to the judge.
 - Partial **sample** loss is not a failure: an errored sample votes `unsure`.
   Only a criterion with zero surviving samples counts. There is deliberately no
-  provider retry layer; `--samples` of 2 or more is the supported mitigation
-  (the nightly roster runs 5).
+  generic provider retry layer; `--samples` of 2 or more is the supported mitigation
+  (the nightly roster runs 5). The opt-in nightly MiniMax admission transport
+  permits one shared, bounded recovery for an explicit 429 or no-output 2064
+  overload response; see `eval-roster/README.md`. It never replays a completed
+  response or an ambiguous transport timeout.
 - A completed response with empty text is boundary evidence, not a failure.
 - Provider text is redacted by core's `redactProviderError` **where it is
   captured** (functional runner and judgment engine). Do not add a second
@@ -253,6 +404,16 @@ Canonical roster: `eval-roster/roster.json` (14 skills as of 2026-07-23).
 - **Rule:** a skill joins the roster only when `SKILL.md` + `eval-spec.yaml` both exist at the pinned path.
 - Runner: `eval-roster/run-roster.mjs` + `.github/workflows/nightly-skill-evals.yml`.
 
+## Tool-enabled skill execution
+
+`j-rig eval --mcp-config` opts functional execution into a bounded stdio MCP
+loop; see `packages/cli/README.md` for its explicit command/tool/environment
+allowlists. Execution and naked-baseline cases use fresh processes with the
+same capabilities. Judges and triggers never receive tools. Private execution
+receipts are linked by hash from SQLite and bundle metadata; attempted calls
+on failure are retained, and infrastructure failures remain no-verdict errors.
+Fresh processes are not an external-state reset or a security sandbox.
+
 ## AI code review — BOTH REVIEWERS ARE DARK (do not wait for one)
 
 **As of 2026-07-22 no AI reviewer runs on this repo.** Verified by surveying the
@@ -314,12 +475,25 @@ Key commands: `bd prime` (LLM context), `bd ready`, `bd list --status in_progres
 
 This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CLAUDE.md` § "Intent Solutions Testing SOP" and the VPS-as-the-home program (`OPS-5nm`, Priority 6).
 
-**Installed**: `@intentsolutions/audit-harness v0.1.0` vendored at `.audit-harness/` with wrapper at `scripts/audit-harness`.
+**Installed**: `@intentsolutions/audit-harness v1.4.0` vendored at `.audit-harness/` with wrapper at `scripts/audit-harness`.
 
 **Commands**: `scripts/audit-harness {verify, init, list, escape-scan --staged}`.
 
-**Next step**: run `/audit-tests` to produce `TEST_AUDIT.md`. See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
+**Audit**: see `TEST_AUDIT.md` for measured coverage and remaining verification gaps.
+`pnpm run verify:workspace` checks workspace architecture and inventories the
+Vitest test corpus for advisory bias scanning; absent Gherkin features are N/A.
+TypeScript CRAP remains incomplete (bead `bd_000-projects-h08j.6.7`). See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
 
 **Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
 
 > **Note**: this repo IS the seven-layer binary eval harness for Claude Skills. The audit-harness install adds a complementary 7-layer testing taxonomy gate at the repo level — independent of the skill-eval harness, applied to this repo's own code.
+
+Cost admission: `refine propose/score/assess --cost-policy ...
+--cost-file-id ...` share a synced reservation ledger with explicit rates. Native
+execution and judge transports admit each wire attempt, including retries;
+subscription execution is refused in governed mode. Pure contracts live in
+refiner-core, I/O in refiner. Cost-outcome/quarantine/P0 receipts and existing OTel
+correlation retain accepted, rejected and failed attempts. Optional per-file and
+whole-scope token/attempt caps persist across invocations; zero caps refuse all
+applicable calls. Unknown usage retains its reserved tokens. Tracked by
+214c.18/#403. See API029 §8.12 and the Refiner README; no paid Wave B run.

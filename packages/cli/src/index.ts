@@ -1,3 +1,5 @@
+import { registerImportEvalsCommand } from "./commands/import-evals.js";
+import { registerJudgeReplayCommand } from "./commands/judge-replay.js";
 import { Command } from "commander";
 import { registerCheckCommand } from "./commands/check.js";
 import { registerValidateCommand } from "./commands/validate.js";
@@ -17,6 +19,7 @@ import { registerSamplePlanCommand } from "./commands/sample-plan.js";
 import { registerBatchCommand } from "./commands/batch.js";
 import { registerEvalBatchCommand } from "./commands/eval-batch.js";
 import { registerSuiteCommand } from "./commands/suite.js";
+import { emitCostRunRecorded, uuidv7 } from "@j-rig/core";
 import { registerRefineCommand } from "@intentsolutions/refiner";
 
 // Report THIS package's own version (not @j-rig/core's "0.0.0" internal stub),
@@ -46,12 +49,43 @@ function createProgram(): Command {
   registerMigrateCommand(program);
   registerSkillSignalCommands(program);
   registerRunCommand(program);
+  registerImportEvalsCommand(program);
+  registerJudgeReplayCommand(program);
   registerGradeCommand(program);
   registerSamplePlanCommand(program);
   registerBatchCommand(program);
   registerEvalBatchCommand(program);
   registerSuiteCommand(program);
-  registerRefineCommand(program);
+  registerRefineCommand(program, undefined, {
+    onCostOutcome: (report) => {
+      emitCostRunRecorded(
+        {
+          evalRunId: uuidv7(),
+          refinerAttemptId: report.attemptId,
+          refinerFileId: report.fileId,
+          refinerPolicyHash: report.policyHash,
+          costRecordScope: "refiner-attempt",
+        },
+        {
+          totalInputTokens: report.inputTokens,
+          totalOutputTokens: report.outputTokens,
+          totalCalls: report.calls,
+          estimatedUsd: report.unknownCalls ? null : report.knownMicros / 1_000_000,
+          usageComplete: report.unknownCalls === 0,
+          unknownCalls: report.unknownCalls,
+          fileKnownUsd: report.file.knownMicros / 1_000_000,
+          fileCommittedUsd: report.file.committedMicros / 1_000_000,
+          fileAccepted: report.file.accepted,
+          filePerAcceptUsd:
+            report.file.costPerAcceptMicros === null
+              ? null
+              : report.file.costPerAcceptMicros / 1_000_000,
+          outcome: report.decision,
+          p0: report.p0,
+        },
+      );
+    },
+  });
 
   return program;
 }

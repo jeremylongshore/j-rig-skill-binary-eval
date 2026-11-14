@@ -1,3 +1,14 @@
+import {
+  costSessionFromOptions,
+  recordCostOutcome,
+  type CostSession,
+  type CostOptions,
+  type CostOutcomeReport,
+} from "./cost-context.js";
+import { createAccountingEvalRunner } from "./score-evidence.js";
+import { proposeWithEvidence } from "./propose-evidence.js";
+import { assessOptimizerExperiment } from "./optimizer.js";
+import { bootstrapReviewedSource } from "./bootstrap-sources.js";
 /**
  * `j-rig refine` command group — the 5 Skill Refiner CLI commands (plan 027 § 4
  * Phase A build-order step 7; "thin shim over orchestrator").
@@ -23,20 +34,30 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
+import { createCostTransport } from "./cost-transport.js";
+import { loadSkillDoc } from "./skill-doc.js";
 import type { Command } from "commander";
 import {
-  makeSkillDoc,
   bootstrap,
+  hashValue,
+  validateEvalSet,
+  type EvalSet,
   applyEdit,
-  type SkillDoc,
   type EditProposal,
+  type RefinerExperiment,
 } from "@intentsolutions/refiner-core";
 import { RefinerStore } from "./store.js";
-import { score, createSubprocessEvalRunner } from "./score.js";
+import { score, createSubprocessEvalRunner, type EvalRunner } from "./score.js";
 import {
-  propose,
+  assessProposal,
+  type AcceptanceQualityEvidence,
+  type AcceptanceQualityPolicy,
+  type ProposalAssessment,
+} from "./assess.js";
+import {
   createCompletionClient,
+  createCompletionFetchTransport,
   resolveProvider,
   NoProviderError,
   type ProposeModelTier,
@@ -48,15 +69,6 @@ import {
   type RefinerStrategy,
 } from "@intentsolutions/refiner-core";
 import { renderReportHtml, ReportRenderError } from "./report-render.js";
-
-/** Load the SKILL.md in `skillDir` into a content-addressed SkillDoc. */
-function loadSkillDoc(skillDir: string): SkillDoc {
-  const path = join(skillDir, "SKILL.md");
-  const text = readFileSync(path, "utf8");
-  // skillId = directory basename (the conventional skill slug).
-  const skillId = skillDir.replace(/\/+$/, "").split("/").pop() || skillDir;
-  return makeSkillDoc(skillId, text);
-}
 
 /** Select a strategy by id, defaulting to the SkillOpt-style refiner. */
 function selectStrategy(id?: string): RefinerStrategy {
@@ -90,7 +102,44 @@ function fail(message: string): never {
 export function registerRefineCommand(
   program: Command,
   storeFactory: (root: string) => RefinerStore = (root) => new RefinerStore({ root }),
+  assessmentRuntime: {
+    runner?: EvalRunner;
+    now?: () => string;
+    onCostOutcome?: (report: CostOutcomeReport) => void;
+  } = {},
 ): void {
+  const finishCost = (
+    session: CostSession | undefined,
+    decision: CostOutcomeReport["decision"],
+  ): void => {
+    const report = recordCostOutcome(session, decision);
+    if (!report) return;
+    const store = storeFactory(process.cwd());
+    const receiptHash = store.put("cost-outcome", report);
+    if (report.file.quarantined)
+      store.put("cost-quarantine", {
+        schema: "refiner-cost-quarantine/v1",
+        fileId: report.fileId,
+        scopeId: report.scopeId,
+        policyHash: report.policyHash,
+        receiptHash,
+        status: "manual-review-required",
+      });
+    if (report.p0)
+      store.put("cost-governance-finding", {
+        schema: "refiner-cost-finding/v1",
+        severity: "P0",
+        scopeId: report.scopeId,
+        policyHash: report.policyHash,
+        receiptHash,
+        reason: "provider-bound-or-total-cost-limit-violation",
+      });
+    try {
+      assessmentRuntime.onCostOutcome?.(report);
+    } catch {
+      /* Telemetry is best effort. */
+    }
+  };
   const refine = program
     .command("refine")
     .description("Eval-guided SKILL.md improvement loop (Skill Refiner)");
@@ -98,37 +147,116 @@ export function registerRefineCommand(
   // ── bootstrap ──────────────────────────────────────────────────────────────
   refine
     .command("bootstrap")
-    .description("Synthesize a held-out eval set from a SKILL.md")
+    .description("Bootstrap a held-out eval set from synthetic probes or reviewed retained traces")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
     .option("--quick", "Quick mode: skip refresh-due-at (casual contributors)")
+    .option("--harvest-file <path>", "Retained j-rig eval --rollout-file JSON")
+    .option("--golden-file <path>", "Human-nominated golden trace JSON")
+    .option("--review-file <path>", "Reviewed expectations bound to the source content hash")
+    .option("--eval-set-version <version>", "Eval-set semver", "1.0.0")
+    .option("--parent-set-file <path>", "Prior EvalSet JSON, preserving its lineage")
     .option("--json", "Output as JSON")
-    .action((skillDir: string, opts: { quick?: boolean; json?: boolean }) => {
-      try {
-        const doc = loadSkillDoc(skillDir);
-        const evalSet = bootstrap(doc, { quick: opts.quick, now: new Date().toISOString() });
-        const store = storeFactory(process.cwd());
-        store.putSkillDoc(doc);
-        store.putEvalSet(evalSet);
-        if (opts.json) {
-          console.log(JSON.stringify(evalSet, null, 2));
-        } else {
-          console.log(`Bootstrapped eval set for '${doc.skillId}'`);
-          console.log(`  items:    ${evalSet.items.length}`);
-          console.log(`  version:  ${evalSet.evalSetVersion}`);
-          console.log(`  hash:     ${evalSet.hash.slice(0, 12)}`);
-          console.log(`  stored:   .j-rig/refiner/store/${evalSet.hash.slice(0, 12)}…`);
+    .action(
+      (
+        skillDir: string,
+        opts: {
+          quick?: boolean;
+          json?: boolean;
+          harvestFile?: string;
+          goldenFile?: string;
+          reviewFile?: string;
+          evalSetVersion: string;
+          parentSetFile?: string;
+        },
+      ) => {
+        try {
+          const doc = loadSkillDoc(skillDir);
+          if (opts.harvestFile && opts.goldenFile) throw new Error("Choose one bootstrap source");
+          const sourceFile = opts.harvestFile ?? opts.goldenFile;
+          if (Boolean(sourceFile) !== Boolean(opts.reviewFile))
+            throw new Error(
+              "Trace sources require --review-file; synthetic sources do not accept it",
+            );
+          if (
+            !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(
+              opts.evalSetVersion,
+            )
+          )
+            throw new Error("Invalid eval-set version");
+          const parent = opts.parentSetFile
+            ? (JSON.parse(readFileSync(opts.parentSetFile, "utf8")) as EvalSet)
+            : undefined;
+          if (opts.parentSetFile) validateEvalSet(parent);
+          if (parent) {
+            const { skillId, source, items, evalSetVersion, lineageParent, refreshDueAt } = parent;
+            if (
+              skillId !== doc.skillId ||
+              parent.hash !==
+                hashValue({
+                  skillId,
+                  source,
+                  items,
+                  evalSetVersion,
+                  lineageParent,
+                  refreshDueAt,
+                }) ||
+              opts.evalSetVersion === parent.evalSetVersion
+            )
+              throw new Error("Invalid parent eval set or unchanged version");
+          }
+          const bootstrapOptions = {
+            quick: opts.quick,
+            now: new Date().toISOString(),
+            evalSetVersion: opts.evalSetVersion,
+            ...(parent ? { lineageParent: parent.hash, lineageId: parent.lineageId } : {}),
+          };
+          const sourceInput: unknown = sourceFile
+            ? JSON.parse(readFileSync(sourceFile, "utf8"))
+            : undefined;
+          const reviewInput: unknown = opts.reviewFile
+            ? JSON.parse(readFileSync(opts.reviewFile, "utf8"))
+            : undefined;
+          const evalSet = sourceFile
+            ? bootstrapReviewedSource(
+                doc,
+                sourceInput,
+                reviewInput,
+                opts.harvestFile ? "harvested" : "golden",
+                bootstrapOptions,
+              )
+            : bootstrap(doc, bootstrapOptions);
+          const store = storeFactory(process.cwd());
+          if (sourceFile) {
+            store.put("bootstrap-source", sourceInput);
+            store.put("bootstrap-source", reviewInput);
+          }
+          store.putSkillDoc(doc);
+          store.putEvalSet(evalSet);
+          if (opts.json) {
+            console.log(JSON.stringify(evalSet, null, 2));
+          } else {
+            console.log(`Bootstrapped eval set for '${doc.skillId}'`);
+            console.log(`  items:    ${evalSet.items.length}`);
+            console.log(`  version:  ${evalSet.evalSetVersion}`);
+            console.log(`  hash:     ${evalSet.hash.slice(0, 12)}`);
+            console.log(`  stored:   .j-rig/refiner/store/${evalSet.hash.slice(0, 12)}…`);
+          }
+        } catch (err) {
+          fail(err instanceof Error ? err.message : String(err));
         }
-      } catch (err) {
-        fail(err instanceof Error ? err.message : String(err));
-      }
-    });
+      },
+    );
 
   // ── score ────────────────────────────────────────────────────────────────
   refine
     .command("score")
     .description("Score a skill by delegating to `j-rig eval` (any provider)")
     .argument("<skill-dir>", "Path to the skill directory containing SKILL.md")
-    .option("--eval-set <hash>", "Eval-set hash to score against (defaults to bootstrap)")
+    .option("--eval-set <hash>", "Stored eval-set hash (requires explicit item expectations)")
+    .option(
+      "--eval-set-file <path>",
+      "Frozen EvalSet JSON with reviewed expectations and valid content hash",
+    )
     .option(
       "--provider <name>",
       "LLM backend: nvidia | deepseek | groq | openai | minimax | anthropic | kimi | openrouter " +
@@ -139,13 +267,24 @@ export function registerRefineCommand(
       "Scoring model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
         "providers: a raw vendor model id (defaults to the provider's default).",
     )
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger")
+    .option("--cost-file-id <id>", "Stable file identity from cost policy")
     .option("--json", "Output as JSON")
     .action(
       async (
         skillDir: string,
-        opts: { evalSet?: string; provider?: string; model?: string; json?: boolean },
+        opts: CostOptions & {
+          evalSet?: string;
+          evalSetFile?: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+        },
       ) => {
+        let cost: CostSession | undefined;
         try {
+          cost = costSessionFromOptions(opts);
           // Resolve the backend the SAME way propose() does, so `refine score`
           // never hard-requires Anthropic and agrees with `j-rig eval`.
           let resolved;
@@ -183,23 +322,34 @@ export function registerRefineCommand(
 
           const doc = loadSkillDoc(skillDir);
           const store = storeFactory(process.cwd());
-          // Resolve the eval set: an explicit --eval-set hash from the store, else
-          // a fresh deterministic bootstrap so `score` works standalone.
-          const evalSet = opts.evalSet
-            ? store.get<ReturnType<typeof bootstrap>>(opts.evalSet)
-            : bootstrap(doc, { now: new Date().toISOString() });
+          // Resolve reviewed frozen inputs. A fallback bootstrap remains a draft
+          // and fails the expectation check until the caller reviews it.
+          if (opts.evalSet && opts.evalSetFile)
+            fail("choose --eval-set or --eval-set-file, not both");
+          const evalSet = opts.evalSetFile
+            ? (JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<typeof bootstrap>)
+            : opts.evalSet
+              ? store.get<ReturnType<typeof bootstrap>>(opts.evalSet)
+              : bootstrap(doc, { now: new Date().toISOString() });
           if (evalSet === null) {
             fail(`eval set ${opts.evalSet} not found in the refiner store`);
           }
-          store.putSkillDoc(doc);
-          store.putEvalSet(evalSet);
-          const runner = createSubprocessEvalRunner();
+          const runner = createAccountingEvalRunner(
+            createSubprocessEvalRunner(),
+            store,
+            {},
+            cost ? { id: () => cost!.context.attemptId } : {},
+          );
           const record = await score(doc, evalSet, runner, {
             skillDir,
             modelTier,
             provider: resolved.name,
+            ...(cost ? { costContext: cost.context } : {}),
           });
+          store.putSkillDoc(doc);
+          store.putEvalSet(evalSet);
           store.putScoreRecord(record);
+          finishCost(cost, "scored");
           if (opts.json) {
             console.log(JSON.stringify(record, null, 2));
           } else {
@@ -209,6 +359,7 @@ export function registerRefineCommand(
             );
           }
         } catch (err) {
+          finishCost(cost, "failed");
           fail(err instanceof Error ? err.message : String(err));
         }
       },
@@ -230,13 +381,26 @@ export function registerRefineCommand(
       "Propose model. Anthropic: haiku | sonnet (never opus). OpenAI-compatible " +
         "providers: a raw vendor model id (defaults to the provider's default).",
     )
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger (default: audit/wave-b-cost-ledger.jsonl)")
+    .option("--cost-file-id <id>", "Stable file identity from the cost policy")
     .option("--json", "Output as JSON")
     .action(
       async (
         skillDir: string,
-        opts: { strategy?: string; provider?: string; model?: string; json?: boolean },
+        opts: {
+          strategy?: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+          costPolicy?: string;
+          costLedger?: string;
+          costFileId?: string;
+        },
       ) => {
+        let cost: CostSession | undefined;
         try {
+          cost = costSessionFromOptions(opts);
           // PROVIDER-AGNOSTIC: resolve a backend from --provider / LLM_* / the
           // first present key (preferring free/cheap). No Anthropic requirement.
           let resolved;
@@ -279,11 +443,29 @@ export function registerRefineCommand(
           store.putSkillDoc(doc);
           // Build the client that matches the resolved provider's wire format
           // (Anthropic Messages vs OpenAI Chat Completions).
-          const client = createCompletionClient(resolved);
+          const transport = cost
+            ? createCostTransport(createCompletionFetchTransport(), cost.ledger, {
+                fileId: cost.context.fileId,
+                attemptId: cost.context.attemptId,
+                provider: resolved.name,
+                format: resolved.format,
+                phase: "propose",
+              })
+            : undefined;
+          const client = createCompletionClient(resolved, transport);
           // No scored rollouts on the CLI path yet (harvest is wave 2+); the
           // strategies tolerate an empty rollout set (single-pass proposal).
-          const proposal = await propose(strategy, { doc, rollouts: [] }, client, proposeOpts);
+          const costAttemptId = cost?.context.attemptId;
+          const { proposal } = await proposeWithEvidence(
+            strategy,
+            { doc, rollouts: [] },
+            client,
+            store,
+            proposeOpts,
+            { provider: resolved.name, ...(costAttemptId ? { id: () => costAttemptId } : {}) },
+          );
           const hash = store.putEditProposal(proposal);
+          finishCost(cost, "proposed");
           if (opts.json) {
             console.log(JSON.stringify(proposal, null, 2));
           } else {
@@ -294,12 +476,112 @@ export function registerRefineCommand(
             console.log(`  stored:   .j-rig/refiner/store/${hash.slice(0, 12)}…`);
           }
         } catch (err) {
+          finishCost(cost, "failed");
           fail(err instanceof Error ? err.message : String(err));
         }
       },
     );
 
   // ── apply ────────────────────────────────────────────────────────────────
+  refine
+    .command("assess")
+    .description("Assess a proposal with reviewed quality evidence and fresh paired scores")
+    .argument("<skill-dir>", "Skill directory containing the baseline SKILL.md")
+    .option("--proposal <hash>", "Stored EditProposal hash")
+    .option(
+      "--experiment <hash>",
+      "Stored proposed optimizer experiment hash (instead of --proposal)",
+    )
+    .requiredOption("--eval-set-file <path>", "Frozen EvalSet JSON")
+    .requiredOption("--quality-file <path>", "JSON with explicit evidence and policy")
+    .option("--provider <name>", "Evaluation provider")
+    .option("--model <id>", "Scoring model (haiku/sonnet on Anthropic)")
+    .option("--cost-policy <path>", "Explicit immutable pricing and admission policy")
+    .option("--cost-ledger <path>", "Shared cost ledger")
+    .option("--cost-file-id <id>", "Stable file identity from cost policy")
+    .option("--json", "Output assessment as JSON")
+    .action(
+      async (
+        skillDir: string,
+        opts: CostOptions & {
+          proposal?: string;
+          experiment?: string;
+          evalSetFile: string;
+          qualityFile: string;
+          provider?: string;
+          model?: string;
+          json?: boolean;
+        },
+      ) => {
+        let cost: CostSession | undefined;
+        try {
+          cost = costSessionFromOptions(opts);
+          if (cost && assessmentRuntime.runner)
+            fail("Governed cost mode requires the native subprocess runner");
+          const doc = loadSkillDoc(skillDir);
+          const store = storeFactory(process.cwd());
+          const { experiment, proposal } = loadAssessmentProposal(store, opts);
+          const evalSet = JSON.parse(readFileSync(opts.evalSetFile, "utf8")) as ReturnType<
+            typeof bootstrap
+          >;
+          const quality = JSON.parse(readFileSync(opts.qualityFile, "utf8")) as {
+            evidence?: AcceptanceQualityEvidence;
+            policy: AcceptanceQualityPolicy;
+          };
+          const { resolved, modelTier } = resolveAssessmentModel(opts);
+          const inputs = {
+            doc,
+            proposal,
+            evalSet,
+            quality: quality.evidence,
+            policy: quality.policy,
+            now: assessmentRuntime.now?.() ?? new Date().toISOString(),
+            scoreOptions: {
+              skillDir,
+              provider: resolved.name,
+              modelTier,
+              ...(cost ? { costContext: cost.context } : {}),
+            },
+          };
+          const runner = createAccountingEvalRunner(
+            assessmentRuntime.runner ?? createSubprocessEvalRunner(),
+            store,
+            {
+              proposalHash: hashValue(proposal),
+              ...(opts.experiment ? { experimentHash: opts.experiment } : {}),
+            },
+            { now: assessmentRuntime.now, ...(cost ? { id: () => cost!.context.attemptId } : {}) },
+          );
+          const optimizer = experiment
+            ? await assessOptimizerExperiment({ ...inputs, experiment }, runner)
+            : undefined;
+          const result = optimizer?.assessment ?? (await assessProposal(inputs, runner));
+          const costDecision = validateAssessmentCostOutcome(cost, result, optimizer);
+          const hash =
+            result.status === "evaluated" ? store.put("acceptance-assessment", result) : undefined;
+          if (runner.attemptCount > 0)
+            store.put("evaluation-outcome", {
+              schema: "refiner-evaluation-outcome/v1",
+              runId: runner.runId,
+              skillId: doc.skillId,
+              skillHash: doc.hash,
+              proposalHash: hashValue(proposal),
+              assessmentHash: hash ?? null,
+              status: result.status,
+              decision: result.status === "evaluated" ? result.decision.outcome : null,
+            });
+          finishCost(cost, costDecision);
+          const experimentHash = optimizer?.experiment
+            ? store.put("optimizer-experiment", optimizer.experiment)
+            : undefined;
+          reportAssessment(opts, result, hash, optimizer, experimentHash);
+        } catch (error) {
+          finishCost(cost, "failed");
+          fail(error instanceof Error ? error.message : String(error));
+        }
+      },
+    );
+
   refine
     .command("apply")
     .description("Apply a stored EditProposal to a SKILL.md → a new immutable version")
@@ -390,4 +672,104 @@ export function registerRefineCommand(
         fail(err instanceof Error ? err.message : String(err));
       }
     });
+}
+
+type OptimizerAssessment = Awaited<ReturnType<typeof assessOptimizerExperiment>>;
+
+/** Resolve the selected immutable proposal before reading scoring inputs. */
+function loadAssessmentProposal(
+  store: RefinerStore,
+  opts: { proposal?: string; experiment?: string },
+) {
+  if (Boolean(opts.proposal) === Boolean(opts.experiment))
+    fail("choose exactly one of --proposal or --experiment");
+  if (
+    [opts.proposal, opts.experiment].some(
+      (value) => value !== undefined && !/^[0-9a-f]{64}$/.test(value),
+    )
+  )
+    fail("invalid content hash");
+  const experiment = opts.experiment ? store.get<RefinerExperiment>(opts.experiment) : undefined;
+  if (opts.experiment && (!experiment || hashValue(experiment) !== opts.experiment))
+    fail("optimizer experiment missing or content hash mismatch");
+  const proposal = experiment?.editProposal ?? store.get<EditProposal>(opts.proposal!);
+  if (!proposal || (opts.proposal && hashValue(proposal) !== opts.proposal))
+    fail("proposal missing or content hash mismatch");
+  return { experiment, proposal };
+}
+
+/** Check the ledger admission outcome before storing assessment evidence. */
+function validateAssessmentCostOutcome(
+  cost: CostSession | undefined,
+  result: ProposalAssessment,
+  optimizer: OptimizerAssessment | undefined,
+): "blocked" | "accepted" | "rejected" {
+  const costDecision =
+    result.status === "blocked"
+      ? "blocked"
+      : result.decision.outcome === "ACCEPT" &&
+          (!optimizer || optimizer.experiment?.experiment.status === "accepted")
+        ? "accepted"
+        : "rejected";
+  cost?.ledger.assertOutcome({
+    attemptId: cost.context.attemptId,
+    fileId: cost.context.fileId,
+    decision:
+      result.status === "evaluated" && result.decision.outcome === "ACCEPT"
+        ? "accepted"
+        : costDecision,
+  });
+  return costDecision;
+}
+
+/** Report already-persisted assessment evidence and preserve the CLI exit contract. */
+function reportAssessment(
+  opts: { json?: boolean },
+  result: ProposalAssessment,
+  hash: string | undefined,
+  optimizer: OptimizerAssessment | undefined,
+  experimentHash: string | undefined,
+): void {
+  if (opts.json)
+    console.log(
+      JSON.stringify(
+        {
+          ...result,
+          ...(hash ? { stored: hash } : {}),
+          ...(optimizer
+            ? { optimizer: { experiment: optimizer.experiment, stored: experimentHash } }
+            : {}),
+        },
+        null,
+        2,
+      ),
+    );
+  else if (result.status === "blocked")
+    console.log(`Assessment blocked: ${result.reasons.join(", ")}`);
+  else
+    console.log(
+      `Assessment: ${result.decision.outcome}\n  stored: ${hash}\n  Best pointer requires human promotion.`,
+    );
+  if (optimizer?.experiment && !opts.json)
+    console.log(
+      `Optimizer: ${optimizer.experiment.experiment.status}\n  stored: ${experimentHash}\n  reasons: ${optimizer.experiment.resolution!.reasons.join(", ") || "all gates passed"}`,
+    );
+  if (
+    result.status === "blocked" ||
+    result.decision.outcome !== "ACCEPT" ||
+    (optimizer && optimizer.experiment?.experiment.status !== "accepted")
+  )
+    process.exitCode = 2;
+}
+
+/** Resolve the execution model before constructing the assessment request. */
+function resolveAssessmentModel(opts: { provider?: string; model?: string }) {
+  const resolved = resolveProvider({ provider: opts.provider });
+  const modelTier =
+    opts.model ?? (resolved.format === "anthropic" ? "sonnet" : resolved.defaultModel);
+  if (!modelTier) fail("pass --model for a provider without a default model");
+  if (resolved.format === "anthropic" && !["haiku", "sonnet"].includes(modelTier)) {
+    fail("assessment scoring requires haiku or sonnet on Anthropic");
+  }
+  return { resolved, modelTier };
 }

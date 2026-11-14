@@ -88,3 +88,26 @@ describe("bootstrap", () => {
     expect(() => bootstrap(doc, { now: "not-a-date" })).toThrow(/rfc3339/);
   });
 });
+
+// Imported source metadata is part of the identity and survives schema parsing.
+it("preserves imported provenance through validation and isolates caller mutation", async () => {
+  const { bootstrapFromItems, validateEvalSet, makeSkillDoc, hashValue } =
+    await import("./index.js");
+  const doc = makeSkillDoc("demo", "content");
+  const items = [
+    {
+      id: "trace",
+      prompt: "request",
+      expectation: "expected",
+      provenance: {
+        sourceHash: hashValue("source"),
+        reviewHash: hashValue("review"),
+        sourceItemId: "trace",
+      },
+    },
+  ];
+  const set = bootstrapFromItems(doc, "golden", items, { now: "2026-11-10T00:00:00Z" });
+  expect(validateEvalSet(set)).toEqual(set);
+  items[0].prompt = "changed";
+  expect(set.items[0].prompt).toBe("request");
+});

@@ -1,0 +1,24 @@
+{
+  "$comment": "Prepared BBB Registrar response-policy roster. Explicit opt-in only; no scheduled activation or model acceptance claimed. Pin includes reviewed profiles.",
+  "source": {
+    "githubRepo": "jeremylongshore/bobs-big-brain-registrar",
+    "ref": "3466d0c5a0ee09ffcc6f15c03f8bd0d1527ae75e"
+  },
+  "provider": "minimax",
+  "models": "MiniMax-M3",
+  "samples": 5,
+  "skills": [
+    {
+      "key": "bbb-registrar-brain",
+      "path": "skills/brain"
+    },
+    {
+      "key": "bbb-registrar-brain-save",
+      "path": "skills/brain-save"
+    },
+    {
+      "key": "bbb-registrar-teamkb",
+      "path": "skills/teamkb"
+    }
+  ]
+}

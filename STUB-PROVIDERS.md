@@ -79,9 +79,9 @@ The banner is emitted exactly once per process via a module-scoped flag (subsequ
 
 ### 3. CI gates must refuse stub-mode artifacts
 
-When j-rig grows an `emit-evidence` path that produces Evidence Bundle rows for downstream consumption (e.g., by `intent-rollout-gate`), the emitted rows MUST carry a `provider.mode: "stub"` marker. Consumers MUST refuse rows where that marker is `"stub"` — a rollout-gate that ships a skill on stub evidence is the failure mode the discipline exists to prevent.
+`j-rig eval --emit-bundle` emits Evidence Bundle rows for downstream consumption (e.g., by `intent-rollout-gate`). Every row carries the provider marker in the free-form predicate metadata: `predicate.metadata.provider` (the provider name, `"stub"` in stub mode) and `predicate.metadata.ground_truth` (`false` in stub mode). Consumers MUST refuse rows that declare a stub provider or `ground_truth: false`; a rollout-gate that ships a skill on stub evidence is the failure mode the discipline exists to prevent.
 
-This marker landing is gated on the kernel-canonical schema migration (`iaj-E02b` per DR 018 § 9.2; kernel `iec-E12` ships `EvidenceBundlePayload` first). Until then, j-rig does not emit machine-consumable bundles from the `eval` command at all — only console output.
+The decision library enforces this: `@intentsolutions/rollout-gate` blocks any row that declares a `predicate.metadata.provider` listed in the policy's `forbid_providers` (default `["stub"]`), or that declares `predicate.metadata.ground_truth: false` while `require_ground_truth` is on (the default). A row that declares neither field, such as a deterministic static gate, is not affected, so the check relies on producers marking their rows; j-rig's `eval` does. The nightly roster's `ci/emit-evidence` refuses the same markers before signing.
 
 ### 4. Backward-compat carve-out
 

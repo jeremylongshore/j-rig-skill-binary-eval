@@ -9,15 +9,12 @@
  * `cosign sign-blob --bundle bundle-<i>.sigstore.json`. For each skeleton row it
  * reads back the canonical bundle object + its sigstore bundle and assembles:
  *
- *   { repo, signing, rows: [ { bundle, sigstoreBundle, sourceSha, gateResults } ] }
+ *   { repo, signing, rows: [ { bundle, sigstoreBundle, sourceSha, evidencePayload, gateResults } ] }
  *
- * This is EXACTLY the shape the dashboard's `isReportManifestShape` accepts:
- * each row carries `bundle` + `sigstoreBundle` + a string `sourceSha`. The extra
- * `gateResults` field is additive — the current ingest ignores it; the gate-row
- * resolver consumes it.
- *
- * Fail-closed: a missing bundle file, a missing sigstore bundle, or a structural
- * mismatch aborts (exit 1) rather than publishing a half-built manifest.
+ * Each row carries a kernel-valid evidencePayload whose digest and metadata
+ * match the signed bundle, plus a checked gateResults compatibility projection.
+ * Missing artifacts or binding mismatches abort rather than publishing partial
+ * evidence. Signature verification remains the signing workflow/ingest boundary.
  *
  * Usage:
  *   node --experimental-strip-types scripts/assemble-manifest.ts [--dir build/evidence] [--out build/evidence/report-manifest.json]
@@ -25,10 +22,17 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
+import { EvidenceBundleSchema } from "@intentsolutions/core/validators/v1/evidence-bundle";
+import {
+  EvidenceBundlePayloadSchema,
+  type EvidenceBundlePayload,
+} from "@intentsolutions/core/validators/v1/evidence-statement";
+import { evidencePayloadMetadata, stableStringify } from "./emit-evidence.ts";
 
 interface SkeletonRow {
   readonly bundleFile: string;
   readonly gateResults: readonly unknown[];
+  readonly evidencePayload: EvidenceBundlePayload;
   readonly sourceSha: string;
 }
 interface Skeleton {
@@ -46,6 +50,7 @@ interface ManifestRow {
   readonly sigstoreBundle: unknown;
   readonly sourceSha: string;
   readonly gateResults: readonly unknown[];
+  readonly evidencePayload: EvidenceBundlePayload;
 }
 interface ReportManifest {
   readonly repo: string;
@@ -92,11 +97,29 @@ export function assemble(dir: string): ReportManifest {
         `missing sigstore bundle ${sigPath} — was cosign sign-blob run for ${row.bundleFile}?`,
       );
     }
+    const bundle = readJson(bundlePath);
+    const parsedBundle = EvidenceBundleSchema.parse(bundle);
+    const payload = EvidenceBundlePayloadSchema.parse(row.evidencePayload);
+    for (const [key, expected] of Object.entries(evidencePayloadMetadata(row.evidencePayload))) {
+      if (
+        stableStringify(parsedBundle[key as keyof typeof parsedBundle]) !==
+        stableStringify(expected)
+      ) {
+        throw new Error(`evidencePayload does not match signed bundle ${key}`);
+      }
+    }
+    if (
+      stableStringify(row.gateResults) !==
+      stableStringify(payload.map((statement) => statement.predicate))
+    ) {
+      throw new Error("gateResults do not match evidencePayload predicates");
+    }
     return {
-      bundle: readJson(bundlePath),
+      bundle,
       sigstoreBundle: readJson(sigPath),
       sourceSha: row.sourceSha,
       gateResults: row.gateResults,
+      evidencePayload: row.evidencePayload,
     };
   });
 

@@ -28,6 +28,12 @@ The model call is *injected* into a strategy so the mechanism stays unit-testabl
 | `SkillOptStyleStrategy` | reference impl | Worst-rollout-targeted bounded edits (text-space SGD analog, after SkillOpt) |
 | **`computeSliceUtility`** | **pure (scorer injected)** | **COMPUTED per-block utility** via Leave-One-Block-Out causal attribution (below). `sliceIntoBlocks` + `gateEvalSet` are the supporting seams. |
 
+`bootstrapFromItems(doc, source, items, opts)` builds the same content-addressed
+EvalSet shape from adapter-validated imported items. Optional item provenance
+binds source/review hashes and survives `validateEvalSet`. Reviewed harvested and
+golden ingestion is implemented by `@intentsolutions/refiner`; see its README.
+Synthetic bootstrap delegates to this constructor with unchanged hash preimages.
+
 ## The acceptance gate (DR-028 P0-RATIFY-1)
 
 `accept(baseline, candidate, alpha = 0.05)` returns `{ accepted: true }` **only**

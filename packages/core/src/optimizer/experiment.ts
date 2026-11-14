@@ -30,6 +30,8 @@ export function evaluateExperiment(
   experiment: Experiment,
   afterResults: JudgmentResult[],
 ): ExperimentStatus {
+  if (experiment.refiner)
+    throw new Error("Refiner-bound experiments require fresh assessOptimizerExperiment scoring");
   if (!experiment.before_results) return "rejected";
 
   const targetId = experiment.proposal.target_criterion;

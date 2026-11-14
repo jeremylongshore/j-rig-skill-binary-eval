@@ -6,7 +6,8 @@
  * (from SKILL.md), harvested (j-rig rollouts), golden (human-nominated). This
  * foundation ships the DETERMINISTIC synthetic source: given identical SKILL.md
  * text + options, it always produces the identical EvalSet (same items, same
- * hash). Harvested/golden ingestion is an I/O adapter (wave 2+).
+ * hash). Reviewed harvested/golden ingestion lives in the refiner adapter and
+ * reuses bootstrapFromItems below.
  *
  * DR-028 P0-RATIFY-6: the produced EvalSet carries `evalSetVersion` (semver) +
  * `lineageParent` (hash of a prior set, or null) + `refreshDueAt` (rfc3339, 90d
@@ -19,7 +20,7 @@
  * `eval_set_ref.lineage_id` remains stable across regenerations.
  */
 
-import type { SkillDoc, EvalSet, EvalItem } from "./types.js";
+import type { SkillDoc, EvalSet, EvalItem, EvalSetSource } from "./types.js";
 import { hashValue, sha256 } from "./hash.js";
 
 const DEFAULT_REFRESH_DAYS = 90;
@@ -137,16 +138,24 @@ function rfc3339Plus(now: string, days: number): string {
  * `doc.skillId + source` so it is stable and unique per skill lineage.
  */
 export function bootstrap(doc: SkillDoc, opts: BootstrapOptions = {}): EvalSet {
-  const evalSetVersion = opts.evalSetVersion ?? "1.0.0";
-  const lineageParent = opts.lineageParent ?? null;
-  const quick = opts.quick ?? false;
-
-  const probes = extractProbes(doc.text);
-  const items: EvalItem[] = probes.map((prompt, i) => ({
+  const items = extractProbes(doc.text).map((prompt, i) => ({
     id: `${doc.skillId}-syn-${String(i + 1).padStart(3, "0")}`,
     prompt,
   }));
+  return bootstrapFromItems(doc, "synthetic", items, opts);
+}
 
+/** Build a content-addressed set from adapter-validated, reviewed source items. */
+export function bootstrapFromItems(
+  doc: SkillDoc,
+  source: EvalSetSource,
+  items: readonly EvalItem[],
+  opts: BootstrapOptions = {},
+): EvalSet {
+  const evalSetVersion = opts.evalSetVersion ?? "1.0.0";
+  const lineageParent = opts.lineageParent ?? null;
+  const quick = opts.quick ?? false;
+  items = structuredClone(items);
   let refreshDueAt: string | null = null;
   if (!quick) {
     const now = opts.now ?? new Date(0).toISOString();
@@ -157,7 +166,7 @@ export function bootstrap(doc: SkillDoc, opts: BootstrapOptions = {}): EvalSet {
   // included so two sets bootstrapped at different times remain distinguishable.
   const hash = hashValue({
     skillId: doc.skillId,
-    source: "synthetic",
+    source,
     items,
     evalSetVersion,
     lineageParent,
@@ -168,12 +177,12 @@ export function bootstrap(doc: SkillDoc, opts: BootstrapOptions = {}): EvalSet {
   // derive deterministically from skillId + source for root sets. The derived id
   // is stable across re-bootstraps with the same skillId, which is exactly what
   // we need: the lineage_id must not change when the eval set is refreshed.
-  const lineageId = opts.lineageId ?? hashToUuidv7Format(`lineage:${doc.skillId}:synthetic`);
+  const lineageId = opts.lineageId ?? hashToUuidv7Format(`lineage:${doc.skillId}:${source}`);
 
   return {
     hash,
     skillId: doc.skillId,
-    source: "synthetic",
+    source,
     items,
     evalSetVersion,
     lineageParent,

@@ -1,9 +1,14 @@
 import { defineConfig } from "vitest/config";
+import { testScopes } from "./scripts/workspace-inventory.ts";
 
 export default defineConfig({
   test: {
     globals: true,
-    include: ["packages/*/src/**/*.test.ts", "tests/**/*.test.ts", "scripts/**/*.test.ts"],
+    // The suite launches real CLI/MCP children. Bound worker fan-out on large
+    // shared dev hosts; callers can explicitly override with --maxWorkers.
+    maxWorkers: 2,
+    minWorkers: 1,
+    include: testScopes.map(({ glob }) => glob),
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "json-summary", "html"],

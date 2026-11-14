@@ -8,6 +8,20 @@ describe("parsePolicy", () => {
     expect(policy.forbid_decisions).toEqual(["fail", "error"]);
     expect(policy.advisory_blocks).toBe(false);
     expect(policy.allow_unknown_gates).toBe(true);
+    expect(policy.forbid_providers).toEqual(["stub"]);
+    expect(policy.require_ground_truth).toBe(true);
+  });
+
+  it("accepts the stub-discipline knobs", () => {
+    const policy = parsePolicy({
+      required_gates: ["a:ci:b"],
+      forbid_providers: ["stub", "replay"],
+      require_ground_truth: false,
+    });
+    expect(policy.forbid_providers).toEqual(["stub", "replay"]);
+    expect(policy.require_ground_truth).toBe(false);
+    expect(() => parsePolicy({ required_gates: ["a:ci:b"], forbid_providers: [""] })).toThrow();
+    expect(() => parsePolicy({ required_gates: ["a:ci:b"], require_ground_truth: "no" })).toThrow();
   });
 
   it("accepts explicit knobs", () => {

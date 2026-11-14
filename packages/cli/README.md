@@ -43,7 +43,7 @@ j-rig suite <suite.yaml>              # balanced, resumable Task × Config targe
 j-rig run --task ... --config ...     # generic shell-free task/config raw Run
 j-rig grade --run-id ... --grader ... # named immutable Grade over a completed Run
 j-rig sample-plan --manifest ...      # balanced target-N top-up plan
-j-rig batch --manifest ...            # execute a resumable balanced batch
+j-rig batch --manifest ...            # deprecated: use j-rig suite
 j-rig report --unified ...            # selected-Grader JSON/Markdown/HTML report
 j-rig report --unified ... --html --serve # serve a report on loopback
 j-rig report                         # show results from the SQLite evidence DB
@@ -56,6 +56,104 @@ j-rig refine                         # eval-guided SKILL.md improvement loop
 
 `j-rig eval <skill-dir>` expects an `eval-spec.yaml` (or `--spec <path>`) and
 writes evidence to a local SQLite DB (`--db <path>`, default `j-rig.db`).
+
+### Execute MCP tools during skill evaluation
+
+Pass `--mcp-config ./eval-mcp.json` to let the execution model call explicitly
+configured stdio MCP servers. Without this option, execution stays a single
+text completion. This option requires a real provider and functional evaluation;
+it does not discover commands from a skill or ambient MCP configuration.
+
+```json
+{
+  "servers": {
+    "outreach": {
+      "command": "/absolute/path/to/server",
+      "args": ["--stdio"],
+      "cwd": "./fixture-workspace",
+      "env": ["OUTREACH_FIXTURE_PATH"],
+      "tools": ["search_properties", "get_property"]
+    }
+  },
+  "limits": {
+    "maxTurns": 8,
+    "maxCalls": 32,
+    "maxResultBytes": 65536,
+    "maxTotalBytes": 1048576,
+    "timeoutMs": 60000
+  }
+}
+```
+
+Replace the example command and tool names with those your server supports.
+`cwd` is relative to the configuration file. `env` lists names to copy from the
+CLI environment, in addition to the MCP SDK's small default environment (such
+as `PATH` and `HOME`); it never contains literal secret values. Missing listed
+variables or tools refuse execution. The model sees names such as
+`outreach__search_properties`. Only the listed tools are exposed. Commands run
+without a shell, with the user's filesystem/network permissions: this is not a
+sandbox. Use disposable fixtures for tools with effects.
+
+Each test case gets fresh server processes, including each `--baseline-check`
+case with the same capabilities and no skill body. Fresh processes do not reset
+databases or other external state; the operator must isolate that state.
+Trigger and judge calls remain separate and receive no tools. All model turns
+are metered; provider billing and the extra baseline cost still apply.
+
+The displayed limits are the defaults. Limits bound model turns, attempted
+calls, individual tool results, accumulated model/tool text and arguments, and
+execution time. Tool definitions and transport messages have separate size
+bounds. Calls in a turn are validated before any of them runs. Unknown tools,
+malformed protocol data, exceeded limits, and transport failures produce failed
+execution evidence, not a model-quality verdict. An MCP `isError` tool result
+is returned to the model for correction. Server processes are closed after
+each case; cleanup cannot undo effects or guarantee termination of detached
+descendants created by a server.
+
+Private files next to the DB (`<db>.execution-*/skill.json` or `baseline.json`)
+retain final text, status, attempted-call counts and tool event receipts. The
+DB records each file's hash; `--emit-bundle` includes matching hashes/counts in
+`metadata.tool_execution`. By default receipts omit prompts, raw tool arguments/results,
+environment values and server stderr. Final model text can still contain tool
+data, so treat the local files as private. These are observations, not proof
+that a tool's claims or real-world effects were correct; task-specific checks
+must verify those outcomes. The configuration hash does not pin server code,
+environment values or external state.
+
+### Opt in to tool observations for judges
+
+Set `"judgeObservations": true` at the top level of the explicit MCP JSON configuration
+to retain bounded actual call arguments/results and forward them to the selected judge
+provider. The default remains counts only. This is consent to share tool data with that
+provider, including any personal or business data tools return; it is not a sandbox or
+complete secret/PII scrubber. Known credential values from credential-named environment
+variables, credential fields, and common credential prefixes are redacted in the observation
+copy. Normal tool conversations and final model output are not scrubbed by this option.
+
+Each private execution receipt then includes a `tool-observations.json` artifact with
+schema `jrig-tool-observations/v1`, the runtime-owned session UUID, redaction version,
+and ordered calls (`id`, `tool`, `arguments`, `status`, and completed `result`). No skill
+body, system messages, assistant reasoning, or tool definitions are copied into it.
+Both judge adapters receive the exact artifact as untrusted data and no MCP tools.
+A completed MCP `isError` response remains an observed error response, not success.
+A response claiming approval is evidence of that response; host approval and actual
+store effects still need independent task-specific checks.
+
+Skill and baseline contexts stay separate. Portable `tool_execution.receipts[].judge_contexts`
+contains only case/session identity, SHA-256 and byte count; matching private receipts
+bind those exact contexts to phase, run and configuration hash. The grader snapshot
+records the opt-in schema and configuration hash. Consumers can hash each private
+artifact's UTF-8 content and compare it with the portable reference before auditing
+which observations the judge received. Arguments/results never enter the portable
+bundle through these references.
+
+Observation artifacts have a separate serialized `maxTotalBytes` bound (including JSON
+encoding overhead), while existing argument/result/turn/call/time limits still apply.
+A bound may refuse execution after an earlier effect; it cannot undo that effect.
+Interrupted or failed executions retain bounded partial observations and are not judged.
+
+### Evaluation evidence
+
 When `--emit-bundle <path>` is used, each `j-rig:local:<skill>.<model>` row
 also carries the versioned `j-rig/skill-promotion/v1` identity, grader,
 threshold, and regression metadata. A row with no `--regression-baseline` is
@@ -95,9 +193,10 @@ model. See
 
 `j-rig sample-plan` reads a YAML manifest of explicit Task × Config × Model
 cells and reports the next balanced sample indices needed to reach `--target-n`.
-`j-rig batch` consumes a path-based suite manifest, executes those jobs in
-balanced passes, and resumes from the immutable raw-run ledger; `j-rig suite`
-plans and executes the same jobs from one manifest. These surfaces retain
+`j-rig suite` plans, executes, grades and reports these jobs from one manifest
+and resumes from the immutable raw-run ledger. `j-rig batch` is deprecated in
+favour of `suite`; it still works, prints a notice, and is removed in the release
+after the one that first ships the notice. These surfaces retain
 runner failures instead of converting them into model grades. See
 `000-docs/033-AT-SPEC-balanced-sampling-uncertainty-2026-08-01.md`.
 
@@ -135,6 +234,18 @@ fresh sample indices needed after harness failures. Existing `run`, `grade`,
 compatibility seams. See
 `000-docs/036-AT-SPEC-eval-suite-lifecycle-2026-08-01.md` for the manifest
 schema, validation diagnostics, and migration path.
+
+Each fresh MCP execution generates a correlation ID. The runtime passes it to
+configured children as `JRIG_EXECUTION_SESSION_ID`, overriding any ambient value,
+and retains it in a `tool-session.json` output artifact inside the private
+execution receipt. Skill and naked-baseline sessions get different IDs. A
+scenario host can record that value in its own private trace and join on exact
+identity; do not infer association from call counts or file creation times.
+The ID remains available after a partial tool failure once session initialization
+succeeds. It is correlation metadata, not authentication, attestation of a child
+process, or evidence that the skill's behavior passed. It adds no model-visible
+tool or judge capability. Runtimes without an identity keep their existing
+artifact behavior.
 
 ## Providers
 
@@ -199,3 +310,210 @@ A built-in `stub` provider exists for pipeline plumbing only. It is gated behind
 ## License
 
 Apache-2.0 © Jeremy Longshore / Intent Solutions
+
+### Trigger evidence
+
+Every `eval` model result now carries `trigger` with schema
+`jrig-trigger-evidence/v1`, status, metrics, per-case expected/selected/outcome and
+a SHA-256 reference. The local SQLite `trigger-evidence` artifact binds that
+reference to a fresh mode-0600 receipt in a mode-0700 directory; the receipt also
+retains prompts and routing reasoning. Portable bundle metadata carries the same
+summary without prompts or reasoning. Consumers can recompute metrics from the
+recorded cases and verify the private receipt against its digest.
+
+Status is `skipped` for `--no-trigger`, `not_applicable` when no cases declare
+trigger expectations, `complete` when all applicable routing calls returned, and
+`incomplete` on any routing-provider error. Complete describes measurement
+coverage: an incorrect selection remains an explicit false-positive,
+false-negative or sibling-confusion outcome. It does not imply correct routing.
+Only complete trigger measurement appears in `dimensionsEvaluated`; the other
+statuses appear in `dimensionsSkipped` and remain distinguishable in metadata.
+
+A trigger-provider error follows the existing infrastructure-failure rule:
+`gate_decision: error`, no promotion evidence, failed stored run and exit 2 after
+artifacts are flushed. Trigger-only execution also retains its artifact and
+machine-readable error. Trigger and judge calls continue to receive no MCP tools.
+
+### Bundled frontmatter parser
+
+The CLI inlines the existing `gray-matter` parser and the YAML modules it uses.
+It does not install the parser's unused YAML command-line dependency chain
+(`argparse` 1.x and `sprintf-js`) in consumer projects. SKILL.md and AGENTS.md
+parsing use the same implementation and schemas. Bundled component copyrights
+and licenses are included in `THIRD_PARTY_LICENSES.txt`; refresh that file when
+updating the bundled parser dependencies.
+
+Bundling removes the unused formatter chain from the CLI's installed dependency
+tree without changing the parser. The 2026-10-19 workspace audit still reported
+GHSA-hp3w-g68c-fv3c through the private core's `gray-matter` dependency.
+[GitHub withdrew that advisory](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)
+on 2026-10-22 because exception handling belongs to the calling application.
+Withdrawal is not an upstream patch or a new dependency-audit result. Keep
+auditing workspace dependencies and the packed CLI: consumer `npm audit` cannot
+inspect inlined modules. No advisory suppression or new package publication is
+claimed by this documentation correction.
+
+Refs bead `bd_000-projects-code`.
+
+## Retain rollouts for reviewed bootstrap
+
+`j-rig eval <skill-dir> --rollout-file <new-file.json>` explicitly retains actual
+functional prompts and outputs in a mode-0600 file without overwriting existing
+evidence. The export includes skill/spec identity, run/model/provider identity,
+and completion states. It is local evidence, not a signed statement. Failed,
+partial, budget-stopped, and stub exports are refused by harvested bootstrap.
+Use `j-rig refine bootstrap --harvest-file <file> --review-file <review>` with
+independently reviewed expectations; see [the Refiner source schemas](../refiner/README.md#bootstrap-from-retained-rollouts-or-golden-traces).
+
+### Evaluator cost completeness
+
+Provider results now use nullable token usage. Missing/malformed measurements
+and failed/interrupted calls appear as unknown in `cost.usage_evidence`, using
+the shared `evaluation-usage/v1` contract. `cost.total` contains known token
+subtotals; inspect `usage_complete` and `unknown_calls` before treating them as
+complete. The advisory price table leaves unmeasured calls and unpriced cache
+writes as null USD. Requested and reported model identities remain distinct.
+DeepSeek V4 Flash legacy aliases now resolve to V4.1-Flash-1017; the advisory
+table uses official peak rates, so its direct API cost estimate is conservative
+for off-peak calls. It does not model the provider's changing peak window.
+
+`--max-tokens` and `--max-usd` stop after unknown settled usage, and phase
+boundaries check the final call as well as subsequent-call admission. These
+remain soft caps for in-flight requests, not hard dollar reservations. See
+budget spec 047 and Refiner API029 §8.10; full Wave B accounting is tracked in
+`bd_000-projects-214c.18` / issue #403.
+
+Subscription execution records intent before each process launch and settles
+failed/interrupted attempts as well as successful ones. Missing/invalid usage is
+unknown, not zero; cache-write and TTL buckets are preserved. Cost JSON is
+retained even with a stub judge. A nonzero process exit is an execution error even
+when a result event arrived. Subscription report keys distinguish API-equivalent
+cost from billed usage, while call evidence keeps requested and reported model
+identities separate. Cache writes still lack advisory rates; hard USD admission
+and Wave B accounting remain open in 214c.18 / #403. See Refiner API029 §8.11.
+
+### Opt-in judge endpoint pacing
+
+`j-rig eval PATH --judge-requests-per-minute 30` limits completion request
+starts at selected judge endpoints to at least 2,000 ms apart. The explicit
+integer range is 1–60,000 (millisecond scheduling resolution), not a vendor
+quota declaration. With no option, existing dispatch behavior is unchanged.
+One invocation owns the queue across criteria, outcomes, baseline runs and
+models. Trigger/execution requests sharing a selected endpoint also count;
+other endpoints, quota lookups and other processes are outside this limit.
+This does not promise account-wide quota compliance or unlimited throughput.
+
+Admission occurs before wire cost reservation. Waiting consumes the existing
+call timeout and run wall budget; cancellation or exhausted admission refuses
+further sends. Logical attempted-call reporting remains distinct from actual
+wire reservations, including MiniMax's permitted recovery attempt. MiniMax's
+existing quota checks, circuit and single bounded recovery are preserved; its
+one-second start floor combines with the configured interval using the larger
+constraint. Successful completions are never replayed by the pacing layer.
+The exact versioned policy is retained in execution metadata and the selected
+grader snapshot digest. Before provider dispatch, each paced run also records a
+private `request-pacing` artifact in SQLite with the exact versioned policy,
+run ID, judge provider/model, byte count and content hash. File contents are
+published by rename before the database link; caught persistence failures clean
+only their owned directory and mark the run failed. No endpoint or credential
+is stored in that receipt. Default-off runs create no pacing artifact.
+No schedule, provider default, samples, verdict rule or
+paid benchmark is changed. The quality-per-dollar comparison remains separate
+work under `j-rig-binary-eval-6yq.3`.
+
+### Fixed-output judge replay (source preparation)
+
+`j-rig judge-replay` compares a selected judge with explicit reviewed labels over
+fixed prompt/output bytes. It never executes the skill or invents a gold verdict.
+This lane supports the native DeepSeek, Groq and NVIDIA presets, plus Cloudflare
+Workers AI through its OpenAI-compatible endpoint, one provider/model per
+invocation. Cloudflare uses `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`; the current new-model candidate is
+`@cf/thinkingmachines/inkling-2-small`. It neither enables a schedule nor changes
+ordinary evaluator defaults. Other provider families are not accepted by this
+local replay policy.
+
+```bash
+j-rig judge-replay --corpus corpus.json --review review.json \
+  --policy replay-policy.json --output private-plan
+```
+
+The default is **planning only**: no credentials, cost ledger or provider transport
+are opened. A new private output directory retains the exact corpus/review bytes
+and a `planned` receipt. Execution additionally requires `--execute`,
+`--cost-policy`, `--cost-ledger` and `--cost-file-id`. Reusing an existing output
+directory is refused. Live-call authorization is not established merely by
+preparing these inputs.
+
+Cloudflare's documented Inkling 2 Small rate is $0.30/M input, $1.00/M output
+and $0.10/M cached input tokens as of 2026-11-13. It requires Workers Paid or
+prepaid AI Gateway credits; standard Workers Free billing does not provide
+access to this model. Set those rates in the explicit cost policy for an
+authorized replay. Rates can change and the ledger is an estimate, not an
+invoice. See Cloudflare's [model page](https://developers.cloudflare.com/workers-ai/models/inkling-2-small/)
+and [OpenAI-compatible endpoint docs](https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/).
+
+The CLI-local unsigned corpus uses `j-rig/judge-replay-corpus/v1`, an asserted
+`source` object (`revision`, `artifact_sha256`), and unique `rows`. Each row has
+`id`, `criterion` (`id`, `description`, optional `judge_prompt`), `prompt` and
+`output`. Empty output is valid observed data. Source revision/digest are caller
+assertions: this command does not load or verify the original source artifact.
+The supplied corpus itself is bound by its exact UTF-8 byte digest.
+
+The separate `j-rig/judge-replay-review/v1` document requires that exact
+`corpus_sha256`, nonempty `reviewer`, `reviewed_at`, `reviewed: true`, and exactly
+one label per row: `id`, `expected_verdict` (`yes` or `no`), and `rationale`.
+This is an explicit unsigned human attestation, not proof of reviewer identity.
+A generated fixture is never human-anchored benchmark evidence. Review dates may
+not be in the future; duplicates, missing labels, unknown fields, a UTF-8 BOM, malformed UTF-8
+and documents over 4 MiB are refused.
+
+The policy explicitly declares `provider`, concrete `model`, `samples` (1–25),
+`repeats` (1–100), `temperature` (0–2), `requests_per_minute` (1–60000),
+`judge_timeout_ms` (at most 120000), `max_wall_ms` (at most 86400000), and
+`max_calls` (at most 10000). The planned sample count must fit the call cap.
+No vendor availability, price or account quota is inferred from these values.
+
+Execution uses existing judge majority/error semantics, sequential samples,
+run-scoped transport pacing and governed per-wire reservations. An explicit
+`refiner-cost-policy/v1` must contain an exact provider/model rate and explicit
+file token/attempt bounds. The native judge's existing 2048 output-token ceiling
+also must fit the caller-supplied rate limits. Rates and cost outcomes are caller-supplied-rate
+estimates and reservation evidence, not provider invoices. The policy schema
+does not establish rate-review provenance; verified billing remains unavailable. Missing/unknown usage
+stays unknown in the ledger. No automatic retry layer is added.
+
+`report.json` retains input/policy hashes, configured provider/model and endpoint
+digest (never raw endpoint or credentials), sample observations, majority results,
+planned/completed/unstarted cell counts, failures, repeat disagreements and governed cost
+outcomes. Failed or stopped cells remain in the planned accuracy denominator.
+`provider_invocations` counts entries into the judge adapter, not network calls.
+`admission_refused_samples` includes refusal before entry or inside governed
+transport admission; each sample records whether the provider was invoked.
+`failed_samples` counts other failures after adapter entry. Actual network-bound
+transport invocations are reported separately as `wire_calls`. Unstarted cells
+are not fabricated failed sample observations.
+
+Any missing, refused or failed planned sample makes the replay incomplete.
+`completed_cells` counts fully sampled cells; `judged_cells` includes aggregate
+judgments with surviving samples and `degraded_cells` exposes the difference.
+Partial sample loss remains an `unsure` vote as in the existing engine; its
+aggregate contributes to planned-denominator accuracy but not clean repeat
+stability. Fully failed judgments do not count as judged cells. A completed replay may have zero accuracy:
+exit zero means the measurement completed, not that the judge passed a quality
+gate. No rollout or calibration acceptance threshold is invented here.
+
+Unsupported no-follow or nonblocking file primitives are refused before opening
+inputs; the current qualification target is Linux. Configuration/cost admission
+failures after plan publication retain a separate terminal failure receipt. A plan
+always remains `executed: false`, even when execution was requested.
+
+Files are created mode 0600 under a new mode 0700 directory. Publication is an
+atomic file rename, not a transaction with the separate cost ledger or a crash
+recovery guarantee. If report publication fails after cost sealing, a terminal
+failure receipt preserves the existing `scored` cost outcome: it is never replaced
+or followed by a conflicting `failed` ledger outcome. Cost accounting completion
+is distinct from report publication. Preserve incomplete plans/ledgers after interruption; do not
+promote them to completed benchmark evidence. Human-label review, current model
+and rate verification, and the live comparison remain under
+`j-rig-binary-eval-6yq.3`; source work is `bd_000-projects-yh7ej`.

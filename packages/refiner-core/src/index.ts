@@ -57,7 +57,7 @@ export { sha256, canonicalJson, hashSkillDoc, hashValue } from "./hash.js";
 
 // Pure operations
 export { applyEdit, makeSkillDoc, EditApplicationError } from "./apply.js";
-export { bootstrap, type BootstrapOptions } from "./bootstrap.js";
+export { bootstrap, bootstrapFromItems, type BootstrapOptions } from "./bootstrap.js";
 export {
   accept,
   isSignificantImprovement,
@@ -119,6 +119,8 @@ export type {
 export { decide } from "./decide.js";
 
 // Eval-set quality metrics — coverage, leakage, calibration, adversarialPassRate (bead 214c.11)
+export { capabilityCoverage } from "./capability-coverage.js";
+export type { CapabilityManifest, CapabilityCoverageResult } from "./capability-coverage.js";
 export type {
   AdversarialEvalItem,
   CoverageBreakdown,
@@ -184,3 +186,39 @@ export {
   computeAdoptionVerdict,
   toAdoptionObservations,
 } from "./adoption.js";
+
+export {
+  createRefinerExperiment,
+  validateProposedRefinerExperiment,
+  type RefinerExperiment,
+  type CreateRefinerExperimentInputs,
+  type ChangeProposal,
+  type Experiment,
+  type ExperimentStatus,
+} from "./optimizer.js";
+
+export {
+  EvaluationTokenUsageSchema,
+  EvaluationCallSchema,
+  EvaluationUsageEvidenceSchema,
+  type EvaluationTokenUsage,
+  type EvaluationCall,
+  type EvaluationUsageEvidence,
+} from "./evaluation-usage.js";
+export {
+  CostPolicySchema,
+  CostRateSchema,
+  priceCostUsage,
+  reserveCost,
+  costStopMicros,
+  safeMicros,
+} from "./cost-policy.js";
+export type { CostPolicy, CostRate } from "./cost-policy.js";
+export {
+  CostEventSchema,
+  replayCostLedger,
+  type CostEvent,
+  type CostLedgerState,
+  type CostRollup,
+} from "./cost-ledger.js";
+export { CostContextSchema, type CostContext } from "./cost-policy.js";

@@ -65,8 +65,8 @@ export class ProviderError extends Error {
     this.providerName = args.providerName;
     this.retryable = args.retryable ?? defaultRetryableFor(args.category);
     this.originalError = args.originalError;
-    // Preserve prototype chain for cross-bundle instanceof
-    Object.setPrototypeOf(this, ProviderError.prototype);
+    // Preserve derived error identity (including partial tool-execution evidence).
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 

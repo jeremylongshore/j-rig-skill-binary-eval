@@ -1,11 +1,20 @@
 export { CriterionSchema, CriterionMethod, type Criterion } from "./criterion.js";
 
-export { TestCaseSchema, TestCaseTier, TriggerExpectation, type TestCase } from "./test-case.js";
+export {
+  TestCaseSchema,
+  TestCaseTier,
+  TriggerExpectation,
+  type TestCase,
+  isFunctionallyExecuted,
+  adversarialCaseScopeIssue,
+} from "./test-case.js";
 
 export {
+  EvalBudgetSchema,
   SkillEvalSpecSchema,
   ModelTarget,
   SiblingSkillSchema,
+  type EvalBudget,
   type SkillEvalSpec,
   type SiblingSkill,
 } from "./skill-eval-spec.js";

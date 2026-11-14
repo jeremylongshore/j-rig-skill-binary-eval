@@ -45,6 +45,28 @@ describe("redactProviderError — credential boundary for judge errors", () => {
     expect(out).toBe("upstream said: [redacted]");
   });
 
+  it.each([
+    "invalid_tool_call",
+    "incomplete_response",
+    "observation_identity_missing",
+    "call_or_output_limit",
+  ])("retains the exact static runtime diagnostic %s", (reason) => {
+    const message = `tool_execution/${reason}`;
+    expect(redactProviderError(message)).toBe(message);
+  });
+
+  it("does not exempt runtime prefixes or credential-bearing suffixes", () => {
+    const secret = "abcdefghijklmnopqrstuvwxyz0123456789";
+    for (const message of [
+      `tool_execution/${secret}`,
+      `tool_execution/invalid_tool_call token=${secret}`,
+      `tool_execution/incomplete_response ${secret}`,
+    ]) {
+      expect(redactProviderError(message)).not.toContain(secret);
+    }
+    expect(redactProviderError("tool_execution/invalid_tool_call_untrusted")).toBe("[redacted]");
+  });
+
   it("truncates to the signed-reason budget", () => {
     const out = redactProviderError("x ".repeat(1000));
     expect(out.length).toBeLessThanOrEqual(MAX_PROVIDER_ERROR_CHARS);

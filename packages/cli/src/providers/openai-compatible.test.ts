@@ -193,8 +193,8 @@ describe("RealOpenAICompatProvider.complete — wire format", () => {
 
     expect(result.text).toBe("hello world");
     expect(result.finishReason).toBe("stop");
-    expect(result.usage.inputTokens).toBe(10);
-    expect(result.usage.outputTokens).toBe(5);
+    expect(result.usage?.inputTokens).toBe(10);
+    expect(result.usage?.outputTokens).toBe(5);
   });
 
   it("maps finish_reason=length to finishReason=length", async () => {
@@ -656,7 +656,7 @@ describe("RealOpenAICompatProvider — streaming, batch, normalization", () => {
       model: "m",
       messages: [{ role: "user", content: "x" }],
     });
-    expect(result.usage.cachedInputTokens).toBe(4);
+    expect(result.usage?.cachedInputTokens).toBe(4);
   });
 
   it("threads a tool-result (role:tool) message into the wire shape", async () => {
@@ -770,16 +770,16 @@ describe("RealOpenAICompatProvider.callTool — variants", () => {
     expect(r.toolArguments).toEqual({ a: 1 });
   });
 
-  it("returns {} for unparseable string tool arguments", async () => {
-    const { transport } = fakeTransport(toolResponse("not-json"));
-    const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
-    const r = await p.callTool({
-      model: "m",
-      messages: [{ role: "user", content: "x" }],
-      tools: [tool],
-    });
-    expect(r.toolArguments).toEqual({});
-  });
+  it.each(["not-json", null, undefined, [], 12])(
+    "refuses malformed tool arguments (%j) instead of invoking an empty-argument call",
+    async (args) => {
+      const { transport } = fakeTransport(toolResponse(args));
+      const p = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+      await expect(
+        p.callTool({ model: "m", messages: [{ role: "user", content: "x" }], tools: [tool] }),
+      ).rejects.toMatchObject({ category: "schema_violation", message: "invalid_tool_arguments" });
+    },
+  );
 
   it("returns a no-tool result when the model called no tool", async () => {
     const { transport } = fakeTransport(textResponse("just text", "stop"));
@@ -898,4 +898,24 @@ describe("stripThinkBlock — reasoning-model content normalization", () => {
     const s = "answer first, then <think>not a reasoning prefix</think>";
     expect(stripThinkBlock(s)).toBe(s);
   });
+});
+
+describe("execution reasoning effort", () => {
+  it.each([undefined, "none", "low", "medium", "high", "max"] as const)(
+    "forwards %s on plain execution only",
+    async (effort) => {
+      const { transport, lastRequest } = fakeTransport(textResponse("answer"));
+      const provider = new RealOpenAICompatProvider({ apiKey: KEY, baseUrl: BASE, transport });
+      await new OpenAICompatExecutionProvider("m", provider, effort).execute("prompt", {
+        skill_body: "original skill",
+      });
+      const body = lastRequest()!.body as Record<string, unknown>;
+      if (effort === undefined) expect(body).not.toHaveProperty("reasoning_effort");
+      else expect(body.reasoning_effort).toBe(effort);
+      await new OpenAICompatTriggerProvider("m", provider).selectSkill("prompt", []);
+      expect(lastRequest()!.body).not.toHaveProperty("reasoning_effort");
+      await new OpenAICompatJudgeProvider("m", provider).judge("c", "p", "o");
+      expect(lastRequest()!.body).not.toHaveProperty("reasoning_effort");
+    },
+  );
 });

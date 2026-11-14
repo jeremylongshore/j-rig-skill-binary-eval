@@ -127,6 +127,16 @@ export const OtelAttrs = {
   GATE_POLICY_REF: "gate.policy_ref",
 
   // cost.run.recorded payload (minted here — see the cost.* note on OtelEvents).
+  REFINER_ATTEMPT_ID: "refiner.attempt_id",
+  REFINER_FILE_ID: "refiner.file_id",
+  REFINER_POLICY_HASH: "refiner.policy_hash",
+  COST_RECORD_SCOPE: "cost.record.scope",
+  COST_FILE_KNOWN_USD: "cost.file.known_usd",
+  COST_FILE_COMMITTED_USD: "cost.file.committed_usd",
+  COST_FILE_ACCEPTED: "cost.file.accepted",
+  COST_FILE_PER_ACCEPT_USD: "cost.file.per_accept_usd",
+  COST_OUTCOME: "cost.outcome",
+  COST_P0: "cost.p0",
   COST_RUN_TOTAL_INPUT_TOKENS: "cost.run.total_input_tokens",
   COST_RUN_TOTAL_OUTPUT_TOKENS: "cost.run.total_output_tokens",
   COST_RUN_TOTAL_CALLS: "cost.run.total_calls",
@@ -136,12 +146,15 @@ export const OtelAttrs = {
   // endpoints), and "unknown shown as free" is measured-wrong.
   COST_RUN_ESTIMATED_USD: "cost.run.estimated_usd",
   COST_RUN_USD_KNOWN: "cost.run.usd_known",
+  COST_RUN_USAGE_COMPLETE: "cost.run.usage_complete",
+  COST_RUN_UNKNOWN_CALLS: "cost.run.unknown_calls",
 
   // cost.phase.recorded payload (minted here — see the cost.* note on OtelEvents).
   COST_PHASE_NAME: "cost.phase.name",
   COST_PHASE_INPUT_TOKENS: "cost.phase.input_tokens",
   COST_PHASE_OUTPUT_TOKENS: "cost.phase.output_tokens",
   COST_PHASE_CALLS: "cost.phase.calls",
+  COST_PHASE_UNKNOWN_CALLS: "cost.phase.unknown_calls",
   // Judge phase only: the resolved samples-per-criterion multiplier — the ×N
   // that multi-sample majority voting applies to judge cost.
   COST_PHASE_JUDGE_SAMPLES: "cost.phase.judge_samples_default",

@@ -1,3 +1,7 @@
+import { CostAdmissionError } from "@intentsolutions/refiner";
+import { mapProviderUsage, reportedModel } from "./usage.js";
+import { formatJudgeObservations } from "@j-rig/core";
+import { executeWithTools, modelToolCall } from "./tool-execution.js";
 /**
  * Real Anthropic provider adapters (iaj-E10 dogfood).
  *
@@ -95,17 +99,14 @@ function mapFinishReason(raw: unknown): FinishReason {
   }
 }
 
-function mapUsage(raw: unknown): TokenUsage {
-  const u = (raw ?? {}) as Record<string, unknown>;
-  const usage: TokenUsage = {
-    inputTokens: typeof u.input_tokens === "number" ? u.input_tokens : 0,
-    outputTokens: typeof u.output_tokens === "number" ? u.output_tokens : 0,
-  };
-  if (typeof u.cache_read_input_tokens === "number") {
-    usage.cachedInputTokens = u.cache_read_input_tokens;
-  }
-  return usage;
-}
+/**
+ * Normalize to the TokenUsage convention the other adapters follow:
+ * `inputTokens` is ALL input (uncached + cache writes + cache reads) and
+ * `cachedInputTokens` is the cache-read subset. The Messages API reports
+ * `input_tokens` excluding both cache buckets, so they are added back here;
+ * otherwise the cost meter would under-count cached Anthropic input.
+ */
+const mapUsage = (raw: unknown): TokenUsage | null => mapProviderUsage(raw, "anthropic");
 
 /**
  * Split the j-rig ChatMessage[] into the Anthropic `system` string + the
@@ -136,7 +137,21 @@ function toAnthropicPayload(messages: ChatMessage[]): {
       });
       continue;
     }
-    out.push({ role: m.role, content: m.content });
+    out.push({
+      role: m.role,
+      content:
+        m.role === "assistant" && m.toolCalls
+          ? [
+              ...(m.content ? [{ type: "text", text: m.content }] : []),
+              ...m.toolCalls.map((call) => ({
+                type: "tool_use",
+                id: call.id,
+                name: call.name,
+                input: call.arguments,
+              })),
+            ]
+          : m.content,
+    });
   }
   return {
     system: systemParts.length > 0 ? systemParts.join("\n\n") : undefined,
@@ -254,6 +269,7 @@ export class RealAnthropicProvider implements Provider {
       text,
       model: req.model,
       usage: mapUsage((res.json as Record<string, unknown>).usage),
+      reportedModel: reportedModel(res.json),
       finishReason: mapFinishReason((res.json as Record<string, unknown>).stop_reason),
     };
     if (req.responseSchema !== undefined) {
@@ -269,7 +285,12 @@ export class RealAnthropicProvider implements Provider {
     if (completion.text.length > 0) {
       yield { type: "text_delta", delta: completion.text };
     }
-    yield { type: "finish", finishReason: completion.finishReason, usage: completion.usage };
+    yield {
+      type: "finish",
+      finishReason: completion.finishReason,
+      usage: completion.usage,
+      reportedModel: completion.reportedModel,
+    };
   }
 
   async callTool(req: CompletionRequest & { tools: ToolDefinition[] }): Promise<ToolCallResult> {
@@ -279,6 +300,7 @@ export class RealAnthropicProvider implements Provider {
       model: resolveAnthropicModel(req.model),
       max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
       messages,
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(system !== undefined ? { system } : {}),
       tools: req.tools.map((t) => ({
         name: t.name,
@@ -296,11 +318,11 @@ export class RealAnthropicProvider implements Provider {
     const text = extractText(json);
     const usage = mapUsage(json.usage);
     const blocks = Array.isArray(json.content) ? json.content : [];
-    const toolUse = blocks.find(
+    const toolUses = blocks.filter(
       (b): b is Record<string, unknown> =>
         typeof b === "object" && b !== null && (b as Record<string, unknown>).type === "tool_use",
     );
-    if (!toolUse) {
+    if (!toolUses.length) {
       return {
         toolName: null,
         toolArguments: null,
@@ -308,18 +330,19 @@ export class RealAnthropicProvider implements Provider {
         text,
         finishReason: mapFinishReason(json.stop_reason),
         usage,
+        reportedModel: reportedModel(res.json),
       };
     }
+    const calls = toolUses.map((call) => modelToolCall(this.name, call.id, call.name, call.input));
     return {
-      toolName: typeof toolUse.name === "string" ? toolUse.name : null,
-      toolArguments:
-        typeof toolUse.input === "object" && toolUse.input !== null
-          ? (toolUse.input as Record<string, unknown>)
-          : null,
-      toolCallId: typeof toolUse.id === "string" ? toolUse.id : null,
+      toolName: calls[0]!.name,
+      toolArguments: calls[0]!.arguments,
+      toolCallId: calls[0]!.id,
+      ...(calls.length > 1 ? { toolCalls: calls } : {}),
       text,
-      finishReason: "tool_use",
+      finishReason: mapFinishReason(json.stop_reason),
       usage,
+      reportedModel: reportedModel(res.json),
     };
   }
 
@@ -355,6 +378,7 @@ export class RealAnthropicProvider implements Provider {
         signal,
       });
     } catch (err) {
+      if (err instanceof CostAdmissionError) throw err;
       throw errorForThrow(err);
     }
   }
@@ -444,6 +468,43 @@ export class AnthropicExecutionProvider implements ExecutionProvider {
   ): Promise<ExecutionOutput & { meta: ExecutionMeta }> {
     const started = new Date();
     const model = options?.model ?? this.#model;
+    if (context.tool_runtime) {
+      const result = await executeWithTools(
+        this.#provider,
+        {
+          model,
+          messages: [
+            { role: "system", content: context.skill_body },
+            { role: "user", content: prompt },
+          ],
+          maxTokens: 1024,
+          ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        },
+        {
+          open: (signal) => context.tool_runtime!.open(signal),
+          ...(context.tool_runtime.judgeObservations
+            ? { judgeObservations: context.tool_runtime.judgeObservations }
+            : {}),
+          limits: {
+            ...context.tool_runtime.limits,
+            timeoutMs: Math.min(
+              options?.timeout_ms ?? context.tool_runtime.limits.timeoutMs,
+              context.tool_runtime.limits.timeoutMs,
+            ),
+          },
+        },
+      );
+      const completed = new Date();
+      return {
+        ...result,
+        meta: {
+          started_at: started.toISOString(),
+          completed_at: completed.toISOString(),
+          duration_ms: completed.getTime() - started.getTime(),
+          timed_out: false,
+        },
+      };
+    }
     const hasTimeout =
       options?.timeout_ms !== undefined &&
       Number.isFinite(options.timeout_ms) &&
@@ -510,7 +571,8 @@ export class AnthropicJudgeProvider implements JudgeProvider {
       `CRITERION: ${criterion_description}\n\n` +
       `QUESTION: ${question}\n\n` +
       `PROMPT: ${prompt}\n\n` +
-      `OUTPUT:\n${output}`;
+      `OUTPUT:\n${output}` +
+      formatJudgeObservations(options?.observations);
 
     // Judge calls carry the same abort-on-timeout bound as execution calls: a
     // hung endpoint must reject — the engine folds the rejection into an

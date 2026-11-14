@@ -36,17 +36,17 @@ describe("VercelAiProvider — construction + identity", () => {
 
 describe("VercelAiProvider.complete — EC-1 + vendor routing", () => {
   it.each([
-    ["anthropic/claude-sonnet-4", /api\.anthropic\.com/, "claude-sonnet-4"],
-    ["openai/gpt-4o", /api\.openai\.com/, "gpt-4o"],
-    ["google/gemini-2.5-pro", /generativelanguage\.googleapis\.com/, "gemini-2.5-pro"],
+    ["anthropic/claude-sonnet-4", "https://api.anthropic.com", "claude-sonnet-4"],
+    ["openai/gpt-4o", "https://api.openai.com", "gpt-4o"],
+    ["google/gemini-2.5-pro", "https://generativelanguage.googleapis.com", "gemini-2.5-pro"],
   ] as const)(
     "routes %s to the right vendor endpoint with the bare model id",
-    async (model, urlRe, bareId) => {
+    async (model, origin, bareId) => {
       const { transport, calls } = fakeTransport(() => okGenerate("ok"));
       const p = new VercelAiProvider({ apiKey: KEY, transport });
       const result = await p.complete({ model, messages: [{ role: "user", content: "q" }] });
       expect(result.model).toBe(model);
-      expect(calls[0]!.url).toMatch(urlRe);
+      expect(new URL(calls[0]!.url).origin).toBe(origin);
       expect((calls[0]!.body as Record<string, unknown>).model).toBe(bareId);
     },
   );
@@ -383,7 +383,7 @@ describe("VercelAiProvider — normalization edge cases (branch coverage)", () =
     expect(result.finishReason).toBe("stop");
   });
 
-  it("treats a missing text field as empty and missing usage as zero", async () => {
+  it("treats a missing text field as empty and missing usage as unknown", async () => {
     const { transport } = fakeTransport(() => ({ status: 200, json: { finishReason: "stop" } }));
     const p = new VercelAiProvider({ apiKey: KEY, transport });
     const result = await p.complete({
@@ -391,7 +391,7 @@ describe("VercelAiProvider — normalization edge cases (branch coverage)", () =
       messages: [{ role: "user", content: "q" }],
     });
     expect(result.text).toBe("");
-    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(result.usage).toBeNull();
   });
 
   it('coerces a non-object string tool arg (e.g. "5") to an empty object', async () => {

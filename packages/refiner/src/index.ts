@@ -23,6 +23,13 @@
 
 // Persistence (step 4)
 export {
+  assessProposal,
+  type AssessProposalInputs,
+  type AcceptanceQualityEvidence,
+  type AcceptanceQualityPolicy,
+  type ProposalAssessment,
+} from "./assess.js";
+export {
   RefinerStore,
   createNodeFileSystem,
   type FileSystem,
@@ -33,6 +40,8 @@ export {
 // score() adapter (step 5)
 export {
   score,
+  scoreWithEvidence,
+  type ScoredEvaluation,
   createSubprocessEvalRunner,
   ScoreAdapterError,
   type ScoreModelTier,
@@ -54,6 +63,7 @@ export {
   ProposeAdapterError,
   type ProposeModelTier,
   type CompletionClient,
+  type CompletionRequest,
   type CompletionTransport,
   type ProposeModelOptions,
   type AnthropicCompletionClientOptions,
@@ -86,3 +96,30 @@ export {
   type ParsedReport,
   type ScoreRow,
 } from "./report-render.js";
+
+export { bootstrapReviewedSource } from "./bootstrap-sources.js";
+
+export { assessOptimizerExperiment, type OptimizerAssessment } from "./optimizer.js";
+
+export { loadSkillDoc } from "./skill-doc.js";
+
+export { proposeWithEvidence } from "./propose-evidence.js";
+export {
+  readCompletionMeasurement,
+  type CompletionMeasurement,
+  type MeasuredCompletion,
+} from "./completion-usage.js";
+
+export { createAccountingEvalRunner } from "./score-evidence.js";
+export { readEvaluationUsage, type EvaluationUsageMeasurement } from "./score.js";
+export { CostLedger } from "./cost-ledger.js";
+export { createCostTransport, CostAdmissionError, type CostCallContext } from "./cost-transport.js";
+export {
+  openCostSession,
+  costSessionFromOptions,
+  recordCostOutcome,
+  type CostSession,
+  type CostOptions,
+} from "./cost-context.js";
+
+export type { CostOutcomeReport } from "./cost-context.js";

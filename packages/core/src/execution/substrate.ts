@@ -45,6 +45,14 @@ export const RunnerHarnessSchema = z.object({
    * `DEFAULT_MAX_OUTPUT_BYTES` when this is absent.
    */
   max_output_bytes: z.number().int().positive().max(1_073_741_824).optional(),
+  /**
+   * Exit codes that seal a `completed` Run (gradeable) instead of a
+   * `runner_error`. For a CLI under test whose non-zero exits are answers
+   * (e.g. 1 = "validation failed"), so a grader's `exit_code` check can
+   * grade them. Optional with NO schema default (see `max_output_bytes`);
+   * the runner applies `[0]` when absent.
+   */
+  completed_exit_codes: z.array(z.number().int().min(0).max(255)).min(1).optional(),
   cwd: z.string().min(1).optional(),
   env: z.record(z.string(), z.string()).default({}),
 });

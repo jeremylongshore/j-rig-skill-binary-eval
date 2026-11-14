@@ -1,5 +1,182 @@
 # Changelog
 
+## Package releases — 0.5.1 — 2026-10-19
+
+### Fixed
+
+- Bound assessed proposals to 1–8 operations before scoring and pin both judges
+  to reviewed provider/model evidence. Anthropic judge metadata now reports the
+  resolved transport model ID. Refs bead `bd_000-projects-214c.16` / #398.
+
+- `@intentsolutions/jrig-cli` 0.5.1 removes the unused formatter chain from
+  consumer installs, bounds MiniMax plan admission and shared quota/overload recovery, bounds stopped
+  Claude Code workspace cleanup, and binds evidence inspection/read to one file
+  descriptor. Package and bundled dependency licenses ship in the tarball.
+- `@intentsolutions/refiner` 0.5.1 uses POSIX basename for skill IDs without an
+  unanchored regex. `@intentsolutions/refiner-core` 0.5.1 is the required lockstep
+  publication; its runtime sources are unchanged.
+
+### Changed
+
+- The release includes canonical dashboard evidence binding, MCP cancellation
+  test stabilization, the Intent Solutions Select badge, and the TypeScript 6
+  build migration merged since `jrig-cli-v0.5.0` (PRs #360–#377).
+- The nightly roster now budgets the complete serial run and signed-evidence
+  processing. Default MiniMax-M3 functional calls start with a 16,384-token
+  ceiling; explicit token, model, or gateway settings retain their behavior.
+- The 2026-10-19 workspace audit reported the sprintf-js advisory on the unused
+  YAML CLI chain. [GitHub withdrew GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)
+  on 2026-10-22, citing application responsibility for exception handling. This
+  dated correction does not claim a new clean audit, upstream patch or package
+  publication. Consumer audits cannot inspect inlined modules; workspace audits
+  remain required. No advisory is suppressed.
+
+## Unreleased
+
+- Fixed-output judge replay can now use Cloudflare Workers AI through its
+  OpenAI-compatible endpoint, including Inkling 2 Small, with explicit cost
+  admission. Updated DeepSeek V4 Flash estimates to current V4.1 peak rates and
+  added Cloudflare Inkling 2 Small rates; estimates are not invoices.
+
+- Add explicit per-repository roster selection with verified clean checkout pins
+  and confined skill inputs; preserve default roster execution settings.
+  Refs bead `bd_000-projects-qkhp`.
+
+- Add explicit Whiteglove authored-eval import with exact source/fixture binding,
+  bounded executable requests and persisted per-assertion deterministic grading.
+  Import performs no execution; descriptive prose remains ungraded.
+  Refs bead `bd_000-projects-dn6j.8`.
+
+- `fix(eval)`: retain subscription launch attempts and nullable usage through
+  crashes, failed launches and interrupted runs. Preserve cache-write TTLs and
+  requested/reported model identities; nonzero exits stay provider errors.
+  Subscription cost JSON now survives stub judge configurations. API029 §8.11;
+  `bd_000-projects-214c.18` / #403 remains open for hard USD and ledger work.
+
+- Preserve nullable evaluator usage and failed/interrupted provider calls in
+  shared call evidence; persist Refiner scoring receipts before validation.
+  Token/USD soft caps now stop on unknown settled usage, including the final
+  call of a phase. Cost telemetry explicitly identifies incomplete totals.
+  Hard USD reservations and Wave B policy remain in `bd_000-projects-214c.18`.
+
+- Preserve native Refiner completion usage instead of fabricated zeros; legacy or
+  malformed measurements are explicitly null. Persist CLI proposal call intent
+  and outcomes, including usage after parsing failures. USD admission and
+  assessment accounting remain open in `bd_000-projects-214c.18` / #403.
+
+- Bootstrap reviewed harvested rollouts and human-nominated golden traces with
+  source/review provenance, explicit expectations, and lineage-preserving versions.
+  Opt-in `eval --rollout-file` retains actual functional outcomes in a private,
+  non-overwriting file. Refs `bd_000-projects-214c.15` / #397.
+
+### Fixed
+
+- Evidence files are inspected and read through the same open descriptor;
+  file-read and directory-listing failures return structured input errors.
+  Directory rows remain independent reads, not an atomic snapshot.
+- Refiner skill IDs use linear-time POSIX basename handling for trailing
+  slashes. Vendor routing tests compare exact HTTPS origins.
+  Refs bead `bd_000-projects-oq87`.
+
+- Both dashboard emitters (`iaj` release coverage and `jrig` nightly roster)
+  bind signed metadata to kernel-valid canonical statement arrays. Assemblers
+  reject payload, signed metadata and compatibility-body drift; both kernel
+  pins are exercised by interoperability and mutation contracts before signing.
+  Publication identities, decisions and existing triggers are unchanged.
+  Refs bead `bd_000-projects-0s2a`.
+
+- Bound pipe draining after a stopped Claude Code process group is killed, so
+  an escaped descendant cannot indefinitely prevent per-case workspace cleanup.
+  Recorded artifacts and hashes remain available after the directory is removed.
+- Report explicitly retained workspaces even on failure and mark them with
+  `.j-rig-keep` for stale-workspace reapers. Regression coverage checks success,
+  failure, timeout, crash, spawn/setup errors, and the explicit retention flag.
+  Refs bead `bd_000-projects-dn6j.21`.
+- Reject unrelated requests in local HTTP model fixtures before parsing JSON;
+  verify bodyless GET probes without changing completion assertions.
+  Refs bead `bd_000-projects-dn6j.21.2`.
+
+## Unreleased — eval budgets and MiniMax / Claude rates
+
+- `j-rig eval` budgets: `max_usd`, `max_tokens`, `max_wall_ms`, `max_calls`, per spec (`budget:`)
+  and per run (`--max-usd`, `--max-tokens`, `--max-wall-ms`, `--max-calls`; the stricter limit
+  wins). One budget spans every model and phase. A pre-call guard refuses the next call once a
+  limit is reached; the stopped model gets no verdict and no Evidence Bundle row, the run is
+  stored `failed` with a `budget_exhausted` reason, later models are skipped, every result row
+  carries `run_budget`, and the process exits 3. `max_usd` fails closed on an unpriced model.
+- `MODEL_RATES_USD_PER_MTOK` adds MiniMax-M3, MiniMax-M2.7 and MiniMax-M2.7-highspeed (MiniMax
+  pay-as-you-go list) and claude-fable-5-1, claude-opus-5-5, claude-sonnet-5-5,
+  claude-haiku-4-5-20251001 (Anthropic list), each with a cache-read rate and a source/date
+  comment. Subscription-local `claude-code/*` usage is priced at the API rate and labelled not
+  billed; the cost report adds `billed_usd`. Spec: `000-docs/047`.
+
+## Unreleased — structured deterministic checks
+
+- Four deterministic checks: `exit_code`, `json_path` (`exists` / `equals` / `matches` over a
+  single-value JSONPath subset), `file_sha256`, and `schema_valid` (inline JSON Schema pinned to
+  draft 2020-12, Ajv 8.20.0). Params are validated at spec load.
+- In `j-rig eval` criteria they read the response JSON or, with `file:`, a file the claude-code
+  provider observed the run produce; `exit_code` is refused there at load. In `j-rig grade`
+  deterministic graders they read a command Run's stdout, exit code and artifact manifest;
+  existing `output_contains` graders keep their snapshot hash.
+- `harness.completed_exit_codes` (optional, no default) lets a config seal chosen non-zero exits
+  as gradeable `completed` Runs. Spec: `000-docs/046`.
+
+## Unreleased — Claude Code execution provider and trajectory checks
+
+- `j-rig eval --execution-provider claude-code` runs each test case in real Claude Code
+  (`claude -p --output-format stream-json`) in a fresh temp workspace holding a copy of the
+  skill and the case fixtures (`--workspace-fixtures`, `context_hints.workspace_files`), and
+  records every tool call in order and every produced file with its sha256
+  (`ExecutionOutput.trajectory`, `j-rig/trajectory/v1`). `tool_calls` and `artifacts` are now
+  observed instead of hard-coded. Trigger and judge stay on `--provider`.
+- Local Claude subscription only: the provider refuses under CI, passes the agent an
+  allowlisted environment (no `ANTHROPIC_*` or other API keys), copies the access token without
+  the refresh token into a sandbox `HOME`, and aborts if Claude Code reports any `apiKeySource`
+  but `none`. This is workspace isolation, not an OS sandbox: the agent keeps the invoking
+  user's network access, `PATH` and filesystem reach.
+- Hard per-case budget: wall clock (`--claude-code-timeout-ms`, default 300000) and assistant
+  turns (`--claude-code-max-turns`, default 25) enforced by killing the process group, plus
+  `--claude-code-max-budget-usd` (default 1). An exhausted case is not completed and is never
+  graded on its truncated trajectory.
+- Five trajectory checks as deterministic criteria, params validated at spec load:
+  `tool_called`, `tool_not_called`, `order_before`, `file_exists`, `file_matches_sha_in`. They
+  fail closed on an outcome without a trajectory.
+- Tokens and Claude Code's API-equivalent cost are recorded per case and in the cost meter.
+  CI tests replay transcripts recorded on the subscription; no test calls Claude Code. Spec:
+  `000-docs/045`.
+
+## Unreleased — adversarial case execution
+
+- Execute adversarial test cases that name criteria (`criteria_ids`) judge-only instead of
+  skipping them silently when they declare no expected output; a scaffolded or hand-written
+  `no-prompt-leakage` blocker is now judged.
+- Reject at spec load the adversarial shapes no layer can test: no expected output with no
+  `criteria_ids`, or `criteria_ids: []` without a `trigger_expectation`.
+
+## Unreleased — rollout gate refuses stub rows
+
+- `@intentsolutions/rollout-gate` 2.2.0: new policy keys `forbid_providers` (default
+  `["stub"]`) and `require_ground_truth` (default `true`). A row that declares a forbidden
+  `metadata.provider`, or declares `metadata.ground_truth: false`, now blocks the rollout, as
+  `STUB-PROVIDERS.md` § 3 requires. Rows that declare neither field are unaffected; opting out
+  takes both `forbid_providers: []` and `require_ground_truth: false`. `STUB-PROVIDERS.md` § 3
+  now names the marker fields j-rig actually emits.
+
+## Unreleased — judge tool observations
+
+- Add explicit MCP `judgeObservations` consent to retain bounded, credential-redacted
+  calls/results and forward each session’s observations to tool-free judges.
+- Bind private skill/baseline observation contexts to configuration and execution
+  receipts with portable digest/size references; keep counts-only defaults.
+
+## Unreleased — trigger evidence
+
+- Retain per-case routing decisions and metrics in JSON/bundle metadata and private,
+  digest-bound SQLite artifacts; distinguish skipped, inapplicable and incomplete coverage.
+- Apply the evaluator infrastructure-failure rule to trigger-provider outages, including
+  trigger-only runs, while preserving incorrect selections as measured routing outcomes.
+
 All notable changes to `j-rig-binary-eval` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -13,6 +190,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `>= 1.0.0` are Apache 2.0.
 
 ## [Unreleased]
+
+- Add an explicit fixed-output judge replay command with default planning, human-attested labels, governed transport budgets and private comparison receipts. Live benchmark results remain separate. Refs bead `bd_000-projects-yh7ej`.
+
+- Add opt-in invocation-scoped pacing of selected judge completion endpoints, with explicit policy identity and unchanged default admission.
+
+### Package releases (2026-10-08)
+
+- **`@intentsolutions/jrig-cli` 0.5.0** (tag `jrig-cli-v0.5.0`). Ships everything merged
+  since `jrig-cli-v0.4.0`: the claude-code execution provider and trajectory checks
+  ([#357](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/357)), structured
+  deterministic checks and eval cost/latency budgets with MiniMax and Claude rates
+  ([#358](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/358)), judged
+  adversarial cases ([#356](https://github.com/jeremylongshore/j-rig-skill-binary-eval/pull/356)),
+  explicit MCP tool execution and receipts (#344, #346, #350, #352), trigger evidence (#348),
+  explicit execution reasoning effort (#354) and the `j-rig batch` deprecation (#334).
+  Minor bump: every change is additive while the CLI is 0.x. Only the CLI ships;
+  `@intentsolutions/rollout-gate` 2.2.0 is already on npm and the refiner and pr-comment
+  packages have no source changes since their last tags.
+
+### Added (2026-10-07)
+
+- Opt-in `j-rig eval --mcp-config` executes explicitly allowlisted stdio MCP
+  tools with bounded OpenAI-compatible and Anthropic continuation. Each case
+  and naked baseline gets fresh processes; judges remain tool-free. Private
+  execution receipts retain actual/partial call counts and final output, with
+  content hashes linked from SQLite and evidence bundles. Failures preserve
+  the existing infrastructure-error/no-verdict behavior. This adds harness
+  capability; it does not establish any downstream skill's behavioral pass.
+
+### Deprecated (2026-10-05)
+
+- **`j-rig batch` is deprecated in favour of `j-rig suite`.** It still works
+  unchanged and now prints a one-line notice on stderr (so `--json` stdout stays
+  clean). It is removed in the release after the one that first ships this
+  notice. `suite` runs the same balanced passes and also grades every run and
+  writes an audit file and report. Decision: `000-docs/044`.
 
 ### Package releases (2026-10-04)
 

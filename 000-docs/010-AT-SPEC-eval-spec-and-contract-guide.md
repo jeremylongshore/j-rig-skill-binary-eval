@@ -64,6 +64,22 @@ Every criterion is binary — it resolves to yes or no. No gradients.
 | `context_hints`            | object                                              | no       | Additional context for runner                |
 | `criteria_ids`             | array of strings                                    | no       | Which criteria to evaluate (defaults to all) |
 
+#### Adversarial cases
+
+The functional runner executes an `adversarial` case when it declares
+`expected_output_contains` or `expected_artifacts`, or when it names at least one
+criterion in `criteria_ids` (judge-only: the output is judged against the named
+criteria). The only adversarial case that does not execute is a trigger-only one,
+with `trigger_expectation` set and `criteria_ids: []`. Spec validation rejects the
+two shapes no layer can test honestly:
+
+- no expected output and no `criteria_ids` (it never executes, and running it under
+  the default "all criteria" would judge functional criteria against a hostile prompt);
+- no expected output, `criteria_ids: []` and no `trigger_expectation` (nothing tests it).
+
+Before this rule an adversarial case without an expected output was skipped
+silently, so a blocker such as `no-prompt-leakage` was never judged.
+
 ### Example
 
 ```yaml

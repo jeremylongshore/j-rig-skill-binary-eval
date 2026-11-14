@@ -3,15 +3,35 @@ import { z } from "zod";
 import { EvalIdentifierSchema } from "../execution/substrate.js";
 import type { ObservedOutcome } from "../execution/types.js";
 import { judgeCriteria } from "../judgment/engine.js";
+import {
+  runStructuredCheck,
+  STRUCTURED_GRADER_CHECK_SCHEMAS,
+  type StructuredCheckInput,
+} from "../checks/structured-checks.js";
 import type { JudgeProvider, JudgmentVerdict } from "../judgment/types.js";
 
-/** Deterministic checks remain intentionally auditable and replayable. */
-export const GraderCheckSchema = z.object({
+/**
+ * The original text check. Its shape is frozen: a parsed grader serializes
+ * into its immutable snapshot, so adding a field or a default here would
+ * change the snapshot hash of every existing grader.
+ */
+const OutputContainsCheckSchema = z.object({
   id: EvalIdentifierSchema,
   type: z.literal("output_contains"),
   expected: z.string().min(1),
   required: z.boolean().default(true),
 });
+
+/**
+ * Deterministic checks remain intentionally auditable and replayable:
+ * `output_contains` plus the structured checks (exit_code, json_path,
+ * file_sha256, schema_valid; checks/structured-checks.ts) over the sealed
+ * Run's stdout, exit code and artifact manifest.
+ */
+export const GraderCheckSchema = z.discriminatedUnion("type", [
+  OutputContainsCheckSchema,
+  ...STRUCTURED_GRADER_CHECK_SCHEMAS,
+]);
 
 export type GraderCheck = z.infer<typeof GraderCheckSchema>;
 
@@ -52,7 +72,8 @@ export type GradeVerdict = z.infer<typeof GradeVerdictSchema>;
 
 export interface GraderCheckResult {
   id: string;
-  type: "output_contains";
+  type: GraderCheck["type"];
+  /** What the check required: the needle for output_contains, else its params as JSON. */
   expected: string;
   passed: boolean;
   required: boolean;
@@ -104,22 +125,55 @@ export function hashGraderSnapshot(definition: GraderDefinition): string {
  * same GradeEvaluation persistence boundary and retain their vote evidence
  * through evaluateWithModelJudge below.
  */
+/**
+ * What a command Run exposes to structured checks beyond stdout. Omitted, the
+ * exit code and artifacts count as unobserved and those checks fail closed.
+ */
+export interface GraderRunObservation {
+  exit_code: number | null;
+  /** The sealed artifact manifest (sha256 may carry the sha256: prefix). */
+  artifacts: Array<{ relative_path: string; sha256: string }>;
+}
+
 export function evaluateWithGrader(
   rawRunId: string,
   stdout: string,
   definition: DeterministicGraderDefinition,
+  observation?: GraderRunObservation,
 ): GradeEvaluation {
+  const structuredInput: StructuredCheckInput = {
+    text: stdout,
+    ...(observation
+      ? {
+          exit_code: observation.exit_code,
+          files: observation.artifacts.map((a) => ({ path: a.relative_path, sha256: a.sha256 })),
+          content_unavailable: "a command Run seals the artifact manifest, not file content",
+        }
+      : { files_unavailable: "no Run observation was supplied" }),
+  };
   const checks = definition.checks.map((check): GraderCheckResult => {
-    const passed = stdout.includes(check.expected);
+    if (check.type === "output_contains") {
+      const passed = stdout.includes(check.expected);
+      return {
+        id: check.id,
+        type: check.type,
+        expected: check.expected,
+        passed,
+        required: check.required,
+        details: passed
+          ? `stdout contains ${JSON.stringify(check.expected)}`
+          : `stdout is missing ${JSON.stringify(check.expected)}`,
+      };
+    }
+    const { id, type, required, ...params } = check;
+    const r = runStructuredCheck(type, structuredInput, params);
     return {
-      id: check.id,
-      type: check.type,
-      expected: check.expected,
-      passed,
-      required: check.required,
-      details: passed
-        ? `stdout contains ${JSON.stringify(check.expected)}`
-        : `stdout is missing ${JSON.stringify(check.expected)}`,
+      id,
+      type,
+      expected: JSON.stringify(params),
+      passed: r.passed,
+      required,
+      details: r.message,
     };
   });
 

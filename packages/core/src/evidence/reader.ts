@@ -19,7 +19,7 @@
  * is reported but does not invalidate sibling rows; the caller decides how to
  * handle a partial-failure bundle.
  */
-import { readFileSync, statSync, readdirSync } from "node:fs";
+import { readFileSync, openSync, fstatSync, closeSync, readdirSync } from "node:fs";
 import { resolve, extname, join } from "node:path";
 import { EvidenceStatementSchema, type EvidenceStatement } from "../schemas/evidence-bundle.js";
 
@@ -45,9 +45,23 @@ export interface ReadBundleResult {
 export function readBundle(path: string): ReadBundleResult {
   const result: ReadBundleResult = { rows: [], errors: [] };
   const absPath = resolve(path);
-  let st;
+  let raw = "";
+  let entries: string[] | undefined;
   try {
-    st = statSync(absPath);
+    // Inspect and read the same opened file, even if its pathname is replaced.
+    const fd = openSync(absPath, "r");
+    try {
+      if (fstatSync(fd).isDirectory()) {
+        // Directory children are independent inputs, not an atomic snapshot.
+        entries = readdirSync(absPath)
+          .filter((f) => extname(f) === ".json")
+          .sort();
+      } else {
+        raw = readFileSync(fd, "utf-8");
+      }
+    } finally {
+      closeSync(fd);
+    }
   } catch (err) {
     result.errors.push({
       rowIndex: -1,
@@ -57,10 +71,7 @@ export function readBundle(path: string): ReadBundleResult {
     return result;
   }
 
-  if (st.isDirectory()) {
-    const entries = readdirSync(absPath)
-      .filter((f) => extname(f) === ".json")
-      .sort();
+  if (entries) {
     entries.forEach((entry, idx) => {
       const filePath = join(absPath, entry);
       try {
@@ -77,8 +88,6 @@ export function readBundle(path: string): ReadBundleResult {
     });
     return result;
   }
-
-  const raw = readFileSync(absPath, "utf-8");
 
   if (extname(absPath) === ".jsonl") {
     raw.split(/\r?\n/).forEach((line, idx) => {

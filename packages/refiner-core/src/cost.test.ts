@@ -92,17 +92,21 @@ describe("per-attempt accounting", () => {
     expect(meter.attempts[1].outcome).toBe("accepted");
   });
 
-  it("attempts array is read-only (mutating it does not corrupt the meter)", () => {
-    const meter = createCostMeter(SKILL_HASH, {});
-    meter.record(attempt({ usage: usage(100, 50) }));
-    // The returned array reference should reflect only recorded attempts;
-    // attempts is readonly so we can't push to it via the type, but verify
-    // the meter's internal count is not affected by external array ops.
-    const snap1 = meter.attempts;
-    meter.record(attempt({ usage: usage(200, 75) }));
-    // snap1 may or may not update (impl detail) — what matters is the meter length
-    expect(meter.attempts).toHaveLength(2);
-    void snap1; // suppress unused-var lint
+  it("returns detached snapshots and retains copies of recorded input", () => {
+    const meter = createCostMeter(SKILL_HASH, { maxTotalTokens: 150 });
+    const input = attempt({ usage: usage(100, 50) });
+    meter.record(input);
+    const snapshot = meter.attempts;
+    Object.assign(input.usage, { promptTokens: 0 });
+    Object.assign(input, { outcome: "accepted" });
+    Object.assign(snapshot[0].usage, { completionTokens: 0 });
+    (snapshot as AttemptRecord[]).splice(0);
+    expect(meter.acceptRollup()).toMatchObject({
+      totalTokens: 150,
+      totalAttempts: 1,
+      acceptedAttempts: 0,
+    });
+    expect(meter.checkBudget().continue).toBe(false);
   });
 });
 
@@ -311,13 +315,14 @@ describe("QuarantineRecord shape invariants", () => {
     }
   });
 
-  it("budget reference on quarantine matches the budget passed at construction", () => {
+  it("quarantine retains the original budget value as a detached snapshot", () => {
     const budget: BudgetConfig = { maxAttempts: 1 };
     const meter = createCostMeter(SKILL_HASH, budget);
     meter.record(attempt({ usage: usage(10, 5) }));
     const decision = meter.checkBudget();
     if (!decision.continue) {
-      expect(decision.quarantine.budget).toBe(budget);
+      expect(decision.quarantine.budget).toEqual(budget);
+      expect(decision.quarantine.budget).not.toBe(budget);
     }
   });
 });
@@ -375,4 +380,91 @@ describe("integration — typical propose-loop pattern", () => {
     // Budget still has headroom
     expect(meter.checkBudget().continue).toBe(true);
   });
+});
+
+describe("cost accounting input integrity", () => {
+  it.each([NaN, Infinity, -Infinity, -1, 0.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects invalid token value %s without recording an attempt",
+    (value) => {
+      const meter = createCostMeter(SKILL_HASH, {});
+      for (const bad of [usage(value, 0), usage(0, value)]) {
+        expect(() => totalTokens(bad)).toThrow();
+        expect(() => meter.record(attempt({ usage: bad }))).toThrow();
+      }
+      expect(meter.attempts).toHaveLength(0);
+    },
+  );
+  it.each([NaN, Infinity, -1, 0.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects malformed caps %s",
+    (value) => {
+      expect(() => createCostMeter(SKILL_HASH, { maxAttempts: value })).toThrow();
+      expect(() => createCostMeter(SKILL_HASH, { maxTotalTokens: value })).toThrow();
+    },
+  );
+  it("isolates original, getter and quarantine budget snapshots", () => {
+    const budget = { maxAttempts: 1, maxTotalTokens: 100 };
+    const meter = createCostMeter(SKILL_HASH, budget);
+    budget.maxAttempts = 99;
+    Object.assign(meter.budget, { maxAttempts: 99 });
+    meter.record(attempt({ usage: usage(1, 0) }));
+    const decision = meter.checkBudget();
+    expect(decision.continue).toBe(false);
+    if (decision.continue) throw new Error("missing quarantine");
+    Object.assign(decision.quarantine.budget, { maxAttempts: 999 });
+    Object.assign(decision.quarantine.usageAtCapFire, { promptTokens: 999 });
+    expect(meter.checkBudget()).toMatchObject({
+      continue: false,
+      quarantine: {
+        reason: "attempt-ceiling-exceeded",
+        attemptsAtCapFire: 1,
+        usageAtCapFire: { promptTokens: 1, completionTokens: 0 },
+        budget: { maxAttempts: 1 },
+      },
+    });
+  });
+  it("does not let a later record change an earlier attempts snapshot", () => {
+    const meter = createCostMeter(SKILL_HASH, {});
+    meter.record(attempt({ usage: usage(1, 0) }));
+    const earlier = meter.attempts;
+    meter.record(attempt({ usage: usage(2, 0) }));
+    expect(earlier).toHaveLength(1);
+    expect(meter.attempts).toHaveLength(2);
+  });
+  it("rejects foreign skill, empty model, invalid outcome and malformed shapes", () => {
+    const meter = createCostMeter(SKILL_HASH, {});
+    for (const bad of [
+      attempt({ usage: usage(1, 0), skillHash: "b".repeat(64) }),
+      attempt({ usage: usage(1, 0), modelId: " " }),
+      { ...attempt({ usage: usage(1, 0) }), outcome: "unknown" },
+      { ...attempt({ usage: usage(1, 0) }), usage: null },
+      null,
+    ])
+      expect(() => meter.record(bad as unknown as AttemptRecord)).toThrow();
+    expect(meter.attempts).toHaveLength(0);
+    expect(() => createCostMeter("invalid", {})).toThrow();
+    expect(() => createCostMeter(SKILL_HASH, { maxToken: 5 } as unknown as BudgetConfig)).toThrow();
+  });
+  it("rejects per-call and aggregate overflow atomically", () => {
+    expect(() => totalTokens(usage(Number.MAX_SAFE_INTEGER, 1))).toThrow();
+    const meter = createCostMeter(SKILL_HASH, {});
+    meter.record(attempt({ usage: usage(Number.MAX_SAFE_INTEGER - 1, 0) }));
+    const before = meter.acceptRollup();
+    expect(() => meter.record(attempt({ usage: usage(2, 0) }))).toThrow();
+    expect(() => meter.record(attempt({ usage: usage(0, 2) }))).toThrow();
+    expect(meter.acceptRollup()).toEqual(before);
+    expect(meter.attempts).toHaveLength(1);
+    meter.record(attempt({ usage: usage(0, 1) }));
+    expect(meter.acceptRollup().totalTokens).toBe(Number.MAX_SAFE_INTEGER);
+  });
+});
+
+it("preserves zero-cap admission and records already-incurred usage", () => {
+  const meter = createCostMeter(SKILL_HASH, { maxAttempts: 0, maxTotalTokens: 0 });
+  expect(meter.checkBudget()).toMatchObject({
+    continue: false,
+    quarantine: { reason: "attempt-ceiling-exceeded" },
+  });
+  meter.record(attempt({ usage: usage(0, 0) }));
+  meter.record(attempt({ usage: usage(1, 1) }));
+  expect(meter.acceptRollup()).toMatchObject({ totalAttempts: 2, totalTokens: 2 });
 });

@@ -24,7 +24,17 @@
  * unit-testable against an in-memory fake — no real disk, no temp dirs.
  */
 
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  appendFileSync,
+  mkdirSync,
+  existsSync,
+  openSync,
+  closeSync,
+  fchmodSync,
+  constants,
+} from "node:fs";
 import { hashValue } from "@intentsolutions/refiner-core";
 import type { SkillDoc, EditProposal, ScoreRecord, EvalSet } from "@intentsolutions/refiner-core";
 
@@ -42,7 +52,22 @@ export interface FileSystem {
 }
 
 /** The kind of value an entry in the store / event log carries. */
-export type RefinerRecordKind = "skill-doc" | "edit-proposal" | "score-record" | "eval-set";
+export type RefinerRecordKind =
+  | "skill-doc"
+  | "edit-proposal"
+  | "score-record"
+  | "eval-set"
+  | "acceptance-assessment"
+  | "bootstrap-source"
+  | "optimizer-source"
+  | "optimizer-experiment"
+  | "cost-outcome"
+  | "cost-quarantine"
+  | "cost-governance-finding"
+  | "completion-attempt"
+  | "proposal-attempt"
+  | "evaluation-attempt"
+  | "evaluation-outcome";
 
 /** A single line in the append-only event log. */
 export type RefinerEvent =
@@ -116,8 +141,8 @@ export class RefinerStore {
   put(kind: RefinerRecordKind, value: unknown): string {
     const hash = hashValue(value);
     const path = this.#storePath(hash);
-    if (this.#fs.exists(path)) return hash; // already stored — no duplicate event
     this.#fs.mkdirp(dirname(path));
+    if (this.#fs.exists(path)) return hash; // already stored — no duplicate event
     this.#fs.writeFile(path, JSON.stringify(value));
     this.#appendEvent({ type: "stored", kind, hash, at: this.#clock() });
     return hash;
@@ -224,13 +249,20 @@ export function createNodeFileSystem(): FileSystem {
       }
     },
     writeFile(path: string, data: string): void {
-      writeFileSync(path, data, "utf8");
+      writeFileSync(path, data, { encoding: "utf8", mode: 0o600 });
     },
     appendFile(path: string, data: string): void {
-      appendFileSync(path, data, "utf8");
+      appendFileSync(path, data, { encoding: "utf8", mode: 0o600 });
     },
     mkdirp(path: string): void {
-      mkdirSync(path, { recursive: true });
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+      // Tighten an existing store directory too; inspect/mutate the opened directory.
+      const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+      try {
+        fchmodSync(fd, 0o700);
+      } finally {
+        closeSync(fd);
+      }
     },
     exists(path: string): boolean {
       return existsSync(path);

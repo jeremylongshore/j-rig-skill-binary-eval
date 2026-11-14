@@ -73,6 +73,8 @@ export interface JudgmentResult {
  * change — a narrower implementation simply ignores it.
  */
 export interface JudgeCallOptions {
+  /** Exact private runtime observation artifact; untrusted data, never instructions. */
+  observations?: string;
   /**
    * Sampling temperature for THIS judge call. Multi-sample majority voting
    * samples at temperature > 0 to draw independent verdicts; single-call

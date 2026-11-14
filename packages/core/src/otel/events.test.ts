@@ -147,6 +147,8 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
         totalOutputTokens: 3_400,
         totalCalls: 17,
         estimatedUsd: 0.0123,
+        fileAccepted: 2,
+        filePerAcceptUsd: 0.00615,
       }),
     );
     expect(ev.name).toBe("cost.run.recorded");
@@ -156,6 +158,8 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
     expect(ev.attributes["cost.run.total_calls"]).toBe(17);
     expect(ev.attributes["cost.run.usd_known"]).toBe(true);
     expect(ev.attributes["cost.run.estimated_usd"]).toBe(0.0123);
+    expect(ev.attributes["cost.file.accepted"]).toBe(2);
+    expect(ev.attributes["cost.file.per_accept_usd"]).toBe(0.00615);
   });
 
   it("emitCostRunRecorded OMITS estimated_usd and sets usd_known=false on a null estimate", () => {
@@ -167,10 +171,16 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
         totalOutputTokens: 100,
         totalCalls: 3,
         estimatedUsd: null,
+        usageComplete: false,
+        unknownCalls: 2,
+        filePerAcceptUsd: null,
       }),
     );
     expect(ev.attributes["cost.run.usd_known"]).toBe(false);
+    expect(ev.attributes["cost.run.usage_complete"]).toBe(false);
+    expect(ev.attributes["cost.run.unknown_calls"]).toBe(2);
     expect("cost.run.estimated_usd" in ev.attributes).toBe(false);
+    expect("cost.file.per_accept_usd" in ev.attributes).toBe(false);
   });
 
   it("emitCostRunRecorded emits a real measured $0 (free tier) as estimated_usd=0, usd_known=true", () => {
@@ -181,10 +191,12 @@ describe("typed event helpers (067 §§ 1.1, 1.2, 2.2)", () => {
         totalOutputTokens: 200,
         totalCalls: 4,
         estimatedUsd: 0,
+        filePerAcceptUsd: 0,
       }),
     );
     expect(ev.attributes["cost.run.usd_known"]).toBe(true);
     expect(ev.attributes["cost.run.estimated_usd"]).toBe(0);
+    expect(ev.attributes["cost.file.per_accept_usd"]).toBe(0);
   });
 
   it("emitCostPhaseRecorded carries judge_samples on the judge phase", () => {

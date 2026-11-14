@@ -4,7 +4,9 @@
  * Fail-closed defaults: `forbid_decisions` defaults to BOTH `fail` and
  * `error`; advisory rows only block when `advisory_blocks` is explicitly
  * set; unknown gates are tolerated unless `allow_unknown_gates` is
- * explicitly turned off.
+ * explicitly turned off; rows produced by the `stub` provider, or that
+ * declare `ground_truth: false`, block unless the policy explicitly opts out
+ * (STUB-PROVIDERS.md § 3: consumers MUST refuse stub-mode rows).
  */
 import { z } from "zod";
 
@@ -33,6 +35,20 @@ export const RolloutPolicySchema = z
      * blocks the rollout. Default: true (unknown gates are tolerated).
      */
     allow_unknown_gates: z.boolean().default(true),
+    /**
+     * Producer providers whose rows block the rollout wherever they appear,
+     * matched exactly against the row's `predicate.metadata.provider`.
+     * Default: `["stub"]`. A row without a string `metadata.provider` is not
+     * affected. An explicit `[]` turns the check off.
+     */
+    forbid_providers: z.array(z.string().min(1)).default(["stub"]),
+    /**
+     * When true, any row whose `predicate.metadata.ground_truth` is `false`
+     * blocks the rollout: its verdict came from placeholder providers, not
+     * from an evaluation. A row that does not declare `ground_truth` (a
+     * deterministic gate, for example) is not affected. Default: true.
+     */
+    require_ground_truth: z.boolean().default(true),
   })
   .strict();
 

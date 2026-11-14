@@ -1,3 +1,8 @@
+import type {
+  ChangeProposal as SharedChangeProposal,
+  Experiment as SharedExperiment,
+  ExperimentStatus as SharedExperimentStatus,
+} from "@intentsolutions/refiner-core";
 import type { JudgmentResult } from "../judgment/types.js";
 
 /**
@@ -10,37 +15,10 @@ export interface FailureCluster {
   severity: "critical" | "high" | "medium";
 }
 
-/**
- * A single atomic change proposal.
- * The optimizer proposes exactly ONE change per experiment.
- */
-export interface ChangeProposal {
-  id: string;
-  target_criterion: string;
-  change_type: "description" | "instruction" | "example" | "trigger" | "constraint";
-  description: string;
-  rationale: string;
-  expected_impact: string;
-}
-
-/**
- * Experiment status.
- */
-export type ExperimentStatus = "proposed" | "running" | "accepted" | "rejected" | "reverted";
-
-/**
- * An experiment — one proposed change with before/after evidence.
- */
-export interface Experiment {
-  id: string;
-  proposal: ChangeProposal;
-  status: ExperimentStatus;
-  before_results?: JudgmentResult[];
-  after_results?: JudgmentResult[];
-  improvement: boolean | null;
-  created_at: string;
-  resolved_at?: string;
-}
+/** Shared canonical contracts; the legacy API retains its JudgmentResult specialization. */
+export type ChangeProposal = SharedChangeProposal;
+export type ExperimentStatus = SharedExperimentStatus;
+export type Experiment = SharedExperiment<JudgmentResult>;
 
 /**
  * Provider interface for generating change proposals.

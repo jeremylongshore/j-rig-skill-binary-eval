@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 // @ts-expect-error — plain .mjs script with no type declarations
-import { headroomStatuses, infrastructureFailureReason } from "../eval-roster/run-roster.mjs";
+import * as rosterRunner from "../eval-roster/run-roster.mjs";
+const {
+  EVIDENCE_RESERVE_MINUTES,
+  SKILL_TIMEOUT_MS,
+  executionEnvironment,
+  headroomStatuses,
+  infrastructureFailureReason,
+} = rosterRunner;
 
 const REASON =
   "provider_failure/judge [minimax rate_limit, retryable]: judge provider failed on 1 of 3 judged criteria; the evaluation is incomplete: HTTP 429";
@@ -70,5 +77,43 @@ describe("nightly roster — headroom reporting (000-docs/043)", () => {
 
   it("returns an empty list for a malformed bundle", () => {
     expect(headroomStatuses({ not: "an array" })).toEqual([]);
+  });
+});
+
+describe("nightly roster — completion budget", () => {
+  it("reserves the full serial roster duration plus evidence processing time", () => {
+    const roster = JSON.parse(
+      readFileSync(new URL("../eval-roster/roster.json", import.meta.url), "utf8"),
+    ) as { skills: unknown[] };
+    const workflow = readFileSync(
+      new URL("../.github/workflows/nightly-skill-evals.yml", import.meta.url),
+      "utf8",
+    );
+    const minutes = Number(/timeout-minutes: (\d+)/.exec(workflow)?.[1]);
+    expect(Number.isFinite(minutes)).toBe(true);
+    expect(minutes).toBeGreaterThanOrEqual(
+      (roster.skills.length * SKILL_TIMEOUT_MS) / 60_000 + EVIDENCE_RESERVE_MINUTES,
+    );
+    expect(minutes).toBeLessThanOrEqual(360);
+  });
+
+  it("gives nightly MiniMax-M3 an initial 16384-token budget without changing other settings", () => {
+    const env = { EXISTING_SETTING: "kept" };
+    expect(executionEnvironment("minimax", "MiniMax-M3", env)).toEqual({
+      ...env,
+      JRIG_MAX_OUTPUT_TOKENS: "16384",
+    });
+    expect(env).toEqual({ EXISTING_SETTING: "kept" });
+  });
+
+  it("preserves explicit budgets and leaves other providers/models alone", () => {
+    const env = { JRIG_MAX_OUTPUT_TOKENS: "4096" };
+    expect(executionEnvironment("minimax", "MiniMax-M3", env)).toEqual(env);
+    expect(executionEnvironment("openai", "gpt-4o-mini", {})).toEqual({});
+    expect(executionEnvironment("minimax", "different-model", {})).toEqual({});
+    const modelOverride = { LLM_MODEL: "different-model" };
+    expect(executionEnvironment("minimax", "MiniMax-M3", modelOverride)).toEqual(modelOverride);
+    const gateway = { LLM_BASE_URL: "https://gateway.example/v1" };
+    expect(executionEnvironment("minimax", "MiniMax-M3", gateway)).toEqual(gateway);
   });
 });

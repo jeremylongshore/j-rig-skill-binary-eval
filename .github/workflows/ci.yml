@@ -12,6 +12,12 @@ on:
 permissions:
   contents: read
 
+# Only superseded PR validation is disposable. Keep every main/scheduled run
+# independent so evidence for distinct commits is never canceled or replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     name: Lint
@@ -27,6 +33,9 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ci/emit-evidence/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -47,6 +56,17 @@ jobs:
           set -euo pipefail
           (cd ci/emit-evidence && pnpm install --frozen-lockfile --ignore-workspace)
           node --experimental-strip-types ci/emit-evidence/emit-evidence.ts --self-check
+          pnpm exec vitest run scripts/canonical-payload.test.ts
+
+      - name: Typecheck dashboard emitters and cross-kernel contracts
+        # This is intentionally a standalone file-list compilation with all
+        # options supplied here. TS6 requires that choice to be explicit.
+        run: >
+          pnpm exec tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext
+          --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions
+          scripts/emit-evidence.ts scripts/assemble-manifest.ts
+          ci/emit-evidence/emit-evidence.ts ci/emit-evidence/assemble-manifest.ts
+          scripts/canonical-payload.test.ts
 
   typecheck:
     name: Typecheck
@@ -72,6 +92,9 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      - name: Typecheck workspace verification
+        run: pnpm run typecheck:workspace
+
       # Shares this lane's checkout, dependency install, and build. It stays
       # under the required Typecheck result; Test remains the longer required lane.
       - name: OTel emission smoke (iaj-E08)
@@ -91,9 +114,39 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ci/emit-evidence/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install standalone nightly kernel for payload contracts
+        working-directory: ci/emit-evidence
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      # Test-only immutable consumer fixture, not a production Action adoption.
+      - name: Checkout reviewed enforcing verifier fixture
+        uses: actions/checkout@v7
+        with:
+          repository: jeremylongshore/intent-rollout-gate
+          ref: 9e0cfa3e8e428d4fde14760a05945ccb39722b24
+          path: .ci-verifier-fixture
+          sparse-checkout: |
+            dist/index.js
+            package.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Verify exact consumer artifact and offline producer interoperability
+        working-directory: ci/emit-evidence
+        env:
+          ROLLOUT_GATE_DIST: ${{ github.workspace }}/.ci-verifier-fixture/dist/index.js
+        run: |
+          expected='bd9287783b3e685829e1a20b8508a5f185c89cd340d9d4e7285a42dbbf2dd047'
+          printf '%s  %s\n' "$expected" "$ROLLOUT_GATE_DIST" | sha256sum --check
+          pnpm run typecheck:signing
+          pnpm run test:signing
 
       # Enforcement wall: the vendored audit-harness wrapper verifies the
       # hash-pinned policy surface (the coverage floor in vitest.config.ts). A
@@ -103,6 +156,9 @@ jobs:
 
       - name: Audit-harness verify (hash-pinned policy artifacts)
         run: pnpm run harness:verify
+
+      - name: Workspace architecture, bias inventory and Gherkin applicability
+        run: pnpm run verify:workspace
 
       - name: Build
         run: pnpm run build
@@ -130,3 +186,13 @@ jobs:
           flags: typescript
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Set up Node.js 20 for workspace compatibility
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "20.20.2"
+
+      - name: Workspace verification on Node.js 20
+        run: |
+          pnpm exec vitest run scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts
+          pnpm run verify:workspace

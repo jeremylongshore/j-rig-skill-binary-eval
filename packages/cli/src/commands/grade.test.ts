@@ -427,4 +427,75 @@ describe("j-rig grade — registered command output", () => {
     expect(process.exitCode).toBe(1);
     expect(errors).toEqual(["Error: Raw Run missing-run not found"]);
   });
+
+  it("grades a command Run's exit code and stdout JSON with structured checks", async () => {
+    const paths = fixture();
+    writeFileSync(
+      paths.configPath,
+      stringify({
+        id: "json-cli-config",
+        version: "1",
+        model: "fixture-model",
+        harness: {
+          command: process.execPath,
+          args: [
+            "-e",
+            'process.stdout.write(JSON.stringify({status:"ok",pages:12})); process.exitCode = 3;',
+          ],
+          // Exit 3 is this CLI's answer, not a harness failure.
+          completed_exit_codes: [0, 3],
+        },
+      }),
+    );
+    const graderPath = join(paths.db, "..", "grader-cli.yaml");
+    writeFileSync(
+      graderPath,
+      stringify({
+        id: "cli-checker",
+        version: "1.0.0",
+        kind: "deterministic",
+        checks: [
+          { id: "exit-3", type: "exit_code", equals: 3 },
+          { id: "status-ok", type: "json_path", path: "$.status", equals: "ok" },
+          {
+            id: "shape",
+            type: "schema_valid",
+            schema: {
+              type: "object",
+              required: ["status", "pages"],
+              properties: { pages: { type: "integer", minimum: 1 } },
+            },
+          },
+          {
+            id: "no-artifact",
+            type: "file_sha256",
+            path: "out.pdf",
+            sha256: "a".repeat(64),
+            required: false,
+          },
+        ],
+      }),
+    );
+    const raw = await runGenericEval({ ...paths, sampleIndex: 0 });
+    expect(raw.run.exit_code).toBe(3);
+    const { grade } = await runGrade({
+      runId: raw.run.id,
+      graderPath,
+      db: paths.db,
+      regrade: false,
+    });
+    expect(grade.verdict).toBe("pass");
+    const checks = JSON.parse(grade.checks_json) as Array<{
+      id: string;
+      passed: boolean;
+      details: string;
+    }>;
+    expect(checks.map((c) => [c.id, c.passed])).toEqual([
+      ["exit-3", true],
+      ["status-ok", true],
+      ["shape", true],
+      ["no-artifact", false],
+    ]);
+    expect(checks[3]!.details).toBe('no file "out.pdf" was observed after the run');
+  });
 });

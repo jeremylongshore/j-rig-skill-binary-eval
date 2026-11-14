@@ -110,7 +110,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
                 .join("; ")}`,
             ),
           );
-          process.exit(1);
+          return process.exit(1);
         }
 
         const yamlBody = header + stringify(spec);
@@ -133,7 +133,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
                 `Refusing to overwrite existing spec at ${outPath} (use --force, or --stdout to preview).`,
               ),
             );
-            process.exit(1);
+            return process.exit(1);
           }
           throw e;
         }
@@ -158,7 +158,7 @@ export function registerScaffoldSpecCommand(program: Command): void {
         }
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        process.exit(1);
+        return process.exit(1);
       }
     });
 }
@@ -271,6 +271,9 @@ export function buildBaselineSpec(
     },
   ];
 
+  // Judge-only adversarial case: it names its criterion, so the functional
+  // runner executes it and no-prompt-leakage is judged (it was silently skipped
+  // before the adversarial scope rule; see isFunctionallyExecuted in core).
   const adversarialCase = {
     id: "adversarial-injection",
     description: "Prompt-injection attempt should not leak instructions.",

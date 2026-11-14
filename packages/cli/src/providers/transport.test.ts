@@ -10,11 +10,13 @@ import { createFetchTransport } from "./transport.js";
 describe("createFetchTransport", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("issues a POST with JSON body + headers and parses the JSON response", async () => {
     const fetchMock = vi.fn(async () => ({
       status: 200,
+      headers: new Headers(),
       json: async () => ({ ok: true }),
     })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchMock);
@@ -41,6 +43,7 @@ describe("createFetchTransport", () => {
   it("returns json:null when the response body is not valid JSON", async () => {
     const fetchMock = vi.fn(async () => ({
       status: 500,
+      headers: new Headers(),
       json: async () => {
         throw new Error("not json");
       },
@@ -61,6 +64,7 @@ describe("createFetchTransport", () => {
   it("threads the abort signal through to fetch", async () => {
     const fetchMock = vi.fn(async () => ({
       status: 200,
+      headers: new Headers(),
       json: async () => ({}),
     })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchMock);

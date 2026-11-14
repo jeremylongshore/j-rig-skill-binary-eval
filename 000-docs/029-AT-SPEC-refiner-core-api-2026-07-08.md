@@ -8,8 +8,8 @@ Projection-SHA256: cc29f093344cc2fce77c74eac2cfcf44e492453e47867ca425ca266ddd2ec
 
 # `@intentsolutions/refiner-core` Public API Specification (v0.2.0)
 
-| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3` |
-| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274` |
+| Beads | `bd_000-projects-214c.5`, `bd_000-projects-pu35.3`, `bd_000-projects-214c.14`, `bd_000-projects-214c.13`, `bd_000-projects-214c.16`, `bd_000-projects-214c.15`, `bd_000-projects-214c.17`, `bd_000-projects-214c.18.1` |
+| GitHub | `jeremylongshore/j-rig-skill-binary-eval#81`, `jeremylongshore/j-rig-skill-binary-eval#274`, `jeremylongshore/j-rig-skill-binary-eval#393`, `jeremylongshore/j-rig-skill-binary-eval#394`, `jeremylongshore/j-rig-skill-binary-eval#398`, `jeremylongshore/j-rig-skill-binary-eval#397`, `jeremylongshore/j-rig-skill-binary-eval#401`, `jeremylongshore/j-rig-skill-binary-eval#404` |
 
 **Date:** 2026-07-08
 **Status:** NORMATIVE for the `@intentsolutions/refiner-core@0.2.0` published surface
@@ -68,7 +68,7 @@ import {
 
   // ── pure operations ──
   applyEdit, makeSkillDoc, EditApplicationError,
-  bootstrap, type BootstrapOptions,
+  bootstrap, bootstrapFromItems, type BootstrapOptions,
   accept, isSignificantImprovement, isSignificantRegression,
 
   // ── cost meter ──
@@ -176,7 +176,7 @@ A bounded edit op is a SkillOpt-style add / delete / replace, each anchored to a
 
 ### 3.5 `EvalItem`, `EvalSet`, and `EvalSetRef`
 
-`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation`).
+`EvalItem` — a single graded item (`id`, `prompt`, optional `expectation`, `adversarial`, and `provenance`). Provenance binds canonical source/review hashes, source case ID, and optional run/model identity.
 
 `EvalSetSource` is `"synthetic" | "harvested" | "golden" | "hybrid"`. This package ships the `"synthetic"` source via `bootstrap`; harvested + golden ingestion are I/O adapters.
 
@@ -284,13 +284,47 @@ The significance test is a two-sample z-test on the difference of means using th
 
 ```ts
 function coverage(evalSet: EvalSet): CoverageResult;
+function capabilityCoverage(evalSet: EvalSet, manifest: CapabilityManifest): CapabilityCoverageResult;
 function leakage(setA: readonly EvalItem[], setB: readonly EvalItem[]): LeakageResult;
 function calibration(predictions: readonly CalibrationPrediction[]): CalibrationResult;
-function adversarialPassRate(results: readonly ItemResult[], items: readonly AdversarialEvalItem[]): AdversarialPassRateResult;
+function adversarialPassRate(items: readonly AdversarialEvalItem[], results: readonly ItemResult[]): AdversarialPassRateResult;
 function evaluateEvalSet(evalSet: EvalSet, opts?: EvaluateEvalSetOptions): EvalSetQualityReport;
 ```
 
-Pure eval-set quality measurement (bead `214c.11`): `coverage` (stratification breakdown), `leakage` (train/held-out overlap), `calibration` (predicted-vs-observed reliability), `adversarialPassRate` (robustness on adversarial items), and `evaluateEvalSet` (the roll-up quality report). These gate whether an eval-set is trustworthy enough to derive an accept verdict against.
+Pure eval-set quality measurement (beads `214c.11`, `214c.13`): `coverage`
+(legacy observed-category entropy), `capabilityCoverage` (declared sampling
+completeness), `leakage` (train/held-out overlap), `calibration`
+(predicted-vs-observed reliability), `adversarialPassRate` (robustness on
+adversarial items), and `evaluateEvalSet` (the roll-up quality report).
+The adapter's `assessProposal` / `refine assess` workflow (section 8.6) enforces
+these quality preconditions. Computing this report or calling the pure
+statistical `accept` predicate alone does not enforce them.
+
+`CapabilityManifest` contains `skillId`, `evalSetHash`, `capabilities` (unique
+`id` plus positive integer `minimumItems`), and `assignments` (`itemId` plus
+distinct declared `capabilityIds`). It is reviewed input, not an inference from
+prompt text or item names. The separate manifest preserves historical EvalSet
+hashes. `evaluateEvalSet(..., { capabilityManifest })` adds a
+`capabilityCoverage` result; without declarations the result is absent.
+Consumers must also validate the eval-set content hash before trusting its
+binding label.
+
+`completeness` is the fraction of declared strata meeting their minimum count.
+`strata` includes zero-count capabilities and each stratum's shortfall.
+`complete` additionally requires every item to have a reviewed assignment;
+`unassignedItemIds` lists those lacking one. Unknown or duplicate assignments,
+duplicate declarations, and mismatched skill/hash bindings throw. A uniform
+observed distribution can have entropy one while declared completeness is less
+than one; these are different measurements.
+
+`leakage` matches canonical prompts (trimmed and lowercased) one-to-one across
+distinct arrays. Its ratio is the multiset intersection count divided by the
+smaller array length, so it is symmetric and bounded by zero and one even when
+prompts repeat. Matched IDs come from the first array in input order. Passing
+the same array reference instead reports duplicate occurrences after the first
+per prompt, divided by that array length. Empty inputs return zero.
+`calibration` rejects non-finite confidences and values outside `[0, 1]` with a
+`RangeError`, including when called through `evaluateEvalSet`.
 
 ### 6.2 Slice-utility (LOBO causal attribution)
 
@@ -321,11 +355,32 @@ function parseFrontmatterYaml(yamlBlock: string): Record<string, unknown> | null
 ### 7.1 Cost meter
 
 ```ts
-function createCostMeter(config: BudgetConfig): CostMeter;
+function createCostMeter(skillHash: SkillDocHash, config: BudgetConfig): CostMeter;
 function totalTokens(usage: ModelUsage): number;
 ```
 
-I/O-free per-attempt token accounting (bead `jqam`): record each `propose()` attempt's `ModelUsage`, query the per-accept `AcceptRollup`, and enforce hard caps. When a token or attempt ceiling fires, the work is **not** silently dropped — it is routed to a quarantine queue as a `QuarantineRecord` carrying the reason + accumulated usage. The pipeline MUST check `CostMeter.checkBudget` before each attempt and stop on `{ continue: false }`. Real token counts come from the adapter layer; tests feed deterministic stubs.
+I/O-free per-attempt token accounting (original bead `jqam`). Construction validates
+a SHA-256 skill identity and nonnegative safe-integer caps. `record` validates the
+matching skill, nonempty model, outcome and nonnegative safe-integer usage. Unsafe
+combined or accumulated totals throw before any accounting changes. Inputs and
+returned budget, attempt and quarantine snapshots are detached; changing one
+cannot alter accounting or later admission decisions.
+
+`acceptRollup` totals **all** recorded calls, including rejected/pending calls;
+`acceptedAttempts` counts accepted records without filtering the cost total.
+Record a call exactly once. `record` appends and does not change an earlier
+outcome. `checkBudget` returns a quarantine value when accumulated usage or
+attempts meet (`>=`) a cap; attempt limits take priority. Zero caps deny admission.
+The caller must check before starting another call. `record` still accepts valid
+already-incurred usage after a cap, so accounting cannot silently discard spend.
+
+This helper does not execute requests, persist a queue, price USD or enforce
+runtime admission by itself. `createRefinerModel` now carries measured native
+provider usage or explicit `null`; it does not invoke this meter. The CLI persists
+proposal call receipts (see §8.9). Full assessment accounting, USD budget policy,
+rollups, quarantine and OTel integration remain explicitly open
+in `bd_000-projects-214c.18` / #403. The input/snapshot integrity repair is
+`bd_000-projects-214c.18.1` / #404; it does not settle that broader requirement.
 
 ### 7.2 Kernel- and judge-version contracts
 
@@ -415,6 +470,281 @@ const MAX_OPS_PER_PROPOSAL = 8;
 Shared, pure op-parsing both reference strategies use, so the op grammar is validated identically across mechanisms. `extractJsonObject` extracts the first balanced JSON object from a completion (models often wrap JSON in prose or fences). `parseProposalResponse` validates the JSON against a Zod discriminated-union schema (add / delete / replace with non-empty anchors) and **truncates** to at most `MAX_OPS_PER_PROPOSAL = 8` ops (excess truncated, not an error — robust to over-eager models). It `throws OpParseError` if no parseable, schema-valid JSON is present.
 
 ---
+
+### 8.5 Scoring adapter execution identity (2026-11-10 repair)
+
+The I/O adapter in `packages/refiner/src/score.ts` executes the exact supplied
+`SkillDoc.text` and `EvalSet.items`, after checking their existing content hashes
+and skill identity. Each item needs an explicit expectation; draft bootstrap
+prompts are not graded without reviewed expected behavior. The default runner
+materializes a private temporary skill/spec/database and delegates to `j-rig eval`
+with one scoped criterion per item. It refuses stub, incomplete, malformed, or
+failed evaluations rather than manufacturing observations. Temporary state is
+removed on success or failure; historical persisted records are unchanged.
+
+See `packages/refiner/README.md` for the frozen-input JSON/CLI workflow and the
+text-only `SkillDoc` boundary. This repair is `bd_000-projects-214c.14` /
+[issue #393](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/393).
+It does not prove the separate capability-quality integration required by
+`bd_000-projects-214c.13` /
+[issue #394](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/394).
+
+The additive `scoreWithEvidence` adapter returns a `ScoreRecord` and complete
+per-item results after validating frozen criterion/case identities and agreement
+with the evaluator aggregate. Adversarial items require these verdicts even on
+the legacy `score` path, and add an `adversarial_pass_rate` dimension with the
+subset's passing fraction, Bernoulli variance, and sample count. Higher means
+more adversarial cases satisfied their explicit expected behavior; `unsure`
+does not pass. Sets with no adversarial items have no adversarial dimension.
+These observations provide evidence for the acceptance-quality integration;
+the assessment workflow below enforces its quality preconditions.
+
+### 8.6 Reviewed quality before acceptance (214c.13)
+
+`assessProposal(inputs, runner, validator?)` requires a frozen document, proposal,
+eval set, explicit clock, scoring options, `AcceptanceQualityEvidence`, and
+`AcceptanceQualityPolicy`. The adapter snapshots inputs, checks content/identity,
+requires complete declared coverage, evaluates leakage and calibration against
+explicit policy, and refuses absent/expired review evidence or refresh-due sets.
+Calibration evidence identifies the exact judge provider/model; actual paired
+scoring must agree. Reference items and calibration labels are reviewed caller
+evidence, not independently authenticated facts. Policy has no default quality
+thresholds. See the Refiner README for the complete JSON field contract.
+
+Only after preconditions pass does it apply the proposal, freshly score both
+versions on the same frozen items, and invoke the existing `decide` gate. The
+adversarial dimension participates in non-regression. No historical ScoreRecord
+can substitute for a fresh run. Schema-invalid improvements retain the existing
+schema-revision-candidate outcome rather than becoming accepts.
+
+Assessment requires 1–8 operations (the shared `MAX_OPS_PER_PROPOSAL` bound)
+before evaluator I/O. Both score invocations pin `judgeProvider`/`judgeModel`
+from reviewed quality evidence, overriding caller scoring options. The subprocess
+forwards `--judge-provider`/`--judge-model`; Anthropic metadata reports the
+resolved transport model ID. Calibration must name that concrete ID, since a
+tier alias does not match the runtime identity. Ordinary scoring can still use
+execution tiers. Tracked by `bd_000-projects-214c.16` /
+[issue #398](https://github.com/jeremylongshore/j-rig-skill-binary-eval/issues/398).
+
+`refine assess` stores completed assessments with both documents, proposal,
+eval-set content, item observations, quality evidence, and policy. Blocked
+preconditions write no assessment. The best pointer remains human-gated. This
+additive artifact does not alter existing EvalSet hashes, the pure `accept`
+signature, or signed predicate schemas, and it is not a signed pass by itself.
+
+### 8.7 Reviewed bootstrap sources (214c.15)
+
+`bootstrapFromItems(doc, source, items, opts)` is the pure content-addressed
+constructor used by synthetic bootstrap and validated adapters. Its hash preimage
+is unchanged; optional item provenance is content-bearing. `EvalItemSchema`
+preserves and validates source/review hashes, source case ID, and optional run/model.
+
+`bootstrapReviewedSource(doc, source, review, kind, opts)` accepts harvested or
+golden input only after matching skill identity, canonical source hash, review
+time, explicit expectations, and source completion. Harvested sources come from
+`j-rig eval --rollout-file`: an opt-in private, non-overwriting export of actual
+functional observations. Golden traces are human-nominated. Outputs never become
+expected labels implicitly. A review selects a nonempty subset of unique source
+cases; foreign, missing, duplicated, failed, stub, or unreviewed input is refused.
+The README defines the versioned input schemas and exact CLI examples.
+
+The bootstrap CLI persists both source objects and the set immutably. The default
+store creates files mode 0600 and directories mode 0700, tightening existing
+store directories. Optional boolean adversarial review labels are retained in
+hashed items so the result can enter assessment. Provenance
+hashes resolve to the stored source and review; run IDs are scoped by the source
+hash. `--parent-set-file` validates parent schema/hash/skill identity and preserves
+its lineage; `--eval-set-version` must change for a child. Freshness follows the
+existing 90-day/quick-mode contract. These local records do not authenticate a
+reviewer or prove held-out independence; acceptance-quality checks still apply.
+
+### 8.8 Legacy optimizer integration (214c.17)
+
+Plan027 §4 Phase A/Phase C and §6 require runtime reuse of legacy proposals and
+experiments. Their canonical contracts now live in public `refiner-core`; private
+`@j-rig/core` re-exports them with its JudgmentResult specialization. Published
+Refiner libraries do not depend on private eval-engine packages.
+
+`createRefinerExperiment(inputs)` accepts a ChangeProposal, SkillDoc, EvalSet,
+one-operation EditProposal, targetItemId, source `{runId, criterionId, evidenceHash}`,
+and explicit `now`. It validates content identities, explicit unique eval labels,
+criterion mapping and an effective atomic edit. Its deterministic experiment ID
+binds the change, content identities, mapping and source. The full value is stored
+under `hashValue(value)`; timestamps participate in the store address.
+
+`validateProposedRefinerExperiment(unknown)` reconstructs a proposed root and
+rejects tampering/resolved records. `assessOptimizerExperiment(inputs, runner,
+validator?)` checks bound inputs before fresh `assessProposal` scoring. It accepts
+only when the Refiner decision is ACCEPT, the mapped target changes false→true,
+and every previously passing item still passes. An evaluated result appends an
+immutable child with assessment/score hashes; blocked quality produces no child.
+The weaker legacy evaluator throws for bound experiments.
+
+`optimize` now creates these records from actual failure analysis when all bridge
+flags are supplied; `refine assess --experiment` resolves them. The README gives
+exact flags, source-retention behavior and the legacy truncated-digest limitation.
+Source runs guide targeting, never substitute for fresh paired evidence. No best
+pointer or document is promoted automatically. Tracked by #401 / 214c.17.
+
+### 8.9 Proposal usage receipts
+
+`CompletionResult.usage` is now `ModelUsage | null`. Consumers must handle null as
+unmeasured, never zero. Native completion clients offer `completeWithUsage` while
+preserving text-only `complete` compatibility. Legacy injected clients remain
+usable with missing measurement. Responses distinguish reported, missing and
+invalid usage; malformed, negative, fractional, unsafe or inconsistent counts
+are invalid, not coerced. Requested and API-reported model IDs remain separate.
+
+Anthropic totals include uncached input, cache reads and cache writes. OpenAI
+prompt/output totals already include cached/reasoning subsets. Selected numeric
+wire fields are retained for subsequent explicit pricing; these are not invoices
+or a complete pricing policy. Unknown response fields and raw content are omitted.
+Protocol references checked 2026-11-10:
+[Claude caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+and [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+`proposeWithEvidence(strategy, ctx, client, store, opts, runtime?)` persists a
+`completion-attempt` before each call and a linked completion/failure afterwards.
+The CLI uses it. Each run has a unique ID and numbered calls; receipts include
+skill/strategy identity, provider when supplied, requested model, response model,
+prompt hash, requested output limit, clocks and measurement. A started-only call
+means unknown outcome after interruption. Transport failures also have unknown
+billing; they are never free or automatically retried. Storage failure before
+intent persistence prevents provider I/O. Storage failure after I/O fails the
+operation and leaves the started record for reconciliation.
+
+A `proposal-attempt` links completed call records and the stored proposal, or
+records failure without a proposal. Parsing failure does not erase incurred
+usage. Credentials, URLs, raw prompts, raw completions and error strings are not
+stored in receipts; existing proposal storage remains unchanged. CLI JSON output
+remains the proposal object. Historical objects are not rewritten. The original
+`propose` API remains available without persistence; callers requiring receipts
+must use `proposeWithEvidence`.
+
+Tracked under `bd_000-projects-214c.18` / #403. Evaluator call evidence is now
+captured as described in §8.10. Governed priced rollups, USD admission, Wave B
+stops, quarantine and Refiner OTel joins are described in §8.12. Measurement
+alone does not authorize paid Wave B.
+
+### 8.10 Evaluator usage evidence and scoring receipts
+
+The evaluator-specific `evaluation-usage/v1` contract lives in refiner-core.
+It is local to the Refiner/evaluator boundary; it does not replace kernel
+Evidence Bundle, ScoreRecord or acceptance schemas. Its ordered calls
+record provider, requested/reported model, starting phase, outcome and nullable
+usage. Counts must be nonnegative safe integers; cache subsets and TTL splits
+must reconcile. Nullable evaluator `TokenUsage` replaces fabricated zero values.
+The native OpenAI/Anthropic adapters and prototype LiteLLM/Vercel adapters retain
+unknown usage explicitly. These records describe provider-interface calls;
+internal transport retries are not separate call records.
+
+`EvalCostMeter` records failed, interrupted, partial-batch and in-flight calls.
+Reports include `usage_complete`, `unknown_calls` and `usage_evidence`; numeric
+totals are known subtotals. Returned records are detached. The advisory USD table
+returns null for missing/invalid usage or cache writes without explicit rates;
+it no longer clamps malformed counts. OpenAI-compatible, Anthropic and LiteLLM
+adapters preserve exposed cache buckets and actual response models separately
+from request aliases. The Vercel prototype retains aggregate token usage only;
+cache buckets and reported model are unavailable through that adapter.
+`cost.run.recorded` gains usage-complete and unknown-call attributes;
+`cost.phase.recorded` gains an unknown-call attribute.
+
+`createAccountingEvalRunner(inner, store, context?, runtime?)` writes intent
+before subprocess I/O and a linked outcome before score parsing. The CLI uses it
+for both score and assess, including optimizer assessments. Failed exits retain
+valid call evidence; thrown runners and started-only records remain unknown.
+Storage failure before intent prevents the call. Receipts omit raw stdout,
+stderr, prompts and filesystem paths. Evaluated assessments that made calls get
+an `evaluation-outcome` joining the run ID to the decision and stored assessment.
+Blocked outcomes after calls retain run ID and status with null decision and
+assessment hash. Quality rejection before scoring incurs no calls or receipts.
+
+`scoreWithEvidence` returns `usage: { status, evidence }`; non-JSON or legacy
+output is missing. Parseable output with malformed or ambiguous usage evidence
+is invalid. A reported evidence object can contain null
+usage calls: reported does not mean complete. Historical records are unchanged.
+A later runner failure does not erase earlier attempt receipts; this retention
+is covered at the runner boundary.
+
+Existing evaluator token/USD soft caps stop after unknown settled usage, including
+when the last call in a phase is unmeasured. Provider failures retain exit 2 and
+error evidence when no call was budget-refused; later phases are skipped.
+In-flight requests retain the existing soft-cap behavior, with calls counted before I/O; this does not implement hard
+dollar reservations. The additional governed native transport in §8.12 provides
+explicit pricing, wire-retry accounting, reservations, rollups, quarantine and
+telemetry correlation (`bd_000-projects-214c.18` / #403). No paid Wave B run
+is part of this change.
+
+### 8.11 Subscription execution measurements
+
+The `claude-code` adapter records each launch attempt after local preflight and
+before process launch. Its `onAttempt` observer returns the settlement callback;
+failed launches, crashes and subscription-policy refusals after launch retain a
+failed call. Without usable result usage, its measurement is unknown; if a valid
+result arrived before failure, the measured usage is retained. Time/turn/budget
+interruptions retain any valid reported usage and an interrupted outcome. Preflight refusals incur no launch record.
+Settlement precedes artifact collection, so later local failures cannot erase the
+process measurement. A nonzero process exit remains an execution error even if a
+result event arrived first. The legacy `onUsage` observer receives only measured
+results; the evaluator meter uses `onAttempt`.
+
+Stream usage uses the same nullable, cache-aware normalization as native
+Anthropic responses. Missing, invalid or duplicate result usage is unknown;
+explicit zero remains zero. Input totals include cache reads/writes once, and
+reported TTL buckets are retained. Invalid API-equivalent dollar values are
+omitted. Requested and reported model identities remain separate in call
+evidence; subscription classification is applied to report keys for the existing
+API-equivalent versus billed distinction. Cache writes remain unpriced by the
+advisory table. This does not implement hard dollar admission or wire-retry costs.
+
+Subscription execution emits cost JSON even when the other provider legs are
+stubbed. Tests use the repository-owned executable fixture and synthetic
+credentials, never a live subscription. Parser, adapter/meter/budget and actual
+CLI tests cover failures, unknown versus zero usage, cache buckets and process
+interruptions. The governed hard-cost mode in §8.12 refuses subscription
+execution. See CLI README and budget spec 047.
+
+### 8.12 Explicit cost policy and durable admission
+
+Tracked by `bd_000-projects-214c.18` / GitHub #403. Pure `CostPolicySchema`,
+`priceCostUsage`, `reserveCost` and `replayCostLedger` define reproducible integer
+micro-USD arithmetic and record replay. Public adapter `CostLedger` performs
+exclusive, synced append-only reservations; `createCostTransport` admits each
+wire attempt and settles it before response parsing. `refine propose` accepts
+explicit policy, ledger and stable file identity flags. See the Refiner README
+for pricing units, token-bound assumptions, fixed Wave B limits and recovery.
+
+Native score/assess subprocesses now carry the explicit shared cost context.
+All native evaluator providers and independent judges wrap their innermost wire
+transport, inside MiniMax recovery. Admission refusals take the no-verdict budget
+stop path. Unsupported subscription execution is refused in governed mode.
+
+`recordCostOutcome` snapshots cumulative file and global costs at the outcome
+boundary. CLI attempts store these reports, quarantine/manual-review entries and
+P0 findings, and emit existing `cost.run.recorded` events with Refiner correlation,
+file accepted counts and cumulative per-accept USD (omitted when unknown).
+The `cost.record.scope` attribute separates whole Refiner attempts from nested
+evaluator runs; never sum these two levels. See the Refiner README for unknown
+usage, planned-cohort means and provider-bound assumptions. Paired accept/reject,
+quality-blocked, parse-failure, concurrency and retry tests use local fixtures.
+No paid Wave B run or production cost calibration has been performed. Optional per-file and
+whole-scope token/attempt limits use the same durable reservations as USD limits;
+zero caps deny all applicable calls. Attempt counts include each admitted retry,
+failed call and zero-priced call. Pending token reservations cannot be reset by
+restarting the process. Outer evaluator attempts and admitted wire calls have distinct
+counts; refusal does not add a wire reservation or charge.
+
+Governed native execution latches unrecovered outer provider failures before
+further wire admission. Later refusals cannot replace the original infrastructure
+error with budget exhaustion. `CostAdmissionError` stays distinct through native
+provider adapters; measured MiniMax recovery remains a separately reserved retry.
+
+Governed assessment validates its financial outcome before storing an accepted
+assessment. Every wire call must have settled, priced usage within its reserved
+bounds, and at least one call must have completed. Measured failed calls followed
+by successful recovery remain in the accepted attempt's cost. Unknown usage or a
+provider-bound overrun prevents publishing an accepted assessment; the failed
+outcome retains its cost and quarantine/P0 evidence.
 
 ## 9. Build and test
 

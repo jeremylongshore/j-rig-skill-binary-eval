@@ -9,12 +9,14 @@ export {
 export type {
   ChatMessage,
   CompletionRequest,
+  ReasoningEffort,
   CompletionResult,
   FinishReason,
   Provider,
   StreamChunk,
   TokenUsage,
   ToolCallResult,
+  ModelToolCall,
   ToolDefinition,
 } from "./types.js";
 

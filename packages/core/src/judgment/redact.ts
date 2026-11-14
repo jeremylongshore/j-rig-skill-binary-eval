@@ -17,8 +17,39 @@
 
 const REDACTED = "[redacted]";
 
+// Exact host-owned messages contain no external/provider text. Do not exempt
+// a prefix or arbitrary suffix: those could carry echoed credentials.
+const SAFE_TOOL_FAILURES = new Set(
+  [
+    "observation_identity_missing",
+    "observation_limit",
+    "tool_inventory",
+    "output_limit",
+    "incomplete_response",
+    "missing_tool_call",
+    "unexpected_tool_call",
+    "invalid_tool_call",
+    "call_or_output_limit",
+    "turn_limit",
+    "timeout",
+    "transport_failed",
+    "cleanup_failed",
+  ].map((reason) => `tool_execution/${reason}`),
+);
+
 /** Longest error text we allow into a signed reason. */
 export const MAX_PROVIDER_ERROR_CHARS = 240;
+
+/**
+ * The same credential rules as {@link redactProviderError}, without the
+ * provider-error truncation. Used for recorded tool-call summaries (the
+ * claude-code trajectory), which keep their own length bound.
+ */
+export function redactCredentials(text: string): string {
+  let out = text;
+  for (const [re, rep] of RULES) out = out.replace(re, rep);
+  return out;
+}
 
 const RULES: ReadonlyArray<readonly [RegExp, string]> = [
   // Authorization / Bearer / Basic headers, any casing, any whitespace.
@@ -51,7 +82,8 @@ const RULES: ReadonlyArray<readonly [RegExp, string]> = [
  */
 export function redactProviderError(message: unknown): string {
   let out = typeof message === "string" ? message : String(message);
-  for (const [re, rep] of RULES) out = out.replace(re, rep);
+  if (SAFE_TOOL_FAILURES.has(out)) return out;
+  out = redactCredentials(out);
   if (out.length > MAX_PROVIDER_ERROR_CHARS) {
     out = `${out.slice(0, MAX_PROVIDER_ERROR_CHARS - 1)}…`;
   }

@@ -5,17 +5,17 @@
  *
  *   1. **coverage** — diversity of the eval set's behavioral space, measured as
  *      Shannon entropy of the item-type distribution (derived from the item `id`
- *      prefix segment, e.g. "validate-skillmd-syn-001" → type "syn"; or over
- *      the first token of each `prompt` when no structured prefix is present).
+ *      prefix with its numeric suffix removed, e.g. "validate-skillmd-syn-001"
+ *      → "validate-skillmd-syn"; otherwise the full id).
  *      Returns a normalized [0,1] score + per-type breakdown. A uniform set has
  *      coverage = 1.0; a set where every item comes from one bucket has
  *      coverage = 0.0 (when there is more than one bucket).
  *
  *   2. **leakage** — overlap between two item collections (e.g. eval set vs.
  *      reference / training set). Also detects intra-set exact duplicate items
- *      when called with setB = setA.  Concrete: content-hash overlap ratio over
- *      serialized item prompts (trim-lower-case canonicalization before hashing,
- *      so whitespace / case differences do NOT hide overlap). Returns the ratio
+ *      when called with the same array reference. Cross-set comparisons match
+ *      prompt occurrences one-to-one using trim-lower-case canonicalization.
+ *      No hashing or semantic similarity is involved. Returns the ratio
  *      `overlappingCount / min(setA.length, setB.length)` and the ids of the
  *      overlapping items found in setA. A ratio of 0.0 is clean; 1.0 means
  *      every item in the smaller set has a match in the larger.
@@ -44,12 +44,12 @@
  *   - Exported individually and via the `evaluateEvalSet` aggregator.
  *
  * Definitional choices (documented here and in the PR body):
- *   - Coverage uses Shannon entropy because it captures BOTH category count
- *     AND balance — a set with 10 categories all having 1 item scores higher
- *     than a set with 10 categories where 9 are singletons and 1 has 100 items.
+ *   - Legacy coverage measures balance across observed categories. Normalized
+ *     entropy cannot detect an absent capability. capabilityCoverage separately
+ *     measures sampling completeness against an explicit reviewed manifest.
  *   - The item type derivation prefers the structured id prefix (segment before
  *     the last `-NNN` counter) over prompt heuristics, because ids are
- *     machine-generated and stable; prompt-based bucketing is a fallback only.
+ *     machine-generated and stable; there is no prompt-based fallback.
  *   - Leakage uses a canonical string key (trim + lower-case of the prompt) to
  *     avoid false negatives from invisible whitespace or capitalization drift.
  *   - ECE uses 10 equal-width bins (0–0.1, 0.1–0.2, …, 0.9–1.0) per the
@@ -65,6 +65,11 @@
  */
 
 import type { EvalItem, EvalSet } from "./types.js";
+import {
+  capabilityCoverage,
+  type CapabilityManifest,
+  type CapabilityCoverageResult,
+} from "./capability-coverage.js";
 
 // ─── Extended EvalItem (bead 214c.11 — minimal backward-compatible addition) ──
 
@@ -200,9 +205,9 @@ export interface LeakageResult {
    * When either set is empty, the ratio is 0.0 by convention.
    */
   readonly overlapRatio: number;
-  /** Absolute count of items in setA that have a matching item in setB. */
+  /** Number of one-to-one prompt matches (or extra occurrences in self-comparison). */
   readonly overlappingCount: number;
-  /** Ids of the overlapping items from setA (in the order they appear in setA). */
+  /** Ids of matched items from setA, in input order; earliest occurrences match first. */
   readonly overlappingIds: readonly string[];
 }
 
@@ -218,12 +223,16 @@ function promptKey(prompt: string): string {
  * Compute the **leakage** metric between two item collections.
  *
  * Leakage measures the proportion of items shared between two sets (e.g.
- * eval-set vs. training/reference set). It also detects intra-set exact
- * duplicate prompts when called with `setA === setB` (or when the two arrays
- * contain the same items).
+ * eval-set vs. training/reference set). It also detects intra-set duplicate
+ * prompts when called with the same array reference (`setA === setB`).
+ * Distinct arrays are always compared as separate collections.
  *
  * Matching is done on the canonical prompt key (trim + lower-case). Two items
  * are considered identical if their canonical prompts match, regardless of id.
+ * Cross-set matches are one-to-one: each occurrence in setB can match at most
+ * one occurrence in setA. This multiset intersection keeps the count symmetric
+ * and prevents repeated prompts from inflating the ratio above 1.
+ * Self-comparison instead reports each occurrence after the first per prompt.
  *
  * The denominator is `min(setA.length, setB.length)` so the ratio is
  * interpretable as "how much of the smaller set is contaminated."
@@ -238,33 +247,26 @@ export function leakage(setA: readonly EvalItem[], setB: readonly EvalItem[]): L
     return { overlapRatio: 0, overlappingCount: 0, overlappingIds: [] };
   }
 
-  // Build a lookup set from setB's canonical prompt keys
-  const bKeys = new Set<string>(setB.map((item) => promptKey(item.prompt)));
-
   const overlappingIds: string[] = [];
-  // When setA and setB are the same collection detect duplicates within setA:
-  // we want to find items whose prompt key appears MORE THAN ONCE (i.e. has a
-  // counterpart in the same set). We do this by counting keys in setA and
-  // marking any item whose key appears in bKeys AND that key has a match
-  // ELSEWHERE in setA (or anywhere in setB when setA !== setB).
-  const aKeySeen = new Map<string, string>(); // key → first id
-
-  for (const item of setA) {
-    const key = promptKey(item.prompt);
-
-    if (bKeys.has(key)) {
-      // Cross-set check: does setB contain this key?
-      // For self-comparison (setA === setB as same items), we need at least two
-      // items with this key — so we track the first occurrence per key.
-      if (setA === setB || Object.is(setA, setB)) {
-        // Self-comparison: only report the SECOND+ occurrence (the duplicate)
-        if (aKeySeen.has(key)) {
-          overlappingIds.push(item.id);
-        } else {
-          aKeySeen.set(key, item.id);
-        }
-      } else {
+  if (setA === setB) {
+    const seen = new Set<string>();
+    for (const item of setA) {
+      const key = promptKey(item.prompt);
+      if (seen.has(key)) overlappingIds.push(item.id);
+      else seen.add(key);
+    }
+  } else {
+    const remaining = new Map<string, number>();
+    for (const item of setB) {
+      const key = promptKey(item.prompt);
+      remaining.set(key, (remaining.get(key) ?? 0) + 1);
+    }
+    for (const item of setA) {
+      const key = promptKey(item.prompt);
+      const count = remaining.get(key) ?? 0;
+      if (count > 0) {
         overlappingIds.push(item.id);
+        remaining.set(key, count - 1);
       }
     }
   }
@@ -323,9 +325,9 @@ const ECE_BINS = 10;
  * Returns the Brier score and ECE. For an empty array both values are 0.0 with
  * n = 0 (there is nothing to calibrate against; the caller should check n).
  *
- * @param predictions - Array of judge predictions. All confidences must be in
- *   [0, 1]; values outside that range throw a RangeError.
- * @throws {RangeError} if any confidence is outside [0, 1].
+ * @param predictions - Array of judge predictions. All confidences must be finite and in
+ *   [0, 1]; invalid values throw a RangeError.
+ * @throws {RangeError} if any confidence is non-finite or outside [0, 1].
  */
 export function calibration(predictions: readonly CalibrationPrediction[]): CalibrationResult {
   const n = predictions.length;
@@ -336,8 +338,10 @@ export function calibration(predictions: readonly CalibrationPrediction[]): Cali
 
   // Validate confidence range
   for (const p of predictions) {
-    if (p.confidence < 0 || p.confidence > 1) {
-      throw new RangeError(`calibration: confidence must be in [0, 1], got ${p.confidence}`);
+    if (!Number.isFinite(p.confidence) || p.confidence < 0 || p.confidence > 1) {
+      throw new RangeError(
+        `calibration: confidence must be finite and in [0, 1], got ${p.confidence}`,
+      );
     }
   }
 
@@ -447,6 +451,8 @@ export function adversarialPassRate(
 
 /** Options for {@link evaluateEvalSet}. */
 export interface EvaluateEvalSetOptions {
+  /** Reviewed declared strata and item assignments bound to this eval set. */
+  readonly capabilityManifest?: CapabilityManifest;
   /**
    * Reference item collection to check for leakage against (e.g. training set).
    * When omitted, the leakage metric checks for intra-set duplicates only
@@ -467,6 +473,8 @@ export interface EvaluateEvalSetOptions {
 
 /** Aggregated result of {@link evaluateEvalSet}. */
 export interface EvalSetQualityReport {
+  /** Absent without declarations; legacy entropy cannot establish completeness. */
+  readonly capabilityCoverage?: CapabilityCoverageResult;
   /** Behavioral diversity of the eval set [0, 1]. */
   readonly coverage: CoverageResult;
   /**
@@ -511,6 +519,11 @@ export function evaluateEvalSet(
   const report: EvalSetQualityReport = {
     coverage: coverageResult,
     leakage: leakageResult,
+    ...(opts.capabilityManifest === undefined
+      ? {}
+      : {
+          capabilityCoverage: capabilityCoverage(evalSet, opts.capabilityManifest),
+        }),
   };
 
   if (opts.predictions !== undefined) {

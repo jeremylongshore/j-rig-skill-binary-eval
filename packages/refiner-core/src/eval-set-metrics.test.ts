@@ -192,6 +192,47 @@ describe("leakage", () => {
     expect(result.overlappingIds).toContain("a-001");
   });
 
+  it("matches duplicate prompts one-to-one without exceeding the smaller collection", () => {
+    const many = [itemA, itemD, makeItem("e-001", " WHAT DOES THIS SKILL DO? ")];
+    const one = [itemA];
+    expect(leakage(many, one)).toEqual({
+      overlapRatio: 1,
+      overlappingCount: 1,
+      overlappingIds: ["a-001"],
+    });
+    expect(leakage(one, many).overlapRatio).toBe(1);
+  });
+
+  it("does not let repeated matches hide an unmatched prompt in the smaller set", () => {
+    const repeated = [itemA, itemD, makeItem("e-001", itemA.prompt)];
+    const mixed = [itemA, itemB];
+    const forward = leakage(repeated, mixed);
+    const reverse = leakage(mixed, repeated);
+    expect(forward.overlapRatio).toBe(0.5);
+    expect(reverse.overlapRatio).toBe(0.5);
+    expect(forward.overlappingCount).toBe(1);
+    expect(reverse.overlappingCount).toBe(1);
+  });
+
+  it("retains the available multiplicity of each shared prompt", () => {
+    const left = [itemA, itemD, itemB];
+    const right = [itemD, itemA, itemC];
+    expect(leakage(left, right)).toEqual({
+      overlapRatio: 2 / 3,
+      overlappingCount: 2,
+      overlappingIds: ["a-001", "d-001"],
+    });
+  });
+
+  it("reports each repeated occurrence after the first in self-comparison", () => {
+    const items = [itemA, itemD, itemB, makeItem("e-001", itemA.prompt)];
+    expect(leakage(items, items)).toEqual({
+      overlapRatio: 0.5,
+      overlappingCount: 2,
+      overlappingIds: ["d-001", "e-001"],
+    });
+  });
+
   it("detects intra-set duplicates when setA is compared to itself (same reference)", () => {
     // Items with duplicate prompts within the same set
     const dupeSet = [itemA, itemB, itemD]; // itemA and itemD share the same prompt
@@ -240,6 +281,13 @@ describe("leakage", () => {
 // ─── calibration ─────────────────────────────────────────────────────────────
 
 describe("calibration", () => {
+  it.each([NaN, Infinity, -Infinity])("rejects non-finite confidence %s", (confidence) => {
+    expect(() => calibration([{ confidence, correct: true }])).toThrow(RangeError);
+    expect(() =>
+      evaluateEvalSet(makeEvalSet([]), { predictions: [{ confidence, correct: true }] }),
+    ).toThrow(RangeError);
+  });
+
   it("returns 0 brier score and 0 ECE for an empty array", () => {
     const result = calibration([]);
     expect(result.brierScore).toBe(0);

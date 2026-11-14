@@ -1,4 +1,6 @@
+import type { ToolDefinition } from "../providers/types.js";
 import type { ProviderFailure } from "../providers/errors.js";
+import type { Trajectory } from "./trajectory.js";
 
 /**
  * Context provided to the skill during execution.
@@ -8,6 +10,30 @@ export interface ExecutionContext {
   base_path?: string;
   file_contents?: Record<string, string>;
   context_hints?: Record<string, unknown>;
+  /** Explicit host-owned capability, never inferred from skill text. */
+  tool_runtime?: ExecutionToolRuntime;
+}
+
+/** One fresh, bounded tool session for one execution (including a naked baseline). */
+export interface ExecutionToolSession {
+  /** Host-generated correlation only; never an authorization token. */
+  readonly sessionId?: string;
+  tools: ToolDefinition[];
+  call(name: string, arguments_: Record<string, unknown>, signal: AbortSignal): Promise<string>;
+  close(): Promise<void>;
+}
+
+export interface ExecutionToolRuntime {
+  /** Explicit consent to retain and forward redacted tool data to judges. */
+  judgeObservations?: { redact(text: string): string };
+  open(signal: AbortSignal): Promise<ExecutionToolSession>;
+  limits: {
+    maxTurns: number;
+    maxCalls: number;
+    maxResultBytes: number;
+    maxTotalBytes: number;
+    timeoutMs: number;
+  };
 }
 
 /**
@@ -18,6 +44,13 @@ export interface ExecutionOutput {
   artifacts: ArtifactRecord[];
   tool_calls: number;
   error?: string;
+  /**
+   * The observed tool-call order and produced-file manifest. Present only
+   * when the execution provider is agentic (e.g. `claude-code`); a
+   * single-completion provider leaves it undefined and trajectory checks fail
+   * closed on it.
+   */
+  trajectory?: Trajectory;
 }
 
 /**

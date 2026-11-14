@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CriterionSchema } from "./criterion.js";
 import { SELF_TEST_CRITERION_ID, SelfTestSchema } from "./self-test.js";
-import { TestCaseSchema } from "./test-case.js";
+import { TestCaseSchema, adversarialCaseScopeIssue } from "./test-case.js";
 
 /**
  * Models that can be tested independently.
@@ -49,6 +49,29 @@ export type SiblingSkill = z.infer<typeof SiblingSkillSchema>;
  * which models to test, and what sibling context exists. It is adapted to the
  * canonical kernel EvalSpec before shared evidence or rollout use.
  */
+/**
+ * A per-spec eval budget. Every limit is optional and has NO default (an
+ * absent limit is unlimited); at least one must be set.
+ */
+export const EvalBudgetSchema = z
+  .object({
+    max_usd: z
+      .number()
+      .positive()
+      .optional()
+      .describe("API-equivalent USD across every call (fails closed on an unpriced model)"),
+    max_tokens: z.number().int().positive().optional().describe("Input + output tokens"),
+    max_wall_ms: z.number().int().positive().optional().describe("Wall-clock milliseconds"),
+    max_calls: z.number().int().positive().optional().describe("Metered provider calls"),
+  })
+  .strict()
+  .refine(
+    (b) => Object.values(b).some((v) => v !== undefined),
+    "budget must set at least one of max_usd, max_tokens, max_wall_ms, max_calls",
+  );
+
+export type EvalBudget = z.infer<typeof EvalBudgetSchema>;
+
 export const SkillEvalSpecSchema = z
   .object({
     spec_version: z.literal("1.0").describe("Schema version for forward compatibility"),
@@ -143,6 +166,11 @@ export const SkillEvalSpecSchema = z
           "Omitted = the runtime default (0.95). Reported beside the rollout decision, " +
           "never inside it.",
       ),
+    budget: EvalBudgetSchema.optional().describe(
+      "Spend and latency cap for one `j-rig eval` invocation (all models, all phases). " +
+        "The run stops cleanly when a limit is reached and records which one; an " +
+        "operator's --max-* flag can only tighten a limit set here.",
+    ),
     siblings: z
       .array(SiblingSkillSchema)
       .optional()
@@ -160,7 +188,16 @@ export const SkillEvalSpecSchema = z
     // `self-test` is a reserved criterion id: when a spec declares `self_test`,
     // j-rig injects a synthetic criterion under this id to score the script's
     // exit-code verdict. A user criterion sharing the id would collide with it.
+    const criterionIds = new Set<string>();
     spec.criteria.forEach((c, ci) => {
+      if (criterionIds.has(c.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate criterion id "${c.id}"`,
+          path: ["criteria", ci, "id"],
+        });
+      }
+      criterionIds.add(c.id);
       if (c.id === SELF_TEST_CRITERION_ID) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -171,7 +208,26 @@ export const SkillEvalSpecSchema = z
     });
 
     const knownCriteria = new Set(spec.criteria.map((c) => c.id));
+    const testCaseIds = new Set<string>();
     spec.test_cases.forEach((tc, ti) => {
+      if (testCaseIds.has(tc.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate test case id "${tc.id}"`,
+          path: ["test_cases", ti, "id"],
+        });
+      }
+      testCaseIds.add(tc.id);
+      // An adversarial case that no layer tests used to be skipped silently by
+      // the functional runner. Reject it here, before any model spend.
+      const scopeIssue = adversarialCaseScopeIssue(tc);
+      if (scopeIssue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: scopeIssue,
+          path: ["test_cases", ti],
+        });
+      }
       tc.criteria_ids?.forEach((cid, ci) => {
         if (!knownCriteria.has(cid)) {
           ctx.addIssue({

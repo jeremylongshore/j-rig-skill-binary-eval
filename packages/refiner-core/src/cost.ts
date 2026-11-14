@@ -6,8 +6,9 @@
  *
  * This module is I/O-free by construction: it records usage, applies budget
  * policies, and emits typed decisions — it never calls a model or touches the
- * filesystem. The adapter layer (`@intentsolutions/refiner`) feeds real token counts
- * produced by the Anthropic API; tests feed deterministic stubs.
+ * filesystem. This compatibility helper accepts measured usage only. The governed
+ * runtime uses cost-policy/cost-ledger reservations instead, because this helper
+ * cannot represent unknown usage or coordinate concurrent processes.
  *
  * ## Key types
  *
@@ -23,13 +24,16 @@
  * When a cap fires (token ceiling OR attempt ceiling), the work is NOT silently
  * dropped — it is routed to a quarantine queue as a {@link QuarantineRecord}
  * carrying the reason, the accumulated usage, and the skill that triggered the
- * cap. The pipeline MUST check {@link CostMeter.checkBudget} before each attempt
- * and stop if `{ continue: false }` is returned.
+ * cap. Consumers of this helper must check {@link CostMeter.checkBudget} before
+ * each attempt and stop if `{ continue: false }` is returned. The governed CLI
+ * enforces equivalent cumulative token/attempt limits with durable reservations,
+ * plus explicit USD pricing; it does not reset this in-memory meter each run.
  *
  * Bead: bd_000-projects-jqam
  * Plan: intent-eval-lab/000-docs/027-PP-PLAN-skill-refiner-snoopy-fluttering-comet-v4-2026-05-26.md
  */
 
+import { z } from "zod";
 import type { SkillDocHash } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -38,7 +42,7 @@ import type { SkillDocHash } from "./types.js";
 
 /**
  * Token counts for a single model completion (one propose() call).
- * Both fields are non-negative integers; 0 is valid for cached completions.
+ * Both fields are nonnegative safe integers; 0 is valid when actually reported.
  */
 export interface ModelUsage {
   /** Input tokens sent to the model for this completion. */
@@ -47,9 +51,40 @@ export interface ModelUsage {
   readonly completionTokens: number;
 }
 
-/** Total tokens (promptTokens + completionTokens). */
+const TokenCountSchema = z.number().int().nonnegative().safe();
+const ModelUsageSchema = z
+  .object({
+    promptTokens: TokenCountSchema,
+    completionTokens: TokenCountSchema,
+  })
+  .strict();
+const BudgetSchema = z
+  .object({
+    maxTotalTokens: TokenCountSchema.optional(),
+    maxAttempts: TokenCountSchema.optional(),
+  })
+  .strict();
+const SkillHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+const AttemptSchema = z
+  .object({
+    skillHash: SkillHashSchema,
+    modelId: z.string().refine((value) => value.trim().length > 0, "modelId must be nonempty"),
+    usage: ModelUsageSchema,
+    outcome: z.enum(["accepted", "rejected", "pending"]),
+  })
+  .strict();
+
+function checkedSum(left: number, right: number): number {
+  const result = left + right;
+  if (!Number.isSafeInteger(result))
+    throw new Error("cost meter: token total exceeds safe integer range");
+  return result;
+}
+
+/** Validate token counts and return their exact safe-integer sum. */
 export function totalTokens(usage: ModelUsage): number {
-  return usage.promptTokens + usage.completionTokens;
+  const checked = ModelUsageSchema.parse(usage);
+  return checkedSum(checked.promptTokens, checked.completionTokens);
 }
 
 // ---------------------------------------------------------------------------
@@ -152,13 +187,9 @@ export type BudgetDecision =
  * Aggregated token usage across the attempts that led to an accepted proposal.
  *
  * "Per-accept rollup" answers: "how many tokens did it cost, in total, to
- * produce the one accepted edit for this skill?" It sums only the attempts
- * whose outcome is "accepted" or "pending" that preceded the accepted outcome
- * — i.e. it accumulates across ALL attempts recorded on the meter up to (and
- * including) the accepted one, since rejected proposals are genuine cost too.
- *
- * To compute a rollup scoped to only the accepted attempts, use
- * {@link CostMeter.acceptRollup}.
+ * produce the one accepted edit for this skill?" It accumulates across ALL
+ * recorded attempts, including rejected and pending ones. `acceptedAttempts`
+ * reports the subset marked accepted; it does not filter the token totals.
  */
 export interface AcceptRollup {
   /** Total tokens spent across ALL recorded attempts (including rejected). */
@@ -192,11 +223,10 @@ export interface AcceptRollup {
  *   break;
  * }
  *
- * // After a model call, record the attempt:
- * meter.record({ skillHash, modelId, usage, outcome: "rejected" });
- *
- * // After accept() passes, mark it accepted:
- * meter.record({ skillHash, modelId, usage, outcome: "accepted" });
+ * // Record each model completion exactly once, with its known disposition:
+ * meter.record({ skillHash, modelId, usage, outcome: accepted ? "accepted" : "rejected" });
+ * // If not yet assessed, use "pending". record() appends; it is not an update.
+ * // Do not record the same call again merely to change its outcome.
  *
  * // At the end of the run:
  * const rollup = meter.acceptRollup();
@@ -248,7 +278,8 @@ export interface CostMeter {
   acceptRollup(): AcceptRollup;
 
   /**
-   * Read-only snapshot of recorded attempts (in insertion order).
+   * Detached snapshot of recorded attempts (in insertion order). Neither later
+   * records nor mutation of returned values can change an earlier snapshot.
    */
   readonly attempts: readonly AttemptRecord[];
 }
@@ -262,30 +293,46 @@ export interface CostMeter {
  *
  * @param skillHash The content address of the skill being refined.
  * @param budget    The hard-cap ceilings for this run. Pass `{}` for no caps.
+ * Budgets and usage must be nonnegative safe integers; invalid records and
+ * overflowing totals throw before changing accounting. Inputs and returned
+ * snapshots are detached. `record` accounts for completed calls even at a cap;
+ * callers must check admission before starting the next call.
  */
 export function createCostMeter(skillHash: SkillDocHash, budget: BudgetConfig): CostMeter {
+  SkillHashSchema.parse(skillHash);
+  const config = BudgetSchema.parse(budget);
   const _attempts: AttemptRecord[] = [];
+  let accumulated: ModelUsage = { promptTokens: 0, completionTokens: 0 };
 
   function currentUsage(): ModelUsage {
-    return _attempts.reduce(
-      (acc, a) => ({
-        promptTokens: acc.promptTokens + a.usage.promptTokens,
-        completionTokens: acc.completionTokens + a.usage.completionTokens,
-      }),
-      { promptTokens: 0, completionTokens: 0 },
-    );
+    return { ...accumulated };
   }
 
   return {
-    skillHash,
-    budget,
+    get skillHash() {
+      return skillHash;
+    },
+    get budget(): BudgetConfig {
+      return { ...config };
+    },
 
     get attempts(): readonly AttemptRecord[] {
-      return _attempts;
+      return structuredClone(_attempts);
     },
 
     record(attempt: AttemptRecord): void {
-      _attempts.push(attempt);
+      // Parsing snapshots nested usage. Validate the entire update before writing.
+      const checked = AttemptSchema.parse(attempt);
+      if (checked.skillHash !== skillHash)
+        throw new Error("cost meter: attempt belongs to another skill");
+      totalTokens(checked.usage);
+      const next = {
+        promptTokens: checkedSum(accumulated.promptTokens, checked.usage.promptTokens),
+        completionTokens: checkedSum(accumulated.completionTokens, checked.usage.completionTokens),
+      };
+      totalTokens(next);
+      _attempts.push(checked);
+      accumulated = next;
     },
 
     checkBudget(): BudgetDecision {
@@ -293,7 +340,7 @@ export function createCostMeter(skillHash: SkillDocHash, budget: BudgetConfig): 
       const attemptCount = _attempts.length;
 
       // Attempt ceiling check (cheaper): have we already used all allowed attempts?
-      if (budget.maxAttempts !== undefined && attemptCount >= budget.maxAttempts) {
+      if (config.maxAttempts !== undefined && attemptCount >= config.maxAttempts) {
         return {
           continue: false,
           quarantine: {
@@ -301,15 +348,15 @@ export function createCostMeter(skillHash: SkillDocHash, budget: BudgetConfig): 
             reason: "attempt-ceiling-exceeded",
             usageAtCapFire: usageSoFar,
             attemptsAtCapFire: attemptCount,
-            budget,
+            budget: { ...config },
           },
         };
       }
 
       // Token ceiling check: have accumulated tokens already exceeded the ceiling?
-      if (budget.maxTotalTokens !== undefined) {
+      if (config.maxTotalTokens !== undefined) {
         const spent = totalTokens(usageSoFar);
-        if (spent >= budget.maxTotalTokens) {
+        if (spent >= config.maxTotalTokens) {
           return {
             continue: false,
             quarantine: {
@@ -317,7 +364,7 @@ export function createCostMeter(skillHash: SkillDocHash, budget: BudgetConfig): 
               reason: "token-ceiling-exceeded",
               usageAtCapFire: usageSoFar,
               attemptsAtCapFire: attemptCount,
-              budget,
+              budget: { ...config },
             },
           };
         }
