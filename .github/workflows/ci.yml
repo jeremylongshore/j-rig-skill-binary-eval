@@ -162,6 +162,27 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
+      # Operational pilot: pin the verifier source; keep the vendored harness unchanged.
+      - name: Checkout reviewed skill gate verifier
+        uses: actions/checkout@v7
+        with:
+          repository: jeremylongshore/intent-audit-harness
+          ref: 25c476e1b5e192442ecd19c6e6df75c3e7de16ab
+          path: .ci-skill-gates-provider
+          sparse-checkout: |
+            scripts/skill-gates.py
+            package.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Replay skill gate collection, failures and recovery offline
+        env:
+          IEP_SKILL_GATE_PROVIDER: ${{ github.workspace }}/.ci-skill-gates-provider/scripts/skill-gates.py
+        run: |
+          expected='239e0b10dc486d35296a7520150cb347d02ee65216ac1d2c09adc7ccf8fa6da4'
+          printf '%s  %s\n' "$expected" "$IEP_SKILL_GATE_PROVIDER" | sha256sum --check
+          pnpm run test:skill-gates
+
       # Enforcement wall: the vendored audit-harness wrapper verifies the
       # hash-pinned policy surface (the coverage floor in vitest.config.ts). A
       # silent threshold downgrade trips HARNESS_TAMPERED (exit 2) and reds CI.

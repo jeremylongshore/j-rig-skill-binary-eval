@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:skill-gates": "python3 tests/skill-gates/test_claude.py",
     "typecheck": "tsc --noEmit -p tests/tsconfig.json && pnpm -r run typecheck",
     "clean": "pnpm -r run clean",
     "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run typecheck:workspace && pnpm run verify:workspace",

@@ -250,3 +250,11 @@ For strict scoring, supply every literal path from the collection receipt as
 matching coverage JSON. Keep the default 30/15/10 limits. The adapter above
 assembles these arguments from the full current inventory and retains provider
 identities. CI uses the immutable source checkout rather than a package release.
+
+## Opt-in skill compliance replay
+
+`pnpm run test:skill-gates` exercises the Python Claude hook collector against
+a separately pinned audit-harness verifier. CI runs it under the required Test
+job. Its Python coverage is outside the TypeScript workspace measurement;
+passing replay fixtures do not estimate production false-block rates. See
+[the pilot](examples/skill-gates/README.md) for installation and evidence limits.

@@ -44,6 +44,7 @@ export default tseslint.config(
       "eval-packs/",
       ".audit-harness/",
       ".ci-crap-provider/",
+      ".ci-skill-gates-provider/",
     ],
   },
 );

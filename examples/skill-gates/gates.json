@@ -1,0 +1,24 @@
+{
+  "schema": "audit-harness/skill-gates/v1",
+  "mode": "observe",
+  "skill": "verify-skill-gates",
+  "inputs": [
+    "scripts/skill-gates-claude.py",
+    "tests/skill-gates/test_claude.py",
+    "examples/skill-gates/check.py"
+  ],
+  "must_read": [
+    "examples/skill-gates/README.md",
+    "examples/skill-gates/verify-skill-gates/SKILL.md"
+  ],
+  "must_run": [
+    {
+      "id": "adapter-replay",
+      "argv": ["python3", "examples/skill-gates/check.py"],
+      "timeout_ms": 60000,
+      "min_tests": 9
+    }
+  ],
+  "checklist": ["required-reads", "adapter-replay", "fresh-evidence"],
+  "deny_tools": ["WebFetch"]
+}
