@@ -10,8 +10,8 @@ Use Linux or macOS, Python 3.9+, Node 20+, and a reviewed checkout of
 `jeremylongshore/intent-audit-harness` containing `scripts/skill-gates.py`.
 The verifier is not part of the older vendored harness in this repository.
 The initial reviewed provider is commit
-`788dab57f720116c672c0efae7f34bdaac6a4571`, with source digest
-`f27254fed06da24d87cc90de31595832a6b1dc3a32d70be2f50e800dd1beaf46`.
+`25c476e1b5e192442ecd19c6e6df75c3e7de16ab`, with source digest
+`239e0b10dc486d35296a7520150cb347d02ee65216ac1d2c09adc7ccf8fa6da4`.
 Set an absolute provider path and its independently reviewed SHA256 before
 starting Claude Code from this repository root:
 

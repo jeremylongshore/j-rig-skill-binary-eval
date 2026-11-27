@@ -167,7 +167,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: jeremylongshore/intent-audit-harness
-          ref: 788dab57f720116c672c0efae7f34bdaac6a4571
+          ref: 25c476e1b5e192442ecd19c6e6df75c3e7de16ab
           path: .ci-skill-gates-provider
           sparse-checkout: |
             scripts/skill-gates.py
@@ -179,7 +179,7 @@ jobs:
         env:
           IEP_SKILL_GATE_PROVIDER: ${{ github.workspace }}/.ci-skill-gates-provider/scripts/skill-gates.py
         run: |
-          expected='f27254fed06da24d87cc90de31595832a6b1dc3a32d70be2f50e800dd1beaf46'
+          expected='239e0b10dc486d35296a7520150cb347d02ee65216ac1d2c09adc7ccf8fa6da4'
           printf '%s  %s\n' "$expected" "$IEP_SKILL_GATE_PROVIDER" | sha256sum --check
           pnpm run test:skill-gates
 
