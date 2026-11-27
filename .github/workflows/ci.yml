@@ -228,5 +228,7 @@ jobs:
 
       - name: Workspace verification on Node.js 20
         run: |
-          pnpm exec vitest run scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts scripts/workspace-coverage*.test.ts scripts/workspace-crap.test.ts
+          pnpm exec vitest run \
+            scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts \
+            scripts/workspace-coverage*.test.ts scripts/workspace-crap.test.ts
           pnpm run verify:workspace
