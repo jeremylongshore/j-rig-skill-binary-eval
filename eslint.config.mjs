@@ -43,6 +43,7 @@ export default tseslint.config(
       "000-docs/",
       "eval-packs/",
       ".audit-harness/",
+      ".ci-crap-provider/",
     ],
   },
 );

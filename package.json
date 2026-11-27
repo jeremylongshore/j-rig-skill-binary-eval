@@ -29,7 +29,9 @@
     "harness:verify": "scripts/audit-harness verify",
     "harness:init": "scripts/audit-harness init",
     "verify:workspace": "tsx scripts/workspace-architecture.ts && tsx scripts/workspace-quality.ts bias && tsx scripts/workspace-quality.ts gherkin",
-    "typecheck:workspace": "tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions scripts/workspace-inventory.ts scripts/workspace-quality.ts scripts/workspace-quality.test.ts scripts/workspace-architecture.ts scripts/workspace-architecture.test.ts"
+    "typecheck:workspace": "tsc --ignoreConfig --types node --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --allowImportingTsExtensions scripts/workspace-inventory.ts scripts/workspace-quality.ts scripts/workspace-quality.test.ts scripts/workspace-architecture.ts scripts/workspace-architecture.test.ts scripts/workspace-coverage-*.ts scripts/workspace-coverage.test.ts scripts/workspace-crap.ts scripts/workspace-crap.test.ts",
+    "test:coverage:workspace": "tsx scripts/workspace-coverage-run.ts",
+    "verify:crap": "tsx scripts/workspace-crap.ts"
   },
   "lint-staged": {
     "*.{ts,js,cjs,mjs}": [
@@ -43,10 +45,13 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@intentsolutions/core": "0.11.0",
+    "@types/istanbul-lib-coverage": "2.0.6",
     "@types/node": "^26.6.2",
     "@vitest/coverage-v8": "3.2.7",
+    "ast-v8-to-istanbul": "0.3.12",
     "eslint": "^10.11.0",
     "husky": "^9.1.7",
+    "istanbul-lib-coverage": "3.2.2",
     "lint-staged": "^17.5.1",
     "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.9.9",
@@ -54,6 +59,7 @@
     "tsx": "4.21.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
+    "vite": "7.3.1",
     "vitest": "3.2.7"
   },
   "license": "Apache-2.0",

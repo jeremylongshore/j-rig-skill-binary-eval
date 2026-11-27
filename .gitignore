@@ -66,3 +66,6 @@ evidence/**/eval.stderr.log
 
 # Immutable CI-only consumer artifact checkout for offline signing tests.
 .ci-verifier-fixture/
+
+# Immutable CI-only upstream strict measurement provider.
+.ci-crap-provider/

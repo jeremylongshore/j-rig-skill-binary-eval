@@ -41,9 +41,16 @@ package.json
 .harness-hash-extra-patterns
 pnpm-workspace.yaml
 packages/*/package.json
-
 # Exact-v1 incoming-verifier producer and its explicit runtime/test contract.
 ci/emit-evidence/sign-evidence.ts
 ci/emit-evidence/tests/sign-evidence.test.ts
 ci/emit-evidence/tests/deny-network.ts
 ci/emit-evidence/tests/migration-provenance.test.ts
+# Original-source coverage collection and exact provider dependency pins.
+scripts/workspace-coverage-*.ts
+scripts/workspace-coverage.test.ts
+scripts/workspace-crap.ts
+scripts/workspace-crap.test.ts
+eslint.config.mjs
+.prettierignore
+pnpm-lock.yaml

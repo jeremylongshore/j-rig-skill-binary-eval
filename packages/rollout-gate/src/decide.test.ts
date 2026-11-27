@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PREDICATE_URI, STATEMENT_TYPE, type GateResult } from "@j-rig/core";
-import { decide, parseBundle } from "./decide.js";
+import { decide, parseBundle } from "./index.js";
 import type { RolloutPolicyInput } from "./policy.js";
 
 const SHA = "abc1234567890abcdef1234567890abcdef1234567890abcdef1234567890abc";
