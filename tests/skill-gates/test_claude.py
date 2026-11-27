@@ -76,6 +76,7 @@ class ClaudeGates(unittest.TestCase):
         self.assertEqual(self.hook("Stop", stop_hook_active=True).returncode, 2)
         self.satisfy()
         self.assertEqual(self.hook("Stop", stop_hook_active=True).returncode, 0)
+        self.assertEqual(self.hook("PreToolUse", tool_name="WebFetch").returncode, 0)
 
     def test_unrelated_session_and_prompt_have_no_gate(self):
         self.assertEqual(self.hook("UserPromptSubmit", prompt="ordinary prompt").stdout, "")
@@ -170,6 +171,29 @@ class ClaudeGates(unittest.TestCase):
             if process.poll() is None:
                 process.terminate()
                 process.communicate(timeout=5)
+
+    def test_failed_report_cannot_complete_gate_and_can_recover(self):
+        copied = self.root / "provider/scripts/skill-gates.py"
+        copied.parent.mkdir(parents=True)
+        copied.write_bytes(PROVIDER.read_bytes())
+        package = copied.parents[1] / "package.json"
+        package.write_text('{"version":"test"}')
+        self.env["IEP_SKILL_GATE_PROVIDER"] = str(copied)
+        self.begin("enforce")
+        self.satisfy()
+        for invalid in (None, "broken-json"):
+            with self.subTest(package=invalid):
+                if invalid is None:
+                    package.unlink()
+                else:
+                    package.write_text(invalid)
+                self.assertEqual(self.invoke("report").returncode, 2)
+                self.assertEqual(self.hook("Stop").returncode, 2)
+                receipt = json.loads(next(self.state.glob("*/state.json")).read_text())["receipt"]
+                self.assertIsNone(receipt["report"])
+        package.write_text('{"version":"test"}')
+        self.assertEqual(self.invoke("report").returncode, 0)
+        self.assertEqual(self.hook("Stop").returncode, 0)
 
 
 if __name__ == "__main__":

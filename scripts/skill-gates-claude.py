@@ -192,9 +192,13 @@ def operate(args, event):
             receipt["commands"][args.item] = result
             print(json.dumps(result, sort_keys=True))
         elif action == "report":
+            # Revoke old completion before attempting serialization/output. A failed
+            # rerun of report must not leave a prior completed report behind.
+            receipt["report"] = None
+            atomic(state_path, state)
             receipt["report"] = {"checklist": policy["checklist"], "identity_sha256": binding}
         errors = gate.assess(policy, receipt, current, session)
-        if action in ("read", "run", "report"):
+        if action in ("read", "run"):
             atomic(state_path, state)
         blocked = bool(errors) and action == "Stop" and policy["mode"] == "enforce"
         log(directory, action, policy["mode"], errors, blocked)
@@ -202,7 +206,11 @@ def operate(args, event):
             state["active"] = False
             atomic(state_path, state)
         if action == "report":
-            print(json.dumps(gate.row(policy_hash, receipt, errors, policy["mode"] == "enforce"), sort_keys=True))
+            print(json.dumps(gate.row(policy_hash, receipt, errors, policy["mode"] == "enforce"),
+                             sort_keys=True), flush=True)
+            if errors:
+                receipt["report"] = None
+            atomic(state_path, state)
         if action == "Stop" and errors:
             print("Skill gate evidence incomplete: " + ", ".join(errors), file=sys.stderr)
         if action == "run":
