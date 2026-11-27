@@ -69,3 +69,9 @@ evidence/**/eval.stderr.log
 
 # Immutable CI-only upstream strict measurement provider.
 .ci-crap-provider/
+
+# Immutable CI-only skill gate verifier.
+.ci-skill-gates-provider/
+
+# Local Python pilot/test bytecode.
+**/__pycache__/

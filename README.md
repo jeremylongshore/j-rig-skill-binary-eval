@@ -517,3 +517,8 @@ Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
 
 Dashboard producers and their publication boundaries are documented in
 [Canonical Dashboard Evidence](000-docs/048-AT-SPEC-canonical-dashboard-evidence-2026-10-12.md).
+
+## Skill compliance pilot
+
+The [opt-in skill-gates example](examples/skill-gates/README.md) records actual
+read/run/report evidence and starts with observe-mode Claude Code hooks.

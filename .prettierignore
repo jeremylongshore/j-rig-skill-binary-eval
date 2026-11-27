@@ -18,3 +18,5 @@ packages/*/src/__fixtures__/**/*.golden.html
 
 # Immutable upstream CI measurement provider (formatted in its own repository).
 .ci-crap-provider/
+
+.ci-skill-gates-provider/

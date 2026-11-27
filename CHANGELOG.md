@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — skill compliance pilot
+
+### Added
+
+- Opt-in skill compliance collector, Claude Code hook example and offline replay
+  over a pinned read-only audit-harness verifier. Default remains observe mode.
+
 ## Package releases — 0.5.1 — 2026-10-19
 
 ### Fixed
