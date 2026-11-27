@@ -7,7 +7,7 @@ import {
   derivePolicyRef,
   NOT_APPLICABLE_TOKEN,
   NOT_APPLICABLE_REASON,
-} from "./transform.js";
+} from "./index.js";
 
 function v1Statement(result: string, overrides: Record<string, unknown> = {}): unknown {
   return {

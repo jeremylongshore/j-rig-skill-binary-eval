@@ -148,6 +148,20 @@ jobs:
           pnpm run typecheck:signing
           pnpm run test:signing
 
+      # CI-only upstream source pin; this does not replace the vendored harness.
+      - name: Checkout reviewed strict measurement provider
+        uses: actions/checkout@v7
+        with:
+          repository: jeremylongshore/intent-audit-harness
+          ref: da6d67a1383ad6e573f8d02d0f14c583eaa12dc3
+          path: .ci-crap-provider
+          sparse-checkout: |
+            scripts/crap-score.py
+            scripts/crap_strict.py
+            scripts/crap_typescript.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       # Enforcement wall: the vendored audit-harness wrapper verifies the
       # hash-pinned policy surface (the coverage floor in vitest.config.ts). A
       # silent threshold downgrade trips HARNESS_TAMPERED (exit 2) and reds CI.
@@ -178,6 +192,26 @@ jobs:
       - name: Test (refiner-core per-package coverage gate)
         run: pnpm run test:coverage:refiner-core
 
+      - name: Collect original source and test coverage
+        id: workspace_coverage
+        run: pnpm run test:coverage:workspace --timeout-ms 600000
+
+      - name: Enforce complete strict workspace CRAP measurement
+        run: pnpm run verify:crap --provider .ci-crap-provider
+
+      - name: Upload workspace measurement receipts
+        if: always() && steps.workspace_coverage.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-original-source-coverage
+          path: |
+            coverage/workspace/collection.json
+            coverage/workspace/coverage-final.json
+            coverage/strict/summary.json
+            coverage/strict/provider.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v7
@@ -194,5 +228,7 @@ jobs:
 
       - name: Workspace verification on Node.js 20
         run: |
-          pnpm exec vitest run scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts
+          pnpm exec vitest run \
+            scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts \
+            scripts/workspace-coverage*.test.ts scripts/workspace-crap.test.ts
           pnpm run verify:workspace

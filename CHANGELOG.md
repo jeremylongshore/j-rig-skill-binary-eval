@@ -71,6 +71,16 @@
 
 ### Fixed
 
+- Measure the complete declared package production and Vitest test inventories
+  for strict CRAP scoring. CI collects original-source worker coverage and runs
+  the immutable upstream scorer with unchanged 30/15/10 limits; missing inputs,
+  stale hashes, incomplete denominators and provider failures fail the gate.
+  Preserve independent native coverage floors and record measurement boundaries.
+  Refs beads `bd_000-projects-h08j.6.5`, `.6.7` and `.6.10`.
+- Cover evidence-command and pipeline normalization behavior in the instrumented
+  worker, and extract batch-lineage preparation to keep invocation setup within
+  its complexity limit.
+
 - Evidence files are inspected and read through the same open descriptor;
   file-read and directory-listing failures return structured input errors.
   Directory rows remain independent reads, not an atomic snapshot.

@@ -15,3 +15,6 @@ packages/*/src/__fixtures__/**/*.golden.html
 
 # Vendored audit-harness distribution (upstream-formatted, hash-pinned)
 .audit-harness/
+
+# Immutable upstream CI measurement provider (formatted in its own repository).
+.ci-crap-provider/

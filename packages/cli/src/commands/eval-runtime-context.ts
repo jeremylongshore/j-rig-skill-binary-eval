@@ -629,6 +629,22 @@ function resolveCommitSha(
   };
 }
 
+/** Preserve optional batch lineage without inventing missing provenance. */
+function resolveBatchLineage() {
+  const batchId = process.env.JRIG_BATCH_ID?.trim();
+  return batchId
+    ? {
+        batch_id: batchId,
+        ...(process.env.JRIG_BATCH_SKILL_RELATIVE_PATH?.trim()
+          ? { batch_skill: process.env.JRIG_BATCH_SKILL_RELATIVE_PATH.trim() }
+          : {}),
+        ...(process.env.JRIG_BATCH_MANIFEST?.trim()
+          ? { batch_manifest: process.env.JRIG_BATCH_MANIFEST.trim() }
+          : {}),
+      }
+    : {};
+}
+
 /** Prepare invocation-owned resources once, before any model starts. */
 export async function prepareEvaluationInvocation(
   skillDir: string,
@@ -731,18 +747,7 @@ export async function prepareEvaluationInvocation(
   // lineage on both the machine-readable result and every emitted
   // Evidence Bundle row so downstream reports can group without
   // guessing from filenames.
-  const batchId = process.env.JRIG_BATCH_ID?.trim();
-  const batchLineage = batchId
-    ? {
-        batch_id: batchId,
-        ...(process.env.JRIG_BATCH_SKILL_RELATIVE_PATH?.trim()
-          ? { batch_skill: process.env.JRIG_BATCH_SKILL_RELATIVE_PATH.trim() }
-          : {}),
-        ...(process.env.JRIG_BATCH_MANIFEST?.trim()
-          ? { batch_manifest: process.env.JRIG_BATCH_MANIFEST.trim() }
-          : {}),
-      }
-    : {};
+  const batchLineage = resolveBatchLineage();
 
   // ── Deterministic self-test (opt-in) ─────────────────────────────
   // Run the skill's declared `self_test.command` ONCE (it is

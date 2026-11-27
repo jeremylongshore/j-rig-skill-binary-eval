@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  resolveProvider,
-  NoProviderError,
-  PROVIDER_REGISTRY,
-  AUTO_PICK_ORDER,
-} from "./providers.js";
+import { resolveProvider, NoProviderError, PROVIDER_REGISTRY, AUTO_PICK_ORDER } from "./index.js";
 
 /** A key long enough to clear the >= 8 length guard. */
 const KEY = "sk-test-key-1234";

@@ -22,18 +22,27 @@ importers:
       '@intentsolutions/core':
         specifier: 0.11.0
         version: 0.11.0
+      '@types/istanbul-lib-coverage':
+        specifier: 2.0.6
+        version: 2.0.6
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
       '@vitest/coverage-v8':
         specifier: 3.2.7
         version: 3.2.7(vitest@3.2.7(@types/debug@4.1.13)(@types/node@26.6.2)(tsx@4.21.0)(yaml@2.9.1))
+      ast-v8-to-istanbul:
+        specifier: 0.3.12
+        version: 0.3.12
       eslint:
         specifier: ^10.11.0
         version: 10.11.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      istanbul-lib-coverage:
+        specifier: 3.2.2
+        version: 3.2.2
       lint-staged:
         specifier: ^17.5.1
         version: 17.5.1
@@ -55,6 +64,9 @@ importers:
       typescript-eslint:
         specifier: ^8.70.1
         version: 8.70.1(eslint@10.11.0)(typescript@6.0.3)
+      vite:
+        specifier: 7.3.1
+        version: 7.3.1(@types/node@26.6.2)(tsx@4.21.0)(yaml@2.9.1)
       vitest:
         specifier: 3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@26.6.2)(tsx@4.21.0)(yaml@2.9.1)
@@ -1012,6 +1024,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/istanbul-lib-coverage@2.0.6':
+    resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -3147,6 +3162,8 @@ snapshots:
   '@types/estree@1.0.8': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/istanbul-lib-coverage@2.0.6': {}
 
   '@types/json-schema@7.0.15': {}
 

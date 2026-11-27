@@ -211,19 +211,19 @@ export function registerEmitEvidenceCommand(program: Command): void {
             ? JSON.stringify(statement.predicate)
             : serializeStatement(statement);
           writeOut(out, opts);
-          process.exit(0);
+          return process.exit(0);
         }
 
         // Signing mode: invoke cosign attest-blob over a synthetic blob whose
         // sha256 matches the predicate's input_hash.
         const exitCode = signAndEmit(statement, composed, opts);
-        process.exit(exitCode);
+        return process.exit(exitCode);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         process.stderr.write(`j-rig emit-evidence: ${msg}\n`);
         // Pre-write/validation failures always exit 1 regardless of --output.
         // signAndEmit's explicit 1/2/3 codes are left unchanged (P1 fix).
-        process.exit(1);
+        return process.exit(1);
       }
     });
 }
@@ -397,6 +397,15 @@ async function buildComposeInput(opts: EmitEvidenceOptions): Promise<ComposeStat
     throw new Error(`input is not valid JSON: ${(err as Error).message}`);
   }
 
+  return buildFromPipelineEnvelope(parsed, runner, commitSha);
+}
+
+/** Normalize an input envelope without synthesizing required provenance. */
+export function buildFromPipelineEnvelope(
+  parsed: Record<string, unknown>,
+  runner: string,
+  commitSha: string,
+): ComposeStatementInput {
   // Pipeline mode validates required keys strictly. The v1→v2 field RENAMES
   // (result→gate_decision, timestamp→evaluated_at) are lossless mappings and
   // are supported for backward compat. The genuinely-NEW v2 fields (gate_name,

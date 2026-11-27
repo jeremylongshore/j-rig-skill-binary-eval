@@ -482,7 +482,13 @@ This repo participates in the **Intent Solutions Testing SOP** per `~/.claude/CL
 **Audit**: see `TEST_AUDIT.md` for measured coverage and remaining verification gaps.
 `pnpm run verify:workspace` checks workspace architecture and inventories the
 Vitest test corpus for advisory bias scanning; absent Gherkin features are N/A.
-TypeScript CRAP remains incomplete (bead `bd_000-projects-h08j.6.7`). See `000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md`.
+`pnpm run test:coverage:workspace` collects the complete declared production/test
+inventory. CI then runs `pnpm run verify:crap --provider .ci-crap-provider`
+against the immutable upstream source pin in `ci.yml`, enforcing complete
+measurement and the unchanged 30/15/10 limits. This CI-only provider is separate
+from the vendored harness and its release cycle. Coverage is a file-statement
+proxy over Vitest worker execution; see `TEST_AUDIT.md` for boundaries and
+`000-docs/010-TQ-SOPS-audit-harness-baseline-2026-05-01.md` for the baseline.
 
 **Upgrade**: `AUDIT_HARNESS_VERSION=vX.Y.Z curl -sSL https://raw.githubusercontent.com/jeremylongshore/audit-harness/main/install.sh | bash`. Or run `/sync-testing-harness` from any session.
 

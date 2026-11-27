@@ -6,7 +6,7 @@ import {
   hasMarker,
   findCommentWithMarker,
   type RenderableDecision,
-} from "./render.js";
+} from "./index.js";
 
 function allowDecision(): RenderableDecision {
   return {
