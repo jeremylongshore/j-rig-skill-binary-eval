@@ -2,9 +2,9 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { defaultCoverageInventory } from "./workspace-coverage-inventory.ts";
-import { sha256 } from "./workspace-coverage-contract.ts";
+import { coverageInputs, sha256 } from "./workspace-coverage-contract.ts";
 import { snapshot } from "./workspace-inventory.ts";
 
 function record(value: unknown): Record<string, unknown> {
@@ -110,6 +110,10 @@ export function measureWorkspaceCrap(
   const inventory = currentInventory(root);
   const coveragePath = join(coverage, "coverage-final.json");
   const coverageHash = sha256(readFileSync(coveragePath));
+  const inputs = coverageInputs(root, "vitest.config.ts", true);
+  if (!isDeepStrictEqual(collected.identity, inputs)) {
+    throw new Error("Coverage configuration, collector, runtime or dependency inputs changed");
+  }
   if (
     collected.complete !== true ||
     !matchesInventory(collected.inventory, inventory) ||
@@ -159,7 +163,8 @@ export function measureWorkspaceCrap(
   if (
     JSON.stringify(after) !== JSON.stringify(identity) ||
     JSON.stringify(currentInventory(root)) !== JSON.stringify(inventory) ||
-    sha256(readFileSync(coveragePath)) !== coverageHash
+    sha256(readFileSync(coveragePath)) !== coverageHash ||
+    !isDeepStrictEqual(coverageInputs(root, "vitest.config.ts", true), inputs)
   ) {
     throw new Error("Strict measurement inputs changed while scoring");
   }

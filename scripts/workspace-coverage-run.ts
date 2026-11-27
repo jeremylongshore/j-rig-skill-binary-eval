@@ -3,22 +3,19 @@ import type { CoverageInventory } from "./workspace-coverage-inventory.ts";
 import { noRuntimeSources } from "./workspace-coverage-types.ts";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { snapshot } from "./workspace-inventory.ts";
-import { CollectionError, sha256, writePrivate } from "./workspace-coverage-contract.ts";
+import {
+  CollectionError,
+  coverageInputs,
+  sha256,
+  writePrivate,
+} from "./workspace-coverage-contract.ts";
 import type { CoverageManifest } from "./workspace-coverage-contract.ts";
 import { reconcileCoverage } from "./workspace-coverage-convert.ts";
 
@@ -117,50 +114,7 @@ export default async (environment) => {
 };\n`,
       { mode: 0o600 },
     );
-    const providerRequire = createRequire(import.meta.url);
-    const providers = Object.fromEntries(
-      ["ast-v8-to-istanbul", "istanbul-lib-coverage", "vite", "typescript"].map((name) => {
-        const entry = providerRequire.resolve(name);
-        let folder = dirname(entry);
-        while (!existsSync(join(folder, "package.json"))) {
-          const parent = dirname(folder);
-          if (parent === folder) throw new CollectionError("Missing provider package identity");
-          folder = parent;
-        }
-        const packagePath = join(folder, "package.json");
-        const metadata = JSON.parse(readFileSync(packagePath, "utf8"));
-        return [
-          name,
-          {
-            version: metadata.version as string,
-            entrySha256: bind(entry),
-            packageSha256: bind(packagePath),
-          },
-        ];
-      }),
-    );
-    Object.assign(identity, {
-      nodeVersion: process.version,
-      nodeSha256: bind(process.execPath),
-      vitestVersion: JSON.parse(readFileSync(vitestPackage, "utf8")).version as string,
-      vitestPackageSha256: bind(vitestPackage),
-      configSha256: bind(resolve(root, options.configFile)),
-      inventorySupportSha256: bind(join(scripts, "workspace-inventory.ts")),
-      inventoryMode: defaultInventory ? "repository-default/v1" : "explicit",
-      ...(defaultInventory
-        ? { workspaceLayoutSha256: bind(join(root, "pnpm-workspace.yaml")) }
-        : {}),
-      ...(existsSync(join(root, "pnpm-lock.yaml"))
-        ? { lockSha256: bind(join(root, "pnpm-lock.yaml")) }
-        : {}),
-      providers,
-      collector: Object.fromEntries(
-        ["contract", "setup", "reporter", "convert", "run", "types", "inventory"].map((name) => [
-          name,
-          bind(join(scripts, `workspace-coverage-${name}.ts`)),
-        ]),
-      ),
-    });
+    Object.assign(identity, coverageInputs(root, options.configFile, defaultInventory, bind));
 
     noRuntimeExclusions = noRuntimeSources(manifest);
     const exitCode = await new Promise<number | null>((done, reject) => {

@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { sha256 } from "./workspace-coverage-contract.ts";
+import { coverageInputs, sha256 } from "./workspace-coverage-contract.ts";
 import { measureWorkspaceCrap } from "./workspace-crap.ts";
 
 let root: string;
@@ -43,6 +43,7 @@ function receipt(entries = inventory, complete = true) {
     JSON.stringify({
       complete,
       inventory: entries,
+      identity: coverageInputs(root, "vitest.config.ts", true),
       coverageSha256: sha256(readFileSync(join(root, "coverage/workspace/coverage-final.json"))),
     }),
   );
@@ -51,6 +52,8 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "jrig-strict-adapter-"));
   provider = join(root, "provider");
   execFileSync("git", ["init", "--quiet", root]);
+  symlinkSync(join(import.meta.dirname, "../node_modules"), join(root, "node_modules"), "dir");
+  write(join(root, "vitest.config.ts"), "export default { test: {} };\n");
   write(join(root, "pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n");
   write(join(root, "packages/a/package.json"), '{"name":"fixture-a"}');
   write(join(root, inventory[0].path), "export function actual() { return 1; }\n");
@@ -76,6 +79,21 @@ raise SystemExit(config['exit'])
   configure(result());
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+it("refuses configuration-only drift without launching the scorer", () => {
+  write(join(root, "vitest.config.ts"), "export default { test: { isolate: false } };\n");
+  expect(() => measureWorkspaceCrap(root, provider)).toThrow("inputs changed");
+  expect(() => readFileSync(join(provider, "argv.json"))).toThrow();
+});
+
+it("refuses a receipt from older collector code without source/test changes", () => {
+  const path = join(root, "coverage/workspace/collection.json");
+  const saved = JSON.parse(readFileSync(path, "utf8"));
+  saved.identity.collector.convert = "0".repeat(64);
+  write(path, JSON.stringify(saved));
+  expect(() => measureWorkspaceCrap(root, provider)).toThrow("inputs changed");
+  expect(() => readFileSync(join(provider, "argv.json"))).toThrow();
+});
 
 it("passes every literal current source/test path and retains provider identities", () => {
   expect(measureWorkspaceCrap(root, provider)).toMatchObject({ complete: true, pass: true });
