@@ -258,3 +258,11 @@ a separately pinned audit-harness verifier. CI runs it under the required Test
 job. Its Python coverage is outside the TypeScript workspace measurement;
 passing replay fixtures do not estimate production false-block rates. See
 [the pilot](examples/skill-gates/README.md) for installation and evidence limits.
+
+## Historical October traceability audit
+
+The [2026-10-19 audit](tests/AUDIT-2026-10-19.md) and its scoped [RTM](tests/RTM.md),
+[personas](tests/PERSONAS.md) and [journeys](tests/JOURNEYS.md) retain their exact
+`e3119f4` observation baseline. Their missing-measurement findings predate the
+November workspace architecture, native coverage and strict CRAP implementation
+described above; they do not replace this newer record or certify current coverage.
