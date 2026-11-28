@@ -1,6 +1,6 @@
 {
   "schema": "audit-harness/skill-gates/v1",
-  "mode": "observe",
+  "mode": "enforce",
   "skill": "verify-skill-gates",
   "inputs": [
     "scripts/skill-gates-claude.py",
