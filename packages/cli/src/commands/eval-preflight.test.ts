@@ -14,6 +14,7 @@ import {
 const opts = { models: " flag-a, flag-b " };
 const spec = { models: ["spec-a", "spec-b"], samples: 3 };
 const env = { DEEPSEEK_API_KEY: "fixture-not-a-real-key" };
+// The subprocess remains bounded at 10s; its test allows 15s for startup and cleanup.
 // Exercise current CLI wiring even when a caller has stale bundled output.
 const tsxLoader = createRequire(import.meta.url).resolve("tsx");
 
@@ -103,44 +104,48 @@ describe("eval preflight", () => {
       error: '--samples must be a positive integer, got "2.5"',
     },
     { flags: ["--max-usd", "bad"], error: '--max-usd must be a positive number, got "bad"' },
-  ])("refuses $error before opening the database", ({ flags, error }) => {
-    const root = mkdtempSync(join(tmpdir(), "jrig-spec-preflight-"));
-    try {
-      const db = join(root, "must-not-exist.db");
-      const cli = fileURLToPath(new URL("../index.ts", import.meta.url));
-      const skill = fileURLToPath(new URL("../../../../skill", import.meta.url));
-      const result = spawnSync(
-        process.execPath,
-        [
-          // Match the version constant normally injected by tsup.
-          "--import",
-          'data:text/javascript,globalThis.__CLI_VERSION__="preflight-test"',
-          "--import",
-          tsxLoader,
-          cli,
-          "eval",
-          skill,
-          "--spec",
-          join(skill, "eval.yaml"),
-          "--provider",
-          "stub",
-          "--db",
-          db,
-          ...flags,
-        ],
-        {
-          encoding: "utf8",
-          env: { PATH: process.env.PATH, J_RIG_ALLOW_STUB: "1" },
-          timeout: 10_000,
-        },
-      );
-      expect(result.status, result.stderr).toBe(1);
-      expect(result.stderr.trim()).toBe(`Error: ${error}`);
-      expect(existsSync(db)).toBe(false);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
+  ])(
+    "refuses $error before opening the database",
+    ({ flags, error }) => {
+      const root = mkdtempSync(join(tmpdir(), "jrig-spec-preflight-"));
+      try {
+        const db = join(root, "must-not-exist.db");
+        const cli = fileURLToPath(new URL("../index.ts", import.meta.url));
+        const skill = fileURLToPath(new URL("../../../../skill", import.meta.url));
+        const result = spawnSync(
+          process.execPath,
+          [
+            // Match the version constant normally injected by tsup.
+            "--import",
+            'data:text/javascript,globalThis.__CLI_VERSION__="preflight-test"',
+            "--import",
+            tsxLoader,
+            cli,
+            "eval",
+            skill,
+            "--spec",
+            join(skill, "eval.yaml"),
+            "--provider",
+            "stub",
+            "--db",
+            db,
+            ...flags,
+          ],
+          {
+            encoding: "utf8",
+            env: { PATH: process.env.PATH, J_RIG_ALLOW_STUB: "1" },
+            timeout: 10_000,
+          },
+        );
+        expect(result.status, result.stderr).toBe(1);
+        expect(result.stderr.trim()).toBe(`Error: ${error}`);
+        expect(existsSync(db)).toBe(false);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+    15_000,
+  );
   it("refuses execution options before loading missing skills, MCP or opening DB", () => {
     const root = mkdtempSync(join(tmpdir(), "jrig-preflight-"));
     try {
@@ -178,5 +183,5 @@ describe("eval preflight", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });
