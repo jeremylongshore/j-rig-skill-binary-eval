@@ -152,7 +152,7 @@ jobs:
 
       - name: MiniMax ${{ matrix.lane }} review
         if: ${{ steps.prompt.outputs.skip == 'false' }}
-        uses: jeremylongshore/minimax-code-review@58867f12dd52362fefda74f4d3c48541f1784e2f
+        uses: jeremylongshore/minimax-code-review@cfb2c7219a813a9c1dd51ca8b98f977bc51cc7bb
         with:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_MODEL: ${{ vars.MINIMAX_MODEL || 'MiniMax-M3' }}

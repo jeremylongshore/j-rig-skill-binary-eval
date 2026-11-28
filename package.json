@@ -47,7 +47,7 @@
     "@eslint/js": "^9.39.5",
     "@intentsolutions/core": "0.11.0",
     "@types/istanbul-lib-coverage": "2.0.6",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "5.0.5",
     "ast-v8-to-istanbul": "0.3.12",
     "eslint": "^10.11.0",
