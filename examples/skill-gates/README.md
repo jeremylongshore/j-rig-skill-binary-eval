@@ -1,8 +1,9 @@
 # Skill compliance pilot
 
 This opt-in example connects the deterministic audit-harness verifier to Claude
-Code. Nothing installs globally or changes rollout policy. The example starts in
-observe mode; its tool deny list applies in either mode while a pilot is active.
+Code. Explicitly invoking the installed skill activates enforcement for that
+session.
+The tool deny list applies while the pilot is active.
 
 ## Prepare
 
@@ -13,7 +14,8 @@ The initial reviewed provider is commit
 `25c476e1b5e192442ecd19c6e6df75c3e7de16ab`, with source digest
 `239e0b10dc486d35296a7520150cb347d02ee65216ac1d2c09adc7ccf8fa6da4`.
 Set an absolute provider path and its independently reviewed SHA256 before
-starting Claude Code from this repository root:
+starting Claude Code from this repository root. Keep the verifier inside its
+checkout because the report reads the adjacent repository package metadata:
 
 ```bash
 export IEP_SKILL_GATE_PROVIDER=/absolute/reviewed/audit-harness/scripts/skill-gates.py
@@ -80,8 +82,12 @@ violations by independent replay; logs cannot infer those labels. Measure hook
 latency separately. Repeated stops are correlated observations, not independent
 weekly samples; never present a raw skip count without its denominator.
 
-After representative positive and negative replay plus manual false-block review,
-change `mode` to `enforce` in a reviewed policy edit. Missing positive evidence
+The reviewed policy uses `enforce`. To trial a different task or host, start
+with a reviewed `observe` policy and repeat the controls before promotion.
+To roll this skill back to observation, change `mode` in `gates.json` to
+`observe`. Run `pnpm run harness:init` followed by `pnpm run harness:verify`,
+review the policy and corresponding manifest entry together, and begin a fresh
+session with the reviewed version. Missing positive evidence
 then blocks `Stop` with exit 2. `PostToolUse` observes but never converts a tool's
 claimed success into evidence. PreToolUse denies exact listed tool names even
 in observe mode. This is a workflow deny list, not a shell or network sandbox:
