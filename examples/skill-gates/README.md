@@ -1,7 +1,8 @@
 # Skill compliance pilot
 
 This opt-in example connects the deterministic audit-harness verifier to Claude
-Code. Nothing installs globally or changes rollout policy. Explicitly invoking the installed skill activates enforcement for that session.
+Code. Explicitly invoking the installed skill activates enforcement for that
+session.
 The tool deny list applies while the pilot is active.
 
 ## Prepare
@@ -83,8 +84,10 @@ weekly samples; never present a raw skip count without its denominator.
 
 The reviewed policy uses `enforce`. To trial a different task or host, start
 with a reviewed `observe` policy and repeat the controls before promotion.
-To roll this skill back to observation, change only `mode` in `gates.json` to
-`observe` and begin a fresh session. Missing positive evidence
+To roll this skill back to observation, change `mode` in `gates.json` to
+`observe`. Run `pnpm run harness:init` followed by `pnpm run harness:verify`,
+review the policy and corresponding manifest entry together, and begin a fresh
+session with the reviewed version. Missing positive evidence
 then blocks `Stop` with exit 2. `PostToolUse` observes but never converts a tool's
 claimed success into evidence. PreToolUse denies exact listed tool names even
 in observe mode. This is a workflow deny list, not a shell or network sandbox:
