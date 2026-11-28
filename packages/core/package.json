@@ -30,6 +30,6 @@
     "@intentsolutions/refiner-core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.6"
   }
 }
