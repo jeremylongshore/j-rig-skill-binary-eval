@@ -10,6 +10,7 @@ export default tseslint.config(
         projectService: {
           allowDefaultProject: [
             "eslint.config.mjs",
+            "ci/node20-vitest/vitest.config.mjs",
             // Plain-JS CI driver — standalone, outside any tsconfig project.
             "eval-roster/*.mjs",
             "examples/generic-run/*.mjs",

@@ -56,6 +56,22 @@ export class CollectionError extends Error {}
 
 export const sha256 = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
+/** Explicit CI compatibility toolchain; never selected from a coverage receipt. */
+export function vitestProvider(root: string) {
+  const configured = process.env.JRIG_VITEST_PROVIDER_ROOT;
+  if (configured !== undefined && (!configured || configured !== configured.trim())) {
+    throw new CollectionError("Invalid explicit Vitest provider root");
+  }
+  const context = resolve(configured ?? root);
+  const caller = createRequire(join(context, "package.json"));
+  return {
+    caller,
+    context,
+    explicit: configured !== undefined,
+    packagePath: caller.resolve("vitest/package.json"),
+  };
+}
+
 /** The same current inputs are bound at collection and checked again before scoring. */
 export function coverageInputs(
   root: string,
@@ -64,8 +80,22 @@ export function coverageInputs(
   bind = (path: string) => sha256(readFileSync(path)),
 ) {
   const scripts = dirname(fileURLToPath(import.meta.url));
-  const caller = createRequire(join(root, "package.json"));
-  const vitestPackage = caller.resolve("vitest/package.json");
+  const selected = vitestProvider(root);
+  const vitestPackage = selected.packagePath;
+  const compatibility = selected.explicit
+    ? {
+        packageSha256: bind(join(selected.context, "package.json")),
+        lockSha256: bind(
+          join(
+            selected.context,
+            existsSync(join(selected.context, "package-lock.json"))
+              ? "package-lock.json"
+              : "pnpm-lock.yaml",
+          ),
+        ),
+        runnerSha256: bind(join(dirname(vitestPackage), "vitest.mjs")),
+      }
+    : undefined;
   const providerRequire = createRequire(import.meta.url);
   const providers = Object.fromEntries(
     ["ast-v8-to-istanbul", "istanbul-lib-coverage", "vite", "typescript"].map((name) => {
@@ -93,6 +123,7 @@ export function coverageInputs(
     nodeSha256: bind(process.execPath),
     vitestVersion: JSON.parse(readFileSync(vitestPackage, "utf8")).version as string,
     vitestPackageSha256: bind(vitestPackage),
+    ...(compatibility ? { compatibilityProvider: compatibility } : {}),
     configSha256: bind(resolve(root, configFile)),
     inventorySupportSha256: bind(join(scripts, "workspace-inventory.ts")),
     inventoryMode: defaultInventory ? "repository-default/v1" : "explicit",

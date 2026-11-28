@@ -7,7 +7,6 @@ export default defineConfig({
     // The suite launches real CLI/MCP children. Bound worker fan-out on large
     // shared dev hosts; callers can explicitly override with --maxWorkers.
     maxWorkers: 2,
-    minWorkers: 1,
     include: testScopes.map(({ glob }) => glob),
     coverage: {
       provider: "v8",
