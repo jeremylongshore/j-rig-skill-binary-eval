@@ -247,9 +247,13 @@ jobs:
         with:
           node-version: "20.20.2"
 
+      - name: Install locked Node.js 20 compatibility test provider
+        run: npm ci --ignore-scripts --prefix ci/node20-vitest
+
       - name: Workspace verification on Node.js 20
+        env:
+          JRIG_VITEST_PROVIDER_ROOT: ${{ github.workspace }}/ci/node20-vitest
         run: |
-          pnpm exec vitest run \
-            scripts/workspace-architecture.test.ts scripts/workspace-quality.test.ts \
-            scripts/workspace-coverage*.test.ts scripts/workspace-crap.test.ts
+          node ci/node20-vitest/node_modules/vitest/vitest.mjs run \
+            --config ci/node20-vitest/vitest.config.mjs
           pnpm run verify:workspace

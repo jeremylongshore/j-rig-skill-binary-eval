@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
-pnpm monorepo with nine workspace packages. **Five `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, format:check, typecheck, and tests on Node 22.
+pnpm monorepo with nine workspace packages. **Five `@intentsolutions/*` packages are published to npm** — the three Refiner/rollout libraries plus the **`@intentsolutions/jrig-cli`** eval CLI (the `j-rig` command). The CLI is the leaf binary: it BUNDLES the private `@j-rig/{core,db,migrate}` eval-engine packages into its published artifact so external repos can `npm install` a working CLI without resolving any unpublished `@j-rig/*` package (the `@j-rig` scope 403s on publish; the npm key owns `@intentsolutions`). The remaining `@j-rig/*` packages stay internal/unpublished. CI runs lint, format:check, typecheck, and tests on Node 22. Root development uses matched Vitest/coverage-v8 5.0.5 on `^22.12.0 || ^24.0.0 || >=26.0.0`. The CLI retains Node 20 runtime support; the locked `ci/node20-vitest` provider preserves its separate Node 20.20.2 workspace regression lane. Explicit provider identities are recorded in native coverage receipts.
 
 | Package | Scope | Published? | Role |
 | --- | --- | --- | --- |

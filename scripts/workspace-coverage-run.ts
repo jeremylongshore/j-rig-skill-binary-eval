@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { snapshot } from "./workspace-inventory.ts";
@@ -15,6 +14,7 @@ import {
   coverageInputs,
   sha256,
   writePrivate,
+  vitestProvider,
 } from "./workspace-coverage-contract.ts";
 import type { CoverageManifest } from "./workspace-coverage-contract.ts";
 import { reconcileCoverage } from "./workspace-coverage-convert.ts";
@@ -87,8 +87,12 @@ export async function collectWorkspaceCoverage(options: CollectionOptions) {
     chmodSync(directory, 0o700);
     writePrivate(directory, "manifest.json", manifest);
     const scripts = dirname(fileURLToPath(import.meta.url));
-    const caller = createRequire(join(root, "package.json"));
-    const vitestPackage = caller.resolve("vitest/package.json");
+    const selected = vitestProvider(root);
+    const vitestPackage = selected.packagePath;
+    const aliases = selected.explicit
+      ? `const existingAliases = Array.isArray(original.resolve?.alias) ? original.resolve.alias : Object.entries(original.resolve?.alias || {}).map(([find, replacement]) => ({find, replacement}));
+  const resolveOptions = {...original.resolve, alias: [{find: /^vitest$/, replacement: ${JSON.stringify(join(dirname(vitestPackage), "dist/index.js"))}}, ...existingAliases]};`
+      : "const resolveOptions = original.resolve;";
     const config = join(directory, "vitest.config.mjs");
     const basePath = pathToFileURL(resolve(root, options.configFile)).href;
     // Compose public config only. Preserve the project's fixtures/plugins and
@@ -98,12 +102,13 @@ export async function collectWorkspaceCoverage(options: CollectionOptions) {
       `import base from ${JSON.stringify(basePath)};
 export default async (environment) => {
   const original = await (typeof base === 'function' ? base(environment) : base);
+  ${aliases}
   const test = original.test || {};
   if (test.projects || test.workspace || test.browser?.enabled || test.isolate === false ||
       (test.sequence?.hooks && test.sequence.hooks !== 'stack')) throw new Error('Unsupported coverage lifecycle configuration');
   const setup = test.setupFiles ? [test.setupFiles].flat() : [];
   const reporters = test.reporters ? (Array.isArray(test.reporters) ? test.reporters : [test.reporters]) : ['default'];
-  return {...original, root: ${JSON.stringify(root)}, test: {...test,
+  return {...original, resolve: resolveOptions, root: ${JSON.stringify(root)}, test: {...test,
     include: ${JSON.stringify(inventory.test)}, exclude: [],
     setupFiles: [${JSON.stringify(join(scripts, "workspace-coverage-setup.ts"))}, ...setup],
     reporters: [...reporters, ${JSON.stringify(join(scripts, "workspace-coverage-reporter.ts"))}],

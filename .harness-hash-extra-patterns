@@ -43,6 +43,9 @@ pnpm-workspace.yaml
 packages/*/package.json
 # Exact-v1 incoming-verifier producer and its explicit runtime/test contract.
 ci/emit-evidence/sign-evidence.ts
+ci/node20-vitest/package.json
+ci/node20-vitest/package-lock.json
+ci/node20-vitest/vitest.config.mjs
 ci/emit-evidence/tests/sign-evidence.test.ts
 ci/emit-evidence/tests/deny-network.ts
 ci/emit-evidence/tests/migration-provenance.test.ts

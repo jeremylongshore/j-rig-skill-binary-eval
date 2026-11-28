@@ -26,6 +26,7 @@ function directory() {
   temporary.push(path);
   return path;
 }
+
 function fixture(interrupt = false) {
   const root = directory();
   symlinkSync(join(repository, "node_modules"), join(root, "node_modules"), "dir");
